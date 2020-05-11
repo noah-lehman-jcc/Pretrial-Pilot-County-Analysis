@@ -27,11 +27,7 @@ library(fuzzyjoin)
 
 # Function Creation
 ```{r}
-# name_keeper <- function(df){
-#   attr(df, "names_original") <- names(df)
-# }
 
-# rm(name_keeper)
 ```
 
 
