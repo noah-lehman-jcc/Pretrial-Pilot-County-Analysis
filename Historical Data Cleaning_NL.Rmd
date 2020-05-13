@@ -8,7 +8,7 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 
-knitr::opts_knit$set(root.dir = "C:/Work/PretrialAssessmentPilot")
+knitr::opts_knit$set(root.dir = "G:/Work/PretrialAssessmentPilot")
 ```
 
 # Libraries
@@ -1524,13 +1524,15 @@ nrow(court_no_book)/nrow(court_df)
 Jail Data
 ```{r}
 # Jail Bookings Data Import--- Los Angeles, 2015-01-01 to 2020-01-06
-  ## book_df contains one row per booking and includes information on the person as well as the time of booking and release. It contains no charge information.
-  ## Next time we need to simplify bookings to charges per booking and separately create a reference frame for court cases attached to each booking. Currently, all charges on a booking are associated with all court cases. This is incorrectr. 
+  ## book_df contains one row per booking/charge/courtcase combination and includes information on the person as well as the time of booking and release. Currently the charges are incorrectly duplicated across each court case. This is split apart after the names are standardized and the court cases have been separated out. 
+  # book_charge is constructed from book_df and contains one row per booking/charge combination and contains other information on the booking. LA has no booking type information.  
+  ## book_court is contrsucted from book_df contains one row per booking/courtcase combination. No other information is included.  
+
 
 ####
 
 # Jail Bookings--Historical and Q1
-  ## book_df contains one row per booking and includes information on the person as well as the time of booking and release. It contains no charge information.
+  ## book_df contains one row per booking/charge/courtcase combination and includes information on the person as well as the time of booking and release. Currently the charges are incorrectly duplicated across each court case. This is split apart after the name standardization.  
 book_df <- lapply(2015:2019, function(i){
   read_xlsx(paste0("Historical Data Submissions/Los Angeles/",i, "_data_fields_added.xlsx"))}) %>%
   bind_rows()
@@ -1546,32 +1548,17 @@ rm(book_df2)
 # Variable name standardization--See pg. xxx for more details. 
 names(book_df) <- c("last_name", "first_name", "dob", "race_original", "sex_original", "cdl_id", "cii", "arrest_date", "book_date", "book_num", "court_case_id", "arrest_charge_original", "arrest_charge_level_original", "release_date", "release_type_original", "bail")
 
-# Arrest Charge Standardization
-book_df <- book_df %>%
-  # mutate(attempt = if_else(grepl("664", arrest_charge_original), 1, 0)) %>%
-  # separate_rows(arrest_charge_original, sep = "\\\\|\\-|\\/") %>%
-  mutate(arrest_charge_level = if_else(!arrest_charge_level_original %in% c("F", "M", "I"), "Other", arrest_charge_level_original),
-         #|ALC|AUTO|PTT|GTA|ACC|BAT|RSD|PSN|RES|DD|COM|SHP|FDG
-         arrest_charge = gsub("-F|-M", "", arrest_charge_original),
-         arrest_charge = gsub("PC.*$", "PC", arrest_charge),
-         arrest_charge = gsub("VC.*$", "VC", arrest_charge),
-         arrest_charge = gsub("LA.*$", "LA", arrest_charge),
-         arrest_charge_code = str_extract(arrest_charge, "..$")) %>%
-  separate_rows(arrest_charge, sep = "-") %>%
-  mutate(arrest_charge_code = if_else(!arrest_charge_code %in% c("PC", "VC", "HS", "BP", "WI", "US"), "Other", arrest_charge_code),
-         arrest_charge = toupper(gsub("\\/|\\(|\\)| |\\.|\\.*|^[A-Z]*|\\\\.*|\\{|\\}|EX|\\+|[A-Z]{2}$","", arrest_charge))) %>%
-  unite(join_var, arrest_charge_level, arrest_charge_code, arrest_charge, remove = F)
+####
 
-load("Complete Charge Code Hierarchy.RData")
-
-book_df <- left_join(book_df, charge_hier, by = "join_var") %>%
-  mutate(felony_flag = if_else(arrest_charge_level == "F", 1, 0),
-         misd_flag = if_else(arrest_charge_level == "M", 1, 0)) %>%
-  rename_at(vars(contains("flag")), funs(paste0("arrest_", .))) 
+# Booking charges
+  ## book_charge is constructed from book_df and contains one row per booking/charge combination and contains other information on the booking. LA has no booking type information.  
+book_charge <- book_df %>%
+  select(-court_case_id) %>%
+  distinct()
 
 
-# Standardize Factors
-book_df <- book_df %>%
+# Standardize Factors--See pg. xxx for more details.
+book_charge <- book_charge %>%
   mutate(sex = case_when(sex_original %in% c("M") ~ "Male",
                          sex_original %in% c("F") ~ "Female"),
          
@@ -1596,6 +1583,64 @@ book_df <- book_df %>%
                                   release_type_original %in% c("PRET") ~ "Pretrial_Sup",
                                   T ~ "Other"))
 
+# Standardize Charges and join charge hierarchy--See pg. xxx for more details about this process. 
+book_charge <- book_charge %>%
+  # mutate(attempt = if_else(grepl("664", arrest_charge_original), 1, 0)) %>%
+  # separate_rows(arrest_charge_original, sep = "\\\\|\\-|\\/") %>%
+  mutate(arrest_charge_level = if_else(!arrest_charge_level_original %in% c("F", "M", "I"), "Other", arrest_charge_level_original),
+         #|ALC|AUTO|PTT|GTA|ACC|BAT|RSD|PSN|RES|DD|COM|SHP|FDG
+         arrest_charge = gsub("-F|-M", "", arrest_charge_original),
+         arrest_charge = gsub("PC.*$", "PC", arrest_charge),
+         arrest_charge = gsub("VC.*$", "VC", arrest_charge),
+         arrest_charge = gsub("LA.*$", "LA", arrest_charge),
+         arrest_charge_code = str_extract(arrest_charge, "..$")) %>%
+  separate_rows(arrest_charge, sep = "-") %>%
+  mutate(arrest_charge_code = if_else(!arrest_charge_code %in% c("PC", "VC", "HS", "BP", "WI", "US"), "Other", arrest_charge_code),
+         arrest_charge = toupper(gsub("\\/|\\(|\\)| |\\.|\\.*|^[A-Z]*|\\\\.*|\\{|\\}|EX|\\+|[A-Z]{2}$","", arrest_charge))) %>%
+  unite(join_var, arrest_charge_level, arrest_charge_code, arrest_charge, remove = F)
+
+load("Complete Charge Code Hierarchy.RData")
+
+book_charge <- left_join(book_charge, charge_hier, by = "join_var") %>%
+  mutate(felony_flag = if_else(arrest_charge_level == "F", 1, 0),
+         misd_flag = if_else(arrest_charge_level == "M", 1, 0)) %>%
+  rename_at(vars(contains("flag")), funs(paste0("arrest_", .))) 
+
+####
+
+# Booking court case matches
+    ## book_court is contrsucted from book_df contains one row per booking/courtcase combination. No other information is included.   
+book_court <- book_df %>%
+  select(book_num, court_case_id) %>%
+  distinct() %>%
+  filter(!is.na(court_case_id))
+```
+
+  Jail Collapse
+```{r}
+# Booking Collapse--See pg. xxx for more details about this process.
+  ## LA's court case information was previously seperated due to innaccurate duplicates. After the charges are collapsed, the court case information is reattached. 
+book_charge <- book_charge %>%
+  mutate(time_first_release = release_date - book_date) %>%
+  mutate(hierarchy = if_else(is.na(hierarchy), 1e6, as.numeric(hierarchy))) %>%
+  group_by(book_num) %>%
+  mutate(max_booktype = book_type[hierarchy == min(hierarchy)][1],
+         max_arrest_charge = arrest_charge[hierarchy == min(hierarchy)][1],
+         max_charge_description = master_charge_description[hierarchy == min(hierarchy)][1],
+         max_hier = min(hierarchy)) %>%
+  mutate_at(vars(contains("flag")), funs(if_else(is.na(.), 0, .))) %>%
+  mutate_at(vars(contains("flag")), funs("count" = sum(.))) %>%
+  mutate_at(vars(contains("flag")), max) %>%
+  filter(hierarchy == min(hierarchy)) %>%
+  ungroup() %>%
+  distinct(book_num, .keep_all = T) 
+
+book_df <- left_join(book_charge, book_court)
+```
+
+  Jail Diagnostics
+```{r eval=FALSE, include=FALSE}
+
 book_df %>%
   filter(cii == "A32188627") %>%
   # count(court_case_id)
@@ -1605,6 +1650,18 @@ book_df %>%
 
   filter(book_num == "4065590")
   add_count(book_num, court_case_id, join_var)
+
+
+# Diagnostics
+book_df %>%
+  distinct(book_num, court_case_id) %>%
+  arrange(book_num) %>%
+  group_by(book_num) %>%
+  add_count() %>%
+  filter(n > 1)
+
+book_df %>%
+  distinct(local_id, book_date)
   
 court_df %>%
   filter(grepl("4CA1459901|4CA1667601|5CA0613601", court_docket_id)) %>%
@@ -1637,41 +1694,7 @@ court_df %>%
 
 book_df %>%
   distinct(book_num)
-  
-```
 
-  Jail Collapse
-```{r}
-book_df <- book_df %>%
-  mutate(time_first_release = release_date - book_date) %>%
-  mutate(hierarchy = if_else(is.na(hierarchy), 1e6, as.numeric(hierarchy))) %>%
-  group_by(book_num, book_date) %>%
-  mutate(max_booktype = book_type[hierarchy == min(hierarchy)][1],
-         max_arrest_charge = arrest_charge[hierarchy == min(hierarchy)][1],
-         max_charge_description = master_charge_description[hierarchy == min(hierarchy)][1],
-         max_hier = min(hierarchy)) %>%
-  mutate_at(vars(contains("flag")), funs(if_else(is.na(.), 0, .))) %>%
-  mutate_at(vars(contains("flag")), funs("count" = sum(.))) %>%
-  mutate_at(vars(contains("flag")), max) %>%
-  group_by(book_num, court_case_id) %>%
-  filter(hierarchy == min(hierarchy)) %>%
-  ungroup() %>%
-  distinct(book_num, court_case_id, .keep_all = T) 
-
-# Diagnostics
-# book_df %>%
-#   distinct(book_num, court_case_id) %>%
-#   arrange(book_num) %>%
-#   group_by(book_num) %>%
-#   add_count() %>%
-#   filter(n > 1)
-# 
-# book_df %>%
-#   distinct(local_id, book_date) 
-```
-
-  Jail Diagnostics
-```{r eval=FALSE, include=FALSE}
 book_df %>%
   count(arrest_charge_level_original) %>%
   arrange(desc(n))
