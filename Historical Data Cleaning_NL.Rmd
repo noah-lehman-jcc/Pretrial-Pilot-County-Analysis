@@ -8,7 +8,7 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 
-knitr::opts_knit$set(root.dir = "G:/Work/PretrialAssessmentPilot")
+knitr::opts_knit$set(root.dir = "C:/Work/PretrialAssessmentPilot")
 ```
 
 # Libraries
@@ -29,7 +29,6 @@ library(fuzzyjoin)
 ```{r}
 
 ```
-
 
 # Charge Hierarchy Creation
 
@@ -1048,9 +1047,13 @@ court_plea <- court_charge %>%
   ## Currently whatever is in the top row of sentence type is filtered. E.g. if the first row is "Jail" and the second is "Prison", "Jail" will be the selected row. However, confinement is always given priority over any type of supervision because court_sent contains sentences to confinment and and court_sent2 contains sentences to supervision.  
 court_sent <- bind_rows(court_sent, court_sent2) %>%
   arrange(sentence_date) %>%
+  mutate(sentence_type = ordered(sentence_type, levels = c("Other", "Probation", "Jail", "Prison"))) %>% 
+  group_by(court_case_id) %>%
+  mutate(sentence_type = max(sentence_type)) %>%
+  ungroup() %>%
   distinct(court_case_id, .keep_all = T) %>%
   select(court_case_id, sentence_date, sentence_type_original, sentence_type)
-
+  
 
 # All data is joined.
 court_df <- reduce(list(court_dispo, court_df, court_fta_war, court_hearing, court_plea, court_sent), left_join, by = "court_case_id") %>%
@@ -1765,22 +1768,28 @@ book_df %>%
 
 Court Data
 ```{r}
-# Court Information Historical and Q1
+# Court cases
+  ## court_cases contains one row per court case and includes some basic information about the court case
 court_df <- fread("Historical Data Submissions/Los Angeles/JCC-historical-court-cases2.csv",
                   sep = "|")
 
-# original_field <- names(court_df)
-
+# Variable name standardization--See pg. xxx for more details. 
 names(court_df) <- c("row_num", "court_case_id", "court_docket_id", "local_id", "cii", "first_name", "last_name", "dob", "sex_original", "race_original", "file_date", "charge_id", "count", "court_charge_code_original", "court_charge_original", "court_charge_level_original", "disposition_id", "disposition_type_original", "disposition_code", "disposition_date", "sentence_time", "fine_amt", "sentence_time_code", "sentence_location", "fine_or_jail_code", "probation_code", "probation_length", "probation_length_code", "probation_andor_code", "book_num")
 
-# original_df[[2]] <- tibble(table_name = "court_df", original_field = original_field, modified_field = names(court_df))
 
-#Court Charge Standardization
+# Date Reformatting--See pg. xxx for more details.
+court_cases <- court_cases %>%
+  mutate_at(vars(contains("date"), dob), as_date)
+
+# Charge Standardization and Flag Adds--See pg. xxx for more details.
   ## LAs use of "/" doesn't actually appear to be separate charges. This should be checked with the lawyers. E.g. (242/243 B is only one charge)
+  ## Follow up with Lawyers on "/" and special allegations.
+  ## WHen LA uses & this means the charge is followed by a special allegatioin. "/" is used differently. It indicates a special allegation, and attempt, or a generic form of the same charge. THese are flagged and removed. 
 court_df <- court_df %>%
-  mutate(attempt = if_else(grepl("664/", court_charge_original), 1, 0),
-         court_charge = gsub("664/", "", court_charge_original)) %>% 
-  separate_rows(court_charge, sep = "/|&|\\\\") %>%
+  mutate(special_allegation = if_else(grepl("666/|667/|&.*", court_charge_original), 1, 0),
+         attempt = if_else(grepl("664/", court_charge_original), 1, 0),
+         court_charge = gsub("666/|667/|&.*|664/", "", court_charge_original)) %>% 
+  # separate_rows(court_charge, sep = "/|&|\\\\") %>%
   mutate_at(vars(contains("date"), dob), as_date) %>%
   mutate(court_charge_level = if_else(!court_charge_level_original %in% c("F", "M", "I"), "Other", court_charge_level_original),
          court_charge_code = if_else(!court_charge_code_original %in% c("PC", "VC", "HS", "BP", "WI", "US"), "Other", court_charge_code_original),
@@ -1802,7 +1811,7 @@ court_df <- court_df %>%
  
 
 
-# Factor Standardization
+# Standardize Factors--See pg. xxx for more details.
 court_df <- court_df %>%
   mutate(sex = case_when(sex_original %in% c("M") ~ "Male",
                          sex_original %in% c("F") ~ "Female",
@@ -1824,16 +1833,39 @@ court_df <- court_df %>%
 court_fta <- fread("Historical Data Submissions/Los Angeles/JCC-historical-bench-warrants2.csv", 
                    sep = "|")
 
-# original_field <- names(court_fta)
-
+# Variable name standardization--See pg. xxx for more details. 
 names(court_fta) <- c("row_num", "court_case_id", "court_docket_id", "fta_warrant_id", "fta_warrant_date", "fta_warrant_disposition_date")
 
-# original_df[[3]] <- tibble(table_name = "court_fta", original_field = original_field, modified_field = names(court_fta))
 
+# Date Reformatting--See pg. xxx for more details.
 court_fta <- court_fta %>%
   mutate_at(vars(contains("date")), as_date) %>%
   mutate(fta_flag = 1)
 
+court_df %>%
+  add_count(court_case_id, count) %>%
+  filter(n > 1)
+
+court_df %>%
+  # filter(court_case_id %in% court_case_id[court_charge_original == "242"])
+  filter(grepl("&|/|-", court_charge_original)) %>%
+  # filter(!grepl("242/|484\\(A\\)/|664/", court_charge_original)) %>%
+  count(court_charge_original, master_charge_description) %>%
+  arrange(desc(n))
+
+charge_hier %>%
+  filter(grepl("4902", join_var))
+
+court_df %>%
+  filter(grepl("484", court_charge_original)) %>%
+  count(court_charge_original) %>%
+  arrange(desc(n))
+  
+  filter(court_charge_level_original == "F")
+  count(court_charge_level_original)
+  
+charge_hier %>%
+    filter(grepl("1170", join_var))
 ```
  
   Court Collapse
