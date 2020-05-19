@@ -1845,27 +1845,6 @@ court_fta <- court_fta %>%
 court_df %>%
   add_count(court_case_id, count) %>%
   filter(n > 1)
-
-court_df %>%
-  # filter(court_case_id %in% court_case_id[court_charge_original == "242"])
-  filter(grepl("&|/|-", court_charge_original)) %>%
-  # filter(!grepl("242/|484\\(A\\)/|664/", court_charge_original)) %>%
-  count(court_charge_original, master_charge_description) %>%
-  arrange(desc(n))
-
-charge_hier %>%
-  filter(grepl("4902", join_var))
-
-court_df %>%
-  filter(grepl("484", court_charge_original)) %>%
-  count(court_charge_original) %>%
-  arrange(desc(n))
-  
-  filter(court_charge_level_original == "F")
-  count(court_charge_level_original)
-  
-charge_hier %>%
-    filter(grepl("1170", join_var))
 ```
  
   Court Collapse
@@ -1901,6 +1880,27 @@ court_df <- court_df %>%
   
   Court Diagnostics
 ```{r eval=FALSE, include=FALSE}
+
+court_df %>%
+  # filter(court_case_id %in% court_case_id[court_charge_original == "242"])
+  filter(grepl("&|/|-", court_charge_original)) %>%
+  # filter(!grepl("242/|484\\(A\\)/|664/", court_charge_original)) %>%
+  count(court_charge_original, master_charge_description) %>%
+  arrange(desc(n))
+
+charge_hier %>%
+  filter(grepl("4902", join_var))
+
+court_df %>%
+  filter(grepl("484", court_charge_original)) %>%
+  count(court_charge_original) %>%
+  arrange(desc(n))
+  
+  filter(court_charge_level_original == "F")
+  count(court_charge_level_original)
+  
+charge_hier %>%
+    filter(grepl("1170", join_var))
 
 court_df %>%
   count(court_charge_original) %>%
@@ -1953,6 +1953,9 @@ court_df %>%
 
 Probation (assessment) Data
 ```{r}
+# Risk Assessments
+  ## Talk with LA about how many people receive multiple risk assessments (both BD and arraignment release an EM). Why do they receive multiple different risk scores.  
+
 #OR Risk Assessment--Arraignment Favorable, Ineligible, and Unfavorable--Historical to Q1
 assess_OR <- read_excel("Historical Data Submissions/Los Angeles/Los Angeles County JCC Data - Arraignment Favorable Recommendations (2015-01 to 2019-09).xlsx")
 
@@ -2121,6 +2124,23 @@ assess_df <- assess_df %>%
                                                                                                           "Favorable - Alcohol Monitoring", "Court-Ordered EM"), 1, 0),
          condition_em_flag = if_else(tool_name == "Modified Wisconsin" & release_recommendation_original %in% c("Electronic Monitoring"), 1, 0),
          rec_release_flag = if_else(release_recommendation %in% c("Favorable", "Suitable", "Found", "Granted"), 1, 0))
+
+
+assess_df %>%
+  filter(!is.na(risk_score)) %>%
+  add_count(cii) %>%
+  filter(n > 1) %>%
+  select(cii, tool_name, assessment_date_time, release_decision, release_decision_original, release_conditions, risk_score) %>%
+  arrange(assessment_date_time, cii) %>%
+  View()
+
+assess_df %>%
+  group_by(tool_name) %>%
+  count(tool_response1)
+
+assess_EM_response %>%
+  filter(tool_question == "DEFENDANT IDENTIFICATION") %>%
+  count(score)
 ```
 
   Assessment Collapase
