@@ -1735,7 +1735,7 @@ Jail Data
 setwd("G:/CrimJustice/PretrialAssessmentPilot")
 
 # Jail Bookings Data Import--- Napa, 
-  ## person_df contains one row per person (local_id) with demographic information on the person
+  ## person_df contains one row per person (local_id) with demographic information on the person, Napa has an integrated criminal justice system, so this is just a person table, without any booking or event information
   ## book_df
   ## book_charge
   ## 
@@ -1744,8 +1744,9 @@ setwd("G:/CrimJustice/PretrialAssessmentPilot")
 ####
 
 
-#Jail Demographic and Personal Identification
+#Integrated criminal justice Demographic and Personal Identification
   ## person_df contains one row per person (local_id) with demographic information on the person
+  ## Napa has an integrated criminal justice system, so this is just a person table, without any booking or event information
 person_df <- read_excel("Historical Data Submissions/Napa/Historical_1-15-2020.xlsx", sheet = 1)
 
 
@@ -1779,21 +1780,13 @@ book_df <- read_excel("Historical Data Submissions/Napa/Historical_1-15-2020_Upd
 names(book_df) <- c("book_num", "court_case_id", "arrest_date", "local_id", "book_type_original", "book_date", "release_date", "release_type_original", "occurrence_id", "warrant_id", "case_num", "occurrence_type_id")
 
 
-
 # Date Reformatting (as well as booking sequence and courtcase_id)--See pg. xxx for more details.
 book_df <- book_df %>%
   mutate(release_date = convertToDate(release_date)) %>%
   mutate_at(vars(arrest_date, book_date),  funs("time" = convertToDateTime(.))) %>%
   mutate_at(vars(arrest_date, book_date), convertToDate)
 
-book_df %>%
-  add_count(book_num, court_case_id, book_date) %>%
-  filter(n>1) %>%
-  arrange(desc(n)) 
 
-book_df %>%
-  distinct(occurrence_id)
-```
 # Standardize Factors--See pg. xxx for more details.
 book_df <- book_df %>%
   mutate(book_type = case_when(book_type_original %in% c("New Crime") ~ "On_View",
@@ -1824,6 +1817,8 @@ book_df <- book_df %>%
 
 
 #Jail Booking Charges 
+  ## book_charge contains one row per charge, a combination of book_num, court_case_id, and arrest_charge. Some rows are duplicated exactly, need to follow up with Napa to determine if this is a data duplication error or represents multiple counts of the same charge.
+  ## book_charge need to look at probation violations, charges are included in book_charge for old cases, but should be fine because we will catch with filter for dispo date earlier than book date.
 book_charge <- read_excel("Historical Data Submissions/Napa/Historical_1-15-2020_Update.xlsx", sheet = 2, col_types = "text")
 
 
@@ -1867,6 +1862,7 @@ book_charge <- book_charge %>%
          )
 
 ```
+
 
 Jail Collapse
 ```{r}
@@ -2290,7 +2286,11 @@ court_fta <- court_fta %>%
 #   unique()# %>%
 #   #write.xlsx(file = "qualifier_codes_for_Noah_Napa_Court.xlsx")
 
+
+
 ```
+
+
 
 Court Diagnostics
 ```{r eval=FALSE, include=FALSE}
