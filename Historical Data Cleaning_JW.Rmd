@@ -3,6 +3,12 @@ title: "R Notebook"
 output: html_notebook
 ---
 
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = T)
+
+knitr::opts_knit$set(root.dir = "G:/CrimJustice/PretrialAssessmentPilot")
+```
+
 # library
 ```{r include=FALSE}
 library(data.table)
@@ -292,9 +298,8 @@ court_charge <- court_charge %>%
 # Charge Standardization and Flag Adds--See pg. xxx for more details.
 court_charge <- court_charge %>%
   mutate(attempt_flag = if_else(grepl("664/", court_charge_original), 1, 0),
-         court_charge = gsub("664/", "", court_charge_original)) %>%
-  separate_rows(court_charge, sep = "/") %>%
-  mutate(court_charge_code = gsub("[0-9].*", "", charge_description),
+         court_charge = gsub(".*/", "", court_charge_original),
+         court_charge_code = gsub("[0-9].*", "", charge_description),
          court_charge_code = case_when(
            grepl("PC", court_charge_code, ignore.case = T) ~ "PC",
            grepl("VC", court_charge_code, ignore.case = T) ~ "VC",
@@ -523,7 +528,7 @@ court_dispo <- court_dispo %>%
   ungroup() %>%
   distinct(court_case_id, .keep_all = T)
 
-# Court Ftas are not separate from warrants
+# Court FTAs are collapsed to each case.
 court_fta_war <- court_fta_war %>%
   arrange(fta_warrant_date) %>%
   group_by(court_case_id) %>%
@@ -534,36 +539,41 @@ court_fta_war <- court_fta_war %>%
   distinct(court_case_id, .keep_all = T) %>%
   select(-c(fta_description))
 
+# Court hearings are filtered for arraignment information and collapsed to court case id.
 court_hearing <- court_hearing %>%
   filter(hearing_type == "Arraignment") %>%
   arrange(hearing_date) %>%
   rename(arraignment_date = hearing_date) %>%
   distinct(court_case_id, .keep_all = T) %>%
-  select(court_case_id, case_num, arraignment_date)
+  select(court_case_id, court_docket_id, arraignment_date)
 
+# collapse pleas by case
+  ## we are keeping the earliest plea date, but adding a guilty plea flag in case they later changed their plea
 court_plea <- court_charge %>%
+  filter(!is.na(plea_date)) %>%
   arrange(plea_date) %>%
-  mutate(guilty_flag = if_else(plea_type == "Guilty", 1, 0)) %>%
+  mutate(guilty_plea_flag = if_else(plea_type %in% c("Guilty", "Nolo_Contendere"), 1, 0)) %>%
   group_by(court_case_id) %>%
-  filter(guilty_flag == 1|sum(guilty_flag) == 0) %>%
+  mutate(guilty_plea_flag = max(guilty_plea_flag)) %>%
   ungroup() %>%
   distinct(court_case_id, .keep_all = T) %>%
-  select(court_case_id, plea_date = disposition_date, plea_type = disposition_type)
+  select(court_case_id, court_docket_id, plea_date, plea_type, guilty_plea_flag)
 
+# collapse sentences by case --See pg. xxx for more details about this process.
+  ## Sentences to confinement and probation were initially separate and are now joined.
 court_sent <- court_sent %>%
+  bind_rows(court_probation) %>%
   arrange(sentence_date) %>%
-  distinct(court_case_id, .keep_all = T) %>%
-  select(court_case_id, case_num, sentence_date, sentence_type_original, sentence_type)
+  mutate(sentence_type = ordered(sentence_type, levels = c("Other", "Probation", "Jail", "Prison"))) %>%
+  group_by(court_case_id) %>%
+  mutate(sentence_type = max(sentence_type)) %>%
+  ungroup() %>%
+  distinct(court_case_id, .keep_all = T)
 
-court_probation <- court_probation %>%
-  arrange(sentence_date) %>%
-  distinct(court_case_id, .keep_all = T) %>%
-  select(court_case_id, case_num, sentence_date, sentence_type_original, sentence_type)
-
-court_df <- reduce(list(court_person, court_dispo, court_fta_war, court_hearing, court_plea, court_sent, court_probation), left_join, by = "court_case_id") %>%
+court_df <- reduce(list(court_person, court_dispo, court_fta_war, court_hearing, court_plea, court_sent), left_join, by = "court_case_id") %>%
   select(-contains(".x.x"), -contains(".y")) %>%
   rename_at(vars(contains(".x")), funs(gsub("\\.x", "", .))) %>%
-  mutate(final_disposition_date = if_else(disposition_date <= sentence_date|is.na(sentence_date), disposition_date, sentence_date),
+  mutate(pretrial_end_date = if_else(disposition_date <= sentence_date|is.na(sentence_date), disposition_date, sentence_date),
          # conviction_flag = if_else(!is.na(sentence_date), 1, 0))
          conviction_flag = if_else(disposition_type %in% c("Guilty","Nolo_Contendere"), 1, 0))
 ```
@@ -966,11 +976,14 @@ write.xlsx(factor_df, file = "G:/CrimJustice/PretrialAssessmentPilot/Code Books/
 
 Jail Data
 ```{r}
-# Jail Bookings Data Import--- Modoc, 
+# Jail Bookings Data Import--- Modoc, 2013-01-01 to 2019-12-31
+  ## There are a few book dates before 2013.
+  ## book_df contains one row per booking after duplicate rows are removed and contains information about the booking including demographic and charge information. Currently, the charges are separated by semicolons within in the charge field, but we separate_rows to make each row a unique booking charge combination.
 
 ####
 
 # Booking data
+  ## book_df contains one row per booking after duplicate rows are removed and contains information about the booking including demographic and charge information. Currently, the charges are separated by semicolons within in the charge field, but we separate_rows to make each row a unique booking charge combination.
 book_df <- fread("Historical Data Submissions/Modoc/Modoc Jail Pretrial  January 1 2013-November 30 2019.csv")
 
   ## The first 7 observations are test inputs
@@ -986,6 +999,16 @@ rm(book_df_q1)
 
 # Variable name standardization--See pg. xxx for more details.
 names(book_df) <- c("book_date", "book_num", "arrest_date", "cii", "fbi", "local_id", "name", "dob", "sex_original", "race_original", "cdl_id", "employment_status", "book_type_original", "arrest_charge_original", "arrest_charge_level_original", "bail_amt", "release_date", "release_type_original")
+
+# Removing duplicates
+  ## Some of the bookings contain duplicate rows with empty fields and are removed.
+book_df <- book_df %>%
+  group_by(book_num) %>%
+  mutate_all(max) %>%
+  distinct() %>%
+  add_count(book_num) %>%
+  filter(n > 1) %>%
+  arrange(desc(n))
 
 # Date Reformatting--See pg. xxx for more details.
 book_df <- book_df %>%
@@ -1051,7 +1074,16 @@ book_df <- book_df %>%
          arrest_charge = gsub("h/s|h&s", "HS", arrest_charge, ignore.case = T),
          arrest_charge = gsub("/", ";", trimws(arrest_charge)),
          arrest_charge = gsub("\v", ";", trimws(arrest_charge), ignore.case = T),
-         arrest_charge = gsub(", , , ,  |, ,  |, ", ";", arrest_charge)) %>%
+         arrest_charge = gsub(", , , ,  |, ,  |, ", ";", arrest_charge),
+         arrest_charge_code = case_when(
+           grepl("PC", arrest_charge, ignore.case = T) ~ "PC",
+           grepl("VC", arrest_charge, ignore.case = T) ~ "VC",
+           grepl("HS", arrest_charge, ignore.case = T) ~ "HS",
+           grepl("BP", arrest_charge, ignore.case = T) ~ "BP",
+           grepl("WI", arrest_charge, ignore.case = T) ~ "WI",
+           grepl("US", arrest_charge, ignore.case = T) ~ "US",
+           T ~ "Other"
+         )) %>%
   separate_rows(arrest_charge, sep = ";") %>%
   mutate(arrest_charge_code = case_when(
            grepl("PC", arrest_charge, ignore.case = T) ~ "PC",
@@ -1060,9 +1092,9 @@ book_df <- book_df %>%
            grepl("BP", arrest_charge, ignore.case = T) ~ "BP",
            grepl("WI", arrest_charge, ignore.case = T) ~ "WI",
            grepl("US", arrest_charge, ignore.case = T) ~ "US",
-           T ~ "Other"
-         ),
-         arrest_charge = toupper(gsub("\\/|\\(|\\)| |\\.|\\.*|^[A-Z]*|\\\\.*|\\{|\\}|\\*|#", "", arrest_charge)),
+           T ~ arrest_charge_code
+         )) %>%
+  mutate(arrest_charge = toupper(gsub("\\/|\\(|\\)| |\\.|\\.*|^[A-Z]*|\\\\.*|\\{|\\}|\\*|#", "", arrest_charge)),
          arrest_charge = str_remove(arrest_charge, arrest_charge_code),
          # These variables did not match the initial hierarchy. Check if they match the new hierarchy after the joining.
          arrest_charge_code = if_else(arrest_charge == "240", "PC", arrest_charge_code),
@@ -1082,6 +1114,7 @@ book_df <- book_df %>%
 load("Complete Charge Code Hierarchy.RData")
 
 book_df <- book_df %>%
+  unite(join_var, arrest_charge_level, arrest_charge_code, arrest_charge, remove = F) %>%
   left_join(charge_hier) %>%
   mutate(felony_flag = if_else(arrest_charge_level == "F", 1, 0),
          misd_flag = if_else(arrest_charge_level == "M", 1, 0)) %>%
@@ -1094,9 +1127,9 @@ book_df <- book_df %>%
 # book_df <- left_join(book_df, book_charge) dont need all data in one sheet
 
 book_df <- book_df %>%
-   # mutate(time_first_release = release_date_time - book_date_time) %>%
+  # mutate(time_first_release = release_date_time - book_date_time) %>%
   mutate(hierarchy = if_else(is.na(hierarchy), 1e6, as.numeric(hierarchy))) %>%
-  group_by(book_num, book_date) %>%
+  group_by(book_num) %>%
   mutate(max_booktype = book_type[hierarchy == min(hierarchy)][1],
          max_arrest_charge = arrest_charge[hierarchy == min(hierarchy)][1],
          max_charge_description = master_charge_description[hierarchy == min(hierarchy)][1],
@@ -1107,7 +1140,7 @@ book_df <- book_df %>%
   group_by(book_num, book_date) %>%
   filter(hierarchy == min(hierarchy)) %>%
   ungroup() %>%
-  distinct(book_num, book_date, .keep_all = T) 
+  distinct(book_num, .keep_all = T) 
 ```
 
   Jail Diagnostics
@@ -1157,7 +1190,14 @@ book_df %>%
 
 Court Data 
 ```{r}
-# Court Case Data Import--- Modoc, 
+# Court Case Data Import--- Modoc, 2015-01-06 to 2019-12-30
+  ## court_df contains one row per booking after duplicate rows are removed and contains information about the court case including information about relevant dates.
+  ## court_charge contains one row per court case and charge combination, as well as information on each of the charges. Initially, it also duplicated information when a charge had multiple disposition dates. The first date is taken.
+  ## court_sent contains one row per court_case_id and sentence event. Initially, it also duplicated rows based on charge. Charge information is deduplicated and removed as it is redundant with the court_charge table.
+  ## court_hearing contains one row per court_case_id and hearing event.
+  ## court_person contains one row per person, court case, arrest number, and booking number combination.
+  ## court_fta contains one row per FTA event.
+  ## court_fta_war contains one row per FTA event with a bench warrant issued.
 
 ####
 
@@ -1174,6 +1214,14 @@ rm(court_df_q1)
 
 # Variable name standardization--See pg. xxx for more details.
 names(court_df) <- c("court_case_id", "name", "disposition_type_original", "disposition_date", "filing_date", "case_type")
+
+# Removing duplicates
+  ## Some of the court data contain duplicate rows with missing fields and are removed.
+court_df <- court_df %>%
+  add_count(court_case_id) %>%
+  filter(n > 1) %>%
+  arrange(disposition_date) %>%
+  distinct(court_case_id, .keep_all = T)
 
 # Date Reformatting--See pg. xxx for more details.
 court_df <- court_df %>%
@@ -1192,6 +1240,7 @@ court_df <- court_df %>%
 ####
 
 # Court Filing Charges
+  ## court_charge contains one row per court case and charge combination, as well as information on each of the charges. Initially, it also duplicated information when a charge had multiple disposition dates. The first date is taken.
 court_charge <- read_excel("Historical Data Submissions/Modoc/Modoc Pretrial Assessment Information.xls", sheet = 2)
 
 court_charge_q1 <- read_excel("Historical Data Submissions/Modoc/Modoc Pretrial Assessment Information_2nd quarter_2019_2020.xls", sheet = 2)
@@ -1227,23 +1276,22 @@ court_charge <- court_charge %>%
 
 # Charge Standardization and Flag Adds--See pg. xxx for more details.
 court_charge <- court_charge %>%
-  mutate(attempt_flag = if_else(grepl("664", court_charge_original), 1, 0),
-         court_charge = if_else(grepl("^PC664$|664/[A-Z]", court_charge_original), gsub("PC664/|PC664", "", court_charge_original), gsub("664/", "", court_charge_original))) %>%
-  separate_rows(court_charge, sep = "/") %>%
   mutate(court_charge_code = case_when(
-    grepl("PC", court_charge, ignore.case = T) ~ "PC",
-    grepl("VC", court_charge, ignore.case = T) ~ "VC",
-    grepl("HS", court_charge, ignore.case = T) ~ "HS",
-    grepl("BP", court_charge, ignore.case = T) ~ "BP",
-    grepl("WI", court_charge, ignore.case = T) ~ "WI",
-    grepl("US", court_charge, ignore.case = T) ~ "US",
+    grepl("PC", court_charge_original, ignore.case = T) ~ "PC",
+    grepl("VC", court_charge_original, ignore.case = T) ~ "VC",
+    grepl("HS", court_charge_original, ignore.case = T) ~ "HS",
+    grepl("BP", court_charge_original, ignore.case = T) ~ "BP",
+    grepl("WI", court_charge_original, ignore.case = T) ~ "WI",
+    grepl("US", court_charge_original, ignore.case = T) ~ "US",
     T ~ "Other"
   ),
-  court_charge = gsub("^\\D+", "", court_charge),
+  attempt_flag = if_else(grepl("664/", court_charge_original), 1, 0),
+  court_charge = gsub(".*/", "", court_charge_original),
+  # court_charge = gsub("^\\D+", "", court_charge),
   court_charge = toupper(gsub("\\/|\\(|\\)| |\\.|\\.*|^[A-Z]*|\\\\.*|\\{|\\}", "", court_charge)),
   # These variables did not match the initial hierarchy. Check if they match the new hierarchy after the joining.
-  court_charge_code = if_else(court_charge %in% c("460B", "488", "460A"), "PC", court_charge_code),
   court_charge = if_else(court_charge == "29800A", "29800A2", court_charge),
+  court_charge_code = if_else(court_charge == "11360B", "HS", court_charge_code),
   court_charge_level = case_when(
     grepl("Felony", court_charge_level_original) ~ "F",
     grepl("Misdemeanor", court_charge_level_original) ~ "M",
@@ -1255,6 +1303,7 @@ court_charge <- court_charge %>%
 load("Complete Charge Code Hierarchy.RData")
 
 court_charge <- court_charge %>%
+  unite(join_var, court_charge_level, court_charge_code, court_charge, remove = F) %>%
   left_join(charge_hier) %>%
   mutate(felony_flag = if_else(court_charge_level == "F", 1, 0),
          misd_flag = if_else(court_charge_level == "M", 1, 0)) %>%
@@ -1262,43 +1311,34 @@ court_charge <- court_charge %>%
   mutate_at(vars(contains("_flag")), funs("conviction" = if_else(disposition_type %in% c("Nolo_Contendere", "Guilty") & . == 1, 1, 0))) %>%
   rename_at(vars(contains("_conviction")), funs(paste0("conviction_", gsub("court_|_conviction", "", .))))
 
+# Removing duplicates
+  ## Some of the court data contain duplicate rows with missing fields and are removed.
+court_charge <- court_charge %>%
+  arrange(disposition_date) %>%
+  distinct(counts, court_case_id, join_var, .keep_all = T)
+
 ####
 
-# Court Sentences to Confinement
+# Court Sentences
+  ## court_sent contains one row per court_case_id and sentence event. Initially, it also duplicated rows based on charge. Charge information is deduplicated and removed as it is redundant with the court_charge table.
 court_sent <- read_excel("Historical Data Submissions/Modoc/Modoc Pretrial Assessment Information.xls", sheet = 3)
 
 court_sent_q1 <- read_excel("Historical Data Submissions/Modoc/Modoc Pretrial Assessment Information_2nd quarter_2019_2020.xls", sheet = 3)
 
+  ## Combining tables and deduplicating
 court_sent <- court_sent %>%
   bind_rows(court_sent_q1) %>%
+  select(-Count, -Violation) %>%
   distinct()
 
 rm(court_sent_q1)
 
 # Variable name standardization--See pg. xxx for more details.
-names(court_sent) <- c("court_case_id", "sentence_date", "sentence_type_original", "term", "term_suspended", "sentence_location", "sentence_status", "count", "court_charge_original")
+names(court_sent) <- c("court_case_id", "sentence_date", "sentence_type_original", "term", "term_suspended", "sentence_location", "sentence_status")
 
 # Date Reformatting--See pg. xxx for more details.
 court_sent <- court_sent %>%
   mutate(sentence_date = as_date(sentence_date))
-
-# Charge Standardization--See pg. xxx for more details.
-court_sent <- court_sent %>%
-  mutate(attempt_flag = if_else(grepl("664/", court_charge_original), 1, 0),
-         court_charge = if_else(grepl("664/[A-Z]", court_charge_original), gsub("PC664/", "", court_charge_original), gsub("664/", "", court_charge_original))) %>%
-  separate_rows(court_charge, sep = "/") %>%
-  mutate(court_charge_code = case_when(
-    grepl("PC", court_charge, ignore.case = T) ~ "PC",
-    grepl("VC", court_charge, ignore.case = T) ~ "VC",
-    grepl("HS", court_charge, ignore.case = T) ~ "HS",
-    grepl("BP", court_charge, ignore.case = T) ~ "BP",
-    grepl("WI", court_charge, ignore.case = T) ~ "WI",
-    grepl("US", court_charge, ignore.case = T) ~ "US",
-    T ~ "Other"
-  ),
-  court_charge = gsub("^\\D+", "", court_charge),
-  court_charge = toupper(gsub("\\/|\\(|\\)| |\\.|\\.*|^[A-Z]*|\\\\.*|\\{|\\}", "", court_charge))) %>%
-  distinct()
 
 # Standardize Factors--See pg. xxx for more details.
 # Double check about "Mandatory Supervision".
@@ -1313,6 +1353,7 @@ court_sent <- court_sent %>%
 ####
 
 # Court Hearings
+  ## court_hearing contains one row per court_case_id and hearing event.
 court_hearing <- read_excel("Historical Data Submissions/Modoc/Modoc Pretrial Assessment Information.xls", sheet = 4)
 
 court_hearing_q1 <- read_excel("Historical Data Submissions/Modoc/Modoc Pretrial Assessment Information_2nd quarter_2019_2020.xls", sheet = 4)
@@ -1342,25 +1383,8 @@ court_hearing <- court_hearing %>%
 
 ####
 
-# 
-court_lawyer <- read_excel("Historical Data Submissions/Modoc/Modoc Pretrial Assessment Information.xls", sheet = 5)
-
-court_lawyer_q1 <- read_excel("Historical Data Submissions/Modoc/Modoc Pretrial Assessment Information_2nd quarter_2019_2020.xls", sheet = 5)
-
-court_lawyer <- court_lawyer %>%
-  bind_rows(court_lawyer_q1) %>%
-  distinct()
-
-rm(court_lawyer_q1)
-
-names(court_lawyer) <- c("court_case_id", "lawyer_type", "appointment_date", "appointment_status", "appointment_end_date")
-
-court_lawyer <- court_lawyer %>%
-  mutate_at(vars(contains("date")), as_date)
-
-####
-
 # Court Person Information
+  ## court_person contains one row per person, court case, arrest number, and booking number combination.
 court_person <- read_excel("Historical Data Submissions/Modoc/Modoc Pretrial Assessment Information.xls", sheet = 6)
 
 court_person_q1 <- read_excel("Historical Data Submissions/Modoc/Modoc Pretrial Assessment Information_2nd quarter_2019_2020.xls", sheet = 6)
@@ -1383,33 +1407,16 @@ court_person <- court_person %>%
   mutate(race = if_else(!race_original %in% c("Hispanic", "Black", "White"), "Other_Unknown", race_original),
          sex = if_else(!sex_original %in% c("Female", "Male"), "Other_Unknown", sex_original))
 
-####
-
-# 
-court_bail <- read_excel("Historical Data Submissions/Modoc/Modoc Pretrial Assessment Information.xls", sheet = 7)
-
-court_bail_q1 <- read_excel("Historical Data Submissions/Modoc/Modoc Pretrial Assessment Information_2nd quarter_2019_2020.xls", sheet = 7)
-
-court_bail <- court_bail %>%
-  bind_rows(court_bail_q1) %>%
-  distinct()
-
-rm(court_bail_q1)
-
-# Variable name standardization--See pg. xxx for more details.
-names(court_bail) <- c("court_case_id", "release_type_original", "release_date", "bail_status", "bail_status_date")
-
-# Date Reformatting--See pg. xxx for more details.
-court_bail <- court_bail %>%
-  mutate_at(vars(contains("date")), as_date)
-
-# Standardize Factors--See pg. xxx for more details.
-court_bail <- court_bail %>%
-  mutate(release_type = "Bail_Bond")
+# Removing duplicates
+  ## Some of the court data contain duplicate rows with missing fields and are removed.
+court_person <- court_person %>%
+  arrange(desc(dob)) %>%
+  distinct(first_name, last_name, court_case_id, arrest_num, book_num, .keep_all = T)
 
 ####
 
 # Court FTAs
+  ## court_fta contains one row per FTA event.
 court_fta <- read_excel("Historical Data Submissions/Modoc/Modoc Pretrial Assessment Information.xls", sheet = 8)
 
 court_fta_q1 <- read_excel("Historical Data Submissions/Modoc/Modoc Pretrial Assessment Information_2nd quarter_2019_2020.xls", sheet = 8)
@@ -1436,6 +1443,7 @@ court_fta <- court_fta %>%
 ####
 
 # Court FTAs with Warrants
+  ## court_fta_war contains one row per FTA event with a bench warrant issued.
 court_fta_war <- read_excel("Historical Data Submissions/Modoc/Modoc Pretrial Assessment Information.xls", sheet = 9)
 
 court_fta_war_q1 <- read_excel("Historical Data Submissions/Modoc/Modoc Pretrial Assessment Information_2nd quarter_2019_2020.xls", sheet = 9)
@@ -1458,6 +1466,48 @@ court_fta_war <- court_fta_war %>%
   mutate(fta_flag = 1,
          fta_all_flag = 1) %>%
   rename_at(vars(contains("flag")), funs(paste0("court_", .)))
+
+#### NOT USED
+
+# # Court Bail Information
+# court_bail <- read_excel("Historical Data Submissions/Modoc/Modoc Pretrial Assessment Information.xls", sheet = 7)
+# 
+# court_bail_q1 <- read_excel("Historical Data Submissions/Modoc/Modoc Pretrial Assessment Information_2nd quarter_2019_2020.xls", sheet = 7)
+# 
+# court_bail <- court_bail %>%
+#   bind_rows(court_bail_q1) %>%
+#   distinct()
+# 
+# rm(court_bail_q1)
+# 
+# # Variable name standardization--See pg. xxx for more details.
+# names(court_bail) <- c("court_case_id", "release_type_original", "release_date", "bail_status", "bail_status_date")
+# 
+# # Date Reformatting--See pg. xxx for more details.
+# court_bail <- court_bail %>%
+#   mutate_at(vars(contains("date")), as_date)
+# 
+# # Standardize Factors--See pg. xxx for more details.
+# court_bail <- court_bail %>%
+#   mutate(release_type = "Bail_Bond")
+
+####
+
+# # Court Case Lawyer Information
+# court_lawyer <- read_excel("Historical Data Submissions/Modoc/Modoc Pretrial Assessment Information.xls", sheet = 5)
+# 
+# court_lawyer_q1 <- read_excel("Historical Data Submissions/Modoc/Modoc Pretrial Assessment Information_2nd quarter_2019_2020.xls", sheet = 5)
+# 
+# court_lawyer <- court_lawyer %>%
+#   bind_rows(court_lawyer_q1) %>%
+#   distinct()
+# 
+# rm(court_lawyer_q1)
+# 
+# names(court_lawyer) <- c("court_case_id", "lawyer_type", "appointment_date", "appointment_status", "appointment_end_date")
+# 
+# court_lawyer <- court_lawyer %>%
+#   mutate_at(vars(contains("date")), as_date)
 ```
 
   Court Collapse
@@ -1466,11 +1516,7 @@ court_fta_war <- court_fta_war %>%
 court_dispo <- court_charge %>%
   mutate(disposition_type = ordered(disposition_type, levels = c("Other", "Dismissed", "Not_Guilty", "Nolo_Contendere", "Guilty"))) %>%
   group_by(court_case_id) %>%
-  # Charges that have not been disposed of are removed
-  # filter(stage %in% c("DISPOSITION EVENT")) %>%
-  # select(-c(disposition_num, charge_id, charge_history_id, offense_id, disposition_hist_id, disposition_id, disposition_type_code, amend_reason_id, amend_reason)) %>%
   mutate(hierarchy = if_else(is.na(hierarchy), 1e6, as.numeric(hierarchy))) %>%
-  group_by(court_case_id) %>%
   mutate(disposition_date = max(disposition_date),
          disposition_type = max(disposition_type)) %>%
   mutate(max_court_charge_level = court_charge_level[hierarchy == min(hierarchy)][1],
@@ -1486,15 +1532,20 @@ court_dispo <- court_charge %>%
   distinct(court_case_id, .keep_all = T) %>%
   select(-c(plea_date, plea_type_original, plea_type))
 
-# Court Ftas are not separate from warrants
-court_fta_war <- court_fta_war %>%
+# Court FTAs with bench warrants issued and all court FTAs combined and collapsed
+court_fta <- bind_rows(court_fta, court_fta_war) %>%
+  select(-fta) %>%
+  group_by(court_case_id, fta_date) %>%
+  ## In some cases of discrepancies where one data point said a bench warrant issued and the other said held, we treated it as issued.
+  mutate(court_fta_flag = max(court_fta_flag)) %>%
+  distinct() %>%
   arrange(fta_date) %>%
   group_by(court_case_id) %>%
   mutate(court_fta_flag = max(court_fta_flag),
          fta_flag_count = sum(court_fta_flag)) %>%
-  distinct(court_case_id, .keep_all = T) %>%
-  select(-c(fta))
+  distinct(court_case_id, .keep_all = T)
 
+# Court hearings are filtered for arraignment information and collapsed to court case id.
 court_hearing <- court_hearing %>%
   filter(hearing_type == "Arraignment") %>%
   arrange(hearing_date) %>%
@@ -1503,24 +1554,32 @@ court_hearing <- court_hearing %>%
   distinct(court_case_id, .keep_all = T) %>%
   select(court_case_id, arraignment_date, arraignment_date_time)
 
+# collapse pleas by case
+  ## we are keeping the earliest plea date, but adding a guilty plea flag in case they later changed their plea
 court_plea <- court_charge %>%
+  filter(!is.na(plea_date)) %>%
   arrange(plea_date) %>%
-  mutate(guilty_flag = if_else(plea_type == "Guilty", 1, 0)) %>%
+  mutate(guilty_plea_flag = if_else(plea_type %in% c("Guilty", "Nolo_Contendere"), 1, 0)) %>%
   group_by(court_case_id) %>%
-  filter(guilty_flag == 1|sum(guilty_flag) == 0) %>%
+  mutate(guilty_plea_flag = max(guilty_plea_flag)) %>%
   ungroup() %>%
   distinct(court_case_id, .keep_all = T) %>%
-  select(court_case_id, plea_date = disposition_date, plea_type = disposition_type)
+  select(court_case_id, plea_date, plea_type, guilty_plea_flag)
 
+# collapse sentences by case --See pg. xxx for more details about this process.
+  ## Sentences to confinement and probation were initially separate and are now joined.
 court_sent <- court_sent %>%
   arrange(sentence_date) %>%
-  distinct(court_case_id, .keep_all = T) %>%
-  select(court_case_id, sentence_date, sentence_type_original, sentence_type)
+  mutate(sentence_type = ordered(sentence_type, levels = c("Other", "Probation", "Jail", "Prison"))) %>%
+  group_by(court_case_id) %>%
+  mutate(sentence_type = max(sentence_type)) %>%
+  ungroup() %>%
+  distinct(court_case_id, .keep_all = T)
 
-court_df2 <- reduce(list(court_df, court_dispo, court_fta_war, court_hearing, court_plea, court_sent), left_join, by = "court_case_id") %>%
+court_df <- reduce(list(court_df, court_dispo, court_fta, court_hearing, court_plea, court_sent), left_join, by = "court_case_id") %>%
   select(-contains(".x.x"), -contains(".y")) %>%
   rename_at(vars(contains(".x")), funs(gsub("\\.x", "", .))) %>%
-  mutate(final_disposition_date = if_else(disposition_date <= sentence_date|is.na(sentence_date), disposition_date, sentence_date),
+  mutate(pretrial_end_date = if_else(disposition_date <= sentence_date|is.na(sentence_date), disposition_date, sentence_date),
          # conviction_flag = if_else(!is.na(sentence_date), 1, 0))
          conviction_flag = if_else(disposition_type %in% c("Guilty","Nolo_Contendere"), 1, 0))
 ```
@@ -1549,6 +1608,13 @@ charge_hier %>%
 court_charge %>%
   filter(grepl("1170H5", join_var)) %>%
   count(court_charge_level_original, court_charge_original, charge_description)
+
+court_charge %>%
+  filter(grepl("/|&|\\\\", court_charge_original)) %>%
+  filter(!grepl("664", court_charge_original)) %>%
+  # mutate(court_charge_original = gsub("/.*", "", court_charge_original)) %>%
+  count(court_charge_original, charge_description) %>%
+  arrange(desc(n))
 ```
 
 Join
