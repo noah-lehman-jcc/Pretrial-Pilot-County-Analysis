@@ -2005,57 +2005,102 @@ book_charge %>%
 
 ```
 
-DA Data (contains filing dates)
+DA Data (only used to attach filing dates to the court data)
 ```{r}
+# DA Case Data Import--- Napa, **DATES**
+  ## da_df contains one row per court case and has information on the filing date and sometimes on case status (which is often just CJNet Migration)
+  ## da_charge
+  ## da_vop
+
+####
+
 
 #Filing Dates
+  ##da_df contains one row per court case and has information on the filing date and sometimes on case status (which is often just CJNet Migration)
 da_df <- read_excel("Historical Data Submissions/Napa/Historical_1-15-2020.xlsx", sheet = 4)
 
-original_field <- names(da_df)
 
+# Variable name standardization--See pg. xxx for more details.
 names(da_df) <- c("court_case_id", "local_id", "file_date", "case_status", "case_status_date")
 
-original_df[[3]] <- tibble(table_name = "da_df", original_field = original_field, modified_field = names(da_df))
 
+# Date Reformatting--See pg. xxx for more details.
 da_df <- da_df %>%
   mutate(file_date_time = file_date,
          case_status_date_time = case_status_date) %>%
   mutate_at(vars(file_date, case_status_date), as_date)
 
-#Da Charges
-da_charge <- read_excel("Historical Data Submissions/Napa/Historical_1-15-2020.xlsx", sheet = 5)
 
-original_field <- names(da_charge)
-
-names(da_charge) <- c("court_case_id", "local_id", "da_charge_original", "da_charge_level_original", "da_charge_description", "plea_type_original")
-
-original_df[[4]] <- tibble(table_name = "da_charge", original_field = original_field, modified_field = names(da_charge))
-
-da_charge <- da_charge %>%
-  mutate(da_charge = gsub("\\&|COMMITTING FE", "", da_charge_original),
-         da_charge_code = str_extract(da_charge, "..$"),
-         da_charge_code = if_else(!da_charge_code %in% c("PC", "VC", "HS", "BP", "WI", "US"), "Other", da_charge_code),
-         da_charge = gsub("..$", "", da_charge),
-         da_charge_level = if_else(grepl("^F", da_charge_level_original), "F", da_charge_level_original),
-         da_charge_level = if_else(!da_charge_level_original %in% c("F", "I", "M"), "Other", da_charge_level_original),
-         da_charge = toupper(gsub("\\/|\\(|\\)| |\\.|\\.*|^[A-Z]*|\\\\.*|\\{|\\}|EX|\\+|\\-","", da_charge))) %>%
-   filter(da_charge != "") %>%
-
-  unite(join_var, da_charge_level, da_charge_code, da_charge, remove = F) %>%
-  mutate(
-    join_var = case_when(
-      join_var == "M_PC_12033" ~ "Other_PC_12033",
-      join_var == "M_VC_23152AB" ~ "M_VC_23152B",
-      join_var == "M_VC_231035" ~ "Other_Other_231035",
-      T ~ join_var
-    )
-  )
-
-load("Complete Charge Code Hierarchy.RData")
-
-da_charge <- left_join(da_charge, charge_hier, by = "join_var")
+#### NOT USED
 
 
+# #Da Charges
+#   ##da_charge contains
+# da_charge <- read_excel("Historical Data Submissions/Napa/Historical_1-15-2020.xlsx", sheet = 5)
+# 
+# 
+# # Variable name standardization--See pg. xxx for more details.
+# names(da_charge) <- c("court_case_id", "local_id", "da_charge_original", "da_charge_level_original", "da_charge_description", "plea_type_original")
+# 
+# 
+# # Standardize Factors--See pg. xxx for more details.
+# da_charge <- da_charge %>%
+#   mutate(plea_type = case_when(plea_type_original %in% c("Admits", "Glty/NCPlea17b4", "Proven/True", "AdmitCount", "AdmitsVOP", "Acquitted") ~ "Guilty",
+#                                plea_type_original %in% c("DsmMODA", "DsmHrvWaiv", "Unprovn/NotTrue", "DsmOther", "Conv Jury", "DismCt") ~ "Not_Guilty",
+#                                plea_type_original %in% c("Glty/NCPlea", "Guilty/NC Plea 17b4") ~ "Nolo_Contendere",
+#                                plea_type_original %in% c("DrugDiversion", "Diversion") ~ "Other",
+#                                plea_type_original %in% c("NULL", "N/A") ~ "NA",
+#                                       T ~ "Other") )
+# 
+# 
+# # Charge Standardization and Flag Adds--See pg. xxx for more details.
+# da_charge <- da_charge %>%
+#   mutate(da_charge = gsub("\\&|COMMITTING FE", "", da_charge_original),
+#          da_charge_code = str_extract(da_charge, "..$"),
+#          da_charge_code = if_else(!da_charge_code %in% c("PC", "VC", "HS", "BP", "WI", "US"), "Other", da_charge_code),
+#          da_charge = gsub("..$", "", da_charge),
+#          da_charge_level = if_else(grepl("^F", da_charge_level_original), "F", da_charge_level_original),
+#          da_charge_level = if_else(!da_charge_level_original %in% c("F", "I", "M"), "Other", da_charge_level_original),
+#          da_charge = toupper(gsub("\\/|\\(|\\)| |\\.|\\.*|^[A-Z]*|\\\\.*|\\{|\\}|EX|\\+|\\-","", da_charge))) %>%
+#    filter(da_charge != "") %>%
+# 
+#   unite(join_var, da_charge_level, da_charge_code, da_charge, remove = F) %>%
+#   mutate(
+#     join_var = case_when(
+#       join_var == "M_PC_12033" ~ "Other_PC_12033",
+#       join_var == "M_VC_23152AB" ~ "M_VC_23152B",
+#       join_var == "M_VC_231035" ~ "Other_Other_231035",
+#       T ~ join_var
+#     )
+#   )
+# 
+# load("Complete Charge Code Hierarchy.RData")
+# 
+# da_charge <- left_join(da_charge, charge_hier, by = "join_var")
+# 
+# 
+# ####
+# 
+# 
+# #Da vop
+#   ##da_vop contains
+# da_vop <- read_excel("Historical Data Submissions/Napa/Historical_1-15-2020.xlsx", sheet = 6)
+# 
+# 
+# # Variable name standardization--See pg. xxx for more details.
+# names(da_vop) <- c("court_case_id", "local_id", "file_date_time", "case_status", "case_status_date_time")
+# 
+# 
+# # Date Reformatting--See pg. xxx for more details.
+# da_vop <- da_vop %>%
+#   mutate_at(vars(case_status_date_time), convertToDateTime) %>%
+#   mutate(case_status_date = as.Date(case_status_date_time),
+#          file_date = as.Date(file_date_time))
+
+```
+
+DA Diagnostic
+```{r}
 # Diagnostic Code for Charge Hierarchy
 # 1 - 7,901/267,372 = 97% non-match rate
 (1 - nrow(da_charge %>% filter(is.na(hierarchy)))/nrow(da_charge))*100
@@ -2083,55 +2128,74 @@ table(da_charge$da_charge_code_original)[order(table(da_charge$da_charge_code_or
 #   add_count() %>%
 #   filter(n > 1)
 
-
-#Da vop
-da_vop <- read_excel("Historical Data Submissions/Napa/Historical_1-15-2020.xlsx", sheet = 6)
-names(da_vop) <- c("court_case_id", "local_id", "file_date_time", "case_status", "case_status_date_time")
-
-da_vop <- da_vop %>%
-  mutate_at(vars(case_status_date_time), convertToDateTime) %>%
-  mutate(case_status_date = as.Date(case_status_date_time),
-         file_date = as.Date(file_date_time))
-
-
-#Factor Standardization
-da_charge <- da_charge %>%
-  mutate(plea_type = case_when(plea_type_original %in% c("Admits", "Glty/NCPlea17b4", "Proven/True", "AdmitCount", "AdmitsVOP", "Acquitted") ~ "Guilty",
-                               plea_type_original %in% c("DsmMODA", "DsmHrvWaiv", "Unprovn/NotTrue", "DsmOther", "Conv Jury", "DismCt") ~ "Not_Guilty",
-                               plea_type_original %in% c("Glty/NCPlea", "Guilty/NC Plea 17b4") ~ "Nolo_Contendere",
-                               plea_type_original %in% c("DrugDiversion", "Diversion") ~ "Other",
-                               plea_type_original %in% c("NULL", "N/A") ~ "NA",
-                                      T ~ "Other"),
-         
-         )
-
 da_charge %>% count(plea_type_original) %>% arrange(desc(n))
+
 
 ```
 
 
+
 Court Data
 ```{r}
+# Court Case Data Import--- Napa, 2015-01-05 to 2020-01-13
+  ## court_df contains 
+  ## court_charge
+  ## court_war
+  ## court_fta
+  ## court_hearing
+
+
+####
+
+
 #Court Data on FTAs
+  ## court_df contains
 court_df <- read_excel("Historical Data Submissions/Napa/Historical_1-15-2020.xlsx", sheet = 7)
 
-#original_field <- names(court_df)
 
+# Variable name standardization--See pg. xxx for more details. 
 names(court_df) <- c("court_case_id", "local_id", "fta", "fta_warrant")
 
-#original_df[[7]] <- tibble(table_name = "court_df", original_field = original_field, modified_field = names(court_df))
+
+# Flag Adds--See pg. xxx for more details.
+court_df <- court_df %>%
+  mutate(court_fta_flag = if_else(fta_warrant == "1", 1, 0),
+         court_fta_nowar_flag = if_else(fta == "1", 1, 0))
+
+
+####
 
 #Court Charges
+  ##court_charge contains
 court_charge <- read_excel("Historical Data Submissions/Napa/Historical_1-15-2020.xlsx", sheet = 8)
 
-#original_field <- names(court_charge)
 
+# Variable name standardization--See pg. xxx for more details. 
 names(court_charge) <- c("court_case_id", "local_id", "court_charge_original", "court_charge_description", "disposition_type_original", "disposition_date", "sentence_type_original", "sentence_date")
 
-#original_df[[8]] <- tibble(table_name = "court_charge", original_field = original_field, modified_field = names(court_charge))
 
+# Date Reformatting--See pg. xxx for more details.
 court_charge <- court_charge %>%
-  mutate_at(vars(contains("date")), convertToDate)%>%
+  mutate_at(vars(contains("date")), convertToDate)
+
+
+# Standardize Factors--See pg. xxx for more details.
+  ##there are a number of sentence types that are "probation or jail", put these as jail
+court_charge <- court_charge %>%
+  mutate(disposition_type = case_when(disposition_type_original %in% c("After hearing - Conviction - Sentenced-Plea of guilty/nolo c", "Plea of Guilty/Nolo", "Admit", "Before hearing - Conviction - Sentenced-Plea of guilty/nolo") ~ "Nolo_Contendere",
+                                      disposition_type_original %in% c("Dism: Motion of the People", "Before hearing - Other dismissal", "After hearing - Other dismissal", "Dism: Plea Negotiation/Harvey Waiver", "Dism: Not Included on Charging Document", "Dism: After Diversion/DEJ", "Dism: PC1385-Furtherance of Justice", "Dism: PC1203.4 Expungement", "Dism: Other Dismissal", "After hearing - Dismissal after diversion", "Not Held to Answer", "Dism: PC871-Court Found Insufficient Cause", "Dism: PC995-Accusation Set Aside", "Dism: PC1381/1381.5/1382-Delay; Not Timely", "After jury trial - Dismissal") ~ "Dismissed",
+                                      disposition_type_original %in% c("Found Not True", "After jury trial - Acquittal", "Found Not Guilty: Jury", "Found Not Guilty: Court") ~ "Not_Guilty",
+                                      disposition_type_original %in% c("Found True", "After jury trial - Conviction - Jury verdict of guilty", "Before hearing - Conviction - Bail forfeiture", "Court Finding of Guilt") ~ "Guilty",
+                                      T ~ "Other"),
+         
+         sentence_type = case_when(grepl("Prison", sentence_type_original) ~ "Prison",
+                                   grepl("Jail", sentence_type_original) ~ "Jail", 
+                                   grepl("Probation", sentence_type_original) ~ "Probation",
+                                   T ~ "Other") )
+
+
+# Charge Standardization and Flag Adds--See pg. xxx for more details.
+court_charge <- court_charge %>%
   mutate(qualifier_flag = if_else(grepl("^SA", court_charge_description), 1, 0),
          court_charge_code = gsub("SA: ", "", court_charge_description),
          court_charge_code = str_extract(court_charge_code, "^.."),
@@ -2154,6 +2218,159 @@ load("Complete Charge Code Hierarchy.RData")
 court_charge <- left_join(court_charge, charge_hier, by = "join_var")
 
 
+# Flag Adds--See pg. xxx for more details.
+court_charge <- court_charge %>%
+  mutate(felony_flag = if_else(court_charge_level == "F", 1, 0),
+         misd_flag = if_else(court_charge_level == "M", 1, 0)) %>%
+  mutate_at(vars(contains("flag")), funs("conviction" = if_else(. == 1 & disposition_type %in% c("Guilty", "Nolo_Contendere"), 1, 0))) %>%
+  rename_at(vars(contains("flag"), -contains("conviction")), funs(paste0("court_", .))) %>%
+  rename_at(vars(contains("conviction")), funs(paste0("conviction_", gsub("_conviction", "", .))))
+
+
+#De-duplicating rows
+  ## In Napa's data, some charges have multiple repeated rows, often only one of which contains the sentencing information. We believe these are duplicated data rather than additional counts (will check with Napa to confirm), so we are prioritizing keeping the row with the sentencing information.
+court_charge <- court_charge %>%
+  arrange(sentence_date, disposition_date, sentence_type_original, disposition_type_original) %>%
+  distinct(court_case_id, join_var, .keep_all = T)
+
+
+
+####
+
+
+#Court FTA Warrants
+  ## court_war contains one row per warrant, including warrants of various types. It includes information on the warrant date and type of warrant. FTA warrants can be identified here.
+court_war <- read_excel("Historical Data Submissions/Napa/Historical_1-15-2020.xlsx", sheet = 9)
+
+
+# Variable name standardization--See pg. xxx for more details. 
+names(court_war) <- c("court_case_id", "local_id", "war_date", "warrant_description", "warrant_code", "warrant_type")
+
+
+# Flag Adds--See pg. xxx for more details.
+court_war <- court_war %>%
+  mutate(court_fta_flag = if_else(grepl("FTA", warrant_type), 1, 0),
+         court_sup_vio_post_flag = if_else(warrant_type %in% c("PC1170-Viol Mandatory Supervision", "PC3000.08(f)-Violation Parole", "PC3455-Violation Post Release CS", "Violation of Probation-PC1203.2"), 1, 0))
+
+
+
+####
+
+
+#Court FTAs
+  ## court_fta contains one row per FTA event
+  ## contains some duplicates which are removed
+court_fta <- read_excel("Historical Data Submissions/Napa/Historical_1-15-2020.xlsx", sheet = 10) %>%
+  distinct()
+
+
+# Variable name standardization--See pg. xxx for more details. 
+names(court_fta) <- c("court_case_id", "local_id", "fta_date")
+
+
+# Flag Adds--See pg. xxx for more details.
+court_fta <- court_fta %>%
+  mutate(court_fta_all_flag = 1)
+
+
+
+####  THIS IS WHERE WE LEFT OFFFFFFF ##########################################################################################
+
+
+#Court Hearings
+  ## court_hearing contains
+court_hearing <- read_excel("Historical Data Submissions/Napa/Historical_1-15-2020.xlsx", sheet = 11)
+
+
+# Variable name standardization--See pg. xxx for more details. 
+names(court_hearing) <- c("court_case_id", "local_id", "hearing_date_time", "hearing_type_original")
+
+
+# Standardize Factors--See pg. xxx for more details.
+court_hearing <- court_hearing %>%
+  mutate(hearing_type = case_when(grepl("Arraignment", hearing_type_original) ~ "Arraignment",
+                                  hearing_type_original %in% c("Sentencing") ~ "Sentencing",
+                                  T ~ "Other"))
+
+summary(court_hearing$hearing_date)
+```
+
+
+Court Collapse
+```{r}
+
+# Court Charge Collapse--See pg. xxx for more details about this process. 
+court_dispo <- court_charge %>%
+  mutate(disposition_type = ordered(disposition_type, levels = c("Other", "Dismissed", "Not_Guilty", "Nolo_Contendere", "Guilty"))) %>%
+  group_by(court_case_id) %>%
+  #select(-c(disposition_num, charge_id, charge_history_id, offense_id, disposition_hist_id, disposition_id, disposition_type_code, amend_reason_id, amend_reason)) %>%
+  mutate(hierarchy = if_else(is.na(hierarchy), 1e6, as.numeric(hierarchy))) %>%
+  group_by(court_case_id) %>%
+  mutate(disposition_date = max(disposition_date),
+         disposition_type = max(disposition_type)) %>%
+  mutate(max_court_charge_level = court_charge_level[hierarchy == min(hierarchy)][1],
+         max_court_charge_code = court_charge_code[hierarchy == min(hierarchy)][1],
+         max_court_charge = court_charge[hierarchy == min(hierarchy)][1],
+         max_charge_description = master_charge_description[hierarchy == min(hierarchy)][1],
+         max_hier = min(hierarchy)) %>%
+  mutate_at(vars(contains("flag")), funs(if_else(is.na(.), 0, as.numeric(.)))) %>%
+  mutate_at(vars(contains("flag")), funs("count" = sum(.))) %>%
+  mutate_at(vars(contains("flag")), max) %>%
+  filter(hierarchy == min(hierarchy)) %>%
+  ungroup() %>%
+  distinct(court_case_id, .keep_all = T) 
+
+
+#Court Ftas are separate from warrants
+court_fta <- court_fta %>%
+  arrange(fta_date) %>%
+  group_by(court_case_id) %>%
+  mutate(court_fta_nowar_flag = max(court_fta_nowar_flag),
+         court_fta_nowar_flag_count = sum(court_fta_nowar_flag)) %>%
+  ungroup() %>%
+  distinct(court_case_id, .keep_all = T) 
+
+
+court_war <- court_war %>%
+  arrange(war_date) %>%
+  group_by(court_case_id) %>%
+  mutate(court_fta_flag = max(court_fta_flag),
+         court_fta_flag_count = sum(court_fta_flag),
+         court_sup_vio_post_flag = max(court_sup_vio_post_flag),
+         court_sup_vio_post_flag_count = sum(court_sup_vio_post_flag)) %>%
+  ungroup() %>%
+  distinct(court_case_id, .keep_all = T) %>%
+  select(-c(warrant_code, warrant_type, warrant_description))
+
+
+# Court hearings are filtered for arraignment information and collapsed to court case id. 
+court_hearing <- court_hearing %>%
+  filter(hearing_type == "Arraignment") %>%
+  rename(arraignment_date = hearing_date) %>%
+  arrange(arraignment_date) %>%
+  distinct(court_case_id, .keep_all = T) %>%
+  select(court_case_id, local_id, arraignment_date)
+
+# Court filings from DA data
+da_df <- da_df %>%
+  select(court_case_id, file_date)
+
+# All data is joined.
+court_df <- reduce(list(court_dispo, court_fta, court_war, court_hearing, da_df), left_join, by = "court_case_id") %>%
+  select(-contains(".y")) %>%
+  select(-contains(".x.x")) %>%
+  rename_at(vars(contains(".x")), funs(gsub("\\.x", "", .))) %>%
+  mutate(final_disposition_date = if_else(disposition_date <= sentence_date|is.na(sentence_date), disposition_date, sentence_date),
+         conviction_flag = if_else(disposition_type %in% c("Guilty","Nolo_Contendere"), 1, 0))
+
+
+
+```
+
+
+Court Diagnostics
+```{r eval=FALSE, include=FALSE}
+
 # Diagnostic Code for Charge Hierarchy
 # 1 - 7,901/267,372 = 97% non-match rate
 # (1 - nrow(court_charge %>% filter(is.na(hierarchy)))/nrow(court_charge))*100
@@ -2173,79 +2390,6 @@ court_charge <- left_join(court_charge, charge_hier, by = "join_var")
 # table(court_charge$court_charge)[order(table(court_charge$court_charge), decreasing = T)]
 # table(court_charge$court_charge_code_original)[order(table(court_charge$court_charge_code_original), decreasing = T)]
 # table(court_charge$court_charge_code_original)[order(table(court_charge$court_charge_code_original), decreasing = T)]
-
-
-#Court FTA Warrants
-court_war <- read_excel("Historical Data Submissions/Napa/Historical_1-15-2020.xlsx", sheet = 9)
-
-#original_field <- names(court_war)
-
-names(court_war) <- c("court_case_id", "local_id", "war_date", "warrant_description", "warrant_code", "warrant_type")
-
-#original_df[[9]] <- tibble(table_name = "court_war", original_field = original_field, modified_field = names(court_war))
-
-#Court FTAs
-court_fta <- read_excel("Historical Data Submissions/Napa/Historical_1-15-2020.xlsx", sheet = 10)
-
-#original_field <- names(court_fta)
-
-names(court_fta) <- c("court_case_id", "local_id", "fta_date")
-
-#original_df[[10]] <- tibble(table_name = "court_fta", original_field = original_field, modified_field = names(court_fta))
-
-#Court Hearings
-court_hearing <- read_excel("Historical Data Submissions/Napa/Historical_1-15-2020.xlsx", sheet = 11)
-
-#original_field <- names(court_hearing)
-
-names(court_hearing) <- c("court_case_id", "local_id", "hearing_date", "hearing_type_original")
-
-#original_df[[11]] <- tibble(table_name = "court_hearing", original_field = original_field, modified_field = names(court_hearing))
-
-
-#Standardize Factors
-
-court_charge <- court_charge %>%
-  mutate(disposition_type = case_when(disposition_type_original %in% c("After hearing - Conviction - Sentenced-Plea of guilty/nolo c", "Plea of Guilty/Nolo", "Admit", "Before hearing - Conviction - Sentenced-Plea of guilty/nolo") ~ "Nolo_Contendere",
-                                      disposition_type_original %in% c("Dism: Motion of the People", "Before hearing - Other dismissal", "After hearing - Other dismissal", "Dism: Plea Negotiation/Harvey Waiver", "Dism: Not Included on Charging Document", "Dism: After Diversion/DEJ", "Dism: PC1385-Furtherance of Justice", "Dism: PC1203.4 Expungement", "Dism: Other Dismissal", "After hearing - Dismissal after diversion", "Not Held to Answer", "Dism: PC871-Court Found Insufficient Cause", "Dism: PC995-Accusation Set Aside", "Dism: PC1381/1381.5/1382-Delay; Not Timely", "After jury trial - Dismissal") ~ "Dismissed",
-                                      disposition_type_original %in% c("Found Not True", "After jury trial - Acquittal", "Found Not Guilty: Jury", "Found Not Guilty: Court") ~ "Not_Guilty",
-                                      disposition_type_original %in% c("Found True", "After jury trial - Conviction - Jury verdict of guilty", "Before hearing - Conviction - Bail forfeiture", "Court Finding of Guilt") ~ "Guilty",
-                                      T ~ "Other"),
-         
-         sentence_type = case_when(grepl("Prison", sentence_type_original) ~ "Prison",
-                                   grepl("Jail", sentence_type_original) ~ "Jail", 
-                                   grepl("Probation", sentence_type_original) ~ "Probation",
-                                   T ~ "Other")
-         )
-
-#there are a number of sentence types that are probation or jail, put these as jail
-
-court_hearing <- court_hearing %>%
-  mutate(hearing_type = case_when(grepl("Arraignment", hearing_type_original) ~ "Arraignment",
-                                  hearing_type_original %in% c("Sentencing") ~ "Sentencing",
-                                  T ~ "Other"))
-
-# Flag Creation
-
-court_df <- court_df %>%
-  mutate(court_fta_flag = if_else(fta_warrant == "1", 1, 0),
-         court_fta_nowar_flag = if_else(fta == "1", 1, 0))
-
-court_charge <- court_charge %>%
-  mutate(felony_flag = if_else(court_charge_level == "F", 1, 0),
-         misd_flag = if_else(court_charge_level == "M", 1, 0)) %>%
-  mutate_at(vars(contains("flag")), funs("conviction" = if_else(. == 1 & disposition_type %in% c("Guilty", "Nolo_Contendere"), 1, 0))) %>%
-  rename_at(vars(contains("flag"), -contains("conviction")), funs(paste0("court_", .))) %>%
-  rename_at(vars(contains("conviction")), funs(paste0("conviction_", gsub("_conviction", "", .))))
-
-
-
-court_war <- court_war %>%
-  mutate(court_fta_flag = if_else(grepl("FTA", warrant_type), 1, 0),
-         court_sup_vio_post_flag = if_else(warrant_type %in% c("PC1170-Viol Mandatory Supervision", "PC3000.08(f)-Violation Parole", "PC3455-Violation Post Release CS", "Violation of Probation-PC1203.2"), 1, 0))
-
-court_fta <- court_fta %>%
-  mutate(court_fta_nowar_flag = 1)
 
 
 # court_charge %>% filter(grepl("Attempt|attempt", court_charge_description))
@@ -2273,13 +2417,6 @@ court_fta <- court_fta %>%
 #   #write.xlsx(file = "qualifier_codes_for_Noah_Napa_Court.xlsx")
 
 
-
-```
-
-
-
-Court Diagnostics
-```{r eval=FALSE, include=FALSE}
 court_charge %>%
   count(court_charge_original) %>%
   arrange(desc(n))
@@ -2305,10 +2442,8 @@ court_charge %>%
   group_by(court_charge) %>%
   add_count() %>%
   filter(n > 1)
-```
 
-Court Collapse
-```{r}
+
 # court_charges
 # 
 # court_charges %>%
@@ -2321,25 +2456,6 @@ Court Collapse
 # court_charges %>%
 #   filter(grepl("RV", court_docket_id))
 
-court_dispo <- court_charge %>%
-  mutate(disposition_type = ordered(disposition_type, levels = c("Other", "Dismissed", "Not_Guilty", "Nolo_Contendere", "Guilty"))) %>%
-  group_by(court_case_id) %>%
-  #select(-c(disposition_num, charge_id, charge_history_id, offense_id, disposition_hist_id, disposition_id, disposition_type_code, amend_reason_id, amend_reason)) %>%
-  mutate(hierarchy = if_else(is.na(hierarchy), 1e6, as.numeric(hierarchy))) %>%
-  group_by(court_case_id) %>%
-  mutate(disposition_date = max(disposition_date),
-         disposition_type = max(disposition_type)) %>%
-  mutate(max_court_charge_level = court_charge_level[hierarchy == min(hierarchy)][1],
-         max_court_charge_code = court_charge_code[hierarchy == min(hierarchy)][1],
-         max_court_charge = court_charge[hierarchy == min(hierarchy)][1],
-         max_charge_description = master_charge_description[hierarchy == min(hierarchy)][1],
-         max_hier = min(hierarchy)) %>%
-  mutate_at(vars(contains("flag")), funs(if_else(is.na(.), 0, as.numeric(.)))) %>%
-  mutate_at(vars(contains("flag")), funs("count" = sum(.))) %>%
-  mutate_at(vars(contains("flag")), max) %>%
-  filter(hierarchy == min(hierarchy)) %>%
-  ungroup() %>%
-  distinct(court_case_id, .keep_all = T) 
   
   # court_charges %>%
   #   count(disposition_type)
@@ -2351,47 +2467,11 @@ court_dispo <- court_charge %>%
 #   filter(!is.na(disposition_date)) %>%
 #   distinct(court_case_id)
 
-#Court Ftas are separate from warrants
-court_fta <- court_fta %>%
-  arrange(fta_date) %>%
-  group_by(court_case_id) %>%
-  mutate(court_fta_nowar_flag = max(court_fta_nowar_flag),
-         court_fta_nowar_flag_count = sum(court_fta_nowar_flag)) %>%
-  ungroup() %>%
-  distinct(court_case_id, .keep_all = T) 
-
-
-court_war <- court_war %>%
-  arrange(war_date) %>%
-  group_by(court_case_id) %>%
-  mutate(court_fta_flag = max(court_fta_flag),
-         court_fta_flag_count = sum(court_fta_flag),
-         court_sup_vio_post_flag = max(court_sup_vio_post_flag),
-         court_sup_vio_post_flag_count = sum(court_sup_vio_post_flag)) %>%
-  ungroup() %>%
-  distinct(court_case_id, .keep_all = T) %>%
-  select(-c(warrant_code, warrant_type, warrant_description))
-
 # court_fta %>%
 #   distinct(court_case_id, fta_date)
 
 # court_war %>%
 #   distinct(court_case_id, local_id)
-
-
-court_hearing <- court_hearing %>%
-  filter(hearing_type == "Arraignment") %>%
-  rename(arraignment_date = hearing_date) %>%
-  arrange(arraignment_date) %>%
-  distinct(court_case_id, .keep_all = T) %>%
-  select(court_case_id, local_id, arraignment_date)
-
-# court_hearings %>%
-#   filter(is.na(hearing_type))
-#   count(hearing_type)
-#   
-#   court_fta %>%
-#     count(fta_date)
 
 
 #court_df contains duplicate information
@@ -2427,14 +2507,13 @@ court_hearing <- court_hearing %>%
 #   arrange(desc(n))
 
 
+# court_hearings %>%
+#   filter(is.na(hearing_type))
+#   count(hearing_type)
+#   
+#   court_fta %>%
+#     count(fta_date)
 
-
-court_df <- reduce(list(court_dispo, court_fta, court_war, court_hearing), left_join, by = "court_case_id") %>%
-  select(-contains(".y")) %>%
-  select(-contains(".x.x")) %>%
-  rename_at(vars(contains(".x")), funs(gsub("\\.x", "", .))) %>%
-  mutate(final_disposition_date = if_else(disposition_date <= sentence_date|is.na(sentence_date), disposition_date, sentence_date),
-         conviction_flag = if_else(disposition_type %in% c("Guilty","Nolo_Contendere"), 1, 0))
 # names(court_dispo)
 # names(court_fta_war)
 # names(court_hearing)
@@ -2443,13 +2522,7 @@ court_df <- reduce(list(court_dispo, court_fta, court_war, court_hearing), left_
 # court_df %>%
 #   names()
 
-court_df %>%
-  filter(conviction_flag == 1, conviction_felony_flag == 0, conviction_misd_flag == 0, conviction_qualifier_flag == 0) %>%
-  select(court_felony_flag, court_misd_flag, court_qualifier_flag)
-  # count(conviction_felony_flag, conviction_misd_flag, conviction_minor_flag)
-  
 
-  
 # Diagnostics
 court_fta %>%
   count(fta_all_flag)
@@ -2509,18 +2582,25 @@ court_charge %>%
 
   court_fta
   court_war
+  
+  court_df %>%
+  filter(conviction_flag == 1, conviction_felony_flag == 0, conviction_misd_flag == 0, conviction_qualifier_flag == 0) %>%
+  select(court_felony_flag, court_misd_flag, court_qualifier_flag)
+  # count(conviction_felony_flag, conviction_misd_flag, conviction_minor_flag)
+  
+
+  
 ```
+
 
 
 Assessment Data
 ```{r}
 prob_df <- read_excel("Historical Data Submissions/Napa/Historical_1-15-2020.xlsx", sheet = 12)
 
-#original_field <- names(prob_df)
 
 names(prob_df) <- c("local_id", "zip_code", "assessment_id", "assessment_date", "item_label", "assessment_item", "assessment_response", "risk_score", "risk_level_original")
 
-# original_df[[12]] <- tibble(table_name = "prob_df", original_field = original_field, modified_field = names(prob_df))
 
 prob_df <- prob_df %>%
   mutate(risk_level = case_when(risk_level_original %in% c("High") ~ "High",
