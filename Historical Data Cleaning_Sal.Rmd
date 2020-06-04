@@ -2138,35 +2138,20 @@ da_charge %>% count(plea_type_original) %>% arrange(desc(n))
 Court Data
 ```{r}
 # Court Case Data Import--- Napa, 2015-01-05 to 2020-01-13
-  ## court_df contains 
   ## court_charge
-  ## court_war
-  ## court_fta
-  ## court_hearing
+  ## re court_charge: In Napa's data, some charges have multiple repeated rows, often only one of which contains the sentencing information. We believe these are duplicated data rather than additional counts (will check with Napa to confirm), so we are prioritizing keeping the row with the sentencing information.
+  ## court_war contains one row per warrant, including warrants of various types. It includes information on the warrant date and type of warrant. FTA warrants can be identified here.
+  ## court_fta contains one row per FTA event
+  ## court_hearing contains one row per hearing (combination of court case, hearing date-time, and hearing type). 
+  ## NOT USED: court_df contains flags they made about fta and fta warrant, but as there are separate tables for these, this table is not necessary (and possibly incorrect, since their fta and fta_warrant flags are identical, which is not the case with their other fta tables)
 
-
-####
-
-
-#Court Data on FTAs
-  ## court_df contains
-court_df <- read_excel("Historical Data Submissions/Napa/Historical_1-15-2020.xlsx", sheet = 7)
-
-
-# Variable name standardization--See pg. xxx for more details. 
-names(court_df) <- c("court_case_id", "local_id", "fta", "fta_warrant")
-
-
-# Flag Adds--See pg. xxx for more details.
-court_df <- court_df %>%
-  mutate(court_fta_flag = if_else(fta_warrant == "1", 1, 0),
-         court_fta_nowar_flag = if_else(fta == "1", 1, 0))
 
 
 ####
 
 #Court Charges
   ##court_charge contains
+  ## In Napa's data, some charges have multiple repeated rows, often only one of which contains the sentencing information. We believe these are duplicated data rather than additional counts (will check with Napa to confirm), so we are prioritizing keeping the row with the sentencing information.
 court_charge <- read_excel("Historical Data Submissions/Napa/Historical_1-15-2020.xlsx", sheet = 8)
 
 
@@ -2273,17 +2258,21 @@ court_fta <- court_fta %>%
   mutate(court_fta_all_flag = 1)
 
 
-
-####  THIS IS WHERE WE LEFT OFFFFFFF ##########################################################################################
+####
 
 
 #Court Hearings
-  ## court_hearing contains
+  ## court_hearing contains one row per hearing (combination of court case, hearing date-time, and hearing type). 
+  ## Sometimes there are two arraignment hearings at the same date-time for a single court case because they are two different types of arraignments (e.g. arraignment and VOP arraignment or Information Arraignment)
 court_hearing <- read_excel("Historical Data Submissions/Napa/Historical_1-15-2020.xlsx", sheet = 11)
 
 
 # Variable name standardization--See pg. xxx for more details. 
 names(court_hearing) <- c("court_case_id", "local_id", "hearing_date_time", "hearing_type_original")
+
+# Date Reformatting--See pg. xxx for more details.
+court_hearing <- court_hearing %>%
+  mutate(hearing_date = as_date(hearing_date_time))
 
 
 # Standardize Factors--See pg. xxx for more details.
@@ -2292,7 +2281,24 @@ court_hearing <- court_hearing %>%
                                   hearing_type_original %in% c("Sentencing") ~ "Sentencing",
                                   T ~ "Other"))
 
-summary(court_hearing$hearing_date)
+#### NOT USED
+
+
+#Court Data on FTAs
+  ## court_df contains flags they made about fta and fta warrant, but as there are separate tables for these, this table is not necessary (and possibly incorrect, since their fta and fta_warrant flags are identical, which is not the case with their other fta tables)
+court_df <- read_excel("Historical Data Submissions/Napa/Historical_1-15-2020.xlsx", sheet = 7)
+
+
+# Variable name standardization--See pg. xxx for more details. 
+names(court_df) <- c("court_case_id", "local_id", "fta", "fta_warrant")
+
+
+# Flag Adds--See pg. xxx for more details.
+court_df <- court_df %>%
+  mutate(court_fta_flag = if_else(fta_warrant == "1", 1, 0),
+         court_fta_nowar_flag = if_else(fta == "1", 1, 0))
+
+
 ```
 
 
@@ -2300,14 +2306,17 @@ Court Collapse
 ```{r}
 
 # Court Charge Collapse--See pg. xxx for more details about this process. 
-court_dispo <- court_charge %>%
+suppressWarnings(court_dispo <- court_charge %>%
   mutate(disposition_type = ordered(disposition_type, levels = c("Other", "Dismissed", "Not_Guilty", "Nolo_Contendere", "Guilty"))) %>%
+  mutate(sentence_type = ordered(sentence_type, levels = c("Other", "Probation", "Jail", "Prison"))) %>%
   group_by(court_case_id) %>%
-  #select(-c(disposition_num, charge_id, charge_history_id, offense_id, disposition_hist_id, disposition_id, disposition_type_code, amend_reason_id, amend_reason)) %>%
   mutate(hierarchy = if_else(is.na(hierarchy), 1e6, as.numeric(hierarchy))) %>%
   group_by(court_case_id) %>%
-  mutate(disposition_date = max(disposition_date),
-         disposition_type = max(disposition_type)) %>%
+  mutate(disposition_date = max(disposition_date, na.rm = T),
+         disposition_type = max(disposition_type),
+         conviction_flag = if_else(disposition_type %in% c("Guilty","Nolo_Contendere"), 1, 0),
+         sentence_date = if_else(conviction_flag == 1, min(sentence_date, na.rm = T), as_date(NA)),
+         sentence_type = max(sentence_type)) %>%
   mutate(max_court_charge_level = court_charge_level[hierarchy == min(hierarchy)][1],
          max_court_charge_code = court_charge_code[hierarchy == min(hierarchy)][1],
          max_court_charge = court_charge[hierarchy == min(hierarchy)][1],
@@ -2318,19 +2327,22 @@ court_dispo <- court_charge %>%
   mutate_at(vars(contains("flag")), max) %>%
   filter(hierarchy == min(hierarchy)) %>%
   ungroup() %>%
-  distinct(court_case_id, .keep_all = T) 
+  distinct(court_case_id, .keep_all = T))
+
+
 
 
 #Court Ftas are separate from warrants
 court_fta <- court_fta %>%
   arrange(fta_date) %>%
   group_by(court_case_id) %>%
-  mutate(court_fta_nowar_flag = max(court_fta_nowar_flag),
-         court_fta_nowar_flag_count = sum(court_fta_nowar_flag)) %>%
+  mutate(court_fta_all_flag = max(court_fta_all_flag),
+         court_fta_all_flag_count = sum(court_fta_all_flag)) %>%
   ungroup() %>%
   distinct(court_case_id, .keep_all = T) 
 
-
+  ## court_fta_flag currently includes FTAs for which an Arrest Warrant (rather than a Bench Warrant) was issued. Follow up with the lawyers to see what the correct way to handle this is.
+  ## are there any case where one would get an FTA on a probation violation case, which we would then not be picking up on by filtering out disposed cases? Theoretically one could FTA on a disposed case while out on pretrial for an undisposed case, do we need to account for this in looking for FTAs during the pretrial period?
 court_war <- court_war %>%
   arrange(war_date) %>%
   group_by(court_case_id) %>%
@@ -2343,13 +2355,15 @@ court_war <- court_war %>%
   select(-c(warrant_code, warrant_type, warrant_description))
 
 
+
 # Court hearings are filtered for arraignment information and collapsed to court case id. 
 court_hearing <- court_hearing %>%
   filter(hearing_type == "Arraignment") %>%
-  rename(arraignment_date = hearing_date) %>%
-  arrange(arraignment_date) %>%
+  rename(arraignment_date_time = hearing_date_time,
+         arraignment_date = hearing_date) %>%
+  arrange(arraignment_date_time) %>%
   distinct(court_case_id, .keep_all = T) %>%
-  select(court_case_id, local_id, arraignment_date)
+  select(court_case_id, local_id, arraignment_date_time, arraignment_date)
 
 # Court filings from DA data
 da_df <- da_df %>%
@@ -2360,8 +2374,7 @@ court_df <- reduce(list(court_dispo, court_fta, court_war, court_hearing, da_df)
   select(-contains(".y")) %>%
   select(-contains(".x.x")) %>%
   rename_at(vars(contains(".x")), funs(gsub("\\.x", "", .))) %>%
-  mutate(final_disposition_date = if_else(disposition_date <= sentence_date|is.na(sentence_date), disposition_date, sentence_date),
-         conviction_flag = if_else(disposition_type %in% c("Guilty","Nolo_Contendere"), 1, 0))
+  mutate(final_disposition_date = if_else(disposition_date <= sentence_date|is.na(sentence_date), disposition_date, sentence_date))
 
 
 
