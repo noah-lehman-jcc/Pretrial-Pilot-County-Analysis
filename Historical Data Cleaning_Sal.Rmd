@@ -2609,24 +2609,36 @@ court_charge %>%
 
 Assessment Data
 ```{r}
+#Probation data on assessments performed from 2015-01-05 to 2020-01-13
+  ##prob_df contains one row per assessment question, and has information on risk score, risk level, assessment date, and zip code
 prob_df <- read_excel("Historical Data Submissions/Napa/Historical_1-15-2020.xlsx", sheet = 12)
 
 
+# Variable name standardization--See pg. xxx for more details. 
 names(prob_df) <- c("local_id", "zip_code", "assessment_id", "assessment_date", "item_label", "assessment_item", "assessment_response", "risk_score", "risk_level_original")
 
 
+# Date Reformatting--See pg. xxx for more details.
+prob_df <- prob_df %>%
+  mutate(assessment_date = as_date(assessment_date))
+
+
+# Standardize Factors--See pg. xxx for more details.
 prob_df <- prob_df %>%
   mutate(risk_level = case_when(risk_level_original %in% c("High") ~ "High",
                                 risk_level_original %in% c("Moderate") ~ "Medium",
-                                risk_level_original %in% c("Low") ~ "Low"),
-         assessment_date = as_date(assessment_date)
+                                risk_level_original %in% c("Low") ~ "Low")
   )
+```
 
-#collapse assessment data
-
+Assessment collapse
+```{r}
+#collapse assessment data to one row per assessment (this loses individual assessment question responses, can add back in later if we want these)
 assess_df <- prob_df %>%
   distinct(assessment_id, .keep_all = T) %>%
   select(-c(item_label, assessment_item, assessment_response))
+
+summary(prob_df)
 
 ```
 
