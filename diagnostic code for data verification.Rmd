@@ -1,0 +1,28 @@
+
+```{r}
+
+#check NAs
+lapply(book_df, function(i){
+  if(is.character(i) ==T){ 
+    sum(is.na(i)|i== "NULL") 
+  } 
+  else{ 
+    sum(is.na(i)) 
+  } 
+}) 
+
+#check factor levels
+lapply(book_df, function(i){ 
+  if(length(unique(i)) <= 50) 
+    table(i, useNA = "always") 
+}) 
+
+#check dates
+summary(book_df$book_date)
+
+#check internal joins
+court_person %>%
+  distinct(court_case_id) %>%
+  semi_join(court_charge, by = "court_case_id")
+```
+
