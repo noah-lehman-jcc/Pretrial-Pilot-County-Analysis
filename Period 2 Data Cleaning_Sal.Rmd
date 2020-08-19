@@ -182,6 +182,9 @@ book_df %>%
 book_df %>%
   distinct()
 
+book_df %>%
+  select(book_num, book_date, book_type_original, court_case_id, arrest_charge_original, arrest_charge_count, disposition_type_original, disposition_date)
+
 ```
 
 
@@ -938,6 +941,81 @@ a1 %>%
 # join_df <- bind_rows(join1, join2, join3)
 ```
 
+Probation Data
+```{r}
+assess_df <- read_excel("Historical Data Submissions/Kings/P2 Submission-June 30/Kings County Data Collection - 01.01.20 - 07.28.20.xlsx", skip = 1)
+
+assess_df <- assess_df %>%
+  separate(AssessmentAnswer, c("vpraio_tool_response_1", "vpraio_tool_response_2", "vpraio_tool_response_3", "vpraio_tool_response_4", "vpraio_tool_response_5", "vpraio_tool_response_6", "vpraio_tool_response_7", "vpraio_tool_response_8", "vpraio_tool_response_9"), sep = ",") %>%
+  mutate(across(contains("vpraio_tool_response"), ~gsub("^.*:", "", .x)))
+
+
+# Variable name standardization--See pg. xxx for more details.
+names(assess_df) <- c("tool_name", "name", "dob", "sex_original", "race_original", "fbi", "cdl_id", "cii", "book_num", "zip_code", "referral_status", "court_date_reminder", "release_recommendation_original", "termination_outcome_original", "termination_date", "assessment_date", "vpraio_risk_score", "vpraio_tool_response_1", "vpraio_tool_response_2", "vpraio_tool_response_3", "vpraio_tool_response_4", "vpraio_tool_response_5", "vpraio_tool_response_6", "vpraio_tool_response_7", "vpraio_tool_response_8", "vpraio_tool_response_9", "release_type_original",  "release_date_time", "release_authorization", "release_conditions_original", "pretrial_violation_date", "pretrial_violation")
+
+
+# Date Reformatting--See pg. xxx for more details.
+assess_df <- assess_df %>%
+  mutate(across(c(termination_date, assessment_date, dob, pretrial_violation_date), mdy),
+         release_date_time = mdy_hms(release_date_time),
+         release_date = as_date(release_date_time))
+
+
+  
+#aa = after arraignment, pa = pre-arraignment
+
+# Standardize Factors--See pg. xxx for more details.
+assess_df <- assess_df %>%
+  mutate(sex = case_when(sex_original %in% c("Male") ~ "Male",
+                         sex_original %in% c("Female") ~ "Female",
+                         T ~ "Other_Unknown"),
+         
+         #Trimming white space on original race first
+         race_original = trimws(race_original),
+         race = case_when(race_original %in% c("Black") ~ "Black",
+                          race_original %in% c("Hispanic") ~ "Hispanic",
+                          race_original %in% c("White") ~ "White",
+                          #All Other races/ethnicities collapsed into other
+                          T ~ "Other_Unknown"),
+         
+         #separate risk score from risk level
+         vpraio_risk_level = trimws(gsub("[0-9]|\\(|\\)", "", vpraio_risk_score)),
+         vpraio_risk_level = gsub("Average", "Medium", vpraio_risk_level),
+         vpraio_risk_score = parse_number(vpraio_risk_score)) 
+         
+
+
+# Flag Standardization---See pg. xxx for more details.
+  ## Need to follow up with Santa Barbara on the definitions of release recommendation, release type, release authorization, pretrial_violation_flag, and pretrial_termination_outcome. What does pretrial ID uniquely identify? Also need to figure out if we can determine Judge overrides. When do people have mulitple assessments. 
+assess_df <- assess_df %>%
+  mutate(assess_flag = if_else(is.na(assessment_date), 0, 1),
+         rec_release_flag = if_else(),
+         rec_em_flag = if_else(),
+         rec_phone_flag = if_else(),
+         rec_inperson_flag = if_else(),
+         rec_drug_alc_flag = if_else(),
+         rec_other_flag = if_else(),
+         condition_release_flag = if_else(),
+         condition_em_flag = if_else(),
+         condition_phone_flag = if_else(),
+         condition_inperson_flag = if_else(),
+         condition_drug_alc_flag = if_else(),
+         condition_other_flag = if_else(),
+         pretrial_violation_flag= if_else(!is.na(pretrial_violation_date)))
+
+assess_df %>%
+  count(vpraio_risk_score)
+```
+
+  Assessment Collapse
+```{r}
+# Assessment data is duplicated across terms and conditions. These are collapsed. 
+  ## Next Time fix NULL and NA values that are missing.  
+assess_df <- assess_df %>%
+  group_by(pretrial_id, assessment_date) %>%
+  mutate_at(vars(contains("flag")), funs(max(., na.rm = T))) %>%
+  distinct(pretrial_id, assessment_date, court_docket_id)
+```
 
 
 Code Book
@@ -1122,11 +1200,12 @@ Jail Data
 #Integrated criminal justice Demographic and Personal Identification
   ## person_df contains one row per person (local_id) with demographic information on the person
   ## Napa has an integrated criminal justice system, so this is just a person table, without any booking or event information
-person_df <- read_excel("Historical Data Submissions/Napa/P2 Submission-June 30/Historical_7-1-2020.xlsx", sheet = 1)
+  ## Historical_7-1-2020 was missing sex, so Historical_7_1_2020_2 was submitted with sex included
+person_df <- read_excel("Historical Data Submissions/Napa/P2 Submission-June 30/Historical_7-1-2020_2.xlsx", sheet = 1)
 
 
 # Variable name standardization--See pg. xxx for more details. 
-names(person_df) <- c("fbi", "cii", "local_id", "cdl_id", "cdl_id_state", "name", "dob", "race_original") #P2 submission missing sex. Pursuant to call 7.16.20 with Dan they will add and re-send
+names(person_df) <- c("fbi", "cii", "local_id", "cdl_id", "cdl_id_state", "name", "dob", "race_original", "sex_original") 
 
 
 # Standardize Factors--See pg. xxx for more details.
@@ -1134,8 +1213,12 @@ person_df <- person_df %>%
   mutate(race = case_when(race_original %in% c("Black") ~ "Black",
                           race_original %in% c("Hispanic") ~ "Hispanic",
                           race_original %in% c("White") ~ "White",
-                          T ~ "Other_Unknown")
+                          T ~ "Other_Unknown"),
+         sex = case_when(sex_original %in% c("M") ~ "Male",
+                         sex_original %in% c("F") ~ "Female",
+                         T ~ "Other_Unknown")
   )
+
 
 
 ####
@@ -1144,7 +1227,7 @@ person_df <- person_df %>%
 #Jail Booking Events 
   ## book_df contains one row per occurrence_id, which represenets a unique combination of book_num, book_date, booking_type, and associated court case
 
-book_df <- read_excel("Historical Data Submissions/Napa/P2 Submission-June 30/Historical_7-1-2020.xlsx", sheet = 2, col_types = "text")
+book_df <- read_excel("Historical Data Submissions/Napa/P2 Submission-June 30/Historical_7-1-2020_2.xlsx", sheet = 2, col_types = "text")
 
 
 # Variable name standardization--See pg. xxx for more details. 
@@ -1193,7 +1276,7 @@ book_df <- book_df %>%
 #Jail Booking Charges 
   ## book_charge contains one row per charge, a combination of book_num, court_case_id, and arrest_charge. Some rows are duplicated exactly, need to follow up with Napa to determine if this is a data duplication error or represents multiple counts of the same charge.
   ## book_charge need to look at probation violations, charges are included in book_charge for old cases, but should be fine because we will catch with filter for dispo date earlier than book date.
-book_charge <- read_excel("Historical Data Submissions/Napa/P2 Submission-June 30/Historical_7-1-2020.xlsx", sheet = 3, col_types = "text")
+book_charge <- read_excel("Historical Data Submissions/Napa/P2 Submission-June 30/Historical_7-1-2020_2.xlsx", sheet = 3, col_types = "text")
 
 
 # Variable name standardization--See pg. xxx for more details. 
@@ -1984,9 +2067,10 @@ court_charge %>%
 
 Assessment Data
 ```{r}
+
 #Probation data on assessments performed from 
   ##prob_df contains one row per assessment question, and has information on risk score, risk level, assessment date, and zip code
-prob_df <- read_excel("Historical Data Submissions/Napa/P2 Submission-June 30/Historical_7-1-2020.xlsx", sheet = 12)
+prob_df <- read_excel("Historical Data Submissions/Napa/P2 Submission-June 30/Historical_7-1-2020_2.xlsx", sheet = 12)
 
 
 # Variable name standardization--See pg. xxx for more details. 
@@ -2010,11 +2094,11 @@ prob_df <- prob_df %>%
 
 ##prob_bookings contains mostly one row per book_num. There are a few duplicated rows which are eliminated, and one case where a book_num has two rows with the only difference is one has excluded value 1 the other has excluded value 0. Not sure what the "excluded" column represents. 
 ## prob_bookings has date range 2020-02-05 to 2020-06-30
-prob_bookings <- read_excel("Historical Data Submissions/Napa/P2 Submission-June 30/Historical_7-1-2020_ProbData.xlsx", sheet = 1) %>%
+prob_bookings <- read_excel("Historical Data Submissions/Napa/P2 Submission-June 30/Historical_7-1-2020_ProbData_4.xlsx", sheet = 1) %>%
   distinct()
 
 # Variable name standardization--See pg. xxx for more details. 
-names(prob_bookings) <- c("book_num", "book_date_time", "local_id", "excluded")
+names(prob_bookings) <- c("pretrial_id", "local_id", "book_num", "assessment_id", "no_assessment_reason", "book_date_time", "excluded")
 
 ## as per Dan Glascott on call 7.16.20, "excluded" indicates whether defendant is excluded from pre-arraignment release
 
@@ -2026,24 +2110,91 @@ prob_bookings <- prob_bookings %>%
 
 ##prob_reports contains one row per book_num and report_type combination (aka a single book_num will have multiple rows if it has both a pre-arraignment report and an arraignment report). There are two book_num instances that have more rows than this (one with two different release decisions, and the other with multiple report times over the same date and different release decisions). Not sure what is happening in those special cases. 
 ## prob_reports has date range 2020-03-16 to 2020-06-30
-prob_reports <- read_excel("Historical Data Submissions/Napa/P2 Submission-June 30/Historical_7-1-2020_ProbData.xlsx", sheet = 2)
+prob_reports <- read_excel("Historical Data Submissions/Napa/P2 Submission-June 30/Historical_7-1-2020_ProbData_4.xlsx", sheet = 2)
 
 # Variable name standardization--See pg. xxx for more details. 
-names(prob_reports) <- c("book_num", "report_date_time", "report_type", "release_recommendation_original", "release_decision_original")
+names(prob_reports) <- c("pretrial_id", "local_id", "book_num", "report_date_time", "report_type", "release_recommendation_original", "release_decision_original")
 
 # Date Reformatting--See pg. xxx for more details.
 prob_reports <- prob_reports %>%
   mutate(report_date = as_date(report_date_time))
 
 
+####
+
+prob_case <- read_excel("Historical Data Submissions/Napa/P2 Submission-June 30/Historical_7-1-2020_ProbData_4.xlsx", sheet = 3)
+
+# Variable name standardization--See pg. xxx for more details. 
+names(prob_case) <- c("pretrial_id", "local_id", "court_case_id", "case_type", "case_status", "case_status_date_time")
+
+prob_case <- prob_case %>%
+  mutate(case_status_date = as_date(case_status_date_time))
+
+####
+
+prob_cond <- read_excel("Historical Data Submissions/Napa/P2 Submission-June 30/Historical_7-1-2020_ProbData_4.xlsx", sheet = 4)
+
+# Variable name standardization--See pg. xxx for more details. 
+names(prob_cond) <- c("pretrial_id", "local_id", "court_case_id", "condition_status", "condition_original")
+
+
+####
+
 ## probation data is missing several fields, including: release_authorization (though this can be figured out through release_recommendation which indicates if it was a sheriff release), pretrial terms and conditions, violation of PTR, PTR violation date, court date reminder, other pretrial services, termination outcome, termination date
 ## as per call with Dan Glascott 7.16.20 he will give us more data
+## new data acquired 7/23/20
 
 prob_df %>%
   distinct(assessment_id, .keep_all = T)
 
+prob_bookings %>%
+  distinct(assessment_id, .keep_all = T)
+
 prob_reports %>%
   distinct(book_num)
+
+prob_cond %>%
+  distinct(local_id, court_case_id)
+
+prob_cond %>%
+  filter(local_id == 201101473 & court_case_id == "19CR002008")
+
+prob_bookings
+prob_reports
+prob_df
+prob_cond
+prob_case
+
+prob_case %>%
+  distinct(local_id, court_case_id)
+
+prob_case %>%
+  distinct(assessment_id)
+
+prob_case %>%
+  distinct(local_id) %>%
+  semi_join(prob_df, by = "local_id")
+
+prob_reports %>%
+  count(release_decision_original)
+
+prob_case %>%
+  count(case_status)
+
+prob_bookings %>%
+  distinct(assessment_id) %>%
+  mutate(assessment_id = as.numeric(assessment_id)) %>%
+  semi_join(prob_df, by = "assessment_id")
+
+prob_cond %>%
+  distinct(pretrial_id)
+
+prob_case %>%
+  distinct(pretrial_id)
+
+prob_bookings %>%
+  distinct(pretrial_id) %>%
+  semi_join(prob_reports, by = "pretrial_id")
 ```
 
 Assessment collapse
@@ -2591,7 +2742,7 @@ Court Data
 # Court Case Data Import--- Sacramento   min "1992-09-01" 1st qu "2020-01-14" to max 2020-07-09
 
 #High level casees
-court_df <- fread("Historical Data Submissions/Sacramento/P2 Submission-June 30/SacCases07132020.csv")
+court_df <- fread("Historical Data Submissions/Sacramento/P2 Submission-June 30/SacCases.csv")
 
 # Variable name standardization--See pg. xxx for more details. 
 names(court_df) <- c("jail_court_id", "court_combined_id", "court_id", "case_id", "file_date", "case_status", "case_status_desc", "case_status_date")
@@ -2601,11 +2752,12 @@ court_df <- court_df %>%
   mutate(file_date = as_date(parse_date_time(file_date, c('%m/%d/%Y %H:%M:%S %p'))))
 
 
+
 ####
 
 
 #Court Hearing Data
-court_hearing <- fread("Historical Data Submissions/Sacramento/P2 Submission-June 30/SacAppear07132020.csv")
+court_hearing <- fread("Historical Data Submissions/Sacramento/P2 Submission-June 30/SacAppear.csv")
 
 # Variable name standardization--See pg. xxx for more details. 
 names(court_hearing) <- c("jail_court_id", "court_combined_id", "court_id", "case_id", "hearing_date", "hearing_type_original", "hearing_strange", "hearing_comment", "hearing_result_code", "hearing_result", "hearing_result_comment")
@@ -2627,7 +2779,7 @@ court_hearing <- court_hearing %>%
 
 
 #Court case dispostions
-court_dispos <- fread("Historical Data Submissions/Sacramento/P2 Submission-June 30/SacDispos07122020.csv")
+court_dispos <- fread("Historical Data Submissions/Sacramento/P2 Submission-June 30/SacDispos.csv")
 
 # Variable name standardization--See pg. xxx for more details. 
 names(court_dispos) <- c("jail_court_id", "court_combined_id", "court_id", "case_id", "plea_type_original", "disposition_type_original", "case_charge_code", "court_charge_level_original", "court_charge_original", "disposition_date")
@@ -2690,7 +2842,7 @@ court_dispos <- court_dispos %>%
 
 
 #Court person ids
-court_person <- fread("Historical Data Submissions/Sacramento/P2 Submission-June 30/SacPersonDetail07132020.csv")
+court_person <- fread("Historical Data Submissions/Sacramento/P2 Submission-June 30/SacPersonDetail.csv")
 
 # Variable name standardization--See pg. xxx for more details. 
 names(court_person) <- c("jail_court_id", "first_name", "last_name", "name", "sex_original", "race_original", "dob", "cii", "fbi", "dln")
@@ -2716,7 +2868,7 @@ court_person <- court_person %>%
 
 
 #Court Warrants
-court_warrants <- fread("Historical Data Submissions/Sacramento/P2 Submission-June 30/SacWarrants07132020.csv")
+court_warrants <- fread("Historical Data Submissions/Sacramento/P2 Submission-June 30/SacWarrants.csv")
 
 # Variable name standardization--See pg. xxx for more details. 
 names(court_warrants) <- c("jail_court_id", "court", "warrant_num", "warrant_id", "warrant_status", "charge_level", "warrant_type", "judge", "judge_comment", "complaint_lea", "lea_loc", "lea", "lea_foreign", "lea_hold", "charges_comments", "warrant_date", "warrant_clear_date", "warrant_duration", "bail_amt", "no_bail_flag", "case_id", "mandatory_appear_flag")
@@ -2732,23 +2884,24 @@ court_warrants <- court_warrants %>%
 
 
 court_df %>%
-  distinct(case_id, .keep_all = T) %>%
-  semi_join(court_dispos, by = "case_id")
+  #distinct(case_id, .keep_all = T) %>%
+  anti_join(court_dispos, by = "case_id")
 
 court_dispos %>%
-  distinct(case_id) %>%
+  #distinct(case_id) %>%
   semi_join(court_df, by = "case_id")
 
-# low match rate, but this is due to there being far fewer unique case ids in court_dispos than in court_df. Why???
+# all dispos match to court_df. 11k court_df do not match to dispos
 
-court_hearing %>%
-  distinct(case_id)
+court_df %>%
+  semi_join(court_hearing, by = "case_id")
 
-court_person %>%
-  distinct(jail_court_id) %>%
-  semi_join(court_dispos, by = "jail_court_id")
+court_df %>%
+  #distinct(jail_court_id) %>%
+  semi_join(court_person, by = "jail_court_id")
 
 summary(court_dispos$disposition_date)
+summary(court_df$file_date)
 
 ####
 
@@ -3106,6 +3259,7 @@ court_charge %>%
     #count(court_charge_code, court_charge_level) %>%
     arrange(desc(n))
 
+
 ```
 
 Probation data
@@ -3144,11 +3298,22 @@ lapply(prob_df, function(i){
     table(i, useNA = "always") 
 }) 
 
-#missing data: tool responses, score, violation, violation date, release_type is missing for over 4,000 records, and will need some help on termination_outcome (~800 missing, blank not na, not sure what the rest mean)
+#missing data: tool responses, score, violation, violation date, release_type is missing for over 4,000 records, and will need some help on termination_outcome (~800 missing, blank not na, not sure what the rest mean). event identifier (court case id and/or booking id). release authorization category (sheriff, judge).
 
 prob_df %>%
   filter(release_type == "")
+
+prob_df %>%
+  count(release_type) %>%
+  arrange(desc(n))
+
+prob_df %>%
+  summarise(
+    across(where(is.numeric), mean),
+    across(where(is.factor), nlevels),
+    n = n())
 ```
+
 
 
 Join
@@ -3417,7 +3582,7 @@ Sonoma has their own documentation files included, they are quite good. Check th
 Jail Data
 ```{r}
 # Jail Bookings Data Import --- Sonoma 2015-01-01 to 2020-06-29
-  ## book_df contains one row per charge per case associated with a booking into the Sonoma County Jail between 1/1/2015 and 12/31/2019. One booking will have as many rows as there are related booked and pending filed charges. 
+  ## book_df contains one row per charge per case associated with a booking into the Sonoma County Jail between 2015-01-01 and 2020-06-29. One booking will have as many rows as there are related booked and pending filed charges. 
   ## book_demo contains the individual-level data elements used to identify each individual in the jail dataset.  
   ## book_charge contains all convicted charges for any booking or pending filed charges that were included in book_df
 
@@ -3443,9 +3608,7 @@ book_df <- book_df %>%
          book_date = as_date(book_date_time),
          release_date = as_date(release_date_time))
 
-summary(book_df$book_date)
 
-```
 
 # Standardize Charges and join charge hierarchy--See pg. xxx for more details about this process. 
 book_df <- book_df %>%
@@ -3510,7 +3673,7 @@ book_df <- book_df %>%
 
 #Jail demo
   ## book_demo contains the individual-level data elements used to identify each individual in the jail dataset.  
-book_demo <-fread("Historical Data Submissions/Sonoma/Sonoma County Pretrial Pilot_Jail File 2 of 3.csv")
+book_demo <-fread("Historical Data Submissions/Sonoma/P2 Submission-June 30/Jail Data Set - File 2 of 3 - 20200713.csv")
 
 
 # Variable name standardization--See pg. xxx for more details. 
@@ -3520,8 +3683,8 @@ names(book_demo) <- c("lent_key", "cii", "fbi", "dl_state", "cdl_id", "name", "d
 # Date Reformatting --See pg. xxx for more details.
 book_demo <- book_demo %>%
   mutate_at(vars(dob), mdy) 
-  
-  
+
+
 # Standardize Factors--See pg. xxx for more details.
 book_demo <- book_demo %>%
   mutate(sex = case_when(sex_original %in% c("M") ~ "Male",
@@ -3534,6 +3697,7 @@ book_demo <- book_demo %>%
                           T ~ "Other_Unknown"))
 
 
+
 #### NOT USED
 
 
@@ -3541,7 +3705,7 @@ book_demo <- book_demo %>%
   ## book_charge contains all convicted charges for any booking or pending filed charges that were included in book_df
   ## this df will not be used because the conviction information will come from the court data
 
-book_charge <- fread("Historical Data Submissions/Sonoma/Sonoma County Pretrial Pilot_Jail File 3 of 3.csv")
+book_charge <- fread("Historical Data Submissions/Sonoma/P2 Submission-June 30/Jail Data Set - File 3 of 3 - 20200713.csv")
 
 
 # Variable name standardization--See pg. xxx for more details. 
@@ -3651,7 +3815,7 @@ Jail Diagnostics
 
 Court Data
 ```{r}
-# Court Case Data Import--- Sonoma, 
+# Court Case Data Import--- Sonoma, min "1999-08-30" 1st qu "2016-05-16" to max "2020-06-29" (cumulative)
   ## court_cases contains one row per court case and includes some basic information about the court case
   ## court_charges contains one row per each charge associated with a court case and includes information on the charges.
   ## court_disposition contains one row per disposition for each charge. 
@@ -3669,7 +3833,7 @@ Court Data
 
 # Court cases
   ## court_cases contains one row per court case and includes some basic information about the court case
-court_cases <- read.csv("Historical Data Submissions/Sonoma/SonomaCourt_Cases_20200110_1.csv", stringsAsFactors = FALSE) 
+court_cases <- read.csv("Historical Data Submissions/Sonoma/P2 Submission-June 30/PTR_Cases.csv", stringsAsFactors = FALSE) 
 
 
 # Variable name standardization--See pg. xxx for more details. 
@@ -3681,12 +3845,14 @@ court_cases <- court_cases %>%
   mutate_at(vars(file_date), ymd_hms)%>%
   mutate_at(vars(file_date), as_date)
 
+
+
 ####
 
 # Court charges
   ## court_charges contains one row per each charge associated with a court case and includes information on the charges.
   ##The column names are changed in the import because there are a few extra columns with sparsely populated strings that do not import correctly if the columns are not named. The text in these excess columns is likely part of the last filled in column, court_charge_description, with improper separators creating new columns. Currently the extra columns are being deleted, but if court_charge_description is needed the trash columns could also be appended to the court_charge_description text
-court_charges <- read.csv("Historical Data Submissions/Sonoma/SonomaCourt_Charges_20200110_1.csv", stringsAsFactors = FALSE, col.names = c("court_case_id", "court_docket_id", "charge_id", "file_type", "court_charge_original", "court_charge_level_original", "court_charge_description", "trash1", "trash2", "trash3")) %>%
+court_charges <- read.csv("Historical Data Submissions/Sonoma/P2 Submission-June 30/PTR_Charges.csv", stringsAsFactors = FALSE, col.names = c("court_case_id", "court_docket_id", "charge_id", "file_type", "court_charge_original", "court_charge_level_original", "court_charge_description", "trash1", "trash2", "trash3")) %>%
   select(-c(trash1, trash2, trash3))
 
 
@@ -3716,7 +3882,7 @@ court_charges <- left_join(court_charges, charge_hier, by = "join_var")
 # Court disposition
   ## court_disposition contains one row per disposition for each charge. 
   ##Because a small number of charges have multiple dispositions (eg deferred entry of judgment followed by convicted, or convicted followed by expungement), we will take the first disposition on each charge.
-court_disposition <- read.csv("Historical Data Submissions/Sonoma/SonomaCourt_Disposition_20200110_1.csv", stringsAsFactors = FALSE) 
+court_disposition <- read.csv("Historical Data Submissions/Sonoma/P2 Submission-June 30/PTR_Disposition.csv", stringsAsFactors = FALSE) 
 
 
 # Variable name standardization--See pg. xxx for more details.
@@ -3740,6 +3906,8 @@ court_disposition <- court_disposition %>%
                                       disposition_type_original %in% c("") ~ "Unknown",
                                       T ~ "Other"))
 
+
+
 ####
 
 # court_charge_disp was created as a join of court_charges and court_disposition, matching each charge to its disposition so that court_ and conviction_ flags could be specified. One row per charge.
@@ -3762,7 +3930,7 @@ court_charge_disp <- court_charge_disp %>%
 
 # Court sentence
   ## court_sentence contains one row per sentence
-court_sentence <- read.csv("Historical Data Submissions/Sonoma/SonomaCourt_Sentence_20200110_1.csv", stringsAsFactors = FALSE) 
+court_sentence <- read.csv("Historical Data Submissions/Sonoma/P2 Submission-June 30/PTR_Sentence.csv", stringsAsFactors = FALSE) 
 
 # Variable name standardization--See pg. xxx for more details.
 names(court_sentence) <- c("court_case_id", "court_docket_id", "charge_id", "sentence_type_original", "sentence_type_desc", "sentence_date", "confinement_type", "sentence_location", "years", "months", "days", "ytl", "ytl_parole_elig", "life", "life_parole_elig", "death", "confinement_stayed", "probation_type", "probation_status_date", "probation_status_code", "probation_status_code_desc")
@@ -3772,6 +3940,7 @@ names(court_sentence) <- c("court_case_id", "court_docket_id", "charge_id", "sen
 court_sentence <- court_sentence %>%
   mutate_at(vars(sentence_date, probation_status_date),ymd_hms) %>%
   mutate_at(vars(sentence_date, probation_status_date),as_date)
+
 
 
 # Flags Add--See pg. xxx for more details.
@@ -3789,7 +3958,7 @@ court_sentence <- court_sentence %>%
 
 # Court plea
   ## court_plea has one row per plea. This is generally one plea per charge, but some charges have multiple pleas. In the collapse we will filter down to the earliest plea.
-court_plea <- read.csv("Historical Data Submissions/Sonoma/SonomaCourt_Plea_20200110_1.csv", stringsAsFactors = FALSE) 
+court_plea <- read.csv("Historical Data Submissions/Sonoma/P2 Submission-June 30/PTR_Plea.csv", stringsAsFactors = FALSE) 
 
 
 # Variable name standardization--See pg. xxx for more details.
@@ -3812,11 +3981,12 @@ court_plea <- court_plea %>%
                                T ~ "Other"))
 
 
+
 ####
 
 # Court person
   ## court_person contains one row per court case, with basic information on the defendant
-court_person <- read.csv("Historical Data Submissions/Sonoma/SonomaCourt_Defendant_20200110_1.csv", stringsAsFactors = FALSE) 
+court_person <- read.csv("Historical Data Submissions/Sonoma/P2 Submission-June 30/PTR_Defendant.csv", stringsAsFactors = FALSE) 
 
 
 # Variable name standardization--See pg. xxx for more details.
@@ -3848,7 +4018,7 @@ court_person <- court_person %>%
 
 # Court fta
   ## court_fta contains one row per fta and court case. distinct was called to remove duplicate rows
-court_fta <- read.csv("Historical Data Submissions/Sonoma/SonomaCourt_FTA_20200110_1.csv", stringsAsFactors = FALSE) %>%
+court_fta <- read.csv("Historical Data Submissions/Sonoma/P2 Submission-June 30/PTR_FTA.csv", stringsAsFactors = FALSE) %>%
   distinct()
 
 
@@ -3863,12 +4033,13 @@ court_fta <- court_fta %>%
   mutate(fta_warrant_date = as_date(fta_warrant_date_time))
 
 
+
 ####
 
 
 # Court hearing
   ## court_hearing contains one row per hearing.distinct was called to remove duplicate rows
-court_hearing <- read.csv("Historical Data Submissions/Sonoma/SonomaCourt_Hearing_20200110_1.csv", stringsAsFactors = FALSE) %>%
+court_hearing <- read.csv("Historical Data Submissions/Sonoma/P2 Submission-June 30/PTR_Hearing.csv", stringsAsFactors = FALSE) %>%
   distinct()
 
 
@@ -3881,7 +4052,6 @@ court_hearing <- court_hearing %>%
   mutate_at(vars(hearing_date_time),ymd_hms) %>%
   mutate(hearing_date =  as_date(hearing_date_time)) 
 
-
 # Standardize Factors--See pg. xxx for more details.
   ## Sonoma said that the hearing type is not their primary way of identifying arraignments. The word searches used here to identify arraignment hearings are incomplete and do not identify all arraignments, but when asked Sonoma said that other hearing types can identify arraignments or other non-arraignment hearings so these data may be insufficient to identify arraignments.
 court_hearing <- court_hearing %>%
@@ -3889,6 +4059,7 @@ court_hearing <- court_hearing %>%
                                   grepl("First Appearance", hearing_type_desc) ~ "Arraignment",
                                   grepl("Sentencing", hearing_type_desc) ~ "Sentencing",
                                   T ~ "Other"))
+
 
 
 # Flags Add--See pg. xxx for more details.
@@ -3903,7 +4074,7 @@ court_hearing <- court_hearing %>%
 
 # Court risk assessment
   ## court_ra contains one row per assessment event, which can be a report received, filed, or requested. Sometimes there is more than one line per case and date when there is more than one event. 
-court_ra <- read.csv("Historical Data Submissions/Sonoma/SonomaCourt_Risk_Assessment_20200110_1.csv", stringsAsFactors = FALSE) 
+court_ra <- read.csv("Historical Data Submissions/Sonoma/P2 Submission-June 30/PTR_Risk_Assessment.csv", stringsAsFactors = FALSE) 
 
 # Variable name standardization--See pg. xxx for more details.
 names(court_ra) <- c("court_case_id", "case_party_id", "party_id", "ra_report_date", "assessment_code", "assessment_code_desc", "cii", "fbi", "local_id", "cdl_id", "name", "dob", "sex_original", "race_original")
@@ -3933,7 +4104,7 @@ court_ra <- court_ra %>%
 
 # Court case status
   ## court_status contains information about the status of the case that was deemed irrelevant and not included in the court collapse. There are only 214 rows.
-court_status <- read.csv("Historical Data Submissions/Sonoma/SonomaCourt_Case_Status_20200110_1.csv", stringsAsFactors = FALSE) 
+court_status <- read.csv("Historical Data Submissions/Sonoma/P2 Submission-June 30/SonomaCourt_Case_Status_20200110_1.csv", stringsAsFactors = FALSE) 
 
 
 names(court_status) <- c("table", "code_id", "case_status", "case_status_desc", "obsolete_date")
@@ -3947,7 +4118,7 @@ court_status <- court_status %>%
 # Court disposition
   ## court_final_disposition contains one row per case, with the date of the final disposition and some information about the disposition of the overall case. 
   ## This table is not needed because we have the diposition information for each charge in the case as well as the dates in other tables.
-court_final_disposition <- read.csv("Historical Data Submissions/Sonoma/SonomaCourt_Final_Case_Disposition_20200110_1.csv", stringsAsFactors = FALSE) 
+court_final_disposition <- read.csv("Historical Data Submissions/Sonoma/P2 Submission-June 30/SonomaCourt_Final_Case_Disposition_20200110_1.csv", stringsAsFactors = FALSE) 
 
 
 names(court_final_disposition) <- c("court_case_id", "court_docket_id", "final_dispo_date", "closure_code", "closure_desc")
@@ -3957,6 +4128,7 @@ court_final_disposition <- court_final_disposition %>%
   mutate_at(vars(final_dispo_date), as_date) 
 
 
+#### they added another table, PTR_Final_Disp_Date
 ```
 
 
@@ -4124,7 +4296,7 @@ Court diagnostics
 Probation Data
 ```{r}
 
-# Probation Data Import--- Sonoma, 2015-01-01 to 2020-01-06
+# Probation Data Import--- Sonoma, 2015-01-01 to 2020-07-07
   ## prob_assess contains one row per pretrial risk assessment (SPRAT), with data for any pretrial release event pertaining to that SPRAT, and one row for any pretrial release event that was not associated to a SPRAT. The primary keys in this file are the sprat_id (unique identifier for each SPRAT assessment) and croa_key (unique identifier for each pretrial grant). 
   ##prob_cond includes the terms and conditions ordered by the Court that are associated with a pretrial grant. The file contains one row per condition, for each pretrial grant. The unique grant of pretrial can be identified by the croa_key field. 
   ##prob_court_date_notification presents the each court reminder phone call made to a defendant while on pretrial release. The file is structured with 1 row per notification attempt. For each defendant on pretrial, it includes the defendant’s court date, the date of the reminder notification(s) and the result of each notification attempt. 
@@ -4138,7 +4310,7 @@ Probation Data
 
 # Probation assessments
   ## prob_assess contains one row per pretrial risk assessment (SPRAT), with data for any pretrial release event pertaining to that SPRAT, and one row for any pretrial release event that was not associated to a SPRAT. The primary keys in this file are the sprat_id (unique identifier for each SPRAT assessment) and croa_key (unique identifier for each pretrial grant). 
-prob_assess <- read.csv("Historical Data Submissions/Sonoma/Sonoma County Pretrial Pilot_Probation File 1 of 6.csv", stringsAsFactors = FALSE) 
+prob_assess <- read.csv("Historical Data Submissions/Sonoma/P2 Submission-June 30/Probation Data File - 1 of 6 - 20200713.csv", stringsAsFactors = FALSE) 
 
 
 # Variable name standardization--See pg. xxx for more details. 
@@ -4147,6 +4319,7 @@ names(prob_assess) <- c("record_type", "sprat_id", "croa_key", "tool_name", "ass
                         "x3_violence_arrest", "x4_employed_or_student", "x5_gang_affiliation", "x6_homeless", "x7_MH_code_violent_behavior", "x8_no_prior_FTA", 
                         "x9_pending_cases", "x10_prior_jail", "x11_2orless_charges", "enh1_dv_order_last7yr", "enh2_dui_conv", "enh2_dv_conv", "enh3_FTAs", 
                         "enh5_prior_conv", "enh_bac", "enh_dv_injury", "enh_children_present", "enh_victim_injury", "enh_victim_injury_pc243", "enh_victim_injury_pc273_5", "enh_on_probation", "risk_score", "recommendation_before_enhancements", "release_recommendation", "release_override", "override_reason", "release_type", "release_authorization", "release_date_time", "other_pretrial_service", "pretrial_termination_date", "outcome_fta_signup", "outcome_fta_court", "outcome_new_criminal_referral", "cii", "fbi", "lent_key", "dl_state", "cdl_id", "name", "dob", "sex_original", "race_original")
+
 
 
 # Date Reformatting--See pg. xxx for more details.
@@ -4191,7 +4364,7 @@ prob_assess <- prob_assess %>%
   ##prob_cond includes the terms and conditions ordered by the Court that are associated with a pretrial grant. The file contains one row per condition, for each pretrial grant. The unique grant of pretrial can be identified by the croa_key field. 
   ##Terms and conditions are provided in text format as displayed in the court minutes, however, if the term or condition has an alpha-numeric register action code associated with it, the court register code is provided. 
   ##NOTE: orders for electronic monitoring (including GPS and Alcohol Monitoring) frequently appear in text format. While we identified EM conditions by searching the court register text for commonly used terms related to EM orders, the data on EM conditions might be incomplete. 
-prob_cond <- read.csv("Historical Data Submissions/Sonoma/Sonoma County Pretrial Pilot_Probation File 2 of 6 .csv", stringsAsFactors = FALSE) 
+prob_cond <- read.csv("Historical Data Submissions/Sonoma/P2 Submission-June 30/Probation Data File - 2 of 6 - 20200713.csv", stringsAsFactors = FALSE) 
 
 
 # Variable name standardization--See pg. xxx for more details.
@@ -4202,13 +4375,15 @@ names(prob_cond) <- tolower(names(prob_cond))
 prob_cond <- prob_cond %>%
   mutate(condition_em_flag = if_else(grepl("monitor|CAM", condition), 1, 0))
 
+
+
 ####
 
 
 # Probation court date notifications
   ##prob_court_date_notification presents the each court reminder phone call made to a defendant while on pretrial release. The file is structured with 1 row per notification attempt. For each defendant on pretrial, it includes the defendant’s court date, the date of the reminder notification(s) and the result of each notification attempt. 
   ##This data file is at the individual level; the Lent_Key field can be used to identify the defendant receiving the call. 
-prob_court_date_notification <- read.csv("Historical Data Submissions/Sonoma/Sonoma County Pretrial Pilot_Probation File 3 of 6.csv", stringsAsFactors = FALSE) 
+prob_court_date_notification <- read.csv("Historical Data Submissions/Sonoma/P2 Submission-June 30/Probation Data File - 3 of 6 - 20200713.csv", stringsAsFactors = FALSE) 
 
 
 # Variable name standardization--See pg. xxx for more details.
@@ -4234,7 +4409,7 @@ prob_court_date_notification <- prob_court_date_notification %>%
   ##prob_violation includes a row for each documented technical violation of pretrial release. 
   ##There are 2 methods used to identify pretrial violations: (1) Presence of a bench warrant issued for a Violation of Pretrial Release, and (2) a court register action indicating the Petition for Violation of Pretrial has been filed. Individuals who failed to sign up or report to Pretrial are excluded. Violations may also be filed in response to one of the other pretrial outcomes (failure to appear in court, or new criminal referrals). 
   ##NOTE: the Violations data provided is incomplete. We know there are other technical violations that occur and to which Pretrial Officers respond, that are not identified through a bench warrant or through this particular register action. The Probation Department manually tracks violations each month, though this was not feasible to report for the 5 year history. In addition, these register actions and category of bench warrant were not utilized regularly until mid-2017, so the data are not available prior to mid-2017. 
-prob_violation <- read.csv("Historical Data Submissions/Sonoma/Sonoma County Pretrial Pilot_Probation File 4 of 6.csv", stringsAsFactors = FALSE) 
+prob_violation <- read.csv("Historical Data Submissions/Sonoma/P2 Submission-June 30/Probation Data File - 4 of 6 - 20200713.csv", stringsAsFactors = FALSE) 
 
 
 # Variable name standardization--See pg. xxx for more details.
@@ -4251,7 +4426,7 @@ prob_violation <- prob_violation %>%
 
 # Probation court case
   ##prob_case will assist in linking the Court’s dataset to Probation’s dataset at the case level. It includes a row for each case with a grant of Pretrial release, along with the court’s case number (SCR number) as well as the ccas_key, an internal case identifier.  
-prob_case <- read.csv("Historical Data Submissions/Sonoma/Sonoma County Pretrial Pilot_Probation File 5 of 6.csv", stringsAsFactors = FALSE) 
+prob_case <- read.csv("Historical Data Submissions/Sonoma/P2 Submission-June 30/Probation Data File - 5 of 6 - 20200713.csv", stringsAsFactors = FALSE) 
 
 
 # Variable name standardization--See pg. xxx for more details.
@@ -4263,7 +4438,7 @@ names(prob_case) <- c("croa_key", "ccas_key", "lent_key", "court_docket_id", "co
 
 # Probation linking info
   ##prob_link will assist in linking Probation’s pretrial assessment data with the Jail’s and Court’s datasets. This file presents each case that is associated with the booking on which the pretrial assessment was conducted. Cases with both pending filed charges at the time of booking and new booking charges are included. Charge information for each of these cases can be obtained through the Jail data elements. 
-prob_link <- read.csv("Historical Data Submissions/Sonoma/Sonoma County Pretrial Pilot_Probation File 6 of 6.csv", stringsAsFactors = FALSE) 
+prob_link <- read.csv("Historical Data Submissions/Sonoma/P2 Submission-June 30/Probation Data File - 6 of 6 - 20200713.csv", stringsAsFactors = FALSE) 
 
 
 # Variable name standardization--See pg. xxx for more details.
@@ -4273,7 +4448,6 @@ names(prob_link) <- c("sprat_id", "lent_key", "book_num", "book_date", "ccas_key
 # Date Reformatting--See pg. xxx for more details.
 prob_link <- prob_link %>%
   mutate_at(vars(book_date), mdy)
-
 
 
 ```
