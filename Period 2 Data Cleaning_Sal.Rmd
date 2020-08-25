@@ -978,10 +978,27 @@ assess_df <- assess_df %>%
                           #All Other races/ethnicities collapsed into other
                           T ~ "Other_Unknown"),
          
-         #separate risk score from risk level
-         vpraio_risk_level = trimws(gsub("[0-9]|\\(|\\)", "", vpraio_risk_score)),
-         vpraio_risk_level = gsub("Average", "Medium", vpraio_risk_level),
-         vpraio_risk_score = parse_number(vpraio_risk_score)) 
+         #separate risk score from risk level and standardize risk level
+         risk_level_original = trimws(gsub("[0-9]|\\(|\\)", "", vpraio_risk_score)),
+         risk_level = case_when(risk_level_original %in% c("Low", "Low-Average") ~ "Low",
+                                risk_level_original %in% c("Average", "Average-High") ~ "Medium",
+                                risk_level_original %in% c("High") ~ "High"),
+         vpraio_risk_score = parse_number(vpraio_risk_score),
+         
+         #standardize release recommendation
+         ## check what "Override - Detain" means, currently placed in "other_unknown" category
+         release_recommendation = case_when(release_recommendation_original %in% c("AA Release w/Conditions", "PA Release w/Conditions") ~ "Monitor",
+                                            release_recommendation_original %in% c("Detain") ~ "Detain",
+                                            T ~ "Other_Unknown"),
+         release_decision = case_when(termination_outcome_original %in% c("Denied by On Call Judge") ~ "Detain",
+                                      release_type_original %in% c("Pretrial - Supervision") ~ "Monitor",
+                                      termination_outcome_original %in% c("Bail Before Arraignment", "DA Declines to File", "No Bail Warrant") ~ "Ineligible",
+                                      T ~ "Other_Unknown"),
+         
+         pretrial_ineligible_reason = case_when(termination_outcome_original %in% c("Bail Before Arraignment") ~ "Bail_Bond",
+                                                termination_outcome_original %in% c("DA Declines to File") ~ "Case_Disposed",
+                                                T ~ "Other_Unknown"),
+         tool_name = "vpraio") 
          
 
 
@@ -1004,17 +1021,27 @@ assess_df <- assess_df %>%
          pretrial_violation_flag= if_else(!is.na(pretrial_violation_date)))
 
 assess_df %>%
-  count(vpraio_risk_score)
+  count(termination_outcome_original, release_type_original)
 ```
 
   Assessment Collapse
 ```{r}
-# Assessment data is duplicated across terms and conditions. These are collapsed. 
-  ## Next Time fix NULL and NA values that are missing.  
-assess_df <- assess_df %>%
-  group_by(pretrial_id, assessment_date) %>%
-  mutate_at(vars(contains("flag")), funs(max(., na.rm = T))) %>%
-  distinct(pretrial_id, assessment_date, court_docket_id)
+# Kings data is already organized by one row per assessment  
+
+```
+
+Assessment Tables 
+```{r}
+assess_table <- assess_df %>%
+  # Filter for only those actually assessed
+  filter(!is.na(assessment_date)) %>%
+  # Create county name.
+  mutate(county = "Kings") %>%
+  # Select relevant variables.
+  select(county, risk_level, release_recommendation, release_decision, assessment_date, risk_score = vpraio_risk_score, tool_name)
+
+# Save file  
+#fwrite(assess_table, file = "G:/CrimJustice/PretrialAssessmentPilot/Assessment Output Tables/Kings Assessment Output 08-2020.csv")
 ```
 
 
@@ -2086,7 +2113,8 @@ prob_df <- prob_df %>%
 prob_df <- prob_df %>%
   mutate(risk_level = case_when(risk_level_original %in% c("High") ~ "High",
                                 risk_level_original %in% c("Moderate") ~ "Medium",
-                                risk_level_original %in% c("Low") ~ "Low")
+                                risk_level_original %in% c("Low") ~ "Low"),
+         tool_name = "ORAS"
   )
 
 
@@ -2106,6 +2134,7 @@ names(prob_bookings) <- c("pretrial_id", "local_id", "book_num", "assessment_id"
 prob_bookings <- prob_bookings %>%
   mutate(book_date = as_date(book_date_time))
 
+
 ####
 
 ##prob_reports contains one row per book_num and report_type combination (aka a single book_num will have multiple rows if it has both a pre-arraignment report and an arraignment report). There are two book_num instances that have more rows than this (one with two different release decisions, and the other with multiple report times over the same date and different release decisions). Not sure what is happening in those special cases. 
@@ -2119,8 +2148,20 @@ names(prob_reports) <- c("pretrial_id", "local_id", "book_num", "report_date_tim
 prob_reports <- prob_reports %>%
   mutate(report_date = as_date(report_date_time))
 
+# Standardize Factors--See pg. xxx for more details.
+prob_reports <- prob_reports %>%
+  mutate(release_recommendation = case_when(release_recommendation_original %in% c("Detain") ~ "Detain",
+                                            release_recommendation_original %in% c("Supervised OR") ~ "Monitor",
+                                            release_recommendation_original %in% c("Jail Released") ~ "Ineligible",
+                                            T ~ "Other_Unknown"),
+         release_decision = case_when(release_decision_original %in% c("Detain") ~ "Detain",
+                                      release_decision_original %in% c("OR") ~ "OR",
+                                      release_decision_original %in% c("Supervised OR") ~ "Monitor",
+                                      release_decision_original %in% c("Sentenced", "No Complaint") ~ "Ineligible",
+                                      T ~ "Other_Unknown"))
 
 ####
+
 
 prob_case <- read_excel("Historical Data Submissions/Napa/P2 Submission-June 30/Historical_7-1-2020_ProbData_4.xlsx", sheet = 3)
 
@@ -2143,7 +2184,11 @@ names(prob_cond) <- c("pretrial_id", "local_id", "court_case_id", "condition_sta
 ## probation data is missing several fields, including: release_authorization (though this can be figured out through release_recommendation which indicates if it was a sheriff release), pretrial terms and conditions, violation of PTR, PTR violation date, court date reminder, other pretrial services, termination outcome, termination date
 ## as per call with Dan Glascott 7.16.20 he will give us more data
 ## new data acquired 7/23/20
+```
 
+
+#Probation diagnostics
+```{r}
 prob_df %>%
   distinct(assessment_id, .keep_all = T)
 
@@ -2204,10 +2249,33 @@ assess_df <- prob_df %>%
   distinct(assessment_id, .keep_all = T) %>%
   select(-c(item_label, assessment_item, assessment_response))
 
-summary(prob_df)
+assess_df <- assess_df %>%
+  mutate(assessment_id = as.character(assessment_id)) %>%
+  left_join(prob_bookings) %>%
+  left_join(prob_reports)
 
+assess_df %>%
+  filter(!is.na(assessment_date))
+  distinct(pretrial_id)
+  
+  
 ```
 
+Assessment Tables 
+```{r}
+assess_table <- assess_df %>%
+  # Collapse to each assessment.
+  #distinct(pretrial_id, .keep_all = T) %>%
+  # Filter for only those actually assessed
+  filter(!is.na(assessment_date)) %>%
+  # Create county name.
+  mutate(county = "Napa") %>%
+  # Select relevants variables.
+  select(county, risk_level, release_recommendation, release_decision, assessment_date, risk_score, tool_name)
+
+# Save file  
+#fwrite(assess_table, file = "G:/CrimJustice/PretrialAssessmentPilot/Assessment Output Tables/Napa Assessment Output 08-2020.csv")
+```
 
 Code Book
 ```{r eval=FALSE, include=FALSE}
@@ -4053,7 +4121,7 @@ court_hearing <- court_hearing %>%
   mutate(hearing_date =  as_date(hearing_date_time)) 
 
 # Standardize Factors--See pg. xxx for more details.
-  ## Sonoma said that the hearing type is not their primary way of identifying arraignments. The word searches used here to identify arraignment hearings are incomplete and do not identify all arraignments, but when asked Sonoma said that other hearing types can identify arraignments or other non-arraignment hearings so these data may be insufficient to identify arraignments.
+  ## Sonoma said that the hearing type is not their primary way of identifying arraignments. The word searches used here to identify arraignment hearings are incomplete and do not identify all arraignments, but when asked Sonoma said that other hearing types can identify arraignments or other non-arraignment hearings so these data may be insufficient to identify arraignments. They said to use event codes instead. ARCOMP - defendant arraigned on complaint by court/stipulation; ARINFO - defendant arraigned on information by court/stipulation.
 court_hearing <- court_hearing %>%
   mutate(hearing_type = case_when(grepl("Arraignment", hearing_type_desc) ~ "Arraignment",
                                   grepl("First Appearance", hearing_type_desc) ~ "Arraignment",
@@ -4104,7 +4172,7 @@ court_ra <- court_ra %>%
 
 # Court case status
   ## court_status contains information about the status of the case that was deemed irrelevant and not included in the court collapse. There are only 214 rows.
-court_status <- read.csv("Historical Data Submissions/Sonoma/P2 Submission-June 30/SonomaCourt_Case_Status_20200110_1.csv", stringsAsFactors = FALSE) 
+court_status <- read.csv("Historical Data Submissions/Sonoma/P2 Submission-June 30/PTR_Case_Status.csv", stringsAsFactors = FALSE) 
 
 
 names(court_status) <- c("table", "code_id", "case_status", "case_status_desc", "obsolete_date")
@@ -4112,6 +4180,8 @@ names(court_status) <- c("table", "code_id", "case_status", "case_status_desc", 
 court_status <- court_status %>%
   mutate_at(vars(obsolete_date), mdy_hm) %>%
   mutate_at(vars(obsolete_date), as_date)
+
+
 
 #### NOT USED
 
@@ -4318,15 +4388,16 @@ names(prob_assess) <- c("record_type", "sprat_id", "croa_key", "tool_name", "ass
                         "ptr_adr_line1", "ptr_adr_line2", "ptr_adr_street", "ptr_adr_city", "ptr_adr_state", "zip_code_ptr", "x1_dv_arrest", "x2_dui_arrest", 
                         "x3_violence_arrest", "x4_employed_or_student", "x5_gang_affiliation", "x6_homeless", "x7_MH_code_violent_behavior", "x8_no_prior_FTA", 
                         "x9_pending_cases", "x10_prior_jail", "x11_2orless_charges", "enh1_dv_order_last7yr", "enh2_dui_conv", "enh2_dv_conv", "enh3_FTAs", 
-                        "enh5_prior_conv", "enh_bac", "enh_dv_injury", "enh_children_present", "enh_victim_injury", "enh_victim_injury_pc243", "enh_victim_injury_pc273_5", "enh_on_probation", "risk_score", "recommendation_before_enhancements", "release_recommendation", "release_override", "override_reason", "release_type", "release_authorization", "release_date_time", "other_pretrial_service", "pretrial_termination_date", "outcome_fta_signup", "outcome_fta_court", "outcome_new_criminal_referral", "cii", "fbi", "lent_key", "dl_state", "cdl_id", "name", "dob", "sex_original", "race_original")
+                        "enh5_prior_conv", "enh_bac", "enh_dv_injury", "enh_children_present", "enh_victim_injury", "enh_victim_injury_pc243", "enh_victim_injury_pc273_5", "enh_on_probation", "risk_score", "recommendation_before_enhancements", "release_recommendation_original", "release_override", "override_reason", "release_type_original", "release_authorization", "release_date_time", "other_pretrial_service", "pretrial_termination_date", "outcome_fta_signup", "outcome_fta_court", "outcome_new_criminal_referral", "cii", "fbi", "lent_key", "dl_state", "cdl_id", "name", "dob", "sex_original", "race_original")
 
 
 
 # Date Reformatting--See pg. xxx for more details.
 prob_assess <- prob_assess %>%
-  mutate_at(vars(assessment_date_time), mdy_hm) %>%
+  mutate_at(vars(assessment_date_time, release_date_time), mdy_hm) %>%
   mutate_at(vars(pretrial_termination_date, dob), dmy) %>%
-  mutate(assessment_date = as_date(assessment_date_time))
+  mutate(assessment_date = as_date(assessment_date_time),
+         release_date = as_date(release_date_time))
 
 
 # Standardize Factors--See pg. xxx for more details.
@@ -4340,20 +4411,24 @@ prob_assess <- prob_assess %>%
                          T ~ "Other_Unknown")
          ) %>%
   mutate(assess_flag = if_else(is.na(sprat_id), 0, 1),
-    release_recommended = case_when(assess_flag == 0 ~ NA_character_,
-                                    release_recommendation == "Detain or Enhanced Supervision" ~ "0",
-                                    T ~ "1"),
-    monitor_level_recommended = case_when(release_recommendation == "Basic Supervision" ~ "Low",
-                                          release_recommendation == "Moderate Supervision" ~ "Medium",
-                                          release_recommendation %in% c("Enhanced Supervision", "Detain or Enhanced Supervision") ~ "High",
-                                          release_recommendation == "Court Reminder" ~ "None",
-                                          T ~ NA_character_),
-    monitor_level = case_when(release_type == "Basic Supervision" ~ "Low",
-                              release_type == "Moderate Supervision" ~ "Medium",
-                              release_type == "Enhanced Supervision" ~ "High",
-                              release_type == "Court Reminder" ~ "None",
-                              T ~ NA_character_),
-    release_decision = if_else(record_type == "sprat without linked PTR", 0, 1)
+         release_recommendation_original = trimws(release_recommendation_original),
+         release_recommendation = case_when(release_recommendation_original %in% c("Detain or Enhanced Supervision") ~ "Detain",
+                                            release_recommendation_original %in% c("Court Reminder") ~ "OR",
+                                            release_recommendation_original %in% c("Basic Supervision", "Moderate Supervision", "Enhanced Supervision") ~ "Monitor",
+                                            T ~ "Other_Unknown"),
+         monitor_level_recommended = case_when(release_recommendation == "Basic Supervision" ~ "Low",
+                                               release_recommendation == "Moderate Supervision" ~ "Medium",
+                                               release_recommendation %in% c("Enhanced Supervision", "Detain or Enhanced Supervision") ~ "High",
+                                               release_recommendation == "Court Reminder" ~ "None",
+                                               T ~ NA_character_),
+         monitor_level = case_when(release_type_original == "Basic Supervision" ~ "Low",
+                                   release_type_original == "Moderate Supervision" ~ "Medium",
+                                   release_type_original == "Enhanced Supervision" ~ "High",
+                                   release_type_original == "Court Reminder" ~ "None",
+                                   T ~ NA_character_),
+         release_decision = case_when(release_type_original %in% c("Basic Supervision", "Moderate Supervision", "Enhanced Supervision") ~ "Monitor",
+                                      release_type_original %in% c("Court Reminder") ~ "OR",
+                                      T ~ "Other_Unknown")
   )
 
 
@@ -4484,6 +4559,25 @@ assess_df <- prob_assess %>%
   
 
   
+```
+
+Assessment Tables 
+```{r}
+assess_table <- prob_assess %>%
+  # Collapse to each assessment.
+  distinct(sprat_id, .keep_all = T) %>%
+  # Filter for only those actually assessed
+  filter(!is.na(assessment_date)) %>%
+  # Create county name.
+  mutate(county = "Sonoma") %>%
+  mutate(tool_name = "SPRAT") %>%
+  # Select relevants variables.
+  select(county, release_recommendation, release_decision, assessment_date, risk_score, tool_name)
+
+# Save file  
+#fwrite(assess_table, file = "G:/CrimJustice/PretrialAssessmentPilot/Assessment Output Tables/Sonoma Assessment Output 08-2020.csv")
+
+
 ```
 
 Probation Diagnostics
