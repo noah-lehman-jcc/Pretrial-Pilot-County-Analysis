@@ -1,0 +1,330 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+libraries
+```{r}
+library(janitor)
+library(tidyverse)
+library(lubridate)
+library(scales)
+library(pROC)
+library(kableExtra)
+library(stargazer)
+library(data.table)
+library(ggthemes)
+
+```
+
+Function Creation
+```{r include=FALSE}
+my_kable <- function(x){
+  kable(x, booktabs = T, format.args = list(big.mark = ","), table.attr = "style = \"color: black;\"") %>%
+    kable_styling(position = "center", full_width = F, 
+                  bootstrap_options = c("striped", "hover"), stripe_color = "gray", font_size = 12) 
+  # footnote(general_title = "", general = "Source: Judicial Council of California, Recidivism Reduction Fund Quarterly Reports (July 1, 2015-March 31, 2018).")  %>%
+    # row_spec(12, bold = T)
+}
+```
+
+Import Data
+```{r}
+files <- list.files("C:/Work/PretrialAssessmentPilot/Assessment Output Tables", pattern = "csv", full.names = T)
+
+df <- lapply(files, function(i){
+  df <- fread(i)
+  
+  df <- df %>%
+    mutate_if(is.character, funs(if_else(. == "NULL"|. == ""|. == " ", NA_character_, .))) %>%
+    mutate_at(vars(contains("date")), as_date) %>%
+    filter_at(vars(contains("score")), any_vars(!is.na(.))) %>%
+    mutate_at(vars(contains("score")), as.numeric)
+
+
+    df$standard_risk_score <-  rowMeans(scale(df %>% select(contains("score"))), na.rm = T)
+
+    return(df)
+}) %>% bind_rows() 
+
+df <- df %>%
+  rename(vpraio_risk_score = risk_score) %>%
+  mutate(oras_risk_score = if_else(is.na(oras_risk_score), oras_score, oras_risk_score)) %>%
+  select(-court_case_id, -oras_score)
+
+
+df2 <- df %>% 
+  pivot_longer(c(psa_fta_risk_score, psa_nca_risk_score, psa_nvca_risk_score), names_to = "psa_value",
+               values_to = "psa_risk_score", values_drop_na = T) %>%
+  mutate(psa_value = gsub("_risk_score", "", psa_value),
+         tool_name = psa_value) %>%
+  select(-psa_value)
+  # unite(county, c(county, psa_value))
+
+df_tables <- df %>%
+  filter(tool_name != "psa") %>%
+  bind_rows(df2) %>%
+  unite(county_tool, c(county, tool_name), remove = T) %>%
+  select(-psa_fta_risk_score, -psa_nca_risk_score, -psa_nvca_risk_score) %>%
+  unite(risk_score, c(contains("score"), - standard_risk_score), sep = "") %>%
+  mutate(risk_score = parse_number(risk_score))
+```  
+
+Tables
+```{r}
+assess_count <- df %>%
+  filter(assessment_date >= as_date("2019-10-01"),
+         assessment_date <= as_date("2020-07-28")) %>%
+  group_by(county) %>%
+  mutate(date_range = paste(min(assessment_date), max(assessment_date), sep = " --  ")) %>%
+  count(county, date_range) %>%
+  bind_rows(df %>%
+              filter(assessment_date >= as_date("2019-10-01"),
+                     assessment_date <= as_date("2020-07-28")) %>%
+              mutate(date_range = paste(min(assessment_date), max(assessment_date), sep = " --  ")) %>%
+              count(date_range)) %>%
+  ungroup() %>%
+  mutate(county = if_else(is.na(county), "Total", county))
+
+rec_count <- df %>%
+  count(county, release_recommendation) %>%
+  # filter(!is.na(risk_level)) %>%
+  pivot_wider(names_from =  release_recommendation, values_from =  n, names_prefix = "Rec_")
+  # select(county, Low, Medium, High)
+
+decision_count <- rec_count <- df %>%
+  count(county, release_recommendation) %>%
+  # filter(!is.na(risk_level)) %>%
+  pivot_wider(names_from =  release_recommendation, values_from =  n, names_prefix = "Rec_")
+
+risk_count <- df %>%
+  filter(!is.na(risk_level)) %>%
+  filter(assessment_date >= as_date("2019-10-01")) %>%
+  count(county, risk_level, tool_name) %>%
+  group_by(county) %>%
+  mutate(Total = sum(n), n = paste0(round(n = n/Total*100), "%")) %>%
+  pivot_wider(names_from =  risk_level, values_from =  n) %>%
+  select(county, Low, Medium, High, Total, tool_name) %>%
+  bind_rows(df %>%
+              filter(!is.na(risk_level)) %>%
+              count(risk_level) %>%
+              mutate(Total = sum(n), n = paste0(round(n = n/Total*100), "%")) %>%
+              pivot_wider(names_from =  risk_level, values_from =  n)) %>%
+  ungroup() %>%
+  mutate(county = if_else(is.na(county), "Total", county)) %>%
+  mutate(tool_name=toupper(tool_name),
+         tool_name= gsub("CO_", "", tool_name)) %>%
+  select("County" = county, Total, Low, Medium, High, "Tool Name" = tool_name) 
+  
+
+release_df <- df %>%
+  filter(assessment_date >= as_date("2019-10-01")) %>%
+  mutate_at(vars(c(release_decision, release_recommendation)), funs(if_else(is.na(.)|. == "Release_Unspecified", "Other_Unknown", .))) %>%
+  pivot_longer(c(release_recommendation, release_decision)) %>%
+  count(county, name, value) %>%
+  group_by(county, name) %>%
+  mutate(Total = sum(n), n = paste0(round(n = n/Total*100), "%")) %>%
+  unite(name, c(value, name)) %>%
+  arrange(name) %>%
+  pivot_wider(names_from = name, values_from = n) %>%
+  bind_rows(df %>%
+              filter(assessment_date >= as_date("2019-10-01")) %>%
+              mutate_at(vars(c(release_decision, release_recommendation)), funs(if_else(is.na(.)|. == "Release_Unspecified", "Other_Unknown", .))) %>%
+              pivot_longer(c(release_recommendation, release_decision)) %>%
+              count(name, value) %>%
+              group_by(name) %>%
+              mutate(Total = sum(n), n = paste0(round(n = n/Total*100), "%")) %>%
+              unite(name, c(value, name)) %>%
+              arrange(name) %>%
+              pivot_wider(names_from = name, values_from = n)) %>%
+  ungroup() %>%
+  mutate(county = if_else(is.na(county), "Total", county),
+         Total = format(Total, big.mark = ",")) %>%
+  mutate_all(funs(if_else(is.na(.), "-", .)))
+
+release_df <- release_df %>%
+  left_join(assess_count) %>%
+  select(county, date_range, Total, OR_release_recommendation, Monitor_release_recommendation, Detain_release_recommendation, 
+         Ineligible_release_recommendation, Other_Unknown_release_recommendation, OR_release_decision, Monitor_release_decision,
+         Detain_release_decision, Ineligible_release_decision, Other_Unknown_release_decision)
+
+names(release_df) <- c("County", "Date Range", "Total Assessments", rep(c("OR", "Monitor", "Detain", "Ineligible", "Other_Unknown"), 2))
+
+my_kable(release_df) %>%
+  add_header_above(c(" " = 3, "Probation Recommendation" = 5, "Judge Decision" = 5))
+
+my_kable(risk_count)
+
+
+```
+
+Release Recommendation and Decision Graphs
+```{r, fig.width=15, fig.height=7}
+
+df %>%
+  mutate_at(vars(c(release_decision, release_recommendation)), funs(if_else(is.na(.)|. == "Release_Unspecified", "Other_Unknown", .))) %>%
+  group_by(county) %>%
+  count(release_recommendation) %>%
+  mutate(percent = n/sum(n)*100) %>%
+  ggplot() +
+  aes(x = county, fill = release_recommendation, y = percent) +
+  geom_col() +
+  labs(x = "County", y = "Percent", title = "Probation Release Recommendation Types by County", fill = "Release Recommendation") +
+  theme_few() +
+  scale_fill_manual(values = c("#632A50", "#8B9EB7", "#BAD29F", "#745296", "#2C497F"))
+
+df %>%
+  mutate_at(vars(c(release_decision, release_recommendation)), funs(if_else(is.na(.)|. == "Release_Unspecified"|. == "Ineligible", "Other_Unknown", .))) %>%
+  mutate_at(vars(c(release_decision, release_recommendation)), funs(if_else(is.na(.)|. == "Release_Unspecified"|. == "Ineligible", "Other_Unknown", .))) %>%
+  group_by(county) %>%
+  count(release_decision) %>%
+  mutate(percent = n/sum(n)*100) %>%
+  ggplot() +
+  aes(x = county, fill = release_decision, y = percent) +
+  geom_col() +
+  labs(x = "County", y = "Percent", title = "Judge Release Decision Types by County", fill = "Release Decision") +
+  theme_few() +
+  # scale_fill_brewer(palette = "Set2")
+  scale_fill_manual(values = c("#632A50", "#BAD29F", "#745296", "#2C497F"))
+```
+
+Distribution Graphs
+```{r, fig.height=10, fig.width=14}
+df_tables %>%
+  group_by(county_tool) %>%
+  count(risk_score) %>%
+  mutate(percent = n/sum(n)*100) %>%
+  ggplot() +
+  aes(x = as.factor(risk_score), y = as.integer(percent)) +
+  geom_col(fill = "#2C497F") +
+  # geom_bar(aes(y = (..count..)/sum(..count..)), fill = "#2C497F") +
+  labs(x = "Risk Score", y = "Percent", title = "Ditribution of Risk Score by County and Tool") +
+  facet_wrap(~toupper(county_tool), scales = "free") +
+   # scale_y_continuous(labels=percent) +
+  theme_few() 
+```
+
+
+Graph
+```{r}
+ggplot(df_tables) +
+  aes(x = as.factor(risk_score)) +
+  geom_bar(aes(y = (..count..)/sum(..count..))) +
+  labs(x = "Risk Score", y = "Count", title = "Ditribution of Risk Score by County and Tool") +
+  facet_wrap(~toupper(county_tool), scales = "free") +
+   # scale_y_continuous(labels=percent) +
+  theme_few()
+
+ggplot(df_tables) +
+  aes(x = as.factor(risk_score)) +
+  geom_bar() +
+  labs(x = "Risk Score", y = "Count", title = "Ditribution of Risk Score by Tool") +
+  facet_wrap(~toupper(tool_name), scales = "free") +
+  theme_minimal()
+
+df_tables %>%
+  group_by(county, tool_name) %>%
+  count(risk_score) %>%
+  mutate(percent = n/sum(n)*100) %>%
+  ggplot() +
+  aes(x = as.factor(risk_score), y = percent) +
+  geom_col() +
+  labs(x = "Risk Score", y = "Percent", title = "Ditribution of Risk Score by Tool") +
+  facet_grid(toupper(county)~toupper(tool_name), scales = "free") +
+  theme_few()
+
+
+
+df %>%
+  mutate_at(vars(c(release_decision, release_recommendation)), funs(if_else(is.na(.)|. == "Release_Unspecified", "Other_Unknown", .))) %>%
+  # filter(release_decision %in% c("Detain", "Monitor", "OR", "Ineligible", NA)) %>%
+  group_by(county, risk_level) %>%
+  count(release_recommendation) %>%
+  mutate(percent = n/sum(n)*100) %>%
+  ggplot() +
+  aes(x = county, fill = release_recommendation, y = percent) +
+  geom_col() +
+  facet_wrap(~risk_level)
+
+```
+
+Regression
+```{r}
+regress_df <- df %>%
+  filter(release_decision %in% c("OR", "Monitor", "Detain")) %>%
+  mutate(release_flag = if_else(release_decision %in% c("Release", "Monitor"), 1, 0),
+         ordinal_release = case_when(release_decision == "OR" ~ 2,
+                                     release_decision == "Monitor" ~ 1,
+                                     release_decision == "Detain" ~ 0)) 
+
+model0 <- lm(release_flag ~ standard_risk_score, data = regress_df)
+
+model1 <- glm(release_flag ~ standard_risk_score, data = regress_df, family = binomial(link = "logit"))
+
+model2 <- lm(ordinal_release ~ standard_risk_score, data = regress_df)
+
+
+summary(model0)
+
+summary(model1)
+
+summary(model2)
+
+?glm
+
+regress_df %>%
+  filter(is.na(standard_risk_score))
+
+regress_df2 <- regress_df %>%
+  filter(release_decision != "Detain") %>%
+  mutate(monitor_flag = ordinal_release - 1)
+
+model3 <- lm(monitor_flag ~ standard_risk_score, data = regress_df2)
+
+summary(model3)
+
+stargazer(model2, type = "text")
+
+
+regress_df %>%
+  ggplot() +
+  aes(x = standard_risk_score, y = release_flag) +
+  # geom_point() + 
+  geom_smooth()
+
+regress_df %>%
+  # mutate(release_flag = if_)
+  ggplot() +
+  aes(x = standard_risk_score, fill = release_decision) +
+  # stat_density(adjust = 2)
+  geom_density(alpha = .2, bw = .3, trim = T) +
+  theme_few() +
+  labs(x = "Standardized Risk Score", y = "Density",
+       title = "Distribution of Standardized Risk Scores by Release Decision", fill = "Release Decision")
+  
+
+regress_df %>%
+  mutate(standard_risk_score = round(standard_risk_score)) %>%
+  group_by(standard_risk_score) %>%
+  summarise(release_flag = mean(release_flag)) %>%
+  ggplot()+
+  aes(x = standard_risk_score, y = release_flag*100) +
+  geom_col()
+  
+  # geom_histogram()
+  geom_smooth(method = "lm")
+  
+  regress_df %>%
+    mutate(standard_risk_score = round(standard_risk_score)) %>%
+    group_by(standard_risk_score) %>%
+    count(standard_risk_score, release_decision) %>%
+    mutate(n = n/sum(n)*100) %>%
+    ggplot() +
+    aes(x = standard_risk_score, fill = release_decision, y = n) +
+    geom_bar(position = "fill", stat = "identity") +
+    scale_fill_manual(values = c("#632A50", "#8B9EB7", "#2C497F")) +
+    labs(x = "Lower Risk----------------------------------------------------------------------Higher Risk \n Standardized Risk Score ", y = "Percent",
+       title = "Percent of Release Decisions by Standardized Risk Score", fill = "Release Decision") +
+    scale_y_continuous(labels = scales::percent)
+    
+```
+
