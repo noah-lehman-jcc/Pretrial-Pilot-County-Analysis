@@ -29,369 +29,7 @@ rm(name_keeper)
 
 
 
-# Calaveras
 
-Jail Data
-```{r}
-book_df <- read_excel("Historical Data Submissions/Calaveras/JailData.xlsx")
-
-names(book_df) <- c("name", "cii", "fbi", "alpha_num", "dln", "race", "sex", "dob", "arrest_date", "book_num", "book_date", "book_type", "case_number", "charge", "charge_level", "bail_amt", "disposition_type", "disposition_date", "release_date", "release_type")
-
-book_df <- book_df %>%
-  mutate(arrest_date_time = mdy_hm(arrest_date),
-         book_date_time = mdy_hm(book_date),
-         arrest_date = as_date(arrest_date_time),
-         book_date =as_date(book_date_time),
-         dob = as_date(dob))
-```
-
-Probation Data
-```{r}
-prob_df <- read_excel("Historical Data Submissions/Calaveras/ProbationData.xlsx", col_types = "text")
-
-names(prob_df) <- c("cii", "fbi", "dln", "local_id", "name", "dob", "sex", "race")
-
-prob_df <- prob_df %>%
-  mutate(dob = convertToDate(dob))
-```
-
-# Kings
-
-Jail Data (Maybe all data?, no FTA information)
-```{r}
-book_df <- fread("Historical Data Submissions/Kings/Pretrial Pilot Program-2015.csv")
-book_df2 <- fread("Historical Data Submissions/Kings/Pretrial Pilot Program-2016.csv")
-book_df3 <- fread("Historical Data Submissions/Kings/Pretrial Pilot Program-2017.csv")
-book_df4 <- fread("Historical Data Submissions/Kings/Pretrial Pilot Program-2018.csv")
-book_df5 <- fread("Historical Data Submissions/Kings/Pretrial Pilot Program-2019.csv")
-
-book_df <- bind_rows(book_df, book_df2, book_df3, book_df4, book_df5)
-
-rm(book_df2, book_df3, book_df4, book_df5)
-
-#bunch of demo info that needs fixing
-names(book_df) <- c("title", "demo_info", "book_num", "book_date", "book_type", "release_date", "release_type", "case_id", "charge_ref", "counts_ref", "charge_level_ref", "disposition_type_ref", "disposition_date_ref", "charge", "counts", "charge_level", "disposition_type", "disposition_date", "total")
-
-book_df <- book_df %>%
-  separate(demo_info, paste("x", 1:20, sep = "_"), sep = "\\\r\\\n") %>%
-  separate(x_20, paste("y", 1:5, sep = "_"), sep = ":") %>%
-  rename(cii = y_2, fbi = y_3, local_id = y_4, employed = y_5, dob = x_8, gender = x_10, race = x_12, dln = x_15,
-         dln_state = x_17) %>%
-  unite(name, c(x_3, x_5, x_1), sep = " ") %>%
-  select(-c(x_2, x_4, x_6, x_7, x_9, x_11, x_13, x_14, x_16, x_18, x_19, y_1)) %>%
-  mutate(cii = gsub(" FBI", "", cii),
-         fbi = gsub(" Local ID", "", fbi),
-         local_id = gsub(" Employer", "", local_id),
-         employed = if_else(employed != " ", 1, 0),
-         total = parse_number(total)) %>%
-  mutate_at(vars(book_num:case_id), funs(gsub(".*: ","",.))) %>%
-  select(-contains("ref"), -title) %>%
-  mutate(dob = mdy(dob),
-         book_date_time = mdy_hm(book_date),
-         release_date_time = mdy_hm(release_date),
-         book_date = as_date(book_date_time),
-         release_date = as_date(release_date_time),
-         disposition_date = as_date(mdy_hms(disposition_date)))
-
-```
-
-# Los Angeles
-Jail Data
-```{r}
-original_df <- list()
-
-# Jail Bookings
-book_df <- lapply(2015:2019, function(i){
-  read_xlsx(paste0("Historical Data Submissions/Los Angeles/",i, ".xlsx"))}) %>%
-  bind_rows()
-
-original_field <- names(book_df)
-
-names(book_df) <- c("cii", "fbi", "pfn_x", "first_name", "last_name", "dob", "dln", "dln_state", "race_code", "race", "sex_cd", "arrest_date", "arrest_time", "jail_court_id", "booking_seq", "book_type_code", "book_type", "book_date", "book_time", "release_date", "release_time", "release_type_code", "release_type", "case_id", "case_number")
-
-original_df[[1]] <- tibble(table_name = "book_df", original_field = original_field, modified_field = names(book_df))
-
-book_df <- book_df %>%
-  mutate(arrest_date_time = mdy_hms(paste(arrest_date, arrest_time), tz = 'America/Los_Angeles'),
-         book_date_time = mdy_hms(paste(book_date, book_time), tz = 'America/Los_Angeles'),
-         release_date_time = mdy_hms(paste(release_date, release_time), tz = 'America/Los_Angeles')) %>%
-  mutate_at(vars(dob, arrest_date, book_date, release_date), mdy) 
-
-# Jail Booking Charges
-book_charge <- lapply(1:2, function(i){
-  fread(paste0("Historical Data Submissions/Alameda/ARRCHG_", i, ".csv"), colClasses = "character")}) %>%
-  bind_rows()
-
-original_field <- names(book_charge)
-
-names(book_charge) <- c("jail_court_id", "charge_num", "entry_code", "charge_code", "charge", "charge_level")
-
-original_df[[2]] <- tibble(table_name = "book_charge", original_field = original_field, modified_field = names(book_charge))
-
-book_df %>%
-  filter(BOOKINGDATE != ARRESTDATE)
-```
-
-Court Data
-```{r}
-# Court Cases
-court_df <- lapply(c("", "_2"), function(i){
-  fread(paste0("Historical Data Submissions/Alameda/CASE", i, ".csv"), colClasses = "character")}) %>%
-  bind_rows()
-
-original_field <- names(court_df)
-
-names(court_df) <- c("case_id", "case_number", "jail_court_id", "pfn_x", "case_type_code", "case_type", "file_date", "case_status_code", "case_status", "case_status_date", "cii", "fbi", "dln", "dln_state", "dob", "dob_loc", "race_code", "race", "sex_code", "first_name", "last_name")
-
-original_df[[3]] <- tibble(table_name = "court_df", original_field = original_field, modified_field = names(court_df))
-
-court_df <- court_df %>%
-  mutate(file_date = ymd(file_date))
-
-# Court FTAs
-court_fta <- lapply(c("", "_2"), function(i){
-  fread(paste0("Historical Data Submissions/Alameda/FTA", i, ".csv"), colClasses = "character")}) %>%
-  bind_rows()
-
-original_field <- names(court_fta)
-
-names(court_fta) <- c("case_id", "fta_date", "fta_id", "fta_type_code", "fta_type")
-
-original_df[[4]] <- tibble(table_name = "court_fta", original_field = original_field, modified_field = names(court_fta))
-
-court_fta <- court_fta %>%
-  mutate(fta_date = ymd(fta_date))
-
-# Court FTAs with Warrants
-court_fta_war <- lapply(c("", "_2"), function(i){
-  fread(paste0("Historical Data Submissions/Alameda/WARR", i, ".csv"), colClasses = "character")}) %>%
-  bind_rows()
-
-original_field <- names(court_fta_war)
-
-names(court_fta_war) <- c("case_id", "fta_war_date", "fta_id", "fta_type_code", "fta_type")
-
-original_df[[5]] <- tibble(table_name = "court_fta_war", original_field = original_field, modified_field = names(court_fta_war))
-
-court_fta_war <- court_fta_war %>%
-  mutate(fta_war_date = ymd(fta_war_date))
-
-# Court Hearings
-court_hearing <- lapply(1:8, function(i){
-  fread(paste0("Historical Data Submissions/Alameda/HEA_", i, ".csv"), colClasses = "character")}) %>%
-  bind_rows()
-
-original_field <- names(court_hearing)
-
-names(court_hearing) <- c("case_id", "case_number", "event_num", "event_id", "hearing_type_code", "hearing_type", "hearing_date", "hearing_time")
-
-original_df[[6]] <- tibble(table_name = "court_hearing", original_field = original_field, modified_field = names(court_hearing))
-
-court_hearing <- court_hearing %>%
-  mutate(h
-         # Modoc
-
-Jail Data
-```{r}
-#Booking data
-book_df <- fread("Historical Data Submissions/Modoc/Modoc Jail Pretrial  January 1 2013-November 30 2019.csv")
-
-#The first 7 observations are test inputs
-book_df <- book_df[8:length(book_df),]
-```
-
-Court Data 
-```{r}
-court_df <- read_excel("Historical Data Submissions/Modoc/Modoc Pretrial Assessment Information.xls", sheet = 1)
-
-names(court_df) <- c("case_id", "name", "disposition_type", "disposition_date", "filing_date", "case_type")
-
-court_charge <- read_excel("Historical Data Submissions/Modoc/Modoc Pretrial Assessment Information.xls", sheet = 2)
-
-names(court_charge) <- c("case_id", "counts", "charge", "charge_level", "charge_description", "disposition_type", "disposition_date", "plea_type", "plea_date")
-
-court_sent <- read_excel("Historical Data Submissions/Modoc/Modoc Pretrial Assessment Information.xls", sheet = 3)
-
-names(court_sent) <- c("case_id", "sentence_date", "sentence_type", "term", "term_suspended", "sentence_location", "sentence_status", "count", "charge")
-
-court_hearing <- read_excel("Historical Data Submissions/Modoc/Modoc Pretrial Assessment Information.xls", sheet = 4)
-
-names(court_hearing) <- c("case_id", "hearing_type", "hearing_date", "hearing_time", "hearing_result")
-
-court_lawyer <- read_excel("Historical Data Submissions/Modoc/Modoc Pretrial Assessment Information.xls", sheet = 5)
-
-names(court_lawyer) <- c("case_id", "lawyer_type", "appointment_date", "appointment_status", "appointment_end_date")
-
-court_person <- read_excel("Historical Data Submissions/Modoc/Modoc Pretrial Assessment Information.xls", sheet = 6)
-
-names(court_person) <- c("first_name", "last_name", "dob", "sex", "race", "cii", "fbi", "arrest_num", "book_num")
-
-court_bail <- read_excel("Historical Data Submissions/Modoc/Modoc Pretrial Assessment Information.xls", sheet = 7)
-
-names(court_bail) <- c("case_id", "release_type", "release_date", "bail_status", "bail_status_date")
-
-court_fta <- read_excel("Historical Data Submissions/Modoc/Modoc Pretrial Assessment Information.xls", sheet = 8)
-
-names(court_fta) <- c("case_id", "fta_date", "fta")
-
-court_fta_war <- read_excel("Historical Data Submissions/Modoc/Modoc Pretrial Assessment Information.xls", sheet = 9)
-
-names(court_fta_war) <- c("case_id", "fta_date", "fta")
-```
-
-# Napa
-
-Jail Data
-```{r}
-original_df <- list()
-
-#Jail Demographic and Personal Identification
-person_df <- read_excel("Historical Data Submissions/Napa/Historical_1.xlsx", sheet = 1)
-
-original_field <- names(person_df)
-
-names(person_df) <- c("cii", "fbi", "local_id", "dln", "dln_state", "name", "dob", "sex", "race")
-
-original_df[[1]] <- tibble(table_name = "person_df", original_field = original_field, modified_field = names(person_df))
-
-#Jail Booking Events 
-book_df <- read_excel("Historical Data Submissions/Napa/Historical_1.xlsx", sheet = 2, col_types = "text")
-
-original_field <- names(book_df)
-
-names(book_df) <- c("book_num", "arrest_date", "case_id", "local_id", "book_type", "book_date", "release_date", "release_type")
-
-original_df[[2]] <- tibble(table_name = "book_df", original_field = original_field, modified_field = names(book_df))
-
-book_df <- book_df %>%
-  mutate(release_date = convertToDate(release_date)) %>%
-  mutate_at(vars(arrest_date, book_date),  funs("time" = convertToDateTime(.))) %>%
-  mutate_at(vars(arrest_date, book_date), convertToDate)
-```
-
-DA Data (contains filing dates)
-```{r}
-#Filing Dates
-da_df <- read_excel("Historical Data Submissions/Napa/Historical_1.xlsx", sheet = 3)
-
-original_field <- names(da_df)
-
-names(da_df) <- c("case_id", "local_id", "file_date", "case_status", "case_status_date")
-
-original_df[[3]] <- tibble(table_name = "da_df", original_field = original_field, modified_field = names(da_df))
-
-da_df <- da_df %>%
-  mutate(file_date_time = file_date,
-         case_status_date_time = case_status_date) %>%
-  mutate_at(vars(file_date, case_status_date), as_date)
-
-#Da Charges
-da_charge <- read_excel("Historical Data Submissions/Napa/Historical_1.xlsx", sheet = 4)
-
-original_field <- names(da_charge)
-
-names(da_charge) <- c("case_id", "local_id", "charge", "charge_description", "charge_level", "plea_type")
-
-original_df[[4]] <- tibble(table_name = "da_charge", original_field = original_field, modified_field = names(da_charge))
-```
-
-Court Data
-```{r}
-
-#Court Data on FTAs
-court_df <- read_excel("Historical Data Submissions/Napa/Historical_1.xlsx", sheet = 5)
-
-original_field <- names(court_df)
-
-names(court_df) <- c("case_id", "local_id", "fta", "fta_warrant")
-
-original_df[[5]] <- tibble(table_name = "court_df", original_field = original_field, modified_field = names(court_df))
-
-#Court Charges
-court_charge <- read_excel("Historical Data Submissions/Napa/Historical_1.xlsx", sheet = 6)
-
-original_field <- names(court_charge)
-
-names(court_charge) <- c("case_id", "local_id", "charge", "charge_description", "dispostion_type", "disposition_date", "sentence_type", "sentence_date")
-
-original_df[[6]] <- tibble(table_name = "court_charge", original_field = original_field, modified_field = names(court_charge))
-
-court_charge <- court_charge %>%
-  mutate_at(vars(contains("date")), convertToDate)
-
-#Court FTA Warrants
-court_fta_war <- read_excel("Historical Data Submissions/Napa/Historical_1.xlsx", sheet = 7)
-
-original_field <- names(court_fta_war)
-
-names(court_fta_war) <- c("case_id", "local_id", "fta_war_date")
-
-original_df[[7]] <- tibble(table_name = "court_fta_war", original_field = original_field, modified_field = names(court_fta_war))
-
-#Court FTAs
-court_fta <- read_excel("Historical Data Submissions/Napa/Historical_1.xlsx", sheet = 8)
-
-original_field <- names(court_fta)
-
-names(court_fta) <- c("case_id", "local_id", "fta_date")
-
-original_df[[8]] <- tibble(table_name = "court_fta", original_field = original_field, modified_field = names(court_fta))
-```
-
-Assessment Data
-```{r}
-prob_df <- read_excel("Historical Data Submissions/Napa/Assessment_Historical.xlsx")
-
-original_field <- names(prob_df)
-
-names(prob_df) <- c("tool_name", "local_id", "zip_code", "assessment_date", "item_label", "assessment_item", "assessment_response", "risk_score", "risk_level")
-
-original_df[[9]] <- tibble(table_name = "prob_df", original_field = original_field, modified_field = names(prob_df))
-```
-
-Code Book
-```{r eval=FALSE, include=FALSE}
-rm(original_field)
-
-original_df <- bind_rows(original_df)
-
-Napa_df <- lapply(ls()[!grepl("original", ls())], function(i){
-  df <- get(i)
-  
-  if(sum(grepl("date", names(df))) > 0){
-  df2 <- df %>%
-  select(contains("date"), -contains("time")) %>%
-  gather("modified_field", "value") %>%
-  group_by(modified_field) %>%
-  summarise_all(funs(min = as.character(min(., na.rm = T)), mean = as.character(mean(., na.rm = T)), max = as.character(max(., na.rm = T))))
-  }else{
-    df2 <- tibble(modified_field = NA_character_, min = NA_character_, mean = NA_character_, max = NA_character_)
-  }
-  
-  df <- df %>%
-    mutate_if(~length(unique(.)) > 50|is.Date(.)|is.POSIXct(.), ~(. = "not_factor")) %>%    
-    mutate_all(~if_else(is.na(.), "na_missing", as.character(.))) %>%
-    gather(modified_field, factor_value) %>%
-    count(modified_field, factor_value) %>%
-    mutate(table_name = i, county = "Napa") %>%
-    mutate(factor_flag = if_else(factor_value == "not_factor", 0, 1)) %>%
-    group_by(table_name, modified_field) %>%
-    mutate(table_count = sum(n)) %>%
-    ungroup() %>%
-    rename("factor_count" = "n") %>%
-    mutate(factor_count = if_else(factor_value == "not_factor", NA_integer_, factor_count),
-           factor_percent = round(factor_count/table_count*100, 1)) %>%
-    arrange(desc(factor_flag), modified_field, desc(factor_count))
-  
-  df <- left_join(df, df2, by = "modified_field")
-    }) %>% 
-  bind_rows() %>%
-  left_join(original_df) %>%
-   select(county, table_name, original_field, modified_field, factor_flag, factor_value, factor_count,
-           factor_percent, table_count, min, mean, max) 
-
-write.xlsx(Napa_df, file = "Code Books/Napa Code Book.xlsx")
-```
 
 # Nevada-Sierra
 Jail Data
@@ -842,9 +480,11 @@ court_hearing <- court_hearing %>%
 court_hearing <- court_hearing %>%
   mutate(
     hearing_type = case_when(
-      hearing_type_original %in% c(
-        "ARRAIGNMENT","WARRANT ARRAIGNMENT", "ARRAIGNMENT ON VIOLATION OF PROBATION (VOP)", "CONTINUED ARRAIGNMENT", "ARRAIGNMENT ON VIOLATION OF            PROBATION-FELONY", "ARRAIGNMENT ON INFORMATION", "ARR ON PETITION TO REVOKE/MODIFY PAROLE",
-        "ARR ON PETITION TO REV/MOD MANDATORY SUPERVISION", "FELONY ARRAIGNMENT", "DUI ARRAIGNMENT") ~ "Arraignment",
+      hearing_type_original %in% c("ARRAIGNMENT","WARRANT ARRAIGNMENT", "ARRAIGNMENT ON VIOLATION OF PROBATION (VOP)",
+                                   "CONTINUED ARRAIGNMENT", "ARRAIGNMENT ON VIOLATION OF PROBATION-FELONY",
+                                   "ARRAIGNMENT ON INFORMATION", "ARR ON PETITION TO REVOKE/MODIFY PAROLE",
+                                   "ARR ON PETITION TO REV/MOD MANDATORY SUPERVISION", "FELONY ARRAIGNMENT",
+                                   "DUI ARRAIGNMENT") ~ "Arraignment",
       hearing_type_original %in% c(
         "SENTENCING", "FELONY SENTENCING",  "SENTENCING ON VIOLATION OF PROBATION", "SENTENCING ON VIOLATION OF PROBATION - FELONY",
         "SENTENCING ON PETITION TO REVOKE/MODIFY PAROLE", "SENTENCING ON PET TO REV/MOD MANDATORY SUPERVISION",
@@ -875,7 +515,7 @@ court_warrants <- court_warrants %>%
 ####
 
 Nevada Court Collapse 
-```{r eval=FALSE, include=FALSE}
+
 ##dispostion date in court charge is a charge dispostion date rather than a case dispostion date, I think we want dispostion date from court_df
 ##Nevada did not provide sentence date or sentence type
 
@@ -951,7 +591,7 @@ court_df <- reduce(list(court_df, court_dispo, court_fta_war, court_arraign, cou
 
 
 Court Diagnostics
-```{r}
+
 
   # not seeing any qualifier charges here  arrest_qualifier_flag=if_else()
             #sup_vio_post_flag=if_else(book_type=="Sup_Vio", 1, 0),
@@ -1137,10 +777,151 @@ court_df_s %>%
 
 ####
 
+```
 
-
-Probation Data Old Dont Use
+Probation Data New
 ```{r eval=FALSE, include=FALSE}
+
+assess_df_case <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Nevada/P2 Submission-June 30/pretrial_data.xlsx", sheet = 1)
+
+assess_df_demo <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Nevada/P2 Submission-June 30/pretrial_data.xlsx", sheet = 2)
+
+
+#Readin Scores
+
+assess_df_score <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Nevada/P2 Submission-June 30/pretrial_data.xlsx", sheet = 3, na = "NULL")
+
+# Standardize Names
+assess_df_score <- assess_df_score %>%
+  mutate (name = toupper(Name)) %>% 
+  separate(name, c("last_name", "first_name", "suffix"),  sep = ",") %>%
+  mutate_at(vars(first_name, last_name, suffix), trimws) %>%
+  separate(first_name, c("first_name", "middle_name"), sep = " ") 
+
+# Rearrange Scores from Long to Wide
+assess_df_score %>%
+  group_by (IdNumber, Assessment_Date_Time, arrestingagency) %>%
+  pivot_wider(names_from = Tool_Question,  values_from = Tool_Response) %>%
+  ungroup()  
+  
+# Standardize Names
+names(assess_df_score) <- c("local_id1", "local_id2", "arresting_agency", 
+                            "first_name", "middle_name", "last_name", "suffix",
+                            "tool_name",'assessment_date_time',"oras_tool_response_1","oral_tool_response_2",
+                            "oras_tool_response_3",	"oras_tool_response_4","oras_tool_response_5",
+                            "oras_tool_response_6", "oras_tool_response_7", "oras_risk_score")
+
+
+
+# Date Reformatting--See pg. xxx for more details.
+assess_df_score <- assess_df_score %>%
+  mutate(assess_date = as_date(assess_date_time)) %>%
+  
+
+
+county
+zip_code
+cii
+fbi
+cdl_id
+book_num
+court_case_id
+court_docket_id
+first_name
+last_name
+dob
+sex_original
+sex
+race_original
+race
+tool_name
+assessment_date
+assessment_date_time
+
+
+  
+
+assess_df_terms <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Nevada/P2 Submission-June 30/pretrial_data.xlsx", sheet = 4)
+
+assess_df_viol <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Nevada/P2 Submission-June 30/pretrial_data.xlsx", sheet = 5)
+
+
+
+assess_df <- assess_df %>% 
+  mutate(assess_flag = if_else(is.na(assessment_date), 0, 1),
+         rec_release_flag = if_else(release_recommendation %in% c("OR", "Monitor"), 1, 0),
+         decision_release_flag = if_else(release_decision %in% c("OR", "Monitor"), 1, 0),
+         #This field needs to come from the jail data.
+         # pretrial_release_flag = if_else(),
+         release_override_flag = if_else(rec_release_flag != decision_release_flag & 
+                                            !release_recommendation %in% c("Ineligible", "Other_Unknown") & 
+                                            !release_decision %in% c("Ineligible", "Other_Unknown"), 1, 0),
+         rec_em_flag = if_else(grepl("SCRAM", toupper(release_recommendation_original)), 1, 0),
+         # rec_phone_flag = if_else(),
+         # rec_inperson_flag = if_else(),
+         rec_drug_test_flag = if_else(grepl("TEST", toupper(release_recommendation_original)), 1, 0),
+         # rec_other_flag = if_else(),
+         condition_em_flag = if_else(grepl("ELECTRONIC MONITOR|GPS|SCRAM", toupper(release_conditions_original))|
+                                             grepl("SCRAM", toupper(pretrial_release_type_original)), 1, 0),
+         # Discuss release_conditions_original with Santa Barbara along with their original materias to determine phone and inperson flag. 
+         # condition_phone_flag = if_else(),
+         # condition_inperson_flag = if_else(),
+         ## Does test as requested entail a request flag? What is the treatment program?
+         condition_drug_test_flag = if_else(grepl("SCRAM|TEST", toupper(release_conditions_original))|
+                                                    grepl("SCRAM|TEST", toupper(pretrial_release_type_original)), 1, 0),
+         condition_no_contact_flag = if_else(grepl("NO CONTACT|136", toupper(release_conditions_original)), 1, 0),
+         court_date_reminder_flag = if_else(court_date_reminder_original == "CourtAppearance"|
+                                              pretrial_release_type_original %in% c("PTS with court reminders", "OR-with court reminders"), 1, 0),
+         # Transit service doesn't actually exist here.  
+         transit_service_flag = if_else(court_date_reminder_original == "TRANSIT", 1, 0),
+         ## Are all violations violations that result in termation? 
+         pretrial_violation_flag = if_else(!is.na(pretrial_violation_date), 1, 0))
+
+
+```
+# Read in Probation Risk Assessment Data
+ ## This is data that covers 7/7/2011 to 2/6/2020
+prob_df <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Nevada/Pretrial.Updated.xlsx")
+
+names(prob_df) <- c("name", "local_id", "dob", "sex_original", "race_original", "cii", "fbi", "cdl_id", "zip_code", "case_start_date", "tool_name_original", "assessment_date_time", "assessment_id", "risk_level_original", "release_recommendation_original", "release_date_time", "ftas", "new_law_violations", "release_decision_original", "pretrial_termination_outcome", "book_num", "termination_date")
+
+# Dates and Factors Standardization
+
+prob_df <- prob_df %>%
+  mutate_at(vars(contains("time")), convertToDateTime) %>%
+  mutate_at(vars(termination_date), convertToDate) %>%
+  # dob and case_start_date are already in posix at the read in, but they have all zero time stamps
+  mutate(assessment_date = as_date(assessment_date_time),
+         release_date = as_date(release_date_time)) %>%
+  mutate(sex = case_when(sex_original %in% c("Female") ~ "Female",
+                         sex_original %in% c("Male") ~ "Male"),
+                         # sex_original %in% c() ~ "Other_Unknown"),
+         race = case_when(race_original %in% c("Hispanic") ~ "Hispanic",
+                          race_original %in% c("Black") ~ "Black",
+                          race_original %in% c("White") ~ "White",
+                          race_original %in% c("NULL") ~ "Other_Unknown"),
+         tool_name = case_when(tool_name_original %in% c("ORAS-PAT") ~ "ORAS"),
+         risk_level = case_when(risk_level_original %in% c("Low") ~ "Low",
+                                risk_level_original %in% c("Moderate") ~ "Medium",
+                                risk_level_original %in% c("High") ~ "High",
+                                risk_level_original %in% c("NULL") ~ "Unknown"),
+         release_recommendation = case_when(release_recommendation_original %in% c("Grant") ~ 1,
+                                            release_recommendation_original %in% c("Deny") ~ 0),
+         release_decision = case_when(release_decision_original %in% c("Granted") ~ 1,
+                                      release_decision_original %in% c("Denied") ~ 0))
+                                                                        
+summary(prob_df$dob)                               
+
+# grep("original", names(prob_df), value = TRUE)
+# sort(table(prob_df$release_decision_original, useNA = "ifany"), decreasing = TRUE)
+#  [is.na(prob_df$release_decision)]
+# table(prob_df$release_recommendation, useNA = "ifany")
+
+```
+
+Probation data Old dont use
+```{r eval=FALSE, include=FALSE}
+Probation Data Old Dont Use
 
 # decided not to use "PRETRIAL STATS" workbooks, will use "Pretrial.Updated" instead
 # also not using "Pretrial.SQL.Historic" (individual item responses) or "Pretrial.Demographics" (unuseable dates)
@@ -1324,44 +1105,6 @@ Probation Data Old Dont Use
 # all assessment IDs have at least one "Other Areas of Concern", mostly "Other" (251)
 ```
 
-Probation Data New
-```{r eval=FALSE, include=FALSE}
-prob_df <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Nevada/Pretrial.Updated.xlsx")
-
-names(prob_df) <- c("name", "local_id", "dob", "sex_original", "race_original", "cii", "fbi", "cdl_id", "zip_code", "case_start_date", "tool_name_original", "assessment_date_time", "assessment_id", "risk_level_original", "release_recommendation_original", "release_date_time", "ftas", "new_law_violations", "release_decision_original", "pretrial_termination_outcome", "book_num", "termination_date")
-
-# Dates and Factors Standardization
-
-prob_df <- prob_df %>%
-  mutate_at(vars(contains("time")), convertToDateTime) %>%
-  mutate_at(vars(dob, case_start_date, termination_date), convertToDate) %>%
-  mutate(assessment_date = as_date(assessment_date_time),
-         release_date = as_date(release_date_time)) %>%
-  mutate(sex = case_when(sex_original %in% c("Female") ~ "Female",
-                         sex_original %in% c("Male") ~ "Male"),
-                         # sex_original %in% c() ~ "Other_Unknown"),
-         race = case_when(race_original %in% c("Hispanic") ~ "Hispanic",
-                          race_original %in% c("Black") ~ "Black",
-                          race_original %in% c("White") ~ "White",
-                          race_original %in% c("NULL") ~ "Other_Unknown"),
-         tool_name = case_when(tool_name_original %in% c("ORAS-PAT") ~ "ORAS"),
-         risk_level = case_when(risk_level_original %in% c("Low") ~ "Low",
-                                risk_level_original %in% c("Moderate") ~ "Medium",
-                                risk_level_original %in% c("High") ~ "High",
-                                risk_level_original %in% c("NULL") ~ "Unknown"),
-         release_recommendation = case_when(release_recommendation_original %in% c("Grant") ~ 1,
-                                            release_recommendation_original %in% c("Deny") ~ 0),
-         release_decision = case_when(release_decision_original %in% c("Granted") ~ 1,
-                                      release_decision_original %in% c("Denied") ~ 0))
-                                                                        
-                               
-
-# grep("original", names(prob_df), value = TRUE)
-# sort(table(prob_df$release_decision_original, useNA = "ifany"), decreasing = TRUE)
-#  [is.na(prob_df$release_decision)]
-# table(prob_df$release_recommendation, useNA = "ifany")
-
-
 
 
 
@@ -1407,7 +1150,6 @@ Nevada_df <- lapply(ls()[!grepl("original", ls())], function(i){
 write.xlsx(Nevada_df, file = "Code Books/Nevada Code Book.xlsx")
 
 
-```
 
 DOJ CII/Linking Extraction
 ```{r}
@@ -1744,229 +1486,6 @@ join_df <- bind_rows(join1, join2, join3)
 
 
 
-# Sacramento
-- Everything is Join
-
-Jail Data
-```{r}
-original_df <- list()
-
-# Jail Bookings
-book_df <- fread("Historical Data Submissions/Sacramento/SacBookingDetail.csv")
-
-original_field <- names(book_df)
-
-names(book_df) <- c("jail_court_id", "book_date_wrong", "release_date_wrong", "registry_num", "registry_sub_num", "book_type_code", "book_type", "charge_level", "charge", "charge_description", "release_type_code", "release_type", "release_comment", "charge_date", "charge_release_date", "court_combined_id", "court_id", "case_id", "release_line")
-
-original_df[[1]] <- tibble(table_name = "book_df", original_field = original_field, modified_field = names(book_df))
-
-book_df <- book_df %>%
-  select(-matches("date"))
-
-#Booking Dates
-book_date <- fread("Historical Data Submissions/Sacramento/SacBookingMain.csv")
-
-original_field <- names(book_date)
-
-names(book_date) <- c("jail_court_id", "registry_num", "book_date", "release_date", "hours_detained", "days_detained")
-
-original_df[[2]] <- tibble(table_name = "book_date", original_field = original_field, modified_field = names(book_date))
-
-book_date <- book_date %>%
-  mutate_at(vars(book_date, release_date), funs(time = as_datetime(., tz = 'America/Los_Angeles'))) %>%
-  mutate(book_date = as_date(book_date_time),
-         release_date = as_date(release_date_time))
-
-#Jail Bail Amounts
-book_bail <- fread("Historical Data Submissions/Sacramento/SacBail.csv")
-
-original_field <- names(book_bail)
-
-names(book_bail) <- c("jail_court_id", "registry_num", "registry_sub_num", "book_type_code", "bail_amt")
-
-original_df[[3]] <- tibble(table_name = "book_bail", original_field = original_field, modified_field = names(book_bail))
-```
-
-Court Data
-```{r}
-#High level casees
-court_df <- fread("Historical Data Submissions/Sacramento/SacCases.csv")
-
-original_field <- names(court_df)
-
-names(court_df) <- c("jail_court_id", "court_combined_id", "court_id", "case_id", "file_date")
-
-original_df[[4]] <- tibble(table_name = "court_df", original_field = original_field, modified_field = names(court_df))
-
-court_df <- court_df %>%
-  mutate(file_date = as_date(file_date))
-
-#Court Hearing Data
-court_hearing <- fread("Historical Data Submissions/Sacramento/SacAppear.csv")
-
-original_field <- names(court_hearing)
-
-names(court_hearing) <- c("jail_court_id", "court_combined_id", "court_id", "case_id", "hearing_date", "hearing_type_code", "hearing_type", "hearing_comment", "hearing_result_code", "hearing_result", "hearing_result_comment")
-
-original_df[[5]] <- tibble(table_name = "court_hearing", original_field = original_field, modified_field = names(court_hearing))
-
-court_hearing <- court_hearing %>%
-  mutate(hearing_date_time = as_datetime(hearing_date, tz = 'America/Los_Angeles'),
-         hearing_date = as_date(hearing_date_time))
-
-#Court case dispostions
-court_dispos <- fread("Historical Data Submissions/Sacramento/SacDispos.csv")
-
-original_field <- names(court_dispos)
-
-names(court_dispos) <- c("jail_court_id", "court_combined_id", "court_id", "case_id", "please_code", "charge_dispo_code", "case_charge_code", "charge_level", "charge", "disposition_date")
-
-original_df[[6]] <- tibble(table_name = "court_dispos", original_field = original_field, modified_field = names(court_dispos))
-
-court_dispos <- court_dispos %>%
-  mutate(disposition_date = as_date(disposition_date))
-
-#Court person ids
-court_person <- fread("Historical Data Submissions/Sacramento/SacPersonDetail.csv")
-
-original_field <- names(court_person)
-
-names(court_person) <- c("jail_court_id", "first_name", "last_name", "name", "sex", "race", "dob", "cii", "fbi", "dln")
-
-original_df[[7]] <- tibble(table_name = "court_person", original_field = original_field, modified_field = names(court_person))
-
-court_person <- court_person %>%
-  mutate(dob = ymd(gsub(" .*", "", trimws(dob))))
-
-#Court Warrants
-court_warrants <- fread("Historical Data Submissions/Sacramento/SacWarrants.csv")
-
-original_field <- names(court_warrants)
-
-names(court_warrants) <- c("jail_court_id", "court", "warrant_num", "warrant_id", "warrant_status", "charge_level", "warrant_type", "judge", "judge_comment", "complaint_lea", "lea_loc", "lea", "lea_foreign", "lea_hold", "charges_comments", "warrant_date", "warrant_clear_date", "warrant_duration", "bail_amt", "no_bail_flag", "case_id", "mandatory_appear_flag")
-
-original_df[[8]] <- tibble(table_name = "court_warrants", original_field = original_field, modified_field = names(court_warrants))
-
-court_warrants <- court_warrants %>%
-  select(-judge) %>%
-  mutate_at(vars(warrant_date, warrant_clear_date), as_date)
-```
-
-Code Book
-```{r eval=FALSE, include=FALSE}
-rm(original_field)
-
-original_df <- bind_rows(original_df)
-
-Sacramento_df <- lapply(ls()[!grepl("original", ls())], function(i){
-  df <- get(i)
-  
-  if(sum(grepl("date", names(df))) > 0){
-  df2 <- df %>%
-  select(contains("date"), -contains("time")) %>%
-  gather("modified_field", "value") %>%
-  group_by(modified_field) %>%
-  summarise_all(funs(min = as.character(min(., na.rm = T)), mean = as.character(mean(., na.rm = T)), max = as.character(max(., na.rm = T))))
-  }else{
-    df2 <- tibble(modified_field = NA_character_, min = NA_character_, mean = NA_character_, max = NA_character_)
-  }
-  
-  df <- df %>%
-    mutate_if(~length(unique(.)) > 50|is.Date(.)|is.POSIXct(.), ~(. = "not_factor")) %>%    
-    mutate_all(~if_else(is.na(.), "na_missing", as.character(.))) %>%
-    gather(modified_field, factor_value) %>%
-    count(modified_field, factor_value) %>%
-    mutate(table_name = i, county = "Sacramento") %>%
-    mutate(factor_flag = if_else(factor_value == "not_factor", 0, 1)) %>%
-    group_by(table_name, modified_field) %>%
-    mutate(table_count = sum(n)) %>%
-    ungroup() %>%
-    rename("factor_count" = "n") %>%
-    mutate(factor_count = if_else(factor_value == "not_factor", NA_integer_, factor_count),
-           factor_percent = round(factor_count/table_count*100, 1)) %>%
-    arrange(desc(factor_flag), modified_field, desc(factor_count))
-  
-  df <- left_join(df, df2, by = "modified_field")
-    }) %>% 
-  bind_rows() %>%
-  left_join(original_df) %>%
-   select(county, table_name, original_field, modified_field, factor_flag, factor_value, factor_count,
-           factor_percent, table_count, min, mean, max) 
-
-write.xlsx(Sacramento_df, file = "Code Books/Sacramento Code Book.xlsx")
-```
-
-# San Joaquin
-- Everything is Join
-
-Jail Data
-```{r}
-book_df <- fread("Historical Data Submissions/San Joaquin/Jail_ATIMS_Data_BOOKING_20150101_to_20190930_3.csv")
-
-names(book_df) <- c("book_num", "lar", "case_id", "bail_amt", "arrest_date", "book_date", "book_type", 
-                    "release_date", "release_type")
-
-book_charge <- fread("Historical Data Submissions/San Joaquin/Jail_ATIMS_Data_CHARGES_20150101_to_20190930_3.csv")
-
-names(book_charge) <- c("book_num", "count", "charge_code", "charge", "charge_description", "charge_level")
-
-book_demo <- fread("Historical Data Submissions/San Joaquin/Jail_ATIMS_Data_PARTY_20150101_to_20190930_3.csv")
-
-names(book_demo) <- c("lar", "cii", "first_name", "last_name", "dln", "dln_state", "dob", "sex", "race")
-
-book_ipid <- fread("Historical Data Submissions/San Joaquin/Jail_ATIMS_Data_LAR_to_IPID_20150101_to_20190930_3.csv")
-
-names(book_ipid) <- c("lar", "ipid")
-```
-
-Court Data
-```{r}
-#High level casees
-court_df <- fread("Historical Data Submissions/San Joaquin/pretrial case.csv")
-
-names(court_df) <- c("ipid", "court_id", "case_id", "case_id_previous", "complaint_id", "filing_date", "case_status", "case_status_date")
-
-#Includes Jail Charge 
-court_charge <- lapply(1:4, function(i){
-  fread(paste0("Historical Data Submissions/San Joaquin/pretrial charge ", i, ".csv"), colClasses = "character")}) %>%
-  bind_rows()
-
-names(court_charge) <- c("ipid", "court_id", "case_id", "complaint_id", "charge", "charge_level", "charge_description", 
-                         "count", "qualifier", "police_reference", "disposition_type", "disposition_date", "sentence_date", "disposition_result", "dispostion_final_date", "seentence_final_date", "confinement_type", "confinement_facilty", "confinement_date", "confinement_end_date", "term_years", "term_months", "term_days", "today", "to_date", "term_to_days", "term_life", "result_id")
-
-court_hearing <- fread("Historical Data Submissions/San Joaquin/pretrial hearing.csv")
-
-names(court_hearing) <- c("case_id", "case_type", "hearing_date", "hearing_type")
-
-court_person <- fread("Historical Data Submissions/San Joaquin/pretrial party.csv")
-
-names(court_person) <- c("ipid", "court_id", "last_name", "first_name", "dob", "gender", "race", "ethnicity", "dln", "dln_state")
-
-court_fta <- fread("Historical Data Submissions/San Joaquin/pretrial FTA by hearing.csv")
-
-names(court_fta) <- c("case_id", "case_type", "hearing_date", "hearing_type")
-
-court_fta_warrant <- fread("Historical Data Submissions/San Joaquin/pretrial FTA by warrant.csv")
-
-names(court_fta_warrant) <- c("case_id", "case_type", "warrant_num", "fta_warrant_date")
-```
-
-DA data 
-```{r}
-da_df <- fread("Historical Data Submissions/San Joaquin/pretrial booking.csv")
-
-namea(da_df) <- c("ipid", "fce_entity_id", "case_id", "case_id_full", "da_complaint_num", "book_num")
-
-prob_df <- fread("Historical Data Submissions/San Joaquin/pretrial assessment report.csv")
-
-names(prob_df) <- c("case_id", "report_status", "ra_date")
-```
-
-Probation (assessment) data--Fix later
-
-```{r}
-read_excel("Historical Data Submissions/San Joaquin/MASTER Pretrial Data Collection Variables 2011.xlsx")
-```
 
 
 # San Mateo
@@ -2764,111 +2283,9 @@ load("Complete Charge Code Hierarchy.RData")
 court diagnostics and notes 
 ```{r eval=FALSE, include=FALSE}
 
-##Period 2 court diagnostics 
-summary(court_hearing$file_date)     
-str(court_hearing)
-lapply(court_hearing, function(i){if(length(unique(i)) <= 50) table (i, useNA="always")}) 
-court_charge %>%
-  distinct(court_case_id)%>%
-  semi_join(court_df, by="court_case_id")
- 
-
-
-##Period 2 court diagnostics
-summary(court_charge$file_date)     
-str(court_charge)
-lapply(court_charge, function(i){if(length(unique(i)) <= 50) table (i, useNA="always")}) 
- 
- 
- 
-court_charge %>%
-  add_count(charge_id) %>%
-  filter(n>1) %>%
-  arrange(charge_id)
-
-
-# move to diagnostics when ready
-court_df %>% 
-  arrange(court_case_id, file_date) %>%
-  select (court_docket_id, court_case_id, file_date, court_case_type, court_party_id)
-   
-# court_df diagnostics
-#court_df  %>%
-#court_df[, grepl("id", names(court_df))]
-
-#court_df %>%
-#distinct(court_docket_id, court_case_id)
-#court_df %>%
-#filter(is.na(court_docket_id))
-#court_df %>%
-#count(court_docket_id)
-  
-
-#court_df <- court_df %>%
-  #mutate_at(vars(dob, file_date), as_date) these dates semm fine now
-
-#court_df[, grepl("id", names(court_df))]
-
-
- #court_charge %>%  
-   #arrange (court_case_id)
- #filter(grepl("2341697", court_docket_id))  
- #ls(court_charge)  
- #court_charge %>%  
- 
- 
-  #filter(grepl("2341697", court_docket_id))  
-
-# "M_VC_231035A" this charge never used during arrest usually arrest is DUI then they plead down to receless driving"wet"
-# "Other_PC_6665" special allegation prior auto theft
-           #sup_vio_post_flag=if_else(book_type=="Sup_Vio", 1, 0))
-
- 
-# write.csv(court_sentence[court_sentence$court_qualifier_flag == 1, c("court_charge_code", "court_charge",
-#                                                                      "court_charge_original", 
-#                                                                      "court_charge_level", "court_charge_level_original", 
-#                                                                      "court_charge_description")],
-#           file = "G:/CrimJustice/PretrialAssessmentPilot/Charge Definitions and Hierarchy/San_Mateo_Qualifier_Flags_Court_charges.csv")
-# 
-# table(court_sentence$court_qualifier_flag, useNA = "ifany")
-
-
-court_dispo %>%
-  filter(guilty_plea_flag == 0, disposition_type %in% c("Guilty", "Nolo_Contendere")) %>%
-  count(grepl("Plea|Pled", disposition_type_original))
-
-
-Diagnostic Code for Charge Hierarchy
-```{r eval=FALSE, include=FALSE}
-
-# 1 - 7,901/267,372 = 97% non-match rate
-(1 - nrow(court_sentence %>% filter(is.na(hierarchy)))/nrow(court_sentence))*100
-
-court_sentence %>%
-  filter(is.na(hierarchy)) %>%
-  count(join_var) %>%
-  arrange(desc(n))
 
 
 
-court_sentence%>%
-  filter(grepl("Other_PC_460A", join_var))%>%
-  group_by()%>%
-  count()
-
-
-court_sentence %>%
-  filter(grepl("2341697", court_docket_id))%>%
-  count()
-
-court_df %>%
-filter(is.na(court_docket_id))
-
-court_charge %>%
-  filter(is.na(disposition_date))%>%
-  select(disposition_date, sentence_date)
-
-```
 
 
 San Mateo Court Collapse 
@@ -3038,12 +2455,116 @@ court_charge %>%
   count(stage)
   filter(court_case_id == "921214") 
   #Alameda end example
+  
+ ##Period 2 court diagnostics 
+summary(court_hearing$file_date)     
+str(court_hearing)
+lapply(court_hearing, function(i){if(length(unique(i)) <= 50) table (i, useNA="always")}) 
+court_charge %>%
+  distinct(court_case_id)%>%
+  semi_join(court_df, by="court_case_id")
+ 
+
+
+##Period 2 court diagnostics
+summary(court_charge$file_date)     
+str(court_charge)
+lapply(court_charge, function(i){if(length(unique(i)) <= 50) table (i, useNA="always")}) 
+ 
+ 
+ 
+court_charge %>%
+  add_count(charge_id) %>%
+  filter(n>1) %>%
+  arrange(charge_id)
+
+
+# move to diagnostics when ready
+court_df %>% 
+  arrange(court_case_id, file_date) %>%
+  select (court_docket_id, court_case_id, file_date, court_case_type, court_party_id)
+   
+# court_df diagnostics
+#court_df  %>%
+#court_df[, grepl("id", names(court_df))]
+
+#court_df %>%
+#distinct(court_docket_id, court_case_id)
+#court_df %>%
+#filter(is.na(court_docket_id))
+#court_df %>%
+#count(court_docket_id)
+  
+
+#court_df <- court_df %>%
+  #mutate_at(vars(dob, file_date), as_date) these dates semm fine now
+
+#court_df[, grepl("id", names(court_df))]
+
+
+ #court_charge %>%  
+   #arrange (court_case_id)
+ #filter(grepl("2341697", court_docket_id))  
+ #ls(court_charge)  
+ #court_charge %>%  
+ 
+ 
+  #filter(grepl("2341697", court_docket_id))  
+
+# "M_VC_231035A" this charge never used during arrest usually arrest is DUI then they plead down to receless driving"wet"
+# "Other_PC_6665" special allegation prior auto theft
+           #sup_vio_post_flag=if_else(book_type=="Sup_Vio", 1, 0))
+
+ 
+# write.csv(court_sentence[court_sentence$court_qualifier_flag == 1, c("court_charge_code", "court_charge",
+#                                                                      "court_charge_original", 
+#                                                                      "court_charge_level", "court_charge_level_original", 
+#                                                                      "court_charge_description")],
+#           file = "G:/CrimJustice/PretrialAssessmentPilot/Charge Definitions and Hierarchy/San_Mateo_Qualifier_Flags_Court_charges.csv")
+# 
+# table(court_sentence$court_qualifier_flag, useNA = "ifany")
+
+
+court_dispo %>%
+  filter(guilty_plea_flag == 0, disposition_type %in% c("Guilty", "Nolo_Contendere")) %>%
+  count(grepl("Plea|Pled", disposition_type_original))
+
+
+Diagnostic Code for Charge Hierarchy
+
+
+# 1 - 7,901/267,372 = 97% non-match rate
+(1 - nrow(court_sentence %>% filter(is.na(hierarchy)))/nrow(court_sentence))*100
+
+court_sentence %>%
+  filter(is.na(hierarchy)) %>%
+  count(join_var) %>%
+  arrange(desc(n))
+
+
+
+court_sentence%>%
+  filter(grepl("Other_PC_460A", join_var))%>%
+  group_by()%>%
+  count()
+
+
+court_sentence %>%
+  filter(grepl("2341697", court_docket_id))%>%
+  count()
+
+court_df %>%
+filter(is.na(court_docket_id))
+
+court_charge %>%
+  filter(is.na(disposition_date))%>%
+  select(disposition_date, sentence_date)
+
 ```
 
 
 
- 
-Assessment Data (Probation) Go live date was Jan 23, 2020
+San Mateo Assessment Data (Probation) Go live date was Jan 23, 2020
 ```{r}
 # San Mateo Assessment Data Import
   ## assess_df contains one row per risk assessment event/risk assessment question/pretrial terms and conditions. The tool questions are widened into columns.
@@ -3190,7 +2711,7 @@ assess_df <- assess_df %>%
 
  
 
-##Period 2 assessment diagnostics 
+##Assessment Table 
  
 assess_table <- assess_df %>%
   # Collapse to each assessment.
@@ -3254,11 +2775,139 @@ assess_df <- assess_df %>%
   group_by(pretrial_id, assessment_date) %>%
   mutate_at(vars(contains("flag")), funs(max(., na.rm = T))) %>%
   distinct(pretrial_id, assessment_date, court_docket_id)
+```
+Assessment Codebook (9/2020) 
+```{r}
+names_df <- names_df %>%
+  mutate(
+    modified_field = case_when(
+      field == "sex_original" ~ "sex",
+      field == "race_original" ~ "race",
+      field == "release_recommendation_original" ~ "release_recommendation, pretrial_ineligible_reason, rec_drug_test_flag, rec_em_flag",
+      field == "pretrial_release_type_original" ~ "release_decision, pretrial_ineligible_reason, condition_em_flag, condition_drug_test_flag, court_date_reminder_flag",
+      field == "release_conditions_original" ~ "condition_no_contact_flag, condition_em_flag, condition_drug_test_flag",
+      field == "release_authorization_original" ~ "release_authorization",
+      field == "pretrial_termination_reason_original" ~ "pretrial_termination_reason",
+      field == "court_date_reminder_original" ~ "court_date_reminder_flag",
+      field =="other_pretrial_service_original" ~ "transit_service_flag",
+      field =="pretrial_violation_original" ~ "pretrial_violation_flag")) %>%
+  filter(!is.na(modified_field)) %>%
+  separate_rows(modified_field, sep = ",") %>%
+  mutate_all(trimws)
+
+factor_df <- lapply(ls()[!grepl("original|^df|hier|names|factor|date|flag", ls())], function(i){
+  df <- get(i)
+  
+  df <- lapply(c(1:nrow(names_df))[!grepl("flag", names_df$modified_field)], function(j){
+    df <- df %>%
+      select(value = names_df$field[j], modified_value = names_df$modified_field[j]) %>%
+      group_by_all() %>%
+      count() %>%
+      arrange(desc(n)) %>%
+      group_by(modified_value) %>%
+      summarise(value = paste(value, collapse = ", "), n = sum(n)) %>%
+      ungroup() %>%
+      mutate(percent = round(n/sum(n)*100, 1),
+             total = sum(n)) %>%
+      mutate(field = names_df$field[j], modified_field = names_df$modified_field[j]) %>%
+      arrange(desc(n)) %>%
+      select(field, modified_field, value, modified_value, n, percent, total) %>%
+      mutate_all(as.character) 
+      
+      
+    
+    return(df)
+  }) %>% bind_rows()
+ 
+  df <- df %>% mutate(table_name = i)
+   }) %>% 
+  bind_rows() %>%
+  left_join(names_df) %>%
+  select(table_name, original_field, field, modified_field, value, modified_value, total, percent)
+
+factor_df <- factor_df %>%
+  mutate(value = case_when(
+  modified_field == "pretrial_ineligible_reason" & modified_value == "Bail_Bond" ~ "pretrial_release_type_original = 'Posted Bail' OR release_recommendation_original = 'Posted Bail'",
+  modified_field == "pretrial_ineligible_reason" & modified_value == "Case_Disposed" ~ "pretrial_release_type_original = ('No Complaint Filed', 'Time Served') OR release_recommendation_original = ('No Complaint Filed', 'Time Served')",
+  modified_field == "pretrial_ineligible_reason" & modified_value == "Other_Unknown" ~ "Other Values",
+  T ~ value)) %>%
+  # filter(modified_field == "pretrial_ineligible_reason") %>%
+  group_by(modified_field, value) %>%
+  mutate_at(vars(original_field, field), funs(paste(., collapse = ", "))) %>%
+  distinct(modified_field, value, .keep_all = T)
+  
+
+flag_df <- lapply(ls()[!grepl("original|^df|hier|names|factor|date|flag", ls())], function(i){
+  df <- get(i)
+  
+  df <- lapply(c(1:nrow(names_df))[grepl("flag", names_df$modified_field)], function(j){
+    df <- df %>%
+      select(value = names_df$field[j], modified_value = names_df$modified_field[j]) %>%
+      group_by_all() %>%
+      count() %>%
+      arrange(desc(n)) %>%
+      group_by(modified_value) %>%
+      summarise(value = paste(value, collapse = ", "), n = sum(n)) %>%
+      ungroup() %>%
+      mutate(percent = round(n/sum(n)*100, 1),
+             total = sum(n)) %>%
+      mutate(field = names_df$field[j], modified_field = names_df$modified_field[j]) %>%
+      arrange(desc(n)) %>%
+      select(field, modified_field, value, modified_value, n, percent, total) %>%
+      mutate_all(as.character)
+    
+    return(df)
+  }) %>% bind_rows() 
+  
+ df <- df %>% mutate(table_name = i)
+   }) %>%
+
+  bind_rows() %>%
+  left_join(names_df) %>%
+  select(table_name, original_field, field, modified_field, value, modified_value, total, percent)
 
 
+flag_df <- flag_df %>%
+  filter(modified_value == 1) %>%
+  mutate(value = case_when(
+  modified_field == "condition_drug_test_flag" & modified_value == "1" ~ "MATCHES (SCRAM, TEST)",
+  modified_field == "condition_em_flag" & modified_value == "1" ~ "MATCHES (SCRAM, ELECTRONIC MONITOR, GPS)",
+  modified_field == "court_date_reminder_flag" & modified_value == "1" ~ "CourtAppearance / (PTS with court reminders, OR-with court reminders)",
+  modified_field == "condition_no_contact_flag" & modified_value == "1" ~ "Matches (NO CONTACT, 136)",
+  modified_field == "pretrial_violation_flag" & modified_value == "1" ~ "IF pretrial_violation_date EXISTS",
+  T ~ value)) %>%
+  # filter(modified_field == "pretrial_ineligible_reason") %>%
+  group_by(modified_field, value) %>%
+  mutate_at(vars(original_field, field), funs(paste(., collapse = ", "))) %>%
+  distinct(modified_field, value, .keep_all = T) %>%
+  ungroup()
+  
+  
 
 
-Code Book
+date_df <- lapply(ls()[!grepl("original|^df|hier|names|factor|date|flag", ls())], function(i){
+  df <- get(i)
+  
+   if(sum(grepl("date", names(df))) > 0){
+  df2 <- df %>%
+  select(contains("date"), -contains("time"), -contains("court")) %>%
+  gather("field", "value") %>%
+  group_by(field) %>%
+  summarise_all(funs(min_date = as.character(min(., na.rm = T)),  max_date = as.character(max(., na.rm = T)))) %>%
+    mutate(table_name = i)
+  }else{
+    df2 <- tibble(field = NA_character_, min_date = NA_character_,  max_date = NA_character_, table_name = i)
+  }
+}) %>%
+  bind_rows() %>%
+  select(table_name, field, min_date, max_date)
+  
+
+write.xlsx(list(factor_df, flag_df, date_df), file = "C:/Work/PretrialAssessmentPilot/Code Books/Assessment Code Book/Santa Barbara Assessment Code Book 9-20.xlsx", asTable = T, tableStyle = "TableStyleMedium1", colWidths = "auto", sheetName = c("Factors", "Flags", "Dates"))
+```
+
+
+Orignal Code Book
 ```{r eval=FALSE, include=FALSE}
 # the original codebook got messed up, so it had to be remade
 rm(original_field)
@@ -3635,74 +3284,6 @@ tibble(
 join_df <- bind_rows(join1, join2, join3)
 ```
 
-# Santa Barbara
-
-Jail Data
-```{r}
-book_df <- read_excel("Historical Data Submissions/Santa Barbara/Jail.Data.12.5.xlsx", col_types = "text")
-
-names(book_df) <- c("cii", "first_name", "last_name", "dob", "arrest_date_time", "book_num", "book_date_time", "book_type", "case_id", "charge_code", "charge", "charge_level", "release_date_time", "release_type", "gender", "race")
-```
-
-Court Data
-```{r}
-#Court Status
-court_status <- fread("Historical Data Submissions/Santa Barbara/CaseStatus.csv", header = F)
-
-names(court_status) <- c("case_id", "case_num", "status_date", "status")
-
-#Court Charges
-court_charges <- fread("Historical Data Submissions/Santa Barbara/Charges.csv", header = F)
-
-names(court_charges) <- c("case_id", "case_num", "charge_code", "charge", "charge_level", "charge_description", "plea_date", "plea_type", "disposition_date", "dispositiontype", "disposition_date_final")
-
-#Court hearing data
-court_hearing <- fread("Historical Data Submissions/Santa Barbara/Hearings.csv", header = F)
-
-names(court_hearing) <- c("case_id", "case_num", "hearing_date", "hearing_type", "hearing_result")
-
-#The following is for confinement sentencing.
-court_confinement <- fread("Historical Data Submissions/Santa Barbara/SentConf.csv")
-
-names(court_confinement) <- c("case_id", "case_num", "sentence_date", "setence_type", "sentence_loc",
-                              "sentence_term", "term_length")
-
-#The following is for probation sentencing.
-court_probation <- fread("Historical Data Submissions/Santa Barbara/SentProb.csv", header = F)
-
-names(court_probation) <- c("case_id", "case_num", "sentence_date", "setence_type", "sentence_loc",
-                              "sentence_term", "term_length")
-
-#Court Person IDs
-court_person <- fread("Historical Data Submissions/Santa Barbara/TechElements.csv", header = F)
-
-names(court_person) <- c("case_id", "case_num", "last_name", "first_name", "middle_name", "file_date", "dob", "cii", "dln", "fbi", "sex", "race", "dln_state", "ra_date")
-
-#FTA Warrants
-court_fta_war <- fread("Historical Data Submissions/Santa Barbara/Warrants.csv", header = F)
-
-names(court_fta_war) <- c("case_id", "case_num", "fta", "fta_date", "fta_warrant", "fta_warrant_date", "fta_description")
-```
-
-Assessment Data (Court)
-```{r}
-#Assessment with Full Interviews
-assess_interview <- read_excel("Historical Data Submissions/Santa Barbara/Full.xlsm", skip = 1)
-
-names(assess_interview) <- c("name", "dob", "book_num", "arrest_date", "interview_type", "interviewer", "interview_date", "location", "refferal_type", "court_loc", "case", "cid", "alcohol_flag", "civic_flag", "drug_flag", "financial_flag", "personal_flag", "property_flag", "order_flag", "sex_flag", "traffic_flag", "violation_flag", "violent_flag", "other_flag", "other2_flag", "charge_level", "charge_score", "pending_flag", "pending_score", "residence_type", "residence_score", "employment_type", "employment_score", "crim_history", "crim_history_score", "drug_abuse_history", "drug_abuse_history_score", "fta_history", "fta_score", "vc_history", "vc_score", "risk_score", "pretrial_recommendation", "sup_agency", "conern_risk", "concern_public_safety", "concern_poi", "concern_no_bail", "concern_fta_possibilty", "concern_ineligible", "concern_other", "concern2_other", "bail_recommend", "custody", "cond_call_in", "cond_ptco", "cond_avoid_place", "cond_avoid_contact", "cond_maths", "cond_passport", "cond_drugs", "cond_scram", "cond_gps", "cond_weapons", "cond_sands", "cond_other", "aoda_recommend", "reassess_change", "reassess_ref", "reassess_victim", "reassess_info", "reassess_charges", "comments", "pts_assessment", "sex", "race_ai", "race_asian", "race_black", "race_hispanic", "race_me", "race_pi", "race_white", "race_other", "race2_other", "language", "bw", "gang", "supervision", "sbc_partner", "sbc_family", "sbc_children", "sbc_work", "sbc_school", "sbc_none", "ca_partner", "ca_family", "ca_children", "ca_work", "ca_school", "ca_none", "outside_partner", "outside_family", "outside_children", "outside_work", "outside_schoool", "outside_none", "cellphone", "email", "alcohol_use", "narcotics_use", "employed", "in_school", "living_conditions", "information_quality", "references", "omissions", "deception", "no_refs", "other_issues", "other2_issues", "id", "data")
-
-assess_tracking <- read_excel("Historical Data Submissions/Santa Barbara/Full.xlsm", skip = 1, sheet = 3)
-
-names(assess_tracking) <- c("id", "name", "dob", "cide", "interview_date", "book_num", "referral_type", "court", "risk_score", "pretrial_recommend", "supervision_agency", "custody", "bail_before_court_flag", "pretrial_decision", "bailed_after_court", "continue_tracking_flag")
-
-assess_outcome <- read_excel("Historical Data Submissions/Santa Barbara/Full.xlsm", skip = 1, sheet = 4)
-
-names(assess_outcome) <- c("id", "name", "cid", "interview_date", "referral_type", "decision", "case_num", "charge_level", "case_status", "cd1", "cd1_appeared", "cd2", "cd2_appeared", "cd3", "cd3_appeared", "cd4", "cd4_appeared", "cd5", "cd5_appeared", "cd6", "cd6_appeared", "cd7", "cd7_appeared", "cd8", "cd8_appeared", "cd9", "cd9_appeared", "pretrial_rearrest", "pretrial_rearrest_date", "remand_flag", "rearrest_remand_case", "phone_num", "contact_notes", "other")
-
-assess_nointerview <- read_excel("Historical Data Submissions/Santa Barbara/Non.xlsm", skip = 1)
-
-names(assess_nointerview) <- c("name", "dob", "book_num", "arrest_date", "reviewer", "review_date", "review_loc", "referral_type", "court", "cid", "case_num", "stage_none", "stage_preinterview", "stage_interview", "stage_references", "stage_victim", "stage_assess", "alcohol_flag", "civic_flag", "drug_flag", "financial_flag", "personal_flag", "property_flag", "order_flag", "sex_flag", "traffic_flag", "violation_flag", "violent_flag", "other_flag", "other2_flag", "non_unwilling", "non", "non_capital", "non_supervision", "non_other_agency", "non_sick", "non_849", "non_warrants", "non_other", "non_other_more", "aoda", "reassess_cricumstance", "reassess_willing", "reassess_info", "reassess_holds", "reassess_charge", "sex", "race_ai", "race_asian", "race_black", "race_hispanic", "race_me", "race_pi", "race_white", "race_other", "race2_other", "language", "id", "filename")
-```
 
 # Sierra
 
@@ -3840,1307 +3421,6 @@ write.xlsx(Sierra_df, file = "Code Books/Sierra Code Book.xlsx")
 ```
 
 
-
-# Tulare
-- Everything is Join
-
-Jail Data
-```{r}
-book_df <- fread("Historical Data Submissions/Tulare/JMS data.csv", sep = NULL, col.names = "x")
-
-book_df <- book_df %>%
-  mutate(x = gsub(", ,", ",NA,", x),
-         x = gsub(", ", " ", x),
-         x = gsub("[A-Z](,,,,)[A-Z]", ",,,", x)) %>%
-  separate(x, c("cii", "fbi", "ref", "dln", "name", "dob", "ref2", "race", "bail_amt", "date",
-                "charge", "ref3", "ref4", "name2", "dob2", "date2", "unknown", "date3", "ref5", 
-                "ref6", "charge2", "date4", "date5", "numeric"),
-           sep = ",") %>%
-  select(-contains("ref"))
-
-book_df <- book_df %>%
-  mutate_at(vars(dob, dob2), funs(mdy(if_else(nchar(.) == 7, paste0("0", .), .)))) %>%
-  mutate_at(vars(contains("date")), ymd_hms)
-```
-
-Court Data
-```{r}
-original_df <- list()
-
-court_df <- lapply(c("15-16", "16-17", "17-18", "18-19"), function(i){
-  fread(paste0("Historical Data Submissions/Tulare/PretrialStatsFY", i, ".csv"), colClasses = "character", header = F)}) %>%
-  bind_rows()
-
-original_field <- names(court_df)
-
-names(court_df) <- c("case_id", "filing_date", "disposition_date", "case_type", "name", "dob", "sex", "race", "fbi", "cii", "dln", "arrest_date", "arrest_agency", "report_id", "charge_level", "charge", "charge_filing_date", "charge_type", "charge_code", "charge_description", "disposition_date_charge", "disposition", "sentence_date", "sentence_charge", "sentence", "sentence_amt", "sentence_type", "term", "sentence_status", "hearing_date", "hearing_type", "hearing_result", "warrant_date", "warrant_type", "total")
-
-original_df[[1]] <- tibble(table_name = "court_df", original_field = original_field, modified_field = names(court_df))
-
-court_df <- court_df %>%
-  mutate_at(vars(contains("date"), dob), mdy)
-```
-
-Probation (assessment)--Confusing Data. Figure out later. 
-```{r}
-prob_df <- fread("Historical Data Submissions/Tulare/Extremely Rough DRAFT Pretrial Project data 20191008 1722.csv")
-
-original_field <- names(prob_df)
-
-names(prob_df) <- c("event_id", "tool_name", "ra_date", "zip_code", "tool_response", "risk_score", "release_recommendation", "release_decision", "release_type", "release_date", "release_conditions", "pretrial_violation", "pretrial_violation_date", "court_date_reminder", "termination_outcome", "termination_date", "cii", "fbi", "local_id", "dln", "name", "dob", "sex", "race")
-
-original_df[[2]] <- tibble(table_name = "prob_df", original_field = original_field, modified_field = names(prob_df))
-
-prob_df <- prob_df %>%
-  mutate(ra_date_time = mdy_hms(ra_date),
-         ra_date = as_date(ra_date_time),
-         release_date_time = mdy_hms(release_date),
-         release_date = as_date(release_date_time)) %>%
-  mutate_at(vars(pretrial_violation_date, termination_date, dob), mdy)
-```
-
-Code Book
-```{r eval=FALSE, include=FALSE}
-rm(original_field)
-
-original_df <- bind_rows(original_df)
-
-Tulare_df <- lapply(ls()[!grepl("original", ls())], function(i){
-  df <- get(i)
-  
-  if(sum(grepl("date", names(df))) > 0){
-  df2 <- df %>%
-  select(contains("date"), -contains("time")) %>%
-  gather("modified_field", "value") %>%
-  group_by(modified_field) %>%
-  summarise_all(funs(min = as.character(min(., na.rm = T)), mean = as.character(mean(., na.rm = T)), max = as.character(max(., na.rm = T))))
-  }else{
-    df2 <- tibble(modified_field = NA_character_, min = NA_character_, mean = NA_character_, max = NA_character_)
-  }
-  
-  df <- df %>%
-    mutate_if(~length(unique(.)) > 50|is.Date(.)|is.POSIXct(.), ~(. = "not_factor")) %>%    
-    mutate_all(~if_else(is.na(.), "na_missing", as.character(.))) %>%
-    gather(modified_field, factor_value) %>%
-    count(modified_field, factor_value) %>%
-    mutate(table_name = i, county = "Tulare") %>%
-    mutate(factor_flag = if_else(factor_value == "not_factor", 0, 1)) %>%
-    group_by(table_name, modified_field) %>%
-    mutate(table_count = sum(n)) %>%
-    ungroup() %>%
-    rename("factor_count" = "n") %>%
-    mutate(factor_count = if_else(factor_value == "not_factor", NA_integer_, factor_count),
-           factor_percent = round(factor_count/table_count*100, 1)) %>%
-    arrange(desc(factor_flag), modified_field, desc(factor_count))
-  
-  df <- left_join(df, df2, by = "modified_field")
-    }) %>% 
-  bind_rows() %>%
-  left_join(original_df) %>%
-   select(county, table_name, original_field, modified_field, factor_flag, factor_value, factor_count,
-           factor_percent, table_count, min, mean, max) 
-
-write.xlsx(Tulare_df, file = "Code Books/Tulare Code Book.xlsx")
-```
-
-
-Join
-```{r eval=FALSE, include=FALSE}
-#Alameda has an integrated criminal justice system. Information is joined across agencies on the jail_court_ID. It is contained in the book_df, court_df, and book_charge tables. 
-
-#Jail Court ID is duplicated when split between cases
-book_df <- book_df %>% distinct(jail_court_id, .keep_all = T)
-
-#Jail Court ID is duplicated when split between cases
-court_df <- court_df %>% distinct(jail_court_id, .keep_all = T)
-
-book_no_court <- anti_join(book_df, court_df, by = c("jail_court_id"))
-nrow(book_df)
-nrow(book_no_court)
-nrow(book_no_court)/nrow(book_df)
-
-court_no_book <- anti_join(court_df, book_df, by = c("jail_court_id"))
-nrow(court_df)
-nrow(court_no_book)
-nrow(court_no_book)/nrow(court_df)
-```
-
-
-# Tuolumne
-
-Jail Data
-```{r}
-
-```
-
-Court Data
-```{r}
-court_df <- read_excel("Historical Data Submissions/Tuolomne/Tuolumne Pretrial Assessment Information.xls", sheet = 1)
-
-court_charges <- read_excel("Historical Data Submissions/Tuolomne/Tuolumne Pretrial Assessment Information.xls", sheet = 2)
-
-court_sentence <- read_excel("Historical Data Submissions/Tuolomne/Tuolumne Pretrial Assessment Information.xls", sheet = 3)
-
-court_hearing <- read_excel("Historical Data Submissions/Tuolomne/Tuolumne Pretrial Assessment Information.xls", sheet = 4)
-court_hearing2 <- read_excel("Historical Data Submissions/Tuolomne/Tuolumne Pretrial Assessment Information.xls", sheet = 5)
-
-court_hearing <- bind_rows(court_hearing, court_hearing2)
-rm(court_hearing2)
-
-court_lawyer <- read_excel("Historical Data Submissions/Tuolomne/Tuolumne Pretrial Assessment Information.xls", sheet = 6)
-
-court_demo <- read_excel("Historical Data Submissions/Tuolomne/Tuolumne Pretrial Assessment Information.xls", sheet = 7)
-
-court_demo2 <- read_excel("Historical Data Submissions/Tuolomne/Tuolumne Pretrial Assessment Information.xls", sheet = 8)
-```
-
-Probation (assessment)--Confusing Data. Figure out later. 
-```{r}
-# prob_df <- lapply(2018:2019, function(i){
-#   lapply(getSheetNames(paste0("Historical Data Submissions/Tuolomne/Tuolumne County Probation Pre-Trial Data ", i, ".xlsx")),
-#          function(j){
-#     df <- read_excel(paste0("Historical Data Submissions/Tuolomne/Tuolumne County Probation Pre-Trial Data ", i, ".xlsx"),
-#                      skip = 2, sheet = j, col_types = "text")
-#     df$risk_score <- j
-#     return(df)
-# }) %>% bind_rows() 
-# }) %>% bind_rows()
-```
-
-
-# Ventura
-
-Jail Data
-```{r}
-book_df <- read_excel("Historical Data Submissions/Ventura/jcc_ptm_vcsh_2015_2019.xlsx")
-
-names(book_df) <- c("cii", "name", "dob", "arrest_date", "book_num", "book_date", "book_type", "case_id", "charge", "charge_level", "release_date", "release_type", "cii_2", "fbi", "local_id", "dln", "name-2", "dob_2", "sex", "race", "bail_amt", "conviction_date", "conviction_charge", "employee_status")
-```
-
-Court Data
-```{r}
-court_df <- read_excel("Historical Data Submissions/Ventura/jcc_ptm_vcct_2015_2019.xlsx")
-
-names(court_df) <- c("case_id", "other_id", "hearing_fta_flag", "fta_date", "fta_warrant_flag", "fta_warrant_date", "disposition", "disposition_date", "disposition_final_date", "sentence_type", "sentence_date", "cii", "fbi", "local_id", "dln", "name", "dob", "sex", "race", "filing_date", "case_status", "case_status_date", "charge", "charge_level", "charge_description", "hearing_type", "hearing_date", "plea_type", "plea_date", "sentence_loc", "term", "ra_date")
-```
-
-Probation (assessment)--Confusing Data. Figure out later. 
-```{r}
-prob_df <- read_excel("Historical Data Submissions/Ventura/Pretrial Supervision - VCPA.xlsx")
-
-names(prob_df) <- c("person_id", "case_id", "name", "dob", "sex", "race", "cii", "fbi", "dln", "date", "dv", "pretrial_recommendation", "pretrial_screening_flag", "pat_flag", "pretrial_decision", "success_date", "fta_date", "new_arrest_date", "offense_type", "charge_level", "pretrial_violation_date", "pretrial_outcome", "outcome_type", "pretrial_time_spent")
-```
-
-Code Book
-```{r eval=FALSE, include=FALSE}
-rm(original_field)
-
-original_df <- bind_rows(original_df)
-
-Sacramento_df <- lapply(ls()[!grepl("original", ls())], function(i){
-  df <- get(i)
-  
-  if(sum(grepl("date", names(df))) > 0){
-  df2 <- df %>%
-  select(contains("date"), -contains("time")) %>%
-  gather("modified_field", "value") %>%
-  group_by(modified_field) %>%
-  summarise_all(funs(min = as.character(min(., na.rm = T)), mean = as.character(mean(., na.rm = T)), max = as.character(max(., na.rm = T))))
-  }else{
-    df2 <- tibble(modified_field = NA_character_, min = NA_character_, mean = NA_character_, max = NA_character_)
-  }
-  
-  df <- df %>%
-    mutate_if(~length(unique(.)) > 50|is.Date(.)|is.POSIXct(.), ~(. = "not_factor")) %>%    
-    mutate_all(~if_else(is.na(.), "na_missing", as.character(.))) %>%
-    gather(modified_field, factor_value) %>%
-    count(modified_field, factor_value) %>%
-    mutate(table_name = i, county = "Sacramento") %>%
-    mutate(factor_flag = if_else(factor_value == "not_factor", 0, 1)) %>%
-    group_by(table_name, modified_field) %>%
-    mutate(table_count = sum(n)) %>%
-    ungroup() %>%
-    rename("factor_count" = "n") %>%
-    mutate(factor_count = if_else(factor_value == "not_factor", NA_integer_, factor_count),
-           factor_percent = round(factor_count/table_count*100, 1)) %>%
-    arrange(desc(factor_flag), modified_field, desc(factor_count))
-  
-  df <- left_join(df, df2, by = "modified_field")
-    }) %>% 
-  bind_rows() %>%
-  left_join(original_df) %>%
-   select(county, table_name, original_field, modified_field, factor_flag, factor_value, factor_count,
-           factor_percent, table_count, min, mean, max) 
-
-write.xlsx(Sacramento_df, file = "Code Books/Sacramento Code Book.xlsx")
-```
-
-
-# Yuba
-
-Jail Data
-```{r}
-original_df <- list()
-
-#Jail Data
-book_df <- fread("Historical Data Submissions/Yuba/JailExtract.csv")
-book_df2 <- fread("Historical Data Submissions/Yuba/JailExtractQ2.csv")
-
-original_field <- names(book_df)
-names(book_df2) <- names(book_df)
-
-book_df <- bind_rows(book_df, book_df2)
-
-rm(book_df2)
-
-original_field <- names(book_df)
-
-
-names(book_df) <- c("cii", "fbi", "last_name", "first_name", "middle_name", "dob", "arrest_date_time", "book_num", "book_date_time", "court_case_id", "arrest_charge_code_original", "arrest_charge_original", "arrest_charge_level_original", "release_date", "release_type_original", "local_id", "cdl_id", "cdl_state", "sex_original", "race_original", "nationality", "bail_amt", "no_bail", "cash_bail", "bail_reduction", "employment", "status")
-
-
-#original_df[[1]] <- tibble(table_name = "book_df", original_field = original_field, modified_field = names(book_df))
-
-
-
-# cii(?) 8 digits sometimes with leading "A", sometimes "A-"
-# release_type not a factor -- text field including info like first scheduled appearance
-# not as many no release date folks as expected
-
-#Time Cleaning 
-book_df <- book_df %>%
-  mutate_at(vars(contains("time")), mdy_hm) %>%
-  mutate_at(vars(dob, release_date), mdy) %>%
-  mutate(book_date = as_date(book_date_time),
-         arrest_date = as_date(arrest_date_time)) 
-# only release dates match expected minimum of Jan 1 2015 (thru Jun 30 2019)
-# bookings through Nov 25 2019 (earliest is Jun 25 1999)
-# at least one DOB in 2006 (earliest 1935)
-  
-#Charge Adding
-book_df <- book_df %>%
-  mutate(attempt = if_else(grepl("664", arrest_charge_original), 1, 0)) %>%
-  # separate_rows(arrest_charge_original, sep = "\\\\|\\-|\\/") %>%
-  mutate(arrest_charge_level = str_extract(trimws(arrest_charge_level_original), "^."),
-         arrest_charge_level = if_else(!arrest_charge_level %in% c("F", "M", "I"), "Other", arrest_charge_level),
-         arrest_charge_code = if_else(!arrest_charge_code_original %in% c("PC", "VC", "HS", "BP", "WI", "US"), "Other",
-         arrest_charge_code_original),
-         arrest_charge = gsub("664/", "", arrest_charge_original),
-         arrest_charge = toupper(gsub("\\/|\\(|\\)| |\\.|\\.*|^[A-Z]*|\\\\.*|\\{|\\}|/.*|OUT.*","", arrest_charge)),
-         #Changing all 1320.5 FTAs to felonies in accordance with statute. 
-         arrest_charge_level = if_else(arrest_charge == "13205", "F", arrest_charge_level))%>%
-      unite(join_var, arrest_charge_level, arrest_charge_code, arrest_charge, remove = F)
-
-
-#F_PC_3454 this is a flash incar
-#F_PC_1203 this is a grant of probation?
-#M_PC_12032A this is a probation violation
-
-#Flags
-book_df <- book_df %>%
-  mutate(hold = if_else(arrest_charge_code_original == "HOA|OUT", 1, 0))
-
-
-  
-# Code for Charge Hierarchy
-load("Complete Charge Code Hierarchy.RData")
-
-book_df <- left_join(book_df, charge_hier, by = "join_var")
-
-#above not working
-
-
-# Factors
-
-# No book_type
-
-book_df <- book_df %>%
-  mutate(sex = case_when(sex_original %in% c("M") ~ "Male",
-                         sex_original %in% c("F") ~ "Female",
-                         T ~ "Other_Unknown"),
-         race = case_when(race_original %in% c("B") ~ "Black",
-                          race_original %in% c("H") ~ "Hispanic",
-                          race_original %in% c("W") ~ "White",
-                          T ~ "Other_Unknown"))
-
-book_df <- book_df %>%
-  filter(!(release_type_original %in% c("JUVENILE BOOKING ONLY",
-                                        "TRANSPORTED TO JUVENILE HALL",
-                                        "JUVENILE BOOKING",
-                                        "TRANS TO JUVENILE HALL",
-                                        "RELEASED TO JUVENILE HALL",
-                                        "RELEASE TO JUVENILE HALL",
-                                        "TO JUVENILE HALL",
-                                        "JUV BOOKING"))) %>%
-  mutate(release_type = case_when(grepl("^(CT |CRT |COURT |CT\\.?[ /]?|RELEASED (- )?)?O(\\.|/)?R\\.?[ '/:\\|(TO APPEAR)]|O\\.?R\\.?( CT ?)?$|^(PROMISE )?(TO )?APPEAR",
-                                        release_type_original) ~ "OR",
-                                  release_type_original %in% c("BOOK AND RELEASE") ~ "Cite_Release",
-                                  grepl("B/?B|(BAIL(ED)?([ /]?BONDS?)?|BOND) ?(OUT|POST(ED)?|TO APP[.(EAR)]?)?", 
-                                        release_type_original) ~ "Bail_Bond",
-                                  # ~ "Pretrial_Sup",
-                                  release_type_original %in% c("CASE DISMISSED",
-                                                               "COMPLAINT DENIED",
-                                                               "COMPLAINT DENIED PER DA",
-                                                               "COMPLAINT DENIED BY DA",
-                                                               "WARRANT RECALLED")  ~ "Dismissed_Dropped",
-                                  grepl("(RELEASED )?TIMED? ?SERE?VER?D?|T/S", release_type_original) ~ "Time_Served",
-                                  release_type_original %in% c("PER COURTS ORDER") ~ "Court_Order",
-                                  grepl("(RELEASED? TO|PICK(ED)? UP BY|P/U BY|TRANSPORTED TO|RETURNED TO) (YCPD|YUBA CITY( PD)?|(SAC|SUTTER|PLACER|BUTTE|NEVADA|COLUSA) CO(UNTY)?|PAROLE|RCCC)|HO?LD (REMOVED|DROP(PED)?)", 
-                                        release_type_original) ~ "Hold_Release",
-                                  grepl("INTOX|DETOX|SOBERING|849|DETAINER REMOVED|647", release_type_original) ~ "Detain_Only",
-                                  grepl("ICE|G4-?[S3]|RELEASED? TO INS| I C E", release_type_original) ~ "Fed",
-                                  # ~ "Sent_Cap",
-                                  # ~ "Unsent_Cap",
-                                  # ~ "Unspec_Cap",
-                                  # ~ "Administrative",
-                                  # ~ "OR_Conditions",
-                                  grepl("PRISON|CDCR|DVI|TO S/P", release_type_original) ~ "Prison",
-                                  release_type_original %in% c("NOT ARRAIGNED IN TIME",
-                                                               "NOT ARRAINED IN TIME",
-                                                               "NOT ARRAIGNED",
-                                                               "DID NOT GO TO CT IN TIME",
-                                                               "DID NOT GO TO CT ON TIME",
-                                                               "DID NOT GO TO COURT ON TIME",
-                                                               "RELEASED TO PROGRAM",
-                                                               "RELEASE TO PROGRAM",
-                                                               "RE-BOOKED ON YCPD WARRANT",
-                                                               "BOOKED ON LOCAL CHARGES",
-                                                               "RELEASED DUE TO EVACUATION") ~ "Other",
-                                  grepl("^ *$", release_type_original) | release_type_original %in% c("") ~ "Unknown"))
-  
-
-
-
-# sort(table(gsub("[0-9]{1,2}[-/]?[0-9]{1,2}[-/]?[0-9]{2,4} *(@|AT|-)? *[0-9]{1,4} *(HOURS|HRS|AM|PM)? *", "",
-#                 book_df$release_type_original[is.na(book_df$release_type)]),
-#            useNA = "ifany"), decreasing = TRUE)
-# 
-# sort(gsub("[0-9]{1,2}[-/]?[0-9]{1,2}[-/]?[0-9]{2,4} *(@|AT|-)? *[0-9]{1,4} *(HOURS|HRS|AM|PM)? *", "",
-#                 book_df$release_type_original[is.na(book_df$release_type)]))
-# 
-# table(book_df$release_type, useNA = "ifany")
-# 
-# book_df$release_type_original[gsub("[0-9]{1,2}[-/]?[0-9]{1,2}[-/]?[0-9]{2,4} *(@|AT|-)? *[0-9]{1,4} *(HOURS|HRS|AM|PM)? *", "",
-#                 book_df$release_type_original) == "TIME SERVED"]
-# 
-# mean(!is.na(book_df$release_type))
-# .91
-
-# nrow(unique(book_df[c("cii", "book_date_time")]))
-
-# length(which(book_df$cii == " "))
-# 5218
-
-# length(unique(book_df$book_num))
-# 28903
-
-# length(unique(book_df$local_id))
-# 15224
-# local id individual-level
-
-# nrow(unique(book_df[c("book_num", "local_id")]))
-# 28904
-
-# unique(book_df$cii)[1:1000]
-
-# nrow(unique(book_df[c("book_num", "book_date_time")]))
-# 28904
-
-# sort(table(book_df$book_num), decreasing = TRUE)
-
-# book_df[duplicated(book_df$book_num)|duplicated(book_df$book_num, fromLast = TRUE),][order(book_df$book_num[duplicated(book_df$book_num)|duplicated(book_df$book_num, fromLast = TRUE)]),]
-
-
-```
-
-Jail Collapse
-```{r}
-
-book_df <- book_df %>%
-  # mutate(time_first_release = release_date_time - book_date_time) %>%
-  mutate(hierarchy = if_else(is.na(hierarchy), 1e6, as.numeric(hierarchy))) %>%
-  group_by(book_num, book_date_time) %>%
-  mutate(max_arrest_charge = arrest_charge[hierarchy == min(hierarchy)][1],
-         # max_booktype = book_type[hierarchy == min(hierarchy)][1], # no book_type
-         max_charge_description = master_charge_description[hierarchy == min(hierarchy)][1],
-         max_hier = min(hierarchy)) %>%
-  mutate_at(vars(contains("flag")), funs(if_else(is.na(.), 0, .))) %>%
-  mutate_at(vars(contains("flag")), funs("count" = sum(.))) %>%
-  mutate_at(vars(contains("flag")), max) %>%
-  group_by(book_num, book_date_time, court_case_id) %>%
-  filter(hierarchy == min(hierarchy)) %>%
-  ungroup() %>%
-  distinct(book_num, book_date, court_case_id, .keep_all = T) 
-
-# Diagnostics
-book_df %>%
-  distinct(book_num, book_date) %>%
-  arrange(book_num) %>%
-  group_by(book_num) %>%
-  add_count() %>%
-  filter(n>1)
-
-# book_df[book_df$book_num == 232005, ]
-# two individuals w/ same book_num, court_id
-#
-# book_df %>%
-#   distinct(local_id, book_date) 
-```
-
-
-  Jail Diagnostics
-```{r eval=FALSE, include=FALSE}
-book_df %>%
-  count(arrest_charge_level_original) %>%
-  arrange(desc(n))
-
-book_df %>%
-  # filter(arrest_charge_level_original == "SA") %>%
-  count(arrest_charge_code_original) %>%
-  arrange(desc(n))
-
-book_df %>%
-  count(arrest_charge_original) %>%
-  arrange(desc(n))
-
-book_df %>%
-  count(arrest_charge_level) %>%
-  arrange(desc(n))
-
-book_df %>%
-  count(arrest_charge) %>%
-  arrange(desc(n))
-
-#No Ambiguity
-book_df %>%
-  count(arrest_charge, ) %>%
-  group_by(arrest_charge) %>%
-  add_count() %>%
-  filter(n > 1) %>%
-  arrange(desc(n))
-
-#No combined charges
-book_charge %>%
-  filter(grepl("/", arrest_charge_original))
-
-book_df %>%
-  filter(grepl("OUT", arrest_charge_code_original)) %>%
-  count(arrest_charge_original) %>%
-  arrange(desc(n))
-
-# Diagnostic Code for Charge Hierarchy
-# 1 - 7,901/267,372 = 97% non-match rate
-(1 - nrow(book_charge %>% filter(is.na(hierarchy)))/nrow(book_charge))*100
-
-book_charge %>%
-  filter(is.na(hierarchy)) %>%
-  count(join_var) %>%
-  arrange(desc(n))
-
-book_df%>%
-  filter(grepl("F_PC_1203", join_var))%>%
-  group_by(join_var)%>%
-  count()
-
-charge_hier%>%
-  filter(grepl("FTA", master_charge_description))
-  
-book_charge %>%
-  filter(book_num %in% book_num[join_var == "M_PC_13205"]) %>%
-  arrange(book_num) %>%
-  add_count() %>%
-  filter(n > 1)
-```
-
-
-Court Data
-```{r}
-setwd("G:/CrimJustice/PretrialAssessmentPilot")
-
-# Court cases status
-court_status <- lapply(c("Yuba/Yuba.xlsx", "Yuba SQL Results 1-30-2020.xlsx"),
-                       function(x) {
-                         read_excel(paste0("Historical Data Submissions/Yuba/",
-                                           x),
-                                    sheet = 1, na="NULL", col_types="text")
-                       }) %>%
-  bind_rows()
-
-# original_field <- names(court_status)
-
-names(court_status) <- c("court_docket_id", "court_case_id", "case_status_date", "case_status")
-
-# original_df[[2]] <- tibble(table_name = "court_status", original_field = original_field, modified_field = names(court_status))
-
-court_status <- court_status %>%
-  mutate(case_status_date = convertToDate(case_status_date))
-
-# Court charges
-court_charge <- lapply(c("Yuba/Yuba.xlsx", "Yuba SQL Results 1-30-2020.xlsx"),
-                       function(x) {
-                         read_excel(paste0("Historical Data Submissions/Yuba/",
-                                           x),
-                                    sheet = 2, na="NULL", col_types="text")
-                       }) %>%
-  bind_rows()
-
-# original_field <- names(court_charge)
-
-names(court_charge) <- c("court_docket_id", "court_case_id", "court_charge_number", "court_charge_original", "court_charge_level_original", "court_charge_description", "plea_date", "plea_type_original", "disposition_date", "disposition_type_original", "final_date")
-
-# court_charge_code contained w/in "court_charge_description_original"
-
-
-# original_df[[3]] <- tibble(table_name = "court_charge", original_field = original_field, modified_field = names(court_charge))
-
-court_charge <- court_charge %>%
-  mutate_at(vars(plea_date, disposition_date, final_date), convertToDate) %>%
-  mutate(attempt = if_else(grepl("664", court_charge_original), 1, 0)) %>%
-  # separate_rows(court_charge_original, sep = "\\/") %>%
-  mutate(court_charge_level = str_extract(trimws(court_charge_level_original), "^."),
-         court_charge_level = if_else(!court_charge_level %in% c("F", "M", "I"), "Other", court_charge_level),
-         court_charge_code = toupper(str_extract(court_charge_description, "^..")),
-         court_charge_code = if_else(!court_charge_code %in% c("PC", "VC", "HS", "BP", "WI", "US"), "Other", court_charge_code),
-         court_charge = gsub("664/", "", court_charge_original),
-         court_charge = toupper(gsub("\\(|\\)| |\\.|\\.*|^[A-Z]*|\\\\.*|\\{|\\}|\\&.*|w/.*|\\-.*|\\/.*","", court_charge)))%>%
- unite(join_var, court_charge_level, court_charge_code, court_charge, remove = F)%>%
-  
- # F_PC_29800A this is possesion of a firearm, but DOPH deosnt have it unless it also has a 1 or 2 after it, both have same charge heir
- # M_PC_12032A this is always charges as a misd in the county but DOJs misd charge omits the A
-#PC148(a)(1)- M -Resist, Delay, or Obstruct any Officer the original court charge read in as 148(a)(11
-#HS 11358 C is the obnly DOJ charge that is a misd, so I changed the original Yuba code
-# M_HS_11701199999999999 this is what is in Yuba code, but charge desc says Other_PC_117012 special enhancement
- mutate(join_var=case_when(join_var=="F_PC_29800A"~"F_PC_29800A1",
-                           join_var=="M_PC_12032A"~"M_PC_12032",
-                           join_var=="M_PC_148A11"~"M_PC_148A1",
-                           join_var=="F_PC_12032B"~"F_Other_12032",
-                           join_var=="M_HS_11358"~"M_HS_11358C",
-                            join_var=="M_HS_11358A"~"M_HS_11358C",
-                           join_var=="Other_PC_11701199999999999"~"Other_PC_117012",
-                           join_var=="Other_PC_117012B"~"Other_PC_117012",
-                           TRUE~join_var)) 
-                 
-# Factors
-
-court_charge <- court_charge %>%
-  filter(!(disposition_type_original %in% c("Admitted Juvenile",
-                                            "Juvenile Wardship"))) %>%
-  mutate(disposition_type = case_when(disposition_type_original %in% c("DOJ - Dism: Motion of the People",
-                                                                       "DOJ - Dism: Plea Negotiation",
-                                                                       "DOJ - Dismissal",
-                                                                       "Proof of Correction Provided Dismissed",
-                                                                       "DOJ - Stricken",
-                                                                       "DOJ - Dismissal - Harvey Waiver",
-                                                                       "DOJ - Dism: Motion of People",
-                                                                       "Dismissal",
-                                                                       "DOJ - Dismisal - Other Dismissal",
-                                                                       "DOJ - Dism pursuant to 1203.4PC",
-                                                                       "Stricken",
-                                                                       "DOJ -Dismissal - Other dismissal",
-                                                                       "DOJ - Dism/1381/1381.5/1382 PC",
-                                                                       "DOJ -Dism: PC1185/1187/1188-Def Discharged") ~ "Dismissed",
-                                      disposition_type_original %in% c("DOJ - Charges not filed by DA's office") ~ "Dropped",
-                                      disposition_type_original %in% c("DOJ - Sentenced-Plea of guilty/nolo",
-                                                                       "DOJ - No Contest Plea",
-                                                                       "Sentenced-Plea of guilty/nolo",
-                                                                       "No Contest Plea") ~ "Nolo_Contendere",
-                                      disposition_type_original %in% c("DOJ - Found in VOP New Sentence Imposed",
-                                                                       "Guilty Plea",
-                                                                       "Found Guilty Court Trial",
-                                                                       "DOJ - Admitted - New Sentence Imposed",
-                                                                       "DOJ - Admitted - No New Sentence Imposed",
-                                                                       "Admitted Enhancement/Allegations",
-                                                                       "DOJ - Found in VOP No New Sentence Imposed",
-                                                                       "DOJ - Found True",
-                                                                       "Sentenced/court finding of guilty",
-                                                                       "Trial by declaration - Court finding of guilt",
-                                                                       "Found Guilty",
-                                                                       "DOJ - Found Guilty - Jury",
-                                                                       "Found True",
-                                                                       "Allegation Proven",
-                                                                       "DOJ - Convicted") ~ "Guilty",
-                                      disposition_type_original %in% c("DOJ - Found Not Guilty",
-                                                                       "DOJ - Found Not Guilty - Jury",
-                                                                       "Found Not True",
-                                                                       "DOJ - Found Not Guilty: Court") ~ "Not_Guilty",
-                                      disposition_type_original %in% c("AF: Traffic School Conviction",
-                                                                       "Bail Forfeiture",
-                                                                       "VOP Set Aside",
-                                                                       "DOJ - Deferred Entry of Judgment",
-                                                                       "DOJ - Diversion",
-                                                                       "DOJ - Dismissal - After drug court",
-                                                                       "DOJ - Dismissal - After Diversion",
-                                                                       "Change of venue - transfer",
-                                                                       "Diversion Terminated",
-                                                                       "DOJ - Dism: After Deferred Entry of Judgment",
-                                                                       "DOJ - Reduced to Misdemeanor 17bPC",
-                                                                       "DOJ - Reduced to misdemeanor 17b/Dism pursuant to 1203.4PC",
-                                                                       "Reduced to Infraction",
-                                                                       "Sentence Modified",
-                                                                       "Prop 47 Reduced To Misdemeanor") | 
-                                        is.na(disposition_type_original) ~ "Other"),
-         plea_type = case_when(plea_type_original %in% c("No Contest",
-                                                         "Nolo Contendere") ~ "Nolo_Contendere",
-                               plea_type_original %in% c("Guilty",
-                                                         "Admit") ~ "Guilty",
-                               plea_type_original %in% c("Not Guilty",
-                                                         "Deny") ~ "Not_Guilty",
-                               plea_type_original %in% c("Case Disposed",
-                                                         "Plea Set Aside",
-                                                         "Unknown",
-                                                         "VOP Monies ordered") ~ "Other"))
-
-# sort(table(court_charge$plea_type_original[is.na(court_charge$plea_type)], useNA = "ifany"), decreasing = TRUE)
-# 
-# mean(!is.na(court_charge$plea_type))
-
-# table(court_charge$plea_type, useNA = "ifany")
-
-
-# Court hearings
-court_hearings <- lapply(c("Yuba/Yuba.xlsx", "Yuba SQL Results 1-30-2020.xlsx"),
-                       function(x) {
-                         read_excel(paste0("Historical Data Submissions/Yuba/",
-                                           x),
-                                    sheet = 3, na="NULL", col_types="text")
-                       }) %>%
-  bind_rows()
-
-# original_field <- names(court_hearings)
-
-names(court_hearings) <- c("court_docket_id", "court_case_id", "hearing_date", "hearing_type_original", "hearing_outcome")
-
-# original_df[[4]] <- tibble(table_name = "court_hearings", original_field = original_field, modified_field = names(court_hearings))
-
-court_hearings <- court_hearings %>%
-  mutate_at(vars(hearing_date),convertToDate)
-
-court_hearings <- court_hearings %>%
-  filter(!(hearing_type_original %in% c("JV Boot Camp Review Hearing",
-                                        "JV Pretrial Hearing",
-                                        "JV DEOJ Review Hearing",
-                                        "JV Dispositional Hearing",
-                                        "JV Detention Hearing",
-                                        "JV Return on Warrant Hearing",
-                                        "JV Transfer In Hearing",
-                                        "JV Detention Hearing 602W&I Subsequent Petition",
-                                        "JV W&I725(a) Review Hearing",
-                                        "JV 15-Day Placement Review",
-                                        "JV-DEOJ Non-Compliance Hearing",
-                                        "JV Transfer In Hearing Existing 602 W&I Case",
-                                        "JV Transfer Hearing",
-                                        "JV Jurisdictional Hearing",
-                                        "JV-DEOJ Non-Compliance Hearing",
-                                        "JV Detention Hearing on W&I 777  Petition"))) %>%
-  mutate(hearing_type = case_when(hearing_type_original %in% c("Arraignment in Custody",
-                                                               "Arraignment",
-                                                               "VOP Arraignment",
-                                                               "Arraignment on Notice to Appear",
-                                                               "Arraignment on Citation",
-                                                               "Parole - Arraignment",
-                                                               "Arraignment on Information",
-                                                               "PRCS - Arraignment",
-                                                               "Continued Arraignment",
-                                                               "Mandatory Supervision - Arraignment",
-                                                               "Community Court - Arraignment",
-                                                               "Arraignment on Violation of Probation",
-                                                               "SARB Arraignment Hearing",
-                                                               "Arraignment on Warrant",
-                                                               "Arraignment Notice of Hearing (Criminal)",
-                                                               "Traffic Arraignment") ~ "Arraignment",
-                                  hearing_type_original %in% c("Sentencing",
-                                                               "Sentencing - Probation Report",
-                                                               "VOP Sentencing",
-                                                               "Parole - Sentencing",
-                                                               "PRCS - Sentencing",
-                                                               "Mandatory Supervision - Sentencing",
-                                                               "Sentencing - Firearms Relinquishment Report") ~ "Sentencing",
-                                  hearing_type_original %in% c("PreTrial Conference",
-                                                               "Pre Hearing Conference",
-                                                               "Review Hearing",
-                                                               "VOP Pre Hearing Conference",
-                                                               "Case Pull w/Criminal",
-                                                               "Walk-In Traffic",
-                                                               "Walk-In Criminal",
-                                                               "Stay on Warrant",
-                                                               "Hearing",
-                                                               "Drug Court Review",
-                                                               "Misdo Pretrial Setting",
-                                                               "Court Trial",
-                                                               "Motion to Recall Warrant",
-                                                               "SARB Hearing",
-                                                               "Parole - PHC",
-                                                               "Preliminary Hearing",
-                                                               "Discovery Compliance Hearing",
-                                                               "PRCS - Pretrial",
-                                                               "Trial Readiness Conference",
-                                                               "Trial Setting Conference",
-                                                               "Motion Hearing",
-                                                               "J&S Setting",
-                                                               "Detention Hearing",
-                                                               "Trial by Declaration",
-                                                               "Restitution Hearing",
-                                                               "PHC/PX Setting",
-                                                               "Disposition Hearing",
-                                                               "Firearms Relinquishment Hearing",
-                                                               "Drug Diversion Eligibility Hearing",
-                                                               "Entry of Plea",
-                                                               "Further Proceedings",
-                                                               "Motion to Transfer per 1203.9PC",
-                                                               "VOP PreTrial Conference",
-                                                               "Motion - 1538.5 PC (Motion to Suppress)",
-                                                               "Jury Trial - Ongoing",
-                                                               "Community Court - Review Hearing",
-                                                               "Extradition Hearing",
-                                                               "VOP Court Trial",
-                                                               "Bail Bond Motion",
-                                                               "Jurisdiction Hearing",
-                                                               "Bail Hearing",
-                                                               "Marsden Hearing",
-                                                               "Prop 36 Review Hearing",
-                                                               "Transfer-Out Hearing",
-                                                               "Parole - Court Trial",
-                                                               "Mandatory Supervision - PHC",
-                                                               "Motion to Continue",
-                                                               "Motions in Limine Hearing",
-                                                               "Parole Revocation Hearing",
-                                                               "Violation of PRCS PreTrial Conference",
-                                                               "Jury Trial",
-                                                               "Diversion Review",
-                                                               "SARB Review Hearing",
-                                                               "Prop 36 Initial Hearing",
-                                                               "PRCS - Hearing",
-                                                               "Violation of Cruz Waiver Hearing",
-                                                               "Transfer-In Hearing",
-                                                               "PRCS - Court Trial",
-                                                               "Settlement Conference",
-                                                               "Motion - 995 PC (Motion to Dismiss Information)",
-                                                               "Motion to Amend Complaint",
-                                                               "Modification Hearing",
-                                                               "Pitchess Motion",
-                                                               "MH Competency Hearing",
-                                                               "Parole - Probable Cause Hearing",
-                                                               "Informal Review - 654.2 W&I",
-                                                               "Motion to Change / Set Aside / Withdraw Plea",
-                                                               "VOP Hearing",
-                                                               "Parole - Hearing",
-                                                               "241.1 W&I Hearing",
-                                                               "OSC Hearing",
-                                                               "MH Court Trial PC 1369",
-                                                               "Trial de Novo",
-                                                               "Walk-In Court",
-                                                               "Motion - 1203.4 PC",
-                                                               "Demurrer Hearing",
-                                                               "Mental Competence Hearing",
-                                                               "Motion for Discovery",
-                                                               "Mandatory Supervision - Hearing",
-                                                               "Petition for Disclosure Hearing",
-                                                               "Order to Show Cause re Contempt",
-                                                               "Initial Hearing") ~ "Other"))
-
-# sort(table(court_hearings$hearing_type_original[is.na(court_hearings$hearing_type)], useNA = "ifany"), decreasing = TRUE)
-# 
-# mean(!is.na(court_hearings$hearing_type))
-# >99.9%
-
-# table(court_hearings$hearing_type, useNA = "ifany")
-
-
-
-# Court fta
-court_fta <- lapply(c("Yuba/Yuba.xlsx", "Yuba SQL Results 1-30-2020.xlsx"),
-                       function(x) {
-                         read_excel(paste0("Historical Data Submissions/Yuba/",
-                                           x),
-                                    sheet = 4, na="NULL", col_types="text")
-                       }) %>%
-  bind_rows()
-
-# original_field <- names(court_fta)
-
-names(court_fta) <- c("court_docket_id", "court_case_id", "fta_hearing", "fta_date", "fta_warrant", "fta_warrant_date", "fta_warrant_type")
-
-# original_df[[5]] <- tibble(table_name = "court_fta", original_field = original_field, modified_field = names(court_fta))
-
-court_fta <- court_fta %>%
-  mutate_at(vars(fta_date, fta_warrant_date),convertToDate)
-
-
-# Court sentence
-court_sentence <- lapply(c("Yuba/Yuba.xlsx", "Yuba SQL Results 1-30-2020.xlsx"),
-                       function(x) {
-                         read_excel(paste0("Historical Data Submissions/Yuba/",
-                                           x),
-                                    sheet = 5, na="NULL", col_types="text")
-                       }) %>%
-  bind_rows()
-
-# original_field <- names(court_sentence)
-
-names(court_sentence) <- c("court_docket_id", "court_case_id", "sentence_date", "sentence_type_incarceration", "sentence_location", "sentence_term", "sentence_term_value")
-
-# original_df[[6]] <- tibble(table_name = "court_sentence", original_field = original_field, modified_field = names(court_sentence))
-
-court_sentence <- court_sentence %>%
-  mutate_at(vars(sentence_date), convertToDate)
-
-# court_sentence <- court_sentence %>%
-#   mutate(sentence_type = case_when(sentence_type_original %in% c() ~ "Prison",
-#                                    sentence_type_original %in% c() ~ "Jail",
-#                                    sentence_type_original %in% c() ~ "Probation",
-#                                    sentence_type_original %in% c() ~ "Other"))
-
-# sort(table(court_sentence$sentence_type_original, useNA = "ifany"), decreasing = TRUE)
-# [is.na(court_sentence$sentence_type)]
-# mean(!is.na(court_sentence$sentence_type))
-#
-# table(court_sentence$sentence_type, useNA = "ifany")
-
-# different sentence types appear in different tables, we need to combine these
-# this table (court_sentencing) has sentences to jail and prison
-# court_sent_prob has probation sentences
-# court_fine has fine sentences
-# court_sent_dl_cond has driver's license conditions
-
-
-# Court sentence dl conditions
-court_sent_dl_cond <- lapply(c("Yuba/Yuba.xlsx", "Yuba SQL Results 1-30-2020.xlsx"),
-                       function(x) {
-                         read_excel(paste0("Historical Data Submissions/Yuba/",
-                                           x),
-                                    sheet = 6, na="NULL", col_types="text")
-                       }) %>%
-  bind_rows()
-
-# original_field <- names(court_sent_dl_cond)
-
-names(court_sent_dl_cond) <- c("court_case_id", "court_docket_id", "sentence_date", "config_desc", "screenbuilderdataentrynumber", "dl_cond_desc", "dl_cond_desc2", "dl_cond_fieldname", "dl_cond_fieldvalue", "dl_cond_fieldname2", "dl_cond_fieldvalue2")
-
-# original_df[[7]] <- tibble(table_name = "court_sent_dl_cond", original_field = original_field, modified_field = names(court_sent_dl_cond))
-
-court_sent_dl_cond <- court_sent_dl_cond %>%
-  mutate_at(vars(sentence_date), convertToDate)
-
-# Court fine
-court_fine <- lapply(c("Yuba/Yuba.xlsx", "Yuba SQL Results 1-30-2020.xlsx"),
-                       function(x) {
-                         read_excel(paste0("Historical Data Submissions/Yuba/",
-                                           x),
-                                    sheet = 7, na="NULL", col_types="text")
-                       }) %>%
-  bind_rows()          
-
-# original_field <- names(court_fine)
-
-names(court_fine) <- c("court_docket_id", "fine")
-
-# original_df[[8]] <- tibble(table_name = "court_fine", original_field = original_field, modified_field = names(court_fine))
-
-# Court sentence probation
-court_sent_prob <- lapply(c("Yuba/Yuba.xlsx", "Yuba SQL Results 1-30-2020.xlsx"),
-                       function(x) {
-                         read_excel(paste0("Historical Data Submissions/Yuba/",
-                                           x),
-                                    sheet = 8, na="NULL", col_types="text")
-                       }) %>%
-  bind_rows()
-
-# original_field <- names(court_sent_prob)
-
-names(court_sent_prob) <- c("court_docket_id", "court_case_id","sentence_date", "sent_prob_type", "sent_prob_location", "sentence_term_value", "sentence_term")
-
-# original_df[[9]] <- tibble(table_name = "court_sent_prob", original_field = original_field, modified_field = names(court_sent_prob))
-
-court_sent_prob <- court_sent_prob %>%
-  mutate_at(vars(sentence_date), convertToDate)
-
-# Court technical elements
-court_tech <- lapply(c("Yuba/Yuba.xlsx", "Yuba SQL Results 1-30-2020.xlsx"),
-                       function(x) {
-                         read_excel(paste0("Historical Data Submissions/Yuba/",
-                                           x),
-                                    sheet = 9, na="NULL", col_types="text")
-                       }) %>%
-  bind_rows()          
-
-# original_field <- names(court_tech)
-
-names(court_tech) <- c("court_docket_id", "court_case_id", "last_name", "first_name", "middle_name", "file_date", "dob", "cii", "cdl_id", "fbi", "sex_original", "race_original", "cdl_state", "risk_report_date")
-
-# original_df[[10]] <- tibble(table_name = "court_tech", original_field = original_field, modified_field = names(court_tech))
-
-court_tech<- court_tech %>%
-  mutate_at(vars(file_date, dob, risk_report_date), convertToDate)
-
-court_tech <- court_tech %>%
-  mutate(sex = case_when(sex_original %in% c("Male") ~ "Male",
-                         sex_original %in% c("Female") ~ "Female",
-                         is.na(sex_original) ~ "Other_Unknown"),
-         race = case_when(race_original %in% c("Hispanic") ~ "Hispanic",
-                          race_original %in% c("Black") ~ "Black",
-                          race_original %in% c("White") ~ "White",
-                          race_original %in% c("Other Asian",
-                                               "Other",
-                                               "Asian",
-                                               "Indian",
-                                               "Asian Indian",
-                                               "Cambodian",
-                                               "Chinese",
-                                               "Hawaiian",
-                                               "Filipino",
-                                               "Pacific Islander",
-                                               "Unavailable",
-                                               "Laotian",
-                                               "Native Hawaiian or Other Pacific Islander",
-                                               "Vietnamese",
-                                               "Multiracial") |
-                            is.na(race_original) ~ "Other_Unknown"))
-         
-
-
-
-
-
-
-# sort(table(court_tech$race_original, useNA = "ifany"), decreasing = TRUE)
-# [is.na(court_tech$race)]
-# mean(!is.na(court_tech$race))
-#
-# table(court_tech$race, useNA = "ifany")
-
-
-
-# Code for Charge Hierarchy
-load("Complete Charge Code Hierarchy.RData")
-
-court_charge <- left_join(court_charge, charge_hier, by = "join_var")  
-
-court_charge <- court_charge %>%
-  mutate(
-    enhancement = if_else(
-      join_var %in% c(
-        "Other_VC_14601B2",
-        "Other_VC_146011B2",
-        "Other_VC_146012D2",
-        "Other_VC_146015D2",
-        "Other_VC_23578",
-        "Other_VC_231035",
-        "Other_VC_23540",
-        "Other_PC_117012C1",
-        "Other_PC_120225A",
-        "Other_PC_1170H3",
-        "Other_PC_1170H",
-        "Other_PC_120227A",
-        "Other_PC_117012",
-        "Other_PC_120221",
-        "Other_PC_667A1",
-        "Other_PC_667D",
-        "Other_PC_667A1",
-        "Other_PC_12022A1",
-        "Other_PC_12022B1",
-        "Other_PC_1203E4",
-        "Other_VC_23577",
-        "Other_Other_120225A",
-        "Other_PC_1202253C",
-        "Other_PC_290018BZ",
-        "Other_PC_290018BZ",
-        "Other_PC_1202253B",
-        "Other_PC_6676D",
-        "Other_PC_1202253D",
-        "Other_PC_1203K",
-        "Other_HS_113702A",
-        "Other_PC_120307A11",
-        "Other_HS_11370A",
-        "Other_PC_6665",
-        "Other_PC_6675B",
-        "Other_PC_6675C21",
-        "Other_Other_18622B1",
-        "M_VC_23578",
-        "M_VC_231035",
-        "F_PC_117012C1",
-        "F_PC_120225A",
-        "F_PC_1170H3",
-        "F_PC_1170H",
-        "F_PC_120227A",
-        "F_PC_120221",
-        "F_PC_667A1",
-        "F_PC_667A1",
-        "F_PC_12022A1",
-        "F_PC_12022B1",
-        "F_VC_23577",
-        "F_PC_1202253C",
-        "F_PC_290018BZ",
-        "F_PC_290018BZ",
-        "F_PC_1202253B",
-        "F_PC_6676D",
-        "F_PC_1202253D",
-        "F_PC_1203K",
-        "F_HS_113702A",
-        "F_PC_120307A11",
-        "F_HS_11370A",
-        "F_PC_6675C21",
-        "M_VC_231035A" ), 1,0),
-    hierarchy = if_else(is.na(hierarchy) & enhancement == 1, 1e6, hierarchy),
-    enhancement = if_else(court_charge_level_original %in% c("E"), 1, 0),
-    hierarchy = if_else(is.na(hierarchy) & enhancement == 1, 1e6,   hierarchy)) %>%
-  mutate(hierarchy = if_else(court_charge_level == "I" & is.na(hierarchy), 1e6, hierarchy))
-
-
-
-# Diagnostic Code for Charge Hierarchy
-# 1 - 7,901/267,372 = 97% non-match rate
-(1 - nrow(court_charge %>% filter(is.na(hierarchy)))/nrow(court_charge))*100
-
-court_charge %>%
-  filter(is.na(hierarchy)) %>%
-  count(join_var) %>%
-  arrange(desc(n))
-
-
-
-court_charge%>%
-  filter(grepl("M_HS_11358A", join_var))%>%
-  group_by()%>%
-  count()         
-
-
-charge_hier%>%
-  filter(grepl("120227", charge))
-  
-# Checking to see if there are enhancements, priors, or special allegations in court charge data
-
-grep("charge", names(court_charge), value = TRUE)
-
-table(court_charge$court_charge_level_original)
-
-court_charge <- court_charge %>%
-  mutate(court_qualifier_flag = if_else(court_charge_level_original %in% c("AL", "E"), 1, 0))
-
-# write.csv(court_charge[court_charge$court_qualifier_flag == 1, c("court_charge_code", "court_charge", "court_charge_original",
-#                                                                  "court_charge_level", "court_charge_level_original",
-#                                                                  "court_charge_description")],
-#           file = "G:/CrimJustice/PretrialAssessmentPilot/Charge Definitions and Hierarchy/Yuba_Qualifier_Flags_Court_charges.csv")
-# 
-# table(court_charge$court_qualifier_flag, useNA = "ifany")
-
-
-```
-
- Court Diagnostics
-```{r eval=FALSE, include=FALSE}
-court_charge %>%
-  count(court_charge_level_original) %>%
-  arrange(desc(n))
-
-court_charge %>%
-  # filter(court_charge_level_original == "SA") %>%
-  count(court_charge_code_original) %>%
-  arrange(desc(n))
-
-court_charge %>%
-  count(court_charge_original) %>%
-  arrange(desc(n))
-
-court_charge %>%
-  count(court_charge_level)
-
-court_charge %>%
-  count(court_charge) %>%
-  arrange(desc(n))
-
-#No Ambiguity
-court_charge %>%
-  count(court_charge, court_charge_original) %>%
-  group_by(court_charge) %>%
-  add_count() %>%
-  filter(n > 1) %>%
-  arrange(desc(n))
-
-#No combined charges
-court_charge %>%
-  filter(grepl("664", court_charge_original))
-```
-
-Probation Data
-```{r}
-
-
-```
-
-Codebook
-```{r}
-#Code Book
-rm(original_field)
-
-original_df <- bind_rows(original_df)
-
-Yuba_df <- lapply(ls()[!grepl("original", ls())], function(i){
-  df <- get(i)
-  
-  if(sum(grepl("date", names(df))) > 0){
-  df2 <- df %>%
-  select(contains("date"), -contains("time")) %>%
-  gather("modified_field", "value") %>%
-  group_by(modified_field) %>%
-  summarise_all(funs(min = as.character(min(., na.rm = T)), mean = as.character(mean(., na.rm = T)), max = as.character(max(., na.rm = T))))
-  }else{
-    df2 <- tibble(modified_field = NA_character_, min = NA_character_, mean = NA_character_, max = NA_character_)
-  }
-  
-  df <- df %>%
-    mutate_if(~length(unique(.)) > 50|is.Date(.)|is.POSIXct(.), ~(. = "not_factor")) %>%    
-    mutate_all(~if_else(is.na(.), "na_missing", as.character(.))) %>%
-    gather(modified_field, factor_value) %>%
-    count(modified_field, factor_value) %>%
-    mutate(table_name = i, county = "Yuba") %>%
-    mutate(factor_flag = if_else(factor_value == "not_factor", 0, 1)) %>%
-    group_by(table_name, modified_field) %>%
-    mutate(table_count = sum(n)) %>%
-    ungroup() %>%
-    rename("factor_count" = "n") %>%
-    mutate(factor_count = if_else(factor_value == "not_factor", NA_integer_, factor_count),
-           factor_percent = round(factor_count/table_count*100, 1)) %>%
-    arrange(desc(factor_flag), modified_field, desc(factor_count))
-  
-  df <- left_join(df, df2, by = "modified_field")
-    }) %>% 
-  bind_rows() %>%
-  left_join(original_df) %>%
-   select(county, table_name, original_field, modified_field, factor_flag, factor_value, factor_count,
-           factor_percent, table_count, min, mean, max) 
-
-write.xlsx(Yuba_df, file = "Code Books/Yuba Code Book.xlsx")
-
-```
-
-DOJ CII/Linking Extraction
-```{r}
-# Grab Tables with CII
-df <- sapply(ls()[which(sapply(ls(), function(i){
-  sum(names(get(i)) %in% "cii")
-}) == 1)], get)
-
-# Pull CII and other identifiers
-doj_book <- df[[1]] %>%
-  select(cii, fbi, first_name, middle_name, last_name, dob, cdl_id, cdl_state, race_original, sex_original, local_id) %>%
-  mutate(cii = parse_number(cii),
-         cii = case_when(nchar(cii) == 6 ~ paste0("0000", cii),
-                         nchar(cii) == 7 ~ paste0("000", cii),
-                         nchar(cii) == 8 ~ paste0("00", cii),
-                         nchar(cii) == 9 ~ paste0("0", cii),
-                         T ~ as.character(cii)),
-         cii = if_else(nchar(cii) != 10, NA_character_, cii)) 
-
-doj_court <- df[[2]] %>%
-  select(cii, fbi, cdl_id, cdl_state, dob, race_original, sex_original, first_name, middle_name, last_name) %>%
-  mutate(cii = parse_number(cii),
-         cii = case_when(nchar(cii) == 6 ~ paste0("0000", cii),
-                         nchar(cii) == 7 ~ paste0("000", cii),
-                         nchar(cii) == 8 ~ paste0("00", cii),
-                         nchar(cii) == 9 ~ paste0("0", cii),
-                         T ~ as.character(cii)),
-         cii = if_else(nchar(cii) != 10, NA_character_, cii)) 
-
-
-# Examine missing ciis and duplicates on cii. 
-# doj_book %>% #Off by about 55,000
-#   distinct()
-# 
-# doj_book %>% 
-#   distinct(cii)
-# 
-# doj_book %>% 
-#   distinct() %>%
-#   add_count(cii) %>%
-#   filter(n > 1) %>%
-#   arrange(desc(n)) %>% 
-#   View()
-# 
-# doj_court %>% #Off by about 45,000
-#   distinct()
-# 
-# doj_court %>% 
-#   distinct(cii)
-# 
-# doj_court %>% 
-#   distinct() %>%
-#   add_count(cii) %>%
-#   filter(n > 1) %>%
-#   arrange(desc(n)) %>% 
-#   View()
-# 
-# #In this case, it is clear that the local ID is not a true person identifier but rather an event identifier and so should be removed.
-# 
-# doj_book <- doj_book %>% select(-local_id)
-# doj_court <- doj_court %>% select(-local_id)
-# 
-# doj_book %>% # Off by about 7,000
-#   distinct()
-# 
-# doj_book %>% 
-#   distinct(cii)
-# 
-# doj_book %>% 
-#   distinct() %>%
-#   add_count(cii) %>%
-#   filter(n > 1) %>%
-#   arrange(desc(n)) %>% 
-#   View()
-# 
-# doj_court %>% #Off by about 9,000
-#   distinct()
-# 
-# doj_court %>% 
-#   distinct(cii)
-# 
-# doj_court %>% 
-#   distinct() %>%
-#   add_count(cii) %>%
-#   filter(n > 1) %>%
-#   arrange(desc(n)) %>% 
-#   View()
-
-#CIIs for DOJ
-doj_cii <- bind_rows(doj_book %>% select(cii), doj_court %>% select(cii)) %>% distinct()
-
-#Create an excel workbook with all data table. Make sure to include the cii table first. 
-write.xlsx(list(doj_cii, doj_book, doj_court), file = "CIIs for DOJ/Yuba CIIs and Demographics for DOJ.xlsx", sheetName = c("ciis", "booking", "court"))
-```
-
-Factors Codebook
-```{r}
-factor_df <- lapply(ls()[!grepl("original|^df|hier", ls())], function(i){
-  df <- get(i)
-  if(sum(grepl("original", names(df))) == 0){
-    return(NULL)
-  }else{
-    var_names <- names(df)[grepl("original", names(df))]
-    var_names2 <- gsub("_original", "", var_names)
-   
-    df1 <- df %>%
-     select(var_names) %>%
-     gather(original_field, original_value)
-   
-    df2 <- df %>%
-     select(var_names2) %>%
-     gather(modified_field, modified_value)
-   
-   df <- bind_cols(df1, df2) %>%
-     count(original_field, modified_field, original_value, modified_value) %>%
-     arrange(modified_field, desc(n)) %>%
-     group_by(modified_field) %>%
-     mutate(row = row_number(),
-            percent = round(n/sum(n)*100)) %>%
-     ungroup() %>%
-     filter(row <= 50) %>%
-     select(-row) %>%
-     rename("total" = n)
-   }
-  }) %>%
-  bind_rows()
-
-write.xlsx(factor_df, file = "G:/CrimJustice/PretrialAssessmentPilot/Code Books/Factor Code Book/Yuba Factor Code Book.xlsx", asTable = T, tableStyle = "TableStyleMedium1", colWidths = "auto")
-```
 
 
 
