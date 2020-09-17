@@ -799,17 +799,20 @@ assess_df_score <- assess_df_score %>%
   separate(first_name, c("first_name", "middle_name"), sep = " ") 
 
 # Rearrange Scores from Long to Wide
-assess_df_score %>%
+assess_df_score <- assess_df_score %>%
   group_by (IdNumber, Assessment_Date_Time, arrestingagency) %>%
   pivot_wider(names_from = Tool_Question,  values_from = Tool_Response) %>%
-  ungroup()  
+  ungroup() %>%
+  select(-`NA`)
+  
+  
   
 # Standardize Names
-names(assess_df_score) <- c("local_id1", "local_id2", "arresting_agency", 
-                            "first_name", "middle_name", "last_name", "suffix",
-                            "tool_name",'assessment_date_time',"oras_tool_response_1","oral_tool_response_2",
+names(assess_df_score) <- c("local_id1", "local_id2", "arresting_agency", "name","tool_name",
+                            "assessment_date_time", "oras_risk_score", "last_name", "first_name",
+                            "middle_name","suffix","oras_tool_response_1", "oral_tool_response_2",
                             "oras_tool_response_3",	"oras_tool_response_4","oras_tool_response_5",
-                            "oras_tool_response_6", "oras_tool_response_7", "oras_risk_score")
+                            "oras_tool_response_6", "oras_tool_response_7")
 
 
 
@@ -818,7 +821,7 @@ assess_df_score <- assess_df_score %>%
   mutate(assess_date = as_date(assess_date_time)) %>%
   
 
-
+```
 county
 zip_code
 cii
@@ -878,7 +881,6 @@ assess_df <- assess_df %>%
          pretrial_violation_flag = if_else(!is.na(pretrial_violation_date), 1, 0))
 
 
-```
 # Read in Probation Risk Assessment Data
  ## This is data that covers 7/7/2011 to 2/6/2020
 prob_df <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Nevada/Pretrial.Updated.xlsx")
