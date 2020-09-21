@@ -782,9 +782,58 @@ court_df_s %>%
 Probation Data New
 ```{r eval=FALSE, include=FALSE}
 
-assess_df_case <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Nevada/P2 Submission-June 30/pretrial_data.xlsx", sheet = 1)
+assess_df_case <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Nevada/P2 Submission-June 30/pretrial_data.xlsx",  sheet = 1)
 
-assess_df_demo <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Nevada/P2 Submission-June 30/pretrial_data.xlsx", sheet = 2)
+# Format Names
+assess_df_case <- assess_df_case %>%
+  mutate (name = toupper(Name)) %>% 
+  separate(name, c("last_name", "first_name", "suffix"),  sep = ",") %>%
+  mutate_at(vars(first_name, last_name, suffix), trimws) %>%
+  separate(first_name, c("first_name", "middle_name"), sep = " ") 
+
+# Standardize Names
+names(assess_df_case) <- c("pretrial_id", "pretrial_id1", "pretrial_id2", "arresting_agency", "name","zip_code",
+                            "release_recommendation_original", "pretrial_release_type_original",
+                           "pretrial_release_date_time",
+                            "court_date_reminder", "pretrial_termination_outcome_original", "pretrial_termination_date",
+                            "last_name","first_name", "middle_name","suffix")
+
+
+# Date Reformatting--See pg. xxx for more details.
+assess_df_case <- assess_df_case %>%
+  mutate(pretrial_release_date = as_date(pretrial_release_date_time))  
+
+
+
+assess_df_demo <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Nevada/P2 Submission-June 30/pretrial_data.xlsx", col_types= c("text" , "text" , "text" , "text" ,  "text" , "text" ,
+                                                    "text" , "date" , "text" ,  "text" ) , sheet = 2)
+
+
+assess_df_demo <- assess_df_demo %>%
+  mutate (name = toupper(Name)) %>% 
+  separate(name, c("last_name", "first_name", "suffix"),  sep = ",") %>%
+  mutate_at(vars(first_name, last_name, suffix), trimws) %>%
+  separate(first_name, c("first_name", "middle_name"), sep = " ")
+
+ 
+# Standardize Names
+names(assess_df_demo) <- c("pretrial_id1", "pretrial_id2", "arresting_agency", "cii", "fbi", "cdl_id",
+                            "name", "dob", "sex_original", "race_original",
+                            "last_name","first_name", "middle_name","suffix")
+
+
+
+assess_df_demo %>%
+  count (sex_original)
+  
+#Standardize Factors
+assess_df_demo <- assess_df_demo %>%
+ mutate(sex = case_when(sex_original %in% c("Female") ~ "Female",
+                         sex_original %in% c("Male") ~ "Male"),
+         race = case_when(race_original %in% c("Hispanic") ~ "Hispanic",
+                          race_original %in% c("Black") ~ "Black",
+                          race_original %in% c("White") ~ "White",
+                          race_original %in% c("NULL", "Pacific Islander", "Unknown") ~ "Other_Unknown"))
 
 
 #Readin Scores
@@ -798,6 +847,8 @@ assess_df_score <- assess_df_score %>%
   mutate_at(vars(first_name, last_name, suffix), trimws) %>%
   separate(first_name, c("first_name", "middle_name"), sep = " ") 
 
+
+
 # Rearrange Scores from Long to Wide
 assess_df_score <- assess_df_score %>%
   group_by (IdNumber, Assessment_Date_Time, arrestingagency) %>%
@@ -806,9 +857,8 @@ assess_df_score <- assess_df_score %>%
   select(-`NA`)
   
   
-  
 # Standardize Names
-names(assess_df_score) <- c("local_id1", "local_id2", "arresting_agency", "name","tool_name",
+names(assess_df_score) <- c("pretrial_id1", "pretrial_id2", "arresting_agency", "name","tool_name",
                             "assessment_date_time", "oras_risk_score", "last_name", "first_name",
                             "middle_name","suffix","oras_tool_response_1", "oral_tool_response_2",
                             "oras_tool_response_3",	"oras_tool_response_4","oras_tool_response_5",
@@ -821,30 +871,22 @@ assess_df_score <- assess_df_score %>%
   mutate(assess_date = as_date(assess_date_time)) %>%
   
 
-```
+# Readin Terms and Conditions
+  
+assess_df_terms <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Nevada/P2 Submission-June 30/pretrial_data.xlsx", sheet = 4)
+
+#need to pivot wider on this table.
+
+"pretrial_id", "pretrial_id1", "pretrial_id2", "arresting_agency", "name", "release_conditions_original"
+
+names(assess_df) <- c("pretrial_id", "cii", "court_case_id", "court_docket_id", "fbi", "local_id", "cdl_id", "first_name", "last_name", "dob", "sex_original", "race_original", "hispanic_flag", "tool_name", "assessment_date_time", "zip_code", "vprair_risk_score", "release_recommendation_original", "recommendation_comments", "release_authorization_original", "pretrial_release_type_original", "release_date", "release_conditions_original", "pretrial_violation_flag", "pretrial_violation_date",  "court_date_reminder_original", "other_pretrial_service_original", "pretrial_termination_outcome_original", "pretrial_termination_date", "open_date", "assignment_date", "arrest_date", "vprair_tool_response_1", "vprair_tool_response_4", "vprair_tool_response_2", "vprair_tool_response_8", "vprair_tool_response_7", "vprair_tool_response_3", "vprair_tool_response_5", "vprair_tool_response_6", "vprai_tool_response_1", "vprai_tool_response_3", "vprai_tool_response_8", "vprai_tool_response_6", "vprai_tool_response_7", "vprai_tool_response_2", "vprai_tool_response_4", "vprai_tool_response_5")
 county
 zip_code
-cii
-fbi
-cdl_id
 book_num
 court_case_id
 court_docket_id
-first_name
-last_name
-dob
-sex_original
-sex
-race_original
-race
-tool_name
 assessment_date
 assessment_date_time
-
-
-  
-
-assess_df_terms <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Nevada/P2 Submission-June 30/pretrial_data.xlsx", sheet = 4)
 
 assess_df_viol <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Nevada/P2 Submission-June 30/pretrial_data.xlsx", sheet = 5)
 
