@@ -804,10 +804,74 @@ assess_df_case <- assess_df_case %>%
   mutate(pretrial_release_date = as_date(pretrial_release_date_time))  
 
 
+# Factor Standardization
+assess_df_case <- assess_df_case %>%
+  mutate (release_recommendation = case_when(release_recommendation_original %in% c("Release on Own Recognizance") ~ "OR", 
+                                             release_recommendation_original %in% c("Pre-Arraignment Release", "Release at Arraignment") ~ "Monitor",
+                                             release_recommendation_original %in% c("Detain(PT denied)", "If released, maximum conditions apply") ~ "Detain", 
+                                             TRUE ~ "Other_Unknown"),
+          release_decision = case_when(pretrial_release_type_original %in% c("Pre-Arraignment Release", "Release at Arraignment") ~ "Monitor",
+                                       pretrial_release_type_original %in% c("Release on Own Recognizance") ~ "OR",
+                                       pretrial_release_type_original %in% c("Detain(PT denied)") | pretrial_termination_outcome_original %in% c("Release Denied")~ "Detain",
+                                       
+                                       pretrial_termination_outcome_original %in% c("Bond Posted", "Charges Dismissed", "No Charges Filed")~ "Ineligible",
+                                       TRUE ~ "Other_Unknown"),
+          pretrial_ineligible_reason = case_when(pretrial_termination_outcome_original %in% c("Bond Posted") ~ "Bail_Bond",
+                                                 pretrial_termination_outcome_original %in% c("Charges Dismissed", "No Charges Filed", "Sentenced") ~ "Case_Disposed",
+                                                 TRUE ~ "Other_Unknown"),
+          
+        pretrial_release_type = case_when(pretrial_release_type_original %in% c("Release on Own Recognizance") ~ "OR",
+                                          pretrial_release_type_original %in% c("Pre-Arraignment Release", "Release at Arraignment") ~	"Monitor",
+                                          pretrial_termination_outcome_original %in% c("Bond Posted") ~	"Bail_Bond",
+                                          pretrial_release_type_original %in% c("Detain(PT denied)") | pretrial_termination_outcome_original %in% c("Release Denied")~ "Detain",
+                                          TRUE ~ "Other_Unknown"),
+        ## there might also be info on pretrial termination outcomes in assess_df_violaiton 
+        pretrial_termination_outcome = case_when(pretrial_termination_outcome_original %in% c("Charges Dismissed", "No Charges Filed", "Sentenced") ~ "Successful",
+                                                 pretrial_termination_outcome_original %in% c("Failure to Appear", "Felony Arrest", "Technical Violation") ~ "Unsuccessful",
+                                                 pretrial_termination_outcome_original %in% c("Bond Posted") | pretrial_release_type_original %in% c("Release on Own Recognizance") ~ "Not_Tracked",
+                                                 TRUE ~ "Other_Unknown"),
+        pretrial_termination_reason = case_when(pretrial_termination_outcome_original %in% c("Charges Dismissed", "No Charges Filed", "Sentenced") ~ "Case_Disposed",
+                                                pretrial_termination_outcome_original %in% c("Failure to Appear") ~ "FTA",
+                                                pretrial_termination_outcome_original %in% c("Felony Arrest") ~ "New_Crime",
+                                                pretrial_termination_outcome_original %in% c("Technical Violation") ~ "Violation",
+                                          
+                                                pretrial_termination_outcome_original %in% c("Bond Posted") | pretrial_release_type_original %in% c("Release on Own Recognizance") ~ "Not_Tracked",
+                                                 TRUE ~ "Other_Unknown"))
+
+
+
+
+
+
+
+
+
+assess_df_case <- assess_df_case %>%
+ mutate(rec_release_flag = if_else(release_recommendation_original %in% c("Release on Own Recognizance",
+                                                                               "Pre-Arraignment Release", 
+                                                                               "Release at Arraignment"), 1, 0),
+        decision_release_flag = if_else(pretrial_release_type_original %in% c("Release on Own Recognizance",
+                                                                               "Pre-Arraignment Release", 
+                                                                               "Release at Arraignment"), 1, 0),
+        
+        
+        
+         #This field needs to come from the jail data.
+         # pretrial_release_flag = if_else(),
+         release_override_flag = if_else(rec_release_flag != decision_release_flag & 
+                                            !release_recommendation %in% c("Ineligible", "Other_Unknown") & 
+                                            !release_decision %in% c("Ineligible", "Other_Unknown"), 1, 0),
+
+assess_df_case %>%
+  count(release_recommendation_original, pretrial_termination_outcome_original)
+      
 
 assess_df_demo <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Nevada/P2 Submission-June 30/pretrial_data.xlsx", col_types= c("text" , "text" , "text" , "text" ,  "text" , "text" ,
                                                     "text" , "date" , "text" ,  "text" ) , sheet = 2)
 
+## add this to case data to make court date reminder flag 
+##court_date_reminder_flag = if_else(court_date_reminder_original == "CourtAppearance"|
+##pretrial_release_type_original %in% c("PTS with court reminders", "OR-with court reminders"), 1, 0),
 
 assess_df_demo <- assess_df_demo %>%
   mutate (name = toupper(Name)) %>% 
@@ -822,10 +886,8 @@ names(assess_df_demo) <- c("pretrial_id1", "pretrial_id2", "arresting_agency", "
                             "last_name","first_name", "middle_name","suffix")
 
 
+court_date_reminder_flag
 
-assess_df_demo %>%
-  count (sex_original)
-  
 #Standardize Factors
 assess_df_demo <- assess_df_demo %>%
  mutate(sex = case_when(sex_original %in% c("Female") ~ "Female",
@@ -872,10 +934,43 @@ assess_df_score <- assess_df_score %>%
   
 
 # Readin Terms and Conditions
-  
+  ## it looks like they reconrd conditions the person got, rather than recommended condtions 
 assess_df_terms <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Nevada/P2 Submission-June 30/pretrial_data.xlsx", sheet = 4)
 
-#need to pivot wider on this table.
+
+assess_df_terms <- assess_df_terms %>%
+         #rec_em_flag = if_else(grepl("SCRAM", toupper(release_recommendation_original)), 1, 0),
+         # rec_phone_flag = if_else(),
+         # rec_inperson_flag = if_else(),
+         #rec_drug_test_flag = if_else(grepl("TEST", toupper(release_recommendation_original)), 1, 0),
+         # rec_other_flag = if_else(),
+         #condition_em_flag = if_else(grepl("ELECTRONIC MONITOR|GPS|SCRAM", toupper(release_conditions_original))|
+                                             #grepl("SCRAM", toupper(pretrial_release_type_original)), 1, 0),
+         
+         mutate (condition_drug_test_flag = if_else(grepl("SCRAM|TEST|CONTROLLED SUBSTANCES|DRUG|ALCOHOL|CHEMICAL",
+                                                  toupper(Pretrial_Terms_and_Conditions)), 1, 0),
+         condition_no_contact_flag = if_else(grepl("NO CONTACT|136|HARASS|CONTACT|STAY AWAY|STAY.*AWAY FROM|THREATEN|ANNOY",
+                                                   toupper(Pretrial_Terms_and_Conditions)), 1, 0))
+         
+         # Transit service doesn't actually exist here.  
+         #transit_service_flag = if_else(court_date_reminder_original == "TRANSIT", 1, 0),
+         ## Are all violations violations that result in termation? 
+       
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 "pretrial_id", "pretrial_id1", "pretrial_id2", "arresting_agency", "name", "release_conditions_original"
 
@@ -888,8 +983,16 @@ court_docket_id
 assessment_date
 assessment_date_time
 
+
+
 assess_df_viol <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Nevada/P2 Submission-June 30/pretrial_data.xlsx", sheet = 5)
 
+
+assess_df_viol %>%
+  count(Violation_of_PTR)
+
+```
+  pretrial_violation_flag = if_else(!is.na(pretrial_violation_date), 1, 0))
 
 
 assess_df <- assess_df %>% 
