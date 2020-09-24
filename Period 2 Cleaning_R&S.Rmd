@@ -991,7 +991,7 @@ assess_df_viol <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical 
 assess_df_viol %>%
   count(Violation_of_PTR)
 
-```
+
   pretrial_violation_flag = if_else(!is.na(pretrial_violation_date), 1, 0))
 
 
@@ -1064,7 +1064,7 @@ summary(prob_df$dob)
 #  [is.na(prob_df$release_decision)]
 # table(prob_df$release_recommendation, useNA = "ifany")
 
-```
+
 
 Probation data Old dont use
 ```{r eval=FALSE, include=FALSE}
@@ -2734,9 +2734,6 @@ assess_df <- assess_df %>%
           assessment_date=as_date(assessment_date_time))
 
 
-assess_df %>%
-  count(pretrial_termination_outcome_original)
-
 
 # Risk Score Standardization--Tool Response values are changed to their numeric point value.
 assess_df <- assess_df %>%
@@ -2860,7 +2857,7 @@ assess_df <- assess_df %>%
 
 ##Assessment Table 
  
-assess_table <- assess_df %>%
+ assess_table <- assess_df %>%
   # Collapse to each assessment.
   distinct(local_id, .keep_all = T) %>%
   # Filter for only those actually assessed
@@ -2868,11 +2865,12 @@ assess_table <- assess_df %>%
   # Create county name.
   mutate(county = "San Mateo", risk_score = vprair_risk_score) %>%
   # Select relevants variables.
-  select(county, risk_level, release_recommendation, release_decision, assessment_date, risk_score, tool_name)
+  select(county, risk_level, release_recommendation, release_decision, assessment_date, vprair_risk_score, tool_name,
+         assessment_date, dob, sex, race, pretrial_termination_outcome, pretrial_termination_reason)
 
 
 # Save file  
-fwrite(assess_table, file = "G:/CrimJustice/PretrialAssessmentPilot/Assessment Output Tables/San Mateo Assessment Output 08-2020.csv")
+fwrite(assess_table, file = "G:/CrimJustice/PretrialAssessmentPilot/Assessment Output Tables/San Mateo Assessment Output 09-2020.csv")
                                   
  
 summary(assess_df$Assessment_Date_Time)     
