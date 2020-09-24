@@ -781,8 +781,8 @@ court_df_s %>%
 
 Probation Data New
 ```{r eval=FALSE, include=FALSE}
-
 assess_df_case <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Nevada/P2 Submission-June 30/pretrial_data.xlsx",  sheet = 1)
+
 
 # Format Names
 assess_df_case <- assess_df_case %>%
@@ -806,7 +806,7 @@ assess_df_case <- assess_df_case %>%
 
 # Factor Standardization
 assess_df_case <- assess_df_case %>%
-  mutate (release_recommendation = case_when(release_recommendation_original %in% c("Release on Own Recognizance") ~ "OR", 
+    mutate (release_recommendation = case_when(release_recommendation_original %in% c("Release on Own Recognizance") ~ "OR", 
                                              release_recommendation_original %in% c("Pre-Arraignment Release", "Release at Arraignment") ~ "Monitor",
                                              release_recommendation_original %in% c("Detain(PT denied)", "If released, maximum conditions apply") ~ "Detain", 
                                              TRUE ~ "Other_Unknown"),
@@ -839,15 +839,12 @@ assess_df_case <- assess_df_case %>%
                                                  TRUE ~ "Other_Unknown"))
 
 
-
-
-
-
-
-
+##flags 
 
 assess_df_case <- assess_df_case %>%
- mutate(rec_release_flag = if_else(release_recommendation_original %in% c("Release on Own Recognizance",
+ mutate(court_date_reminder_flag = case_when(court_date_reminder=="Yes" ~ 1,
+                                              TRUE ~ 0),
+        rec_release_flag = if_else(release_recommendation_original %in% c("Release on Own Recognizance",
                                                                                "Pre-Arraignment Release", 
                                                                                "Release at Arraignment"), 1, 0),
         decision_release_flag = if_else(pretrial_release_type_original %in% c("Release on Own Recognizance",
@@ -860,11 +857,12 @@ assess_df_case <- assess_df_case %>%
          # pretrial_release_flag = if_else(),
          release_override_flag = if_else(rec_release_flag != decision_release_flag & 
                                             !release_recommendation %in% c("Ineligible", "Other_Unknown") & 
-                                            !release_decision %in% c("Ineligible", "Other_Unknown"), 1, 0),
+                                            !release_decision %in% c("Ineligible", "Other_Unknown"), 1, 0))
 
-assess_df_case %>%
-  count(release_recommendation_original, pretrial_termination_outcome_original)
+
       
+
+##Readin Demographic data
 
 assess_df_demo <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Nevada/P2 Submission-June 30/pretrial_data.xlsx", col_types= c("text" , "text" , "text" , "text" ,  "text" , "text" ,
                                                     "text" , "date" , "text" ,  "text" ) , sheet = 2)
@@ -885,8 +883,6 @@ names(assess_df_demo) <- c("pretrial_id1", "pretrial_id2", "arresting_agency", "
                             "name", "dob", "sex_original", "race_original",
                             "last_name","first_name", "middle_name","suffix")
 
-
-court_date_reminder_flag
 
 #Standardize Factors
 assess_df_demo <- assess_df_demo %>%
@@ -930,12 +926,29 @@ names(assess_df_score) <- c("pretrial_id1", "pretrial_id2", "arresting_agency", 
 
 # Date Reformatting--See pg. xxx for more details.
 assess_df_score <- assess_df_score %>%
-  mutate(assess_date = as_date(assess_date_time)) %>%
-  
+  mutate(assessment_date = as_date(assessment_date_time),
+         risk_level = case_when(oras_risk_score %in% c(0,1,2) ~"Low",
+                                oras_risk_score %in% c(3, 4,5) ~ "Medium",
+                                oras_risk_score %in% c(6, 7, 8, 9) ~ "High"))
+
+
+## attempted to join these data sets based pretrial_id1 and pretrial_id2 need to consult with probation
+# assess_df_case %>%
+#   add_count(pretrial_id2) %>%
+#   filter (n>1)
+#   
+#   semi_join(assess_df_score, by= c("pretrial_id2")) %>%
+#   distinct(pretrial_id2)
 
 # Readin Terms and Conditions
-  ## it looks like they reconrd conditions the person got, rather than recommended condtions 
+  ## it looks like they reconrd conditions the person got, rather than recommended condtions we find multiple lines for the same pretrial Id with different release dates, or release types.
+  
 assess_df_terms <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Nevada/P2 Submission-June 30/pretrial_data.xlsx", sheet = 4)
+
+#Standardize Names
+
+names(assess_df_terms)<- c("pretrial_id", "pretrial_id1", "pretrial_id2", "arresting_agency", "name",
+                           "release_conditions_original")
 
 
 assess_df_terms <- assess_df_terms %>%
@@ -948,9 +961,9 @@ assess_df_terms <- assess_df_terms %>%
                                              #grepl("SCRAM", toupper(pretrial_release_type_original)), 1, 0),
          
          mutate (condition_drug_test_flag = if_else(grepl("SCRAM|TEST|CONTROLLED SUBSTANCES|DRUG|ALCOHOL|CHEMICAL",
-                                                  toupper(Pretrial_Terms_and_Conditions)), 1, 0),
+                                                  toupper(release_conditions_original)), 1, 0),
          condition_no_contact_flag = if_else(grepl("NO CONTACT|136|HARASS|CONTACT|STAY AWAY|STAY.*AWAY FROM|THREATEN|ANNOY",
-                                                   toupper(Pretrial_Terms_and_Conditions)), 1, 0))
+                                                   toupper(release_conditions_original)), 1, 0))
          
          # Transit service doesn't actually exist here.  
          #transit_service_flag = if_else(court_date_reminder_original == "TRANSIT", 1, 0),
@@ -959,29 +972,6 @@ assess_df_terms <- assess_df_terms %>%
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-"pretrial_id", "pretrial_id1", "pretrial_id2", "arresting_agency", "name", "release_conditions_original"
-
-names(assess_df) <- c("pretrial_id", "cii", "court_case_id", "court_docket_id", "fbi", "local_id", "cdl_id", "first_name", "last_name", "dob", "sex_original", "race_original", "hispanic_flag", "tool_name", "assessment_date_time", "zip_code", "vprair_risk_score", "release_recommendation_original", "recommendation_comments", "release_authorization_original", "pretrial_release_type_original", "release_date", "release_conditions_original", "pretrial_violation_flag", "pretrial_violation_date",  "court_date_reminder_original", "other_pretrial_service_original", "pretrial_termination_outcome_original", "pretrial_termination_date", "open_date", "assignment_date", "arrest_date", "vprair_tool_response_1", "vprair_tool_response_4", "vprair_tool_response_2", "vprair_tool_response_8", "vprair_tool_response_7", "vprair_tool_response_3", "vprair_tool_response_5", "vprair_tool_response_6", "vprai_tool_response_1", "vprai_tool_response_3", "vprai_tool_response_8", "vprai_tool_response_6", "vprai_tool_response_7", "vprai_tool_response_2", "vprai_tool_response_4", "vprai_tool_response_5")
-county
-zip_code
-book_num
-court_case_id
-court_docket_id
-assessment_date
-assessment_date_time
 
 
 
@@ -1024,8 +1014,48 @@ assess_df <- assess_df %>%
          transit_service_flag = if_else(court_date_reminder_original == "TRANSIT", 1, 0),
          ## Are all violations violations that result in termation? 
          pretrial_violation_flag = if_else(!is.na(pretrial_violation_date), 1, 0))
+```
+Probation Join Tables
+```{r}
+##this is a first run at joing tables we need to ask probation what IDs mean and do it better
+assess_df_score <- assess_df_score %>%
+  distinct(pretrial_id2, .keep_all = TRUE)
+  
+assess_df_case <- assess_df_case%>%
+  distinct(pretrial_id2, .keep_all = TRUE)
+assess_df_demo <- assess_df_demo%>%
+  distinct(pretrial_id2 , .keep_all = TRUE) %>%
+  mutate (pretrial_id2 = as.numeric(pretrial_id2))
+
+assess_df <- assess_df_score %>%
+  left_join(assess_df_demo, by = "pretrial_id2") %>%
+  left_join(assess_df_case, by = "pretrial_id2")
 
 
+```
+Assessment Tables for Noah
+```{r}
+##Assessment Table 
+ 
+ assess_table <- assess_df %>%
+  # Collapse to each assessment.
+  #distinct(local_id, .keep_all = T) %>%
+  # Filter for only those actually assessed
+  filter(!is.na(assessment_date)) %>%
+  # Create county name.
+  mutate(county = "Nevada", risk_score = oras_risk_score) %>%
+  # Select relevants variables.
+  select(county, risk_level, release_recommendation, release_decision, assessment_date, risk_score, tool_name,
+         assessment_date, dob, sex, race, pretrial_termination_outcome, pretrial_termination_reason)
+
+
+# Save file  
+fwrite(assess_table, file = "G:/CrimJustice/PretrialAssessmentPilot/Assessment Output Tables/Nevada Assessment Output 09-2020.csv")
+```
+
+
+Probation Data Old Dont Use
+```{r eval=FALSE, include=FALSE}
 # Read in Probation Risk Assessment Data
  ## This is data that covers 7/7/2011 to 2/6/2020
 prob_df <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Nevada/Pretrial.Updated.xlsx")
@@ -1064,11 +1094,28 @@ summary(prob_df$dob)
 #  [is.na(prob_df$release_decision)]
 # table(prob_df$release_recommendation, useNA = "ifany")
 
+##Assessment Table 
+ 
 
+ assess_table <- assess_df %>%
+  # Collapse to each assessment.
+  distinct(local_id, .keep_all = T) %>%
+  # Filter for only those actually assessed
+  filter(!is.na(assessment_date)) %>%
+  # Create county name.
+  mutate(county = "San Mateo", risk_score = vprair_risk_score) %>%
+  # Select relevants variables.
+  select(county, risk_level, release_recommendation, release_decision, assessment_date, vprair_risk_score, tool_name,
+         assessment_date, dob, sex, race, pretrial_termination_outcome, pretrial_termination_reason)
+
+
+# Save file  
+fwrite(assess_table, file = "G:/CrimJustice/PretrialAssessmentPilot/Assessment Output Tables/Nevada Assessment Output 09-2020.csv")
+                                  
 
 Probation data Old dont use
 ```{r eval=FALSE, include=FALSE}
-Probation Data Old Dont Use
+
 
 # decided not to use "PRETRIAL STATS" workbooks, will use "Pretrial.Updated" instead
 # also not using "Pretrial.SQL.Historic" (individual item responses) or "Pretrial.Demographics" (unuseable dates)
