@@ -3759,17 +3759,66 @@ assess_df %>%
   group_by(vprair_risk_score) %>%
   slice(1:10) %>%
   View()
-# 
-# assess_df %>%
-#   count(pretrial_ineligible_reason)
-# 
-# assess_df %>%
-#   count(pretrial_release_type_original)
 
-assess_df %>%
-  filter(release_decision != "Monitor") %>%
-  count(pretrial_termination_reason_original)
-  count(release_decision)
+#### County Notes
+
+# Good Morning Noah, incorporate into explanation
+# 
+#  
+# 
+# Julius researched the release authorization question and provided me with the back ground on it.  It now makes complete sense to me.  J It is not data that is inputted by the users, it is actually mapped based on the following criteria.  Hopefully this makes sense to you as well but if not please let me know and we can discuss further.  It goes back to the fact that the court doesn’t actually make orders about specific things such as the level of supervision and the early decisions the judge isn’t actually involved in. 
+# 
+#  
+# 
+# The data was mapped with the following logic:
+# 
+#  
+# 
+# Release Type = Posted Bail, Time Served, No Complaint Filed, Cite/Released THEN Release Authorization = SBSO
+# 
+#  
+# 
+# Release Type=Judges Name THEN Release Authorization=Judge
+# 
+#  
+# 
+# If the Release_Recommendation is the following:
+# 
+# OR without court reminders = Judge
+# 
+# Remain Detained = Judge
+# 
+# Pre-arraignment Release = Judge
+# 
+# OR with SCRAM = Judge
+# 
+# OR with check-ins = Judge
+# 
+# OR with testing = Judge
+# 
+# OR with treatment program = Judge
+# 
+# Court Ordered Release = Judge
+# 
+# OR-with court reminders = Judge
+# 
+#  
+# 
+# PTS with court reminders = Probation
+# 
+# PTS-Standard = Probation
+# 
+# PTS-Elevated = Probation
+# 
+# PTS-Intensive = Probation
+# 
+# PTS-Intensive 1 = Probation
+# 
+# PTS-Intensive 2 = Probation
+# 
+# PTS-Intensive 3 = Probation
+
+sum(grepl("r", c("a", "b", "c"))) > 0
 ```
 
   Assessment Collapse
@@ -4446,7 +4495,7 @@ date_df <- lapply(ls()[!grepl("original|^df|hier|names|factor|date|flag", ls())]
 
 write.xlsx(list(factor_df, flag_df, date_df), file = "C:/Work/PretrialAssessmentPilot/Code Books/Assessment Code Book/Santa Barbara Assessment Code Book 9-20.xlsx", asTable = T, tableStyle = "TableStyleMedium1", colWidths = "auto", sheetName = c("Factors", "Flags", "Dates"))
 ```
-  
+
 DOJ CII/Linking Extraction
 ```{r}
 # Grab Tables with CII
@@ -4522,7 +4571,7 @@ assess_table <- assess_df %>%
   # Create county name.
   mutate(county = "Santa Barbara") %>%
   # Select relevants variables.
-  select(county, risk_level, release_recommendation, release_decision, assessment_date, vprai_risk_score, vprair_risk_score, tool_name)
+  select(county, risk_level, release_recommendation, release_decision, assessment_date, vprai_risk_score, vprair_risk_score, tool_name, assessment_date, dob, sex, race, termination_outcome, termination_reason, book_num)
 
 # Save file  
 fwrite(assess_table, file = "C:/Work/PretrialAssessmentPilot/Assessment Output Tables/Santa Barbara Assessment Output 08-2020.csv")
@@ -4547,7 +4596,7 @@ Jail Data
 ```{r}
 #Jail Data
 # doc <- read_xml("Historical Data Submissions/Tuolumne/Inmates-202001115.XML")
-doc <- read_xml("Historical Data Submissions/Tulare/P2 Submission-June 30/JMS20150101_20200630.xml")
+doc <- read_xml("Historical Data Submissions/Tulare/P2 Submission-June 30/bookings_2020_03_26_to_2020_09_15.xml")
 
 # jail_list <- as_list(doc)
 # 
@@ -4617,7 +4666,7 @@ doc <- read_xml("Historical Data Submissions/Tulare/P2 Submission-June 30/JMS201
 #   print(i = i+i)
 # }
 
-xmlToDataFrame(xmlParse(doc))
+jail_df <- xmlToDataFrame(xmlParse(doc))
 
 # jail_df <- jail_df %>%
 #   unnest_longer(CDL) %>%
@@ -4649,7 +4698,7 @@ xmlToDataFrame(xmlParse(doc))
 #   unnest_longer(ChargeStatute) %>%
 #   unnest_longer(WN)
 
-fwrite(jail_df, file = "C:/Work/PretrialAssessmentPilot/Historical Data Submissions/Tuolumne/Tulare Jail xml to csv.csv")
+fwrite(jail_df, file = "C:/Work/PretrialAssessmentPilot/Historical Data Submissions/Tulare/Tulare Jail xml to csv.csv")
 
 book_df <- fread("Historical Data Submissions/Tulare/Tulare Jail xml to csv.csv", colClasses = "character")
 
@@ -4679,6 +4728,8 @@ book_df <- book_df %>%
 # shell.exec(paste(getwd(),"Historical Data Submissions/Tulare", sep = "/"))
 
 list.files("Historical Data Submissions/Tulare/PreTrialProject_DataElementInventory DRAFT 20200130 0944.xlsx")
+
+summary(as_date(jail_df$bookingdate))
 ```
 
   Jail Diagnostics
