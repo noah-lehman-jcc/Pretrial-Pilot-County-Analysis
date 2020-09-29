@@ -589,7 +589,7 @@ book_df <- book_df %>%
          book_date_time = mdy_hms(paste(book_date, book_time), tz = 'America/Los_Angeles'),
          release_date_time = mdy_hms(paste(release_date, release_time), tz = 'America/Los_Angeles')) %>%
   mutate_at(vars(dob, arrest_date, book_date, release_date), mdy) %>%
-  select(-arrest_time, -book_time, -date_time) %>%
+  select(-arrest_time, -book_time) %>%
   mutate(booking_seq = as.integer(booking_seq))
   
   ## Different formatting needed for Quarter 1 data. 
@@ -1248,6 +1248,7 @@ Assessment Data
     ## Contains summarised information from assess_rec, assess_decision, and assess_monitor. 
 assess_df <- read_excel("Historical Data Submissions/Alameda/P2 Submission-June 30/7_Phase-I-Assessment-and-Order.xls", col_types = "text")
 
+
 ####
 
 # Pretrial Assessments and Recommendations
@@ -1288,7 +1289,7 @@ assess_violation <- read_excel("Historical Data Submissions/Alameda/P2 Submissio
 # assess_decision2 <- read_excel("Historical Data Submissions/Alameda/P2 Submission-June 30/6_Judicial-Order-Hearing.xls", col_types = "text")
 
 # Variable name standardization--See pg. xxx for more details.
-names(assess_df) <- c("pfn", "zip_code", "assessment_date", "vprair_risk_score", "release_score_recommendation_original", "release_recommendation_original", "release_decision_original", "pretrial_status_original", "pretrial_release_type_original", "vprair_tool_response_1", "vprair_tool_response_2", "vprair_tool_response_3", "vprair_tool_response_4", "vprair_tool_response_5", "vprair_tool_response_6", "vprair_tool_response_7", "vprair_tool_response_8", "risk_level_original")
+names(assess_df) <- c("local_id", "zip_code", "assessment_date", "vprair_risk_score", "release_score_recommendation_original", "release_recommendation_original", "release_decision_original", "pretrial_status_original", "pretrial_release_type_original", "vprair_tool_response_1", "vprair_tool_response_2", "vprair_tool_response_3", "vprair_tool_response_4", "vprair_tool_response_5", "vprair_tool_response_6", "vprair_tool_response_7", "vprair_tool_response_8", "risk_level_original")
 
 
 # Date Reformatting--See pg. xxx for more details.
@@ -1350,23 +1351,23 @@ assess_df <- assess_df %>%
 
 # Flag Standardization---See pg. xxx for more details.
   ## Need to follow up with Santa Barbara on the definitions of release recommendation, release type, release authorization, pretrial_violation_flag, and pretrial_termination_outcome. What does pretrial ID uniquely identify? Also need to figure out if we can determine Judge overrides. When do people have mulitple assessments. 
-assess_df <- assess_df %>%
-  mutate(assess_flag = if_else(is.na(assessment_date), 0, 1),
-         rec_release_flag = if_else(),
-         decision_release_flag = if_else(),
-         condition_release_flag = if_else(),
-         pretrial_override_flag = if_else(),
-         rec_em_flag = if_else(),
-         rec_phone_flag = if_else(),
-         rec_inperson_flag = if_else(),
-         rec_drug_alc_flag = if_else(),
-         rec_other_flag = if_else(),
-         condition_em_flag = if_else(),
-         condition_phone_flag = if_else(),
-         condition_inperson_flag = if_else(),
-         condition_drug_alc_flag = if_else(),
-         condition_other_flag = if_else(),
-         pretrial_violation_flag= if_else(!is.na(pretrial_violation_date)))
+# assess_df <- assess_df %>%
+#   mutate(assess_flag = if_else(is.na(assessment_date), 0, 1),
+#          rec_release_flag = if_else(),
+#          decision_release_flag = if_else(),
+#          condition_release_flag = if_else(),
+#          pretrial_override_flag = if_else(),
+#          rec_em_flag = if_else(),
+#          rec_phone_flag = if_else(),
+#          rec_inperson_flag = if_else(),
+#          rec_drug_alc_flag = if_else(),
+#          rec_other_flag = if_else(),
+#          condition_em_flag = if_else(),
+#          condition_phone_flag = if_else(),
+#          condition_inperson_flag = if_else(),
+#          condition_drug_alc_flag = if_else(),
+#          condition_other_flag = if_else(),
+#          pretrial_violation_flag= if_else(!is.na(pretrial_violation_date)))
 ```
 
 
@@ -1727,18 +1728,20 @@ write.xlsx(list(doj_cii, doj_book, doj_court), file = "CIIs for DOJ/Alameda CIIs
 Assessment Tables
 ```{r}
 assess_table <- assess_df %>%
+  #Pulling in demo and booking info from the booking table
+  left_join(book_df %>% select(local_id, dob, sex, race, book_num)) %>%
   # Collapse to each assessment.
-  distinct(pfn, assessment_date, .keep_all = T) %>%
+  distinct(local_id, assessment_date, .keep_all = T) %>%
   # Filter for only those actually assessed
   filter(!is.na(assessment_date),
          vprair_risk_score >= 0) %>%
   # Create county name.
   mutate(county = "Alameda") %>%
   # Select relevants variables.
-  select(county, risk_level, release_recommendation, release_decision, assessment_date, vprair_risk_score, tool_name)
+  select(county, risk_level, release_recommendation, release_decision, assessment_date, vprair_risk_score, tool_name, assessment_date, dob, sex, race, book_num)
 
 # Save file  
-fwrite(assess_table, file = "C:/Work/PretrialAssessmentPilot/Assessment Output Tables/Alameda Assessment Output 08-2020.csv")
+fwrite(assess_table, file = "C:/Work/PretrialAssessmentPilot/Assessment Output Tables/Alameda Assessment Output 09-2020.csv")
 
 # assess_df %>%
 #   # Collapse to each assessment
@@ -1754,6 +1757,13 @@ fwrite(assess_table, file = "C:/Work/PretrialAssessmentPilot/Assessment Output T
 
 assess_df %>%
   filter(vprair_risk_score < 0)
+
+assess_df %>%
+  left_join(book_df %>% select(local_id, dob, sex, race, book_num)) %>%
+  distinct()
+
+assess_decision
+
 ```
 
 
@@ -2282,23 +2292,24 @@ assess_df <- assess_df %>%
 
 # Flag Standardization---See pg. xxx for more details.
   ## Need to follow up with Santa Barbara on the definitions of release recommendation, release type, release authorization, pretrial_violation_flag, and pretrial_termination_outcome. What does pretrial ID uniquely identify? Also need to figure out if we can determine Judge overrides. When do people have mulitple assessments. 
-assess_df <- assess_df %>%
-  mutate(assess_flag = if_else(is.na(assessment_date), 0, 1),
-         rec_release_flag = if_else(),
-         decision_release_flag = if_else(),
-         condition_release_flag = if_else(),
-         pretrial_override_flag = if_else(),
-         rec_em_flag = if_else(),
-         rec_phone_flag = if_else(),
-         rec_inperson_flag = if_else(),
-         rec_drug_alc_flag = if_else(),
-         rec_other_flag = if_else(),
-         condition_em_flag = if_else(),
-         condition_phone_flag = if_else(),
-         condition_inperson_flag = if_else(),
-         condition_drug_alc_flag = if_else(),
-         condition_other_flag = if_else(),
-         pretrial_violation_flag= if_else(!is.na(pretrial_violation_date)))
+# assess_df <- assess_df %>%
+#   mutate(assess_flag = if_else(is.na(assessment_date), 0, 1),
+#          rec_release_flag = if_else(),
+#          decision_release_flag = if_else(),
+#          condition_release_flag = if_else(),
+#          pretrial_override_flag = if_else(),
+#          rec_em_flag = if_else(),
+#          rec_phone_flag = if_else(),
+#          rec_inperson_flag = if_else(),
+#          rec_drug_alc_flag = if_else(),
+#          rec_other_flag = if_else(),
+#          condition_em_flag = if_else(),
+#          condition_phone_flag = if_else(),
+#          condition_inperson_flag = if_else(),
+#          condition_drug_alc_flag = if_else(),
+#          condition_other_flag = if_else(),
+#          pretrial_violation_flag= if_else(!is.na(pretrial_violation_date)))
+
 ```
 
 Assessment Data (Old)
@@ -2959,10 +2970,12 @@ assess_table <- assess_df %>%
   ungroup() %>%
   # Select relevants variables.
   select(county, release_recommendation, release_decision, assessment_date, 
-         psa_nca_risk_score, psa_nvca_risk_score, psa_fta_risk_score, tool_name)
+         psa_nca_risk_score, psa_nvca_risk_score, psa_fta_risk_score, tool_name, assessment_date, dob, sex, race)
+
+
 
 # Save file  
-fwrite(assess_table, file = "C:/Work/PretrialAssessmentPilot/Assessment Output Tables/Los Angeles Assessment Output 08-2020.csv")
+fwrite(assess_table, file = "C:/Work/PretrialAssessmentPilot/Assessment Output Tables/Los Angeles Assessment Output 09-2020.csv")
 
 # assess_df %>%
 #   # Collapse to each assessment
@@ -3818,7 +3831,6 @@ assess_df %>%
 # 
 # PTS-Intensive 3 = Probation
 
-sum(grepl("r", c("a", "b", "c"))) > 0
 ```
 
   Assessment Collapse
@@ -4571,10 +4583,10 @@ assess_table <- assess_df %>%
   # Create county name.
   mutate(county = "Santa Barbara") %>%
   # Select relevants variables.
-  select(county, risk_level, release_recommendation, release_decision, assessment_date, vprai_risk_score, vprair_risk_score, tool_name, assessment_date, dob, sex, race, termination_outcome, termination_reason, book_num)
+  select(county, risk_level, release_recommendation, release_decision, assessment_date, vprai_risk_score, vprair_risk_score, tool_name, assessment_date, dob, sex, race, pretrial_termination_outcome, pretrial_termination_reason)
 
 # Save file  
-fwrite(assess_table, file = "C:/Work/PretrialAssessmentPilot/Assessment Output Tables/Santa Barbara Assessment Output 08-2020.csv")
+fwrite(assess_table, file = "C:/Work/PretrialAssessmentPilot/Assessment Output Tables/Santa Barbara Assessment Output 09-2020.csv")
 
 # assess_df %>%
 #   # Collapse to each assessment
@@ -4596,7 +4608,10 @@ Jail Data
 ```{r}
 #Jail Data
 # doc <- read_xml("Historical Data Submissions/Tuolumne/Inmates-202001115.XML")
-doc <- read_xml("Historical Data Submissions/Tulare/P2 Submission-June 30/bookings_2020_03_26_to_2020_09_15.xml")
+doc_list <- lapply(
+  paste0("Historical Data Submissions/Tulare/P2 Submission-June 30/JMS", c("2015", "2016", "2017", "2018", "20200101_20200630"), ".xml"),
+  read_xml
+  )
 
 # jail_list <- as_list(doc)
 # 
@@ -4666,7 +4681,11 @@ doc <- read_xml("Historical Data Submissions/Tulare/P2 Submission-June 30/bookin
 #   print(i = i+i)
 # }
 
-jail_df <- xmlToDataFrame(xmlParse(doc))
+jail_df <- lapply(doc_list, function(i){
+  xmlToDataFrame(xmlParse(i))
+  }) %>%
+  bind_rows()
+
 
 # jail_df <- jail_df %>%
 #   unnest_longer(CDL) %>%
@@ -4728,8 +4747,6 @@ book_df <- book_df %>%
 # shell.exec(paste(getwd(),"Historical Data Submissions/Tulare", sep = "/"))
 
 list.files("Historical Data Submissions/Tulare/PreTrialProject_DataElementInventory DRAFT 20200130 0944.xlsx")
-
-summary(as_date(jail_df$bookingdate))
 ```
 
   Jail Diagnostics
@@ -5439,6 +5456,41 @@ write.xlsx(list(factor_df, flag_df, date_df), file = "C:/Work/PretrialAssessment
   # WHy do Release and termination dates go back to 2018 when assessment starts in 2020? 
 ```
 
+Assessment Tables
+```{r}
+assess_table <- assess_df %>%
+  # Collapse to each assessment.
+  distinct(local_id, assessment_date_time, .keep_all = T) %>%
+  # Filter for only those actually assessed
+  filter(!is.na(assessment_date)) %>%
+  # Create county name.
+  mutate(county = "Tulare") %>%
+  # Select relevants variables.
+  select(county, release_recommendation, release_decision, assessment_date, psa_nvca_risk_score, psa_nca_risk_score, psa_fta_risk_score, tool_name, assessment_date, dob, sex, race, pretrial_termination_outcome, pretrial_termination_reason)
+
+# Save file  
+fwrite(assess_table, file = "C:/Work/PretrialAssessmentPilot/Assessment Output Tables/Tulare Assessment Output 09-2020.csv")
+
+# assess_df %>%
+#   # Collapse to each assessment
+#   distinct(pretrial_id, .keep_all = T) %>%
+#   # Filter for only those actually assessed
+#   filter(!is.na(assessment_date)) %>%
+#   count(risk_level) %>%
+#   mutate(total = sum(n),
+#          risk_level = round(n/total*100)) %>%
+#   spread(risk_level, n)
+# 
+# rowsu
+
+assess_df %>%
+  select(-release_conditions_original) %>%
+  distinct() %>%
+  add_count(local_id, assessment_date_time) %>%
+  filter(n > 1) %>%
+  arrange(local_id) %>%
+  View()
+```
 Join
 ```{r eval=FALSE, include=FALSE}
 #Alameda has an integrated criminal justice system. Information is joined across agencies on the jail_court_ID. It is contained in the book_df, court_df, and book_charge tables. 
@@ -6129,23 +6181,23 @@ assess_df <- assess_df %>%
 
 # Flag Standardization---See pg. xxx for more details.
   ## Need to follow up with Santa Barbara on the definitions of release recommendation, release type, release authorization, pretrial_violation_flag, and pretrial_termination_outcome. What does pretrial ID uniquely identify? Also need to figure out if we can determine Judge overrides. When do people have mulitple assessments. 
-assess_df <- assess_df %>%
-  mutate(assess_flag = if_else(is.na(assessment_date), 0, 1),
-         rec_release_flag = if_else(),
-         decision_release_flag = if_else(),
-         condition_release_flag = if_else(),
-         pretrial_override_flag = if_else(),
-         rec_em_flag = if_else(),
-         rec_phone_flag = if_else(),
-         rec_inperson_flag = if_else(),
-         rec_drug_alc_flag = if_else(),
-         rec_other_flag = if_else(),
-         condition_em_flag = if_else(),
-         condition_phone_flag = if_else(),
-         condition_inperson_flag = if_else(),
-         condition_drug_alc_flag = if_else(),
-         condition_other_flag = if_else(),
-         pretrial_violation_flag= if_else(!is.na(pretrial_violation_date)))
+# assess_df <- assess_df %>%
+#   mutate(assess_flag = if_else(is.na(assessment_date), 0, 1),
+#          rec_release_flag = if_else(),
+#          decision_release_flag = if_else(),
+#          condition_release_flag = if_else(),
+#          pretrial_override_flag = if_else(),
+#          rec_em_flag = if_else(),
+#          rec_phone_flag = if_else(),
+#          rec_inperson_flag = if_else(),
+#          rec_drug_alc_flag = if_else(),
+#          rec_other_flag = if_else(),
+#          condition_em_flag = if_else(),
+#          condition_phone_flag = if_else(),
+#          condition_inperson_flag = if_else(),
+#          condition_drug_alc_flag = if_else(),
+#          condition_other_flag = if_else(),
+#          pretrial_violation_flag= if_else(!is.na(pretrial_violation_date)))
 ```
 
 Probation Assessment Data (old)
@@ -6557,10 +6609,10 @@ assess_table <- assess_df %>%
   mutate(county = "Tuolumne") %>%
   # Select relevants variables.
   select(county, risk_level, assessment_date, 
-         local_risk_score, tool_name)
+         local_risk_score, tool_name, assessment_date, dob, sex, race)
 
 # Save file  
-fwrite(assess_table, file = "C:/Work/PretrialAssessmentPilot/Assessment Output Tables/Tuolumne Assessment Output 08-2020.csv")
+fwrite(assess_table, file = "C:/Work/PretrialAssessmentPilot/Assessment Output Tables/Tuolumne Assessment Output 09-2020.csv")
 
 # assess_df %>%
 #   # Collapse to each assessment

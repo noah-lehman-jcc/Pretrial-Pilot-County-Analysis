@@ -25,18 +25,26 @@ my_kable <- function(x){
   # footnote(general_title = "", general = "Source: Judicial Council of California, Recidivism Reduction Fund Quarterly Reports (July 1, 2015-March 31, 2018).")  %>%
     # row_spec(12, bold = T)
 }
+
+# Age Creator
+  # mutate(dob = as_date(dob),
+  #        assessment_date = as_date(assessment_date)) %>%
+  # mutate(age = year(assessment_date) - year(dob),
+  #        age = if_else(month(assessment_date) < month(dob), age - 1L, age),
+  #        age = if_else(month(assessment_date) == month(dob) & day(assessment_date) < day(dob), age - 1L, age))
 ```
 
 Import Data
 ```{r}
 files <- list.files("C:/Work/PretrialAssessmentPilot/Assessment Output Tables", pattern = "csv", full.names = T)
+files <- files[grepl("9", files)]
 
 df <- lapply(files, function(i){
-  df <- fread(i)
+  df <- fread(i, colClasses = "character")
   
   df <- df %>%
     mutate_if(is.character, funs(if_else(. == "NULL"|. == ""|. == " ", NA_character_, .))) %>%
-    mutate_at(vars(contains("date")), as_date) %>%
+    mutate_at(vars(contains("date|dob")), as_date) %>%
     filter_at(vars(contains("score")), any_vars(!is.na(.))) %>%
     mutate_at(vars(contains("score")), as.numeric)
 
@@ -48,10 +56,24 @@ df <- lapply(files, function(i){
 
 df <- df %>%
   rename(vpraio_risk_score = risk_score) %>%
-  mutate(oras_risk_score = if_else(is.na(oras_risk_score), oras_score, oras_risk_score)) %>%
-  select(-court_case_id, -oras_score)
-
-
+  mutate(sex = case_when(sex == "F" ~ "Female",
+                         sex == "M" ~ "Male",
+                         T ~ sex),
+         tool_name = if_else(tool_name == "ORAS-PAT", "oras", tool_name)) %>%
+  mutate_at(vars(race, sex), funs(if_else(is.na(.), "Other_Unknown", .))) %>%
+  mutate(dob = as_date(dob),
+         assessment_date = as_date(assessment_date)) %>%
+  mutate(age = year(assessment_date) - year(dob),
+         age = if_else(month(assessment_date) < month(dob), age - 1L, age),
+         age = if_else(month(assessment_date) == month(dob) & day(assessment_date) < day(dob), age - 1L, age),
+         age = case_when(age <= 25 & age >= 18 ~ "18-25",
+                         age <= 35 & age >= 26 ~ "26-35",
+                         age <= 45 & age >= 36 ~ "36-45",
+                         age <= 55 & age >= 46 ~ "46-55",
+                         age >= 56 & age <= 120 ~ "56+",
+                         T ~ "Other_Unknown"),
+         tool_name = tolower(gsub("-", "", tool_name)))
+  
 df2 <- df %>% 
   pivot_longer(c(psa_fta_risk_score, psa_nca_risk_score, psa_nvca_risk_score), names_to = "psa_value",
                values_to = "psa_risk_score", values_drop_na = T) %>%
@@ -63,10 +85,13 @@ df2 <- df %>%
 df_tables <- df %>%
   filter(tool_name != "psa") %>%
   bind_rows(df2) %>%
-  unite(county_tool, c(county, tool_name), remove = T) %>%
+  unite(county_tool, c(county, tool_name), remove = F) %>%
   select(-psa_fta_risk_score, -psa_nca_risk_score, -psa_nvca_risk_score) %>%
   unite(risk_score, c(contains("score"), - standard_risk_score), sep = "") %>%
   mutate(risk_score = parse_number(risk_score))
+
+df_tables %>%
+  count(tool_name)
 ```  
 
 Tables
@@ -153,9 +178,286 @@ my_kable(release_df) %>%
   add_header_above(c(" " = 3, "Probation Recommendation" = 5, "Judge Decision" = 5))
 
 my_kable(risk_count)
-
-
 ```
+
+Demographic Tables
+```{r}
+gender_df <- df %>%
+  # filter(!is.na(risk_level)) %>%
+  filter(assessment_date >= as_date("2019-10-01")) %>%
+  count(county, sex, tool_name) %>%
+  group_by(county) %>%
+  mutate(Total = sum(n), n = paste0(round(n = n/Total*100), "%")) %>%
+  pivot_wider(names_from =  sex, values_from =  n, values_fill = "0%") %>%
+  select(county, Male, Female, Other_Unknown, Total, tool_name) %>%
+  bind_rows(df %>%
+              filter(!is.na(sex)) %>%
+              count(sex) %>%
+              mutate(Total = sum(n), n = paste0(round(n = n/Total*100), "%")) %>%
+              pivot_wider(names_from =  sex, values_from =  n)) %>%
+  ungroup() %>%
+  mutate(county = if_else(is.na(county), "Total", county)) %>%
+  mutate(tool_name=toupper(tool_name),
+         tool_name= gsub("CO_", "", tool_name)) %>%
+  select("County" = county, Total, Male, Female, Other_Unknown, "Tool Name" = tool_name) 
+
+race_df <- df %>%
+  # filter(!is.na(risk_level)) %>%
+  filter(assessment_date >= as_date("2019-10-01")) %>%
+  count(county, race, tool_name) %>%
+  group_by(county) %>%
+  mutate(Total = sum(n), n = paste0(round(n = n/Total*100), "%")) %>%
+  pivot_wider(names_from =  race, values_from =  n, values_fill = "0%") %>%
+  select(county, Black, White, Hispanic, Other_Unknown, Total, tool_name) %>%
+  bind_rows(df %>%
+              filter(!is.na(race)) %>%
+              count(race) %>%
+              mutate(Total = sum(n), n = paste0(round(n = n/Total*100), "%")) %>%
+              pivot_wider(names_from =  race, values_from =  n)) %>%
+  ungroup() %>%
+  mutate(county = if_else(is.na(county), "Total", county)) %>%
+  mutate(tool_name=toupper(tool_name),
+         tool_name= gsub("CO_", "", tool_name)) %>%
+  select("County" = county, Total, Black, White, Hispanic, Other_Unknown, "Tool Name" = tool_name) 
+
+age_df <- df %>%
+  # filter(!is.na(risk_level)) %>%
+  filter(assessment_date >= as_date("2019-10-01")) %>%
+  count(county, age, tool_name) %>%
+  group_by(county) %>%
+  mutate(Total = sum(n), n = paste0(round(n = n/Total*100), "%")) %>%
+  pivot_wider(names_from =  age, values_from =  n, values_fill = "0%") %>%
+  select(county, `18-25`, `26-35`, `36-45`, `46-55`, `56+`,  Other_Unknown, Total, tool_name) %>%
+  bind_rows(df %>%
+              filter(!is.na(age)) %>%
+              count(age) %>%
+              mutate(Total = sum(n), n = paste0(round(n = n/Total*100), "%")) %>%
+              pivot_wider(names_from =  age, values_from =  n)) %>%
+  ungroup() %>%
+  mutate(county = if_else(is.na(county), "Total", county)) %>%
+  mutate(tool_name=toupper(tool_name),
+         tool_name= gsub("CO_", "", tool_name)) %>%
+  select("County" = county, Total, `18-25`, `26-35`, `36-45`, `46-55`, `56+`, Other_Unknown, "Tool Name" = tool_name) 
+
+gender_release <- df %>%
+  filter(release_decision %in% c("Monitor", "Detain", "OR")) %>%
+  mutate(release_flag = if_else(release_decision %in% c("Monitor", "OR"), 1, 0)) %>%
+  filter(assessment_date >= as_date("2019-10-01")) %>%
+  count(county, sex, tool_name, release_flag) %>% 
+  group_by(county, sex, tool_name) %>%
+  # mutate(Total = sum(n)) %>%
+  # group_by(county, sex, tool_name) %>%
+  mutate(Total = sum(n), n = paste0(round(n = n/Total*100), "%")) %>%
+  filter(release_flag == 1) %>%
+  mutate(n = str_c(n, " -- (", Total, ")")) %>%
+  select(-Total) %>%
+  pivot_wider(names_from =  sex, values_from =  n, values_fill = "-") %>%
+  select(county, Male, Female, Other_Unknown, tool_name) %>%
+  bind_rows(df %>%
+              filter(release_decision %in% c("Monitor", "Detain", "OR")) %>%
+              mutate(release_flag = if_else(release_decision %in% c("Monitor", "OR"), 1, 0)) %>%
+              filter(assessment_date >= as_date("2019-10-01")) %>%
+              filter(!is.na(sex)) %>%
+              count(sex, release_flag) %>%
+              group_by(sex) %>%
+              mutate(Total = sum(n), n = paste0(round(n = n/Total*100), "%")) %>%
+              filter(release_flag == 1) %>%
+              mutate(n = str_c(n, " -- (", Total, ")")) %>%
+              select(-Total) %>%
+              pivot_wider(names_from =  sex, values_from =  n, values_fill = "-") %>%
+              select(Male, Female, Other_Unknown)) %>%
+  ungroup() %>%
+  mutate(county = if_else(is.na(county), "Total", county)) %>%
+  mutate(tool_name=toupper(tool_name),
+         tool_name= gsub("CO_", "", tool_name)) %>%
+  select("County" = county, Male, Female, Other_Unknown, "Tool Name" = tool_name)
+
+race_release <- df %>%
+  filter(release_decision %in% c("Monitor", "Detain", "OR")) %>%
+  mutate(release_flag = if_else(release_decision %in% c("Monitor", "OR"), 1, 0)) %>%
+  filter(assessment_date >= as_date("2019-10-01")) %>%
+  count(county, race, tool_name, release_flag) %>% 
+  group_by(county, race, tool_name) %>%
+  # mutate(Total = sum(n)) %>%
+  # group_by(county, race, tool_name) %>%
+  mutate(Total = sum(n), n = paste0(round(n = n/Total*100), "%")) %>%
+  filter(release_flag == 1) %>%
+  mutate(n = str_c(n, " -- (", Total, ")")) %>%
+  select(-Total) %>%
+  pivot_wider(names_from =  race, values_from =  n, values_fill = "-") %>%
+  select(county, Black, White, Hispanic, Other_Unknown, tool_name) %>%
+  bind_rows(df %>%
+              filter(release_decision %in% c("Monitor", "Detain", "OR")) %>%
+              mutate(release_flag = if_else(release_decision %in% c("Monitor", "OR"), 1, 0)) %>%
+              filter(assessment_date >= as_date("2019-10-01")) %>%
+              filter(!is.na(race)) %>%
+              count(race, release_flag) %>%
+              group_by(race) %>%
+              mutate(Total = sum(n), n = paste0(round(n = n/Total*100), "%")) %>%
+              filter(release_flag == 1) %>%
+              mutate(n = str_c(n, " -- (", Total, ")")) %>%
+              select(-Total) %>%
+              pivot_wider(names_from =  race, values_from =  n, values_fill = "-") %>%
+              select(Black, White, Hispanic, Other_Unknown)) %>%
+  ungroup() %>%
+  mutate(county = if_else(is.na(county), "Total", county)) %>%
+  mutate(tool_name=toupper(tool_name),
+         tool_name= gsub("CO_", "", tool_name)) %>%
+  select("County" = county, Black, White, Hispanic, Other_Unknown, "Tool Name" = tool_name)
+
+age_release <- df %>%
+  filter(release_decision %in% c("Monitor", "Detain", "OR")) %>%
+  mutate(release_flag = if_else(release_decision %in% c("Monitor", "OR"), 1, 0)) %>%
+  filter(assessment_date >= as_date("2019-10-01")) %>%
+  count(county, age, tool_name, release_flag) %>% 
+  group_by(county, age, tool_name) %>%
+  # mutate(Total = sum(n)) %>%
+  # group_by(county, age, tool_name) %>%
+  mutate(Total = sum(n), n = paste0(round(n = n/Total*100), "%")) %>%
+  filter(release_flag == 1) %>%
+  mutate(n = str_c(n, " -- (", Total, ")")) %>%
+  select(-Total) %>%
+  pivot_wider(names_from =  age, values_from =  n, values_fill = "-") %>%
+  select(county, `18-25`, `26-35`, `36-45`, `46-55`, `56+`, Other_Unknown, tool_name) %>%
+  bind_rows(df %>%
+              filter(release_decision %in% c("Monitor", "Detain", "OR")) %>%
+              mutate(release_flag = if_else(release_decision %in% c("Monitor", "OR"), 1, 0)) %>%
+              filter(assessment_date >= as_date("2019-10-01")) %>%
+              filter(!is.na(age)) %>%
+              count(age, release_flag) %>%
+              group_by(age) %>%
+              mutate(Total = sum(n), n = paste0(round(n = n/Total*100), "%")) %>%
+              filter(release_flag == 1) %>%
+              mutate(n = str_c(n, " -- (", Total, ")")) %>%
+              select(-Total) %>%
+              pivot_wider(names_from =  age, values_from =  n, values_fill = "-") %>%
+              select(`18-25`, `26-35`, `36-45`, `46-55`, `56+`, Other_Unknown)) %>%
+  ungroup() %>%
+  mutate(county = if_else(is.na(county), "Total", county)) %>%
+  mutate(tool_name=toupper(tool_name),
+         tool_name= gsub("CO_", "", tool_name)) %>%
+  select("County" = county, `18-25`, `26-35`, `36-45`, `46-55`, `56+`, Other_Unknown, "Tool Name" = tool_name)
+
+gender_release <- df %>%
+  filter(release_decision %in% c("Monitor", "Detain", "OR")) %>%
+  mutate(release_flag = if_else(release_decision %in% c("Monitor", "OR"), 1, 0)) %>%
+  filter(assessment_date >= as_date("2019-10-01")) %>%
+  count(county, sex, tool_name, release_flag) %>% 
+  group_by(county, sex, tool_name) %>%
+  # mutate(Total = sum(n)) %>%
+  # group_by(county, sex, tool_name) %>%
+  mutate(Total = sum(n), n = paste0(round(n = n/Total*100), "%")) %>%
+  filter(release_flag == 1) %>%
+  mutate(n = str_c(n, " -- (", Total, ")")) %>%
+  select(-Total) %>%
+  pivot_wider(names_from =  sex, values_from =  n, values_fill = "-") %>%
+  select(county, Male, Female, Other_Unknown, tool_name) %>%
+  bind_rows(df %>%
+              filter(release_decision %in% c("Monitor", "Detain", "OR")) %>%
+              mutate(release_flag = if_else(release_decision %in% c("Monitor", "OR"), 1, 0)) %>%
+              filter(assessment_date >= as_date("2019-10-01")) %>%
+              filter(!is.na(sex)) %>%
+              count(sex, release_flag) %>%
+              group_by(sex) %>%
+              mutate(Total = sum(n), n = paste0(round(n = n/Total*100), "%")) %>%
+              filter(release_flag == 1) %>%
+              mutate(n = str_c(n, " -- (", Total, ")")) %>%
+              select(-Total) %>%
+              pivot_wider(names_from =  sex, values_from =  n, values_fill = "-") %>%
+              select(Male, Female, Other_Unknown)) %>%
+  ungroup() %>%
+  mutate(county = if_else(is.na(county), "Total", county)) %>%
+  mutate(tool_name=toupper(tool_name),
+         tool_name= gsub("CO_", "", tool_name)) %>%
+  select("County" = county, Male, Female, Other_Unknown, "Tool Name" = tool_name)
+
+
+my_kable(gender_df) %>%
+  add_header_above(c(" " = 2, "Gender" = 3, " " = 1))
+
+my_kable(race_df) %>%
+  add_header_above(c(" " = 2, "Race/Ethnicity" = 4, " " = 1))
+
+my_kable(age_df) %>%
+  add_header_above(c(" " = 2, "Age" = 6, " " = 1))
+```
+
+Risk Level by tool
+```{r}
+df_tables %>%
+  filter(!is.na(risk_level)) %>%
+  count(risk_level, race) %>%
+  group_by(race) %>%
+  mutate(Total = sum(n), n = round(n/Total*100)) %>%
+  spread(risk_level, n) %>%
+  select(race, Total, Low, Medium, High)
+
+race_levels <- lapply(unique(df_tables$tool_name), function(i){
+  
+ df_tables %>%
+  filter(!is.na(risk_level), tool_name == i) %>%
+  count(risk_level, race, tool_name) %>%
+  mutate(race = factor(race, levels = c("Black", "Hispanic", "White", "Other_Unknown"))) %>%
+  # arrange(tool_name, race) %>%
+  group_by(race) %>%
+  mutate(Total = sum(n), n = paste0(round(n = n/Total*100), "%")) %>%
+  spread(risk_level, n, fill = "-") 
+  # select(race, Total, Low, Medium, High)
+}) %>% bind_rows() %>%
+  select("Tool Name" = tool_name, "Race/Ethnicity" = race, Total, Low, Medium, High)
+
+sex_levels <- lapply(unique(df_tables$tool_name), function(i){
+  
+ df_tables %>%
+  filter(!is.na(risk_level), tool_name == i) %>%
+  count(risk_level, sex, tool_name) %>%
+  mutate(sex = factor(sex, levels = c("Female", "Male", "Other_Unknown"))) %>%
+  # arrange(tool_name, race) %>%
+  group_by(sex) %>%
+  mutate(Total = sum(n), n = paste0(round(n = n/Total*100), "%")) %>%
+  spread(risk_level, n, fill = "-") 
+  # select(race, Total, Low, Medium, High)
+}) %>% bind_rows() %>%
+  select("Tool Name" = tool_name, "Sex" = sex, Total, Low, Medium, High)
+
+release_levels <- lapply(unique(df_tables$tool_name), function(i){
+
+ df_tables %>%
+  filter(release_decision %in% c("Monitor", "Detain", "OR")) %>%
+  mutate(release_flag = if_else(release_decision %in% c("Monitor", "OR"), 1, 0)) %>%
+  filter(!is.na(risk_level), tool_name == i) %>%
+  count(risk_level, tool_name, release_flag) %>%
+  # mutate(release_flag = factor(release_flag, levels = c("Female", "Male", "Other_Unknown"))) %>%
+  # arrange(tool_name, race) %>%
+  group_by(risk_level) %>%
+  mutate(Total = sum(n), n = paste0(round(n = n/Total*100), "%")) %>%
+  ungroup() %>%
+  mutate(Total = sum(Total)) %>%
+  spread(risk_level, n, fill = "-")
+  # select(race, Total, Low, Medium, High)
+}) %>%
+  bind_rows() %>%
+  select("Tool Name" = tool_name, release_flag, Total, Low, Medium, High) %>%  
+  filter(release_flag == 1) %>%
+  ungroup() %>%
+  select(-release_flag)
+
+df_tables %>%
+  filter(release_decision %in% c("Monitor", "Detain", "OR")) %>%
+  mutate(release_flag = if_else(release_decision %in% c("Monitor", "OR"), 1, 0)) %>%
+  filter(!is.na(risk_level)) %>%
+  count(risk_level, tool_name, release_flag) %>%
+  # mutate(release_flag = factor(release_flag, levels = c("Female", "Male", "Other_Unknown"))) %>%
+  # arrange(tool_name, race) %>%
+  # group_by(risk_level) %>%
+  mutate(Total = sum(n), n = paste0(round(n = n/Total*100), "%")) %>%
+  spread(risk_level, n, fill = "-")
+
+my_kable(release_levels)
+my_kable(release_levels)
+my_kable(release_levels)
+```
+
 
 Release Recommendation and Decision Graphs
 ```{r, fig.width=15, fig.height=7}
@@ -185,6 +487,12 @@ df %>%
   theme_few() +
   # scale_fill_brewer(palette = "Set2")
   scale_fill_manual(values = c("#632A50", "#BAD29F", "#745296", "#2C497F"))
+
+#Risk Level by race, gender, release_decision
+
+df %>% 
+  
+  
 ```
 
 Distribution Graphs
@@ -201,6 +509,38 @@ df_tables %>%
   facet_wrap(~toupper(county_tool), scales = "free") +
    # scale_y_continuous(labels=percent) +
   theme_few() 
+
+
+df_tables %>%
+  group_by(county_tool) %>%
+  count(risk_score) %>%
+  mutate(percent = n/sum(n)*100) %>%
+  ggplot() +
+  aes(x = as.factor(risk_score), y = as.integer(percent)) +
+  geom_col(fill = "#2C497F") +
+  # geom_bar(aes(y = (..count..)/sum(..count..)), fill = "#2C497F") +
+  labs(x = "Risk Score", y = "Percent", title = "Ditribution of Risk Score by County and Tool") +
+  facet_wrap(~toupper(county_tool), scales = "free") +
+   # scale_y_continuous(labels=percent) +
+  theme_few()
+
+
+df_tables %>%
+  filter(race != "Other_Unknown") %>%
+  group_by(tool_name, race) %>%
+  count(risk_score) %>%
+  mutate(percent = n/sum(n)*100) %>%
+  ggplot() +
+  aes(x = as.factor(risk_score), y = as.integer(percent), fill = race) +
+  geom_col(position = "dodge") +
+  # geom_bar(position = "dodge") +
+  # geom_bar(aes(y = (..count..)/sum(..count..)), fill = "#2C497F") +
+  labs(x = "Risk Score", y = "Percent", title = "Ditribution of Risk Score by County and Tool") +
+  facet_wrap(~toupper(tool_name), scales = "free") +
+   # scale_y_continuous(labels=percent) +
+  theme_few()
+
+
 ```
 
 
