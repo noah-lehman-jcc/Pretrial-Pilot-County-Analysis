@@ -1054,12 +1054,14 @@ assess_table <- assess_df %>%
   # Filter for only those actually assessed
   filter(!is.na(assessment_date)) %>%
   # Create county name.
-  mutate(county = "Kings") %>%
+  mutate(county = "Kings",
+         pretrial_termination_outcome = NA_character_,
+         pretrial_termination_reason = NA_character_) %>%
   # Select relevant variables.
-  select(county, risk_level, release_recommendation, release_decision, assessment_date, risk_score = vpraio_risk_score, tool_name)
+  select(county, risk_level, release_recommendation, release_decision, assessment_date, risk_score = vpraio_risk_score, tool_name, assessment_date, dob, sex, race, pretrial_termination_outcome, pretrial_termination_reason, book_num)
 
-# Save file  
-#fwrite(assess_table, file = "G:/CrimJustice/PretrialAssessmentPilot/Assessment Output Tables/Kings Assessment Output 08-2020.csv")
+# Save file  O
+#fwrite(assess_table, file = "G:/CrimJustice/PretrialAssessmentPilot/Assessment Output Tables/Kings Assessment Output 09-2020.csv")
 ```
 
 Assessment (9/2020) 
@@ -2267,10 +2269,29 @@ prob_df <- prob_df %>%
          tool_name = "ORAS"
   )
 
+prob_df <- prob_df %>%
+  select(-assessment_item) %>%
+  mutate(item_label = str_c("oras_tool_response_", str_extract(item_label, ".$"))) %>%
+  pivot_wider(names_from = item_label, values_from = assessment_response) %>%
+  mutate(oras_tool_response_1 = if_else(oras_tool_response_1 == "Under 33", 1, 0),
+         oras_tool_response_2 = case_when(oras_tool_response_2 == "None" ~ 0,
+                                          oras_tool_response_2 == "One Warrant for FTA" ~ 1,
+                                          oras_tool_response_2 == "Two or more FTA Warrants" ~ 2),
+         oras_tool_response_3 = if_else(oras_tool_response_3 == "Yes", 1, 0),
+         oras_tool_response_4 = case_when(oras_tool_response_4 == "Yes, Full-time" ~ 0,
+                                          oras_tool_response_4 == "Yes, Part-time" ~ 1,
+                                          oras_tool_response_4 == "Not employed" ~ 2),
+         oras_tool_response_5 = if_else(oras_tool_response_5 == "Not Lived at Same Residence", 1, 0),
+         oras_tool_response_6 = if_else(oras_tool_response_6 == "Yes", 1, 0),
+         oras_tool_response_7 = if_else(oras_tool_response_7 == "Yes", 1, 0))
+  
+  
+
 
 ####
 
-##prob_bookings contains mostly one row per book_num. There are a few duplicated rows which are eliminated, and one case where a book_num has two rows with the only difference is one has excluded value 1 the other has excluded value 0. Not sure what the "excluded" column represents. 
+##prob_bookings contains mostly one row per book_num. There are a few duplicated rows which are eliminated, and one case where a book_num has two rows with the only difference is one has excluded value 1 the other has excluded value 0. 
+## this table can link pretrial_id with assessment_id across the other tables
 ## prob_bookings has date range 2020-02-05 to 2020-06-30
 prob_bookings <- read_excel("Historical Data Submissions/Napa/P2 Submission-June 30/Historical_7-1-2020_ProbData_4.xlsx", sheet = 1) %>%
   distinct()
@@ -2308,7 +2329,12 @@ prob_reports <- prob_reports %>%
                                       release_decision_original %in% c("OR") ~ "OR",
                                       release_decision_original %in% c("Supervised OR") ~ "Monitor",
                                       release_decision_original %in% c("Sentenced", "No Complaint") ~ "Ineligible",
-                                      T ~ "Other_Unknown"))
+                                      T ~ "Other_Unknown"),
+         pretrial_ineligible_reason = case_when(release_decision_original %in% c("Sentenced", "No Complaint") ~ "Case_Disposed",
+                                                T ~ "Other_Unknown"))
+
+
+##TO ASK: what does a release recommendation of "Jail Released" mean?
 
 ####
 
@@ -2321,7 +2347,19 @@ names(prob_case) <- c("pretrial_id", "local_id", "court_case_id", "case_type", "
 prob_case <- prob_case %>%
   mutate(case_status_date = as_date(case_status_date_time))
 
-####
+prob_case %>%
+  add_count(court_case_id) %>%
+  filter(n>1, court_case_id != "NULL") %>%
+  arrange(court_case_id, case_status_date)
+
+prob_case %>%
+  filter(case_type == "Pretrial SOR")
+
+## TO ASK: is there a way to determine termination information from prob_case? e.g. does "Revoked" case_status mean a violation? is any case_status beside "Active" mean a termination? what is happening with case_type "Pretrial" vs "Pretrial SOR"? Does "Jail Released" case_status mean they bailed out? what does it mean if a person has multiple pretrial_ids for one court_case_id? why does this table have pretrial_id but the prob_df table has assessment_id?
+
+## make a separate code book for this table with counts of case_type and case_status
+
+####  START HERE *********** 9.21.2020
 
 prob_cond <- read_excel("Historical Data Submissions/Napa/P2 Submission-June 30/Historical_7-1-2020_ProbData_4.xlsx", sheet = 4)
 
@@ -2334,6 +2372,31 @@ names(prob_cond) <- c("pretrial_id", "local_id", "court_case_id", "condition_sta
 ## probation data is missing several fields, including: release_authorization (though this can be figured out through release_recommendation which indicates if it was a sheriff release), pretrial terms and conditions, violation of PTR, PTR violation date, court date reminder, other pretrial services, termination outcome, termination date
 ## as per call with Dan Glascott 7.16.20 he will give us more data
 ## new data acquired 7/23/20
+
+
+#Integrated criminal justice Demographic and Personal Identification
+  ## person_df contains one row per person (local_id) with demographic information on the person
+  ## Napa has an integrated criminal justice system, so this is just a person table, without any booking or event information
+  ## Historical_7-1-2020 was missing sex, so Historical_7_1_2020_2 was submitted with sex included
+person_df <- read_excel("Historical Data Submissions/Napa/P2 Submission-June 30/Historical_7-1-2020_2.xlsx", sheet = 1)
+
+
+# Variable name standardization--See pg. xxx for more details. 
+names(person_df) <- c("fbi", "cii", "local_id", "cdl_id", "cdl_id_state", "name", "dob", "race_original", "sex_original") 
+
+
+# Standardize Factors--See pg. xxx for more details.
+person_df <- person_df %>%
+  mutate(race = case_when(race_original %in% c("Black") ~ "Black",
+                          race_original %in% c("Hispanic") ~ "Hispanic",
+                          race_original %in% c("White") ~ "White",
+                          T ~ "Other_Unknown"),
+         sex = case_when(sex_original %in% c("M") ~ "Male",
+                         sex_original %in% c("F") ~ "Female",
+                         T ~ "Other_Unknown")
+  )
+
+
 ```
 
 
@@ -2394,21 +2457,20 @@ prob_bookings %>%
 
 Assessment collapse
 ```{r}
-#collapse assessment data to one row per assessment (this loses individual assessment question responses, can add back in later if we want these)
-assess_df <- prob_df %>%
-  distinct(assessment_id, .keep_all = T) %>%
-  select(-c(item_label, assessment_item, assessment_response))
 
-assess_df <- assess_df %>%
+
+assess_df <- prob_df %>%
   mutate(assessment_id = as.character(assessment_id)) %>%
   left_join(prob_bookings) %>%
-  left_join(prob_reports)
+  left_join(prob_reports) %>%
+  left_join(person_df) %>%
+  distinct(local_id, assessment_date, .keep_all = T)
 
-assess_df %>%
-  filter(!is.na(assessment_date))
-  distinct(pretrial_id)
+# assess_df %>%
+#   filter(!is.na(assessment_date))
+#   distinct(pretrial_id)
   
-  
+
 ```
 
 Assessment Tables 
@@ -2419,13 +2481,18 @@ assess_table <- assess_df %>%
   # Filter for only those actually assessed
   filter(!is.na(assessment_date)) %>%
   # Create county name.
-  mutate(county = "Napa") %>%
+  mutate(county = "Napa",
+         pretrial_termination_outcome = NA_character_,
+         pretrial_termination_reason = NA_character_) %>%
   # Select relevants variables.
-  select(county, risk_level, release_recommendation, release_decision, assessment_date, risk_score, tool_name)
+  select(county, risk_level, release_recommendation, release_decision, assessment_date, risk_score, tool_name, assessment_date, dob, sex, race, pretrial_termination_outcome, pretrial_termination_reason, book_num)
 
 # Save file  
-#fwrite(assess_table, file = "G:/CrimJustice/PretrialAssessmentPilot/Assessment Output Tables/Napa Assessment Output 08-2020.csv")
+#fwrite(assess_table, file = "G:/CrimJustice/PretrialAssessmentPilot/Assessment Output Tables/Napa Assessment Output 09-2020.csv")
+#shell.exec("G:/CrimJustice/PretrialAssessmentPilot/Assessment Output Tables")
+
 ```
+
 
 Code Book
 ```{r eval=FALSE, include=FALSE}
@@ -3518,7 +3585,7 @@ lapply(prob_df, function(i){
 
 #missing data: tool responses, score, violation, violation date, release_type is missing for over 4,000 records, and will need some help on termination_outcome (~800 missing, blank not na, not sure what the rest mean). event identifier (court case id and/or booking id). release authorization category (sheriff, judge).
 
-[10:52 AM] Lehman, Noah
+#[10:52 AM] Lehman, Noah
     
 ## Noah's notes from call with Sac 8.27.2020:
 # Sacramento:
@@ -4608,8 +4675,23 @@ prob_assess <- prob_assess %>%
                                    T ~ NA_character_),
          release_decision = case_when(release_type_original %in% c("Basic Supervision", "Moderate Supervision", "Enhanced Supervision") ~ "Monitor",
                                       release_type_original %in% c("Court Reminder") ~ "OR",
-                                      T ~ "Other_Unknown")
+                                      T ~ "Other_Unknown"),
+         
+         pretrial_termination_reason = case_when(outcome_new_criminal_referral == "New Criminal Referral" ~ "New_Crime",
+                                                 outcome_fta_court == "FTA Court" ~ "FTA",
+                                                 outcome_fta_signup == "FTA Sign Up" ~ "Violation",
+                                                 !is.na(pretrial_termination_date) ~ "Case_Disposed", 
+                                                 T ~ "Other_Unknown"
+                                                 ),
+         
+         pretrial_termination_outcome = case_when(pretrial_termination_reason %in% c("Case_Disposed") ~ "Successful",
+                                                  pretrial_termination_reason %in% c("Abscond", "FTA", "New_Crime", "Violation") ~ "Unsuccessful",
+                                                  pretrial_termination_reason %in% c("Not_Tracked") ~ "Not_Tracked",
+                                                  T ~ "Other_Unknown")
   )
+## TO ASK: does outcome_fta_signup result in a termination? how about the other otucomes? if they are missing a termination date does it mean they haven't been terminated or that we are missing a termination date? if they don't have a fta/signup/new crime outcome but they do have a termination date, does that mean the case was successfully disposed?
+
+
 
 
 ####
@@ -4718,7 +4800,7 @@ prob_vio <- prob_violation %>%
 #collapse conditions to each release
   ##for now just using EM flag, ignoring all other conditions. can create flags for other conditions as well here.
 prob_conds <- prob_cond %>%
-  rename(lent_key = lent_jey) %>% #typo got in somewhere
+  #rename(lent_key = lent_jey) %>% #typo got in somewhere
   group_by(croa_key) %>%
   mutate(condition_em_flag = max(condition_em_flag)) %>%
   ungroup() %>%
@@ -4738,7 +4820,6 @@ assess_df <- prob_assess %>%
   left_join(prob_join) 
   
 
-  
 ```
 
 Assessment Tables 
@@ -4752,10 +4833,10 @@ assess_table <- prob_assess %>%
   mutate(county = "Sonoma") %>%
   mutate(tool_name = "SPRAT") %>%
   # Select relevants variables.
-  select(county, release_recommendation, release_decision, assessment_date, risk_score, tool_name)
+  select(county, release_recommendation, release_decision, assessment_date, risk_score, tool_name, assessment_date, dob, sex, race, pretrial_termination_outcome, pretrial_termination_reason)
 
 # Save file  
-#fwrite(assess_table, file = "G:/CrimJustice/PretrialAssessmentPilot/Assessment Output Tables/Sonoma Assessment Output 08-2020.csv")
+#fwrite(assess_table, file = "G:/CrimJustice/PretrialAssessmentPilot/Assessment Output Tables/Sonoma Assessment Output 09-2020.csv")
 
 
 ```
