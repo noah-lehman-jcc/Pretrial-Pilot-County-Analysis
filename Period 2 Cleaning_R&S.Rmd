@@ -27,17 +27,12 @@ library(tidyverse)
 rm(name_keeper)
 ```
 
-
-
-
-
 # Nevada-Sierra
 Jail Data
 ```{r eval=FALSE, include=FALSE}
 #Jail Bookings Data Import--Nevada Jail Data
  ## book_df contains booking data that is arranged by booking number, there are multiple lines for each booking number one line for each charge
- ## Sierra county uses Nevadas jail, so there is a county name in the data for the origin of the arrest
- 
+ ## Sierra county uses Nevada's jail, so there is a county name in the data for the origin of the arrest
 
 
 #Jail Bookings Data Import--Nevada Jail Data 1/1/2015 to 7/27/2020
@@ -45,14 +40,13 @@ Jail Data
   ##they fixed it so it also has the code (PC, VC, HS)
   ##they also added a charge description. 
   ## this is the new data it came through, but the dates for arrest, book and rls came in as times only, also there were 39 variables in   the extract Cory sent, rather than 19 as before.  I asked cory to give us all the data back to 1/1/2015 with the dates corrected in     the 39 variable format.
-book_df<- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Nevada/P2 Submission-June 30/Jail Data Extract2.xlsx", col_types = c("text", rep("guess", 10), "date", rep("guess", 8)), na = "NULL") %>%
-  bind_rows() %>%
+book_df<- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Nevada/P2 Submission-June 30/Jail Data Extract2.xlsx", col_types = "text") %>%
   distinct () 
+  
+  #c("text", rep("guess", 10), "date", rep("guess", 8)), na = "NULL")
 
 # Variable name standardization--See pg. xxx for more details
 names(book_df) <- c("cii", "name", "dob", "arrest_date_time", "book_num", "book_date_time", "book_type_original", "court_case_id", "arrest_charge_original", "charge_description", "arrest_charge_level_original", "release_date_time", "release_type_original", "fbi", "cdl_id", "sex_original", "race_original", "bail_amt", "employment_status", "county")
-
-
 
 
 # Date Reformatting (as well as court_case_id)--See pg. xxx for more details.
@@ -113,15 +107,6 @@ book_df <- book_df %>%
   mutate(name = (gsub(" -| - |- ", "-", name))) %>%
   separate(name, c("first_name", "last_name", "middle_name", "suffix"),  sep = " ") %>%
   mutate_at(vars(first_name, last_name, middle_name), trimws) %>%
-  
-  mutate(cii = parse_number(cii),
-         cii = case_when(nchar(cii) == 6 ~ paste0("0000", cii),
-                         nchar(cii) == 7 ~ paste0("000", cii),
-                         nchar(cii) == 8 ~ paste0("00", cii),
-                         nchar(cii) == 9 ~ paste0("0", cii),
-                         T ~ as.character(cii)),
-         cii = if_else(nchar(cii) != 10, NA_character_, (cii))) %>%
-         
   mutate(attempt = if_else(grepl("^664\\/", arrest_charge_original), 1, 0)) %>%
   separate_rows(arrest_charge_original, sep = "\\\\|\\/") %>%
   mutate(arrest_charge_level = case_when(arrest_charge_level_original %in% c("M", "MI") ~ "M",
@@ -141,13 +126,13 @@ book_df<- book_df %>%
            arrest_felony_flag =if_else(arrest_charge_level=="F", 1, 0),
            attempt_flag=if_else(attempt=="1", 1, 0)) 
            
-
-
 # Code for Charge Hierarchy
   ## county data has no charge code data, so we had to make join_var2 for the join with the hierarchy/this is corrected 
   ## ordering charge_code so that we join using join_var2 we select only one and get a PC or HS preferentially if there is also and other 
   ## some codes section occur in both PC and VC or (other combo), so we may be getting wring section, but only happends with about 30 code sections
-load("Complete Charge Code Hierarchy.RData")
+
+
+load("G:/CrimJustice/PretrialAssessmentPilot/Complete Charge Code Hierarchy.RData")
 
 charge_hier<-charge_hier%>%
     mutate(charge_code = ordered(charge_code, levels = c("Other", "BP", "HS", "PC", "US", "VC", "WI"))) %>%
@@ -159,8 +144,10 @@ charge_hier<-charge_hier%>%
 book_df <- left_join(book_df, charge_hier, by = "join_var")
 
 
+```
 
 Jail Collapse
+```{r eval=FALSE, include=FALSE}
 # Nevada Jail Collapse
   ## if court_case_id is NA when we collapse on court_case_id and book_num we keep both NA lines and actual court_case_id lines 
 book_df <- book_df %>%
@@ -178,9 +165,11 @@ book_df <- book_df %>%
   filter(hierarchy == min(hierarchy)) %>%
   ungroup() %>%
   distinct(book_num, court_case_id, .keep_all = T) 
+```
+
 
 Jail Diagnostics
-
+```{r eval=FALSE, include=FALSE}
 # Nevada Jail Diagnostics
  ## some codes section occur in both PC and VC or (other combo), so we may be getting wring section, but only happends with about 30 code sections
 charge_hier %>%
@@ -247,7 +236,7 @@ book_df[!(book_df$ac_counts_match),
         c("book_num", "arrest_charge_level_original", "arrest_charge_original", "arrest_charge", "attempt",
           "aco_count", "ac_count")][order(book_df$arrest_charge[!(book_df$ac_counts_match)]), ]
 
-
+####
 ```
 Import Court Data Nevada
 ```{r eval=FALSE, include=FALSE}
@@ -269,10 +258,10 @@ Import Court Data Nevada
   ## disposition_date range 1/2/2015-9/2/2027 (two later than current date) with latest data date range goes up to 7/23/2020
   ## dob range 3/10/1924-6/3/2001 with latest data date range goes up to 2/20/2002
 
-court_df <- lapply(c("Historical Data Submissions/Nevada/PTRiskAss-Case+PtyData.csv",
-                     "Historical Data Submissions/Nevada/Submitted 2-3/PTRiskAss-Case+PtyData.csv",
-                     "Historical Data Submissions/Nevada/P2 Submission-June 30/PTRiskAss-Case+PtyData.csv",
-                     "Historical Data Submissions/Nevada/P2 Submission-June 30/PTRiskAss-Case+PtyData.csv"),
+court_df <- lapply(c("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Nevada/PTRiskAss-Case+PtyData.csv",
+                     "G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Nevada/Submitted 2-3/PTRiskAss-Case+PtyData.csv",
+                     "G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Nevada/P2 Submission-June 30/PTRiskAss-Case+PtyData.csv",
+                     "G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Nevada/P2 Submission-June 30/PTRiskAss-Case+PtyData.csv"),
                    function(x) {
                      fread(x, colClasses = "character")
                    }) %>%
@@ -290,17 +279,9 @@ court_df <- court_df %>%
   mutate(dob = mdy(dob),
          status_date_time = mdy_hms(status_date_time),
          file_date = mdy(file_date),
-         disposition_date = mdy(disposition_date),
-         status_date = as_date(status_date_time)) %>%
+         disposition_date = mdy(disposition_date))
         
-  mutate(cii = gsub("-", "", cii), 
-         cii = parse_number(cii),
-         cii = case_when(nchar(cii) == 6 ~ paste0("0000", cii),
-                         nchar(cii) == 7 ~ paste0("000", cii),
-                         nchar(cii) == 8 ~ paste0("00", cii),
-                         nchar(cii) == 9 ~ paste0("0", cii),
-                         T ~ as.character(cii)),
-         cii = if_else(nchar(cii) != 10, NA_character_, (cii)))
+  
 
 
 
@@ -368,8 +349,8 @@ court_df <- court_df %>%
   ## court_charges contains one row per each charge associated with a court case and includes information on the charges and dispostions of each charge.
   ## court_charges contains a disposition_date, but there can be multiple disposition dates within a court case when VOP charges are dealt with after the main court case. It appears that the disposition_date in court_df would be a better source of disposition date
 
-court_charge <- lapply(c("Historical Data Submissions/Nevada/PTRiskAss-Chg.csv",
-                          "Historical Data Submissions/Nevada/Submitted 2-3/PTRiskAss-Chg.csv",
+court_charge <- lapply(c("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Nevada/PTRiskAss-Chg.csv",
+                          "G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Nevada/Submitted 2-3/PTRiskAss-Chg.csv",
                            "G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Nevada/P2 Submission-June 30/PTRiskAss-ChargeData.csv"),
                         fread) %>%
   bind_rows() %>%
@@ -438,7 +419,7 @@ court_charge <- court_charge %>%
  
 # Code for Charge Hierarchy and
 #Make flags
-load("Complete Charge Code Hierarchy.RData")
+load("G:/CrimJustice/PretrialAssessmentPilot/Complete Charge Code Hierarchy.RData")
 
 
 
@@ -453,12 +434,12 @@ court_charge <- left_join(court_charge, charge_hier, by = "join_var") %>%
 ####
 
 # Court Hearings
-  ## court_hearing contains one row per hearing event on each court case and includes informatioin about each hearing. 
+  ## court_hearing contains one row per hearing event on each court case and includes information about each hearing. 
     ## hearing dates range from 1/2/2015-6/30/2020
 
 
 
-court_hearing <-lapply(c("Historical Data Submissions/Nevada/PTRiskAss-Evnt3.csv",
+court_hearing <-lapply(c("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Nevada/PTRiskAss-Evnt3.csv",
                          "G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Nevada/P2 Submission-June 30/PTRiskAss-EventData.csv"), 
                        fread)%>%
   bind_rows() %>%
@@ -511,11 +492,11 @@ court_warrants <- court_warrants %>%
          fta_warrant_date = mdy(fta_warrant_date),
          fta_flag = 1)
 
+```
 
-####
 
 Nevada Court Collapse 
-
+```{r eval=FALSE, include=FALSE}
 ##dispostion date in court charge is a charge dispostion date rather than a case dispostion date, I think we want dispostion date from court_df
 ##Nevada did not provide sentence date or sentence type
 
@@ -587,11 +568,11 @@ court_df <- reduce(list(court_df, court_dispo, court_fta_war, court_arraign, cou
   rename_at(vars(contains(".x")), funs(gsub("\\.x", "", .))) %>%
   #mutate(final_disposition_date = if_else(disposition_date <= sentence_date|is.na(sentence_date), disposition_date, sentence_date),
   mutate(conviction_flag = if_else(disposition_type %in% c("Guilty","Nolo_Contendere"), 1, 0))
-
+```
 
 
 Court Diagnostics
-
+```{r eval=FALSE, include=FALSE}
 
   # not seeing any qualifier charges here  arrest_qualifier_flag=if_else()
             #sup_vio_post_flag=if_else(book_type=="Sup_Vio", 1, 0),
@@ -954,16 +935,11 @@ assess_df_terms <- assess_df_terms %>%
 
 
 
-
+##need to fix this not sure what is wrong
 
 assess_df_viol <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Nevada/P2 Submission-June 30/pretrial_data.xlsx", sheet = 5)
 
 
-assess_df_viol %>%
-  count(Violation_of_PTR)
-
-
-  pretrial_violation_flag = if_else(!is.na(pretrial_violation_date), 1, 0))
 
 
 assess_df <- assess_df %>% 
@@ -997,8 +973,6 @@ assess_df <- assess_df %>%
          pretrial_violation_flag = if_else(!is.na(pretrial_violation_date), 1, 0))
 
 
-assess_df_case %>%
-  count(pretrial_termination_outcome_original, pretrial_termination_outcome)
 ```
 Probation Join Tables
 ```{r}
@@ -1079,28 +1053,9 @@ summary(prob_df$dob)
 #  [is.na(prob_df$release_decision)]
 # table(prob_df$release_recommendation, useNA = "ifany")
 
-##Assessment Table 
- 
-
- assess_table <- assess_df %>%
-  # Collapse to each assessment.
-  distinct(local_id, .keep_all = T) %>%
-  # Filter for only those actually assessed
-  filter(!is.na(assessment_date)) %>%
-  # Create county name.
-  mutate(county = "San Mateo", risk_score = vprair_risk_score) %>%
-  # Select relevants variables.
-  select(county, risk_level, release_recommendation, release_decision, assessment_date, vprair_risk_score, tool_name,
-         assessment_date, dob, sex, race, pretrial_termination_outcome, pretrial_termination_reason)
-
-
-# Save file  
-fwrite(assess_table, file = "G:/CrimJustice/PretrialAssessmentPilot/Assessment Output Tables/Nevada Assessment Output 09-2020.csv")
-                                  
+              
 
 Probation data Old dont use
-```{r eval=FALSE, include=FALSE}
-
 
 # decided not to use "PRETRIAL STATS" workbooks, will use "Pretrial.Updated" instead
 # also not using "Pretrial.SQL.Historic" (individual item responses) or "Pretrial.Demographics" (unuseable dates)
@@ -1286,8 +1241,6 @@ Probation data Old dont use
 
 
 
-
-
 Code Book
 ```{r eval=FALSE, include=FALSE}
 rm(original_field)
@@ -1424,6 +1377,53 @@ doj_court <- doj_court %>%
 
 #Create an excel workbook with all data table. Make sure to include the cii table first. 
 write.xlsx(list(doj_cii, doj_book, doj_court), file = "CIIs for DOJ/Nevada CIIs and Demographics for DOJ.xlsx", sheetName = c("ciis", "booking", "court"))
+```
+
+P2 pulling CII's 
+```{r eval=FALSE, include=FALSE}
+# Grab Tables with CII
+df_list <- sapply(
+  ls()[which(sapply(ls(), function(i){
+    sum(names(get(i)) %in% "cii")
+    }) == 1)],
+  function(j){
+    df <- get(j)
+    df <- df %>%
+      select(any_of(c("cii", "cdl_id", "fbi", "last_name", "first_name", "middle_name", "dob", "sex_original", "race_original"))) %>%
+       mutate(
+         cii = parse_number(cii),
+         cii = case_when(nchar(cii) == 6 ~ paste0("0000", cii),
+                         nchar(cii) == 7 ~ paste0("000", cii),
+                         nchar(cii) == 8 ~ paste0("00", cii),
+                         nchar(cii) == 9 ~ paste0("0", cii),
+                         T ~ as.character(cii)),
+         cii = if_else(nchar(cii) != 10, NA_character_, cii)) %>%
+  distinct()
+ 
+})
+
+# CIIs from assessment tables
+doj_assess <- bind_rows(df_list[[1]]) %>%
+  mutate_all(as.character)
+
+# CIIs from booking tables
+doj_book <- bind_rows(df_list[[2]]) %>%
+   mutate_all(as.character)
+   
+# CIIs from court tables
+doj_court <- bind_rows(df_list[[3]]) %>%
+   mutate_all(as.character)
+
+#CIIs for DOJ
+doj_cii <- bind_rows(doj_book %>% select(cii), doj_court %>% select(cii), doj_assess %>% select(cii))  %>% 
+  distinct() %>%
+  filter(nchar(cii) == 10)
+
+
+#Create an excel workbook with all data table. Make sure to include the cii table first.
+write.xlsx(list(doj_cii, doj_book, doj_court, doj_assess), file = "G:/CrimJustice/PretrialAssessmentPilot/CIIs for DOJ/October 2020/Nevada P2 CIIs and Demographics for DOJ.xlsx", sheetName = c("ciis", "booking", "court", "assessment"))
+
+
 ```
 
 Compile Codebook Notes
@@ -1671,10 +1671,10 @@ join_df <- bind_rows(join1, join2, join3)
 San Mateo Jail Data
 ```{r eval=FALSE, include=FALSE}
 
-# Jail Bookings Data Import--- San Mateo, 2015-01-01 to 06-30-2020
+# Jail Bookings Data Import--- San Mateo, 2015-01-01 to 09-30-2020
   ## book_df contains one row per booking/charge and includes information on the person, the time of booking and release,contains charge information, bail amount.
   ## book_num has suffix (.1, .2,...)
-  ## 
+  ## New data was submitted on 10/6/2020 it should have IDs used by probation, they added local_id and added booking number again
  
 ####
 
@@ -1701,34 +1701,28 @@ San Mateo Jail Data
  ## submitted 8/7/2020 to make sure file includes people who where booked or relased from Jan 2015-June 30, 2020
  ## file did not include column names, I used the same names statemetn from the old files to check if the order was the same and it is
 
-book_df <- read_csv("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/San Mateo/P2 Submission-June 30/41-SO-01OF01-JAN2015-JUN2020.csv", col_names = F, col_types = cols( X1= "c", .default="?"))
+book_df <- read_csv("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/San Mateo/P2 Submission-June 30/41-SO-01OF01-JAN2015-SEP2020.csv", col_names = F, col_types = cols( X1= "c", .default="?"))
 
 # Variable name standardization--See pg. xxx for more details. 
   ##  cdl_id_2 is actually a partially empty, partial duplicate of cdl_id
   ## book_date range Jan 1, 2015-June 30, 2020
   ## release_date range Jan 1, 2015-June 30, 2020
-names(book_df) <- c("cii", "name", "dob", "fbi", "cdl_id_2", "cdl_id", "sex_original", "race_original", "arrest_date_time", "book_num", "book_date_time", "book_type_original", "court_case_id", "arrest_charge_original", "arrest_charge_level_original", "release_date_time", "release_type_original", "bail_amt", "conviction_date", "conviction_charge", "employment_status")
+names(book_df) <- c("cii", "name", "dob", "fbi", "cdl_id_2", "cdl_id", "sex_original", "race_original", "arrest_date_time", "book_num", "book_date_time", "book_type_original", "court_case_id", "arrest_charge_original", "arrest_charge_level_original", "release_date_time", "release_type_original", "bail_amt", "conviction_date", "conviction_charge", "employment_status", "local_id", "book_num2")
+
 
 
 # Date Reformatting (also name and CII reformat)--See pg. xxx for more details.
   ## 8 rows arrest dates 1900-01-01 00:00
   ## 4 rows arrest dates 1919 when probably should be 2019
 book_df <- book_df %>%
-  select(-c(conviction_date, conviction_charge, employment_status)) %>%
+  select(-c(conviction_date, conviction_charge, employment_status, book_num2)) %>%
    mutate(arrest_date = as_date(arrest_date_time),
          book_date = as_date(book_date_time),
          release_date = as_date(release_date_time),
          dob = mdy(dob),
          name2 = str_sub(name, end=-2),
          first_name = gsub(".*, ", "", name2),
-         last_name= gsub("(?=,).*$", "", name2, perl=TRUE)) %>%
-  mutate(cii = parse_number(cii),
-         cii = case_when(nchar(cii) == 6 ~ paste0("0000", cii),
-                         nchar(cii) == 7 ~ paste0("000", cii),
-                         nchar(cii) == 8 ~ paste0("00", cii),
-                         nchar(cii) == 9 ~ paste0("0", cii),
-                         T ~ as.character(cii)),
-         cii = if_else(nchar(cii) != 10, NA_character_, (cii)),
+         last_name= gsub("(?=,).*$", "", name2, perl=TRUE),
          cdl_id = gsub("NONE|NONE ISSUED", "", cdl_id)) 
 
    
@@ -1787,7 +1781,7 @@ book_df <- book_df %>%
 
   
 # Code for Charge Hierarchy
-load("Complete Charge Code Hierarchy.RData")
+load("G:/CrimJustice/PretrialAssessmentPilot/Complete Charge Code Hierarchy.RData")
 
 #remove these flags becasue they are messing up the final join of court and jail data
 charge_hier <- charge_hier %>%
@@ -1804,8 +1798,7 @@ book_df<- book_df %>%
            sup_vio_post_flag=if_else(book_type=="Sup_Vio", 1, 0),
            fta_flag=if_else(arrest_charge%in% c("8537", "1320A", "1320B", "13205", "40508A"), 1, 0))  
 
-
-Jail Collapse
+#Jail Collapse
 
 # Booking Collapse--See pg. xxx for more details about this process. 
  ## No join step needed becasue there is only 1 booking table
@@ -1827,8 +1820,10 @@ book_df <- book_df %>%
   filter(hierarchy == min(hierarchy)) %>%
   ungroup() %>%
   distinct(book_num, court_case_id, .keep_all = T)
+```
 
 San Mateo Jail Diagnostics
+```{r eval=FALSE, include=FALSE}
 
 
 # Jail Diagnostics
@@ -1973,9 +1968,9 @@ San Mateo Court Data
 ####
 
 # Court Cases
-court_df <- lapply(c("Historical Data Submissions/San Mateo/41-COURT-01OF03-JAN2016-SEP2019.csv", 
-                    "Historical Data Submissions/San Mateo/41-COURT-01OF03-OCT2019-DEC2019.csv",
-                    "Historical Data Submissions/San Mateo/P2 Submission-June 30/41-COURT-01OF03-JAN2020-JUN2020.csv"), 
+court_df <- lapply(c("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/San Mateo/41-COURT-01OF03-JAN2016-SEP2019.csv", 
+                    "G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/San Mateo/41-COURT-01OF03-OCT2019-DEC2019.csv",
+                    "G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/San Mateo/P2 Submission-June 30/41-COURT-01OF03-JAN2020-JUN2020.csv"), 
                                      function(x) {
                     fread(x, na.strings=c("NULL",""), colClasses = "character")
                   }) %>%
@@ -2010,14 +2005,8 @@ court_df <- court_df %>%
         name = toupper(name)) %>% 
         separate(name, c("last_name", "first_name", "suffix"),  sep = ",") %>%
         mutate_at(vars(first_name, last_name, suffix), trimws) %>%
-        separate(first_name, c("first_name", "middle_name"), sep = " ") %>%
-        mutate(cii = parse_number(cii),
-         cii = case_when(nchar(cii) == 6 ~ paste0("0000", cii),
-                         nchar(cii) == 7 ~ paste0("000", cii),
-                         nchar(cii) == 8 ~ paste0("00", cii),
-                         nchar(cii) == 9 ~ paste0("0", cii),
-                         T ~ as.character(cii)),
-         cii = if_else(nchar(cii) != 10, NA_character_, (cii)))
+        separate(first_name, c("first_name", "middle_name"), sep = " ") 
+       
 
 
 
@@ -2032,15 +2021,15 @@ court_df <- court_df %>%
  ## historical data submitted had to be stripped of new line characters in the middle of lines that interfered with reading the data in
 
 
-court_charge <- read_file("Historical Data Submissions/San Mateo/41-COURT-02OF03-JAN2016-SEP2019.csv")
+court_charge <- read_file("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/San Mateo/41-COURT-02OF03-JAN2016-SEP2019.csv")
 
 court_charge <- gsub("\n,", ",", court_charge)
 
 court_charge <- read_csv(court_charge, col_types = "iccccccccciiiccccccccccc_ciiiciii", na = c("", "NULL")) 
 
-court_charge_1 <- fread("Historical Data Submissions/San Mateo/41-COURT-02OF03-OCT2019-DEC2019.csv", na.strings=c("NULL",""))
+court_charge_1 <- fread("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/San Mateo/41-COURT-02OF03-OCT2019-DEC2019.csv", na.strings=c("NULL",""))
 
-court_charge_2 <- fread("Historical Data Submissions/San Mateo/P2 Submission-June 30/41-COURT-02OF03-JAN2020-JUN2020.csv", na.strings=c("NULL",""))
+court_charge_2 <- fread("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/San Mateo/P2 Submission-June 30/41-COURT-02OF03-JAN2020-JUN2020.csv", na.strings=c("NULL",""))
 
 
 court_charge <- bind_rows(court_charge, court_charge_1, court_charge_2) %>% distinct()
@@ -2189,7 +2178,7 @@ court_charge <- court_charge %>%
 # Code for Charge Hierarchy and
 #Flag Construction
 
-load("Complete Charge Code Hierarchy.RData")
+load("G:/CrimJustice/PretrialAssessmentPilot/Complete Charge Code Hierarchy.RData")
 
  court_charge <- left_join(court_charge, charge_hier, by = "join_var") %>%
   mutate(felony_flag = if_else(court_charge_level == "F", 1, 0),
@@ -2209,16 +2198,16 @@ load("Complete Charge Code Hierarchy.RData")
   ## historical data file has a variable called DtFile in a format that only reads with the as_date
  ## the next two date files have the date in a different format so needed to use mdy
    court_hearing <-
-   fread("Historical Data Submissions/San Mateo/41-COURT-03OF03-JAN2016-SEP2019.csv") %>%
+   fread("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/San Mateo/41-COURT-03OF03-JAN2016-SEP2019.csv") %>%
      mutate_at(vars(contains("date"), DtFile), as_date)
    
    
  court_hearing_1 <-
-   fread( "Historical Data Submissions/San Mateo/41-COURT-03OF03-OCT2019-DEC2019.csv",  na.strings = c("NULL", "")) %>%
+   fread("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/San Mateo/41-COURT-03OF03-OCT2019-DEC2019.csv",  na.strings = c("NULL", "")) %>%
        mutate_at(vars(contains("date"), DtFile), mdy)
  
   court_hearing_2 <-
-   fread( "Historical Data Submissions/San Mateo/P2 Submission-June 30/41-COURT-03OF03-JAN2020-JUN2020.csv",  na.strings = c("NULL","")) %>%
+   fread("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/San Mateo/P2 Submission-June 30/41-COURT-03OF03-JAN2020-JUN2020.csv",  na.strings = c("NULL","")) %>%
         mutate_at(vars(contains("date"), DtFile), mdy)
 
  court_hearing <-
@@ -2459,10 +2448,8 @@ load("Complete Charge Code Hierarchy.RData")
  
  ####
 
-court diagnostics and notes 
-```{r eval=FALSE, include=FALSE}
 
-San Mateo Court Collapse 
+#San Mateo Court Collapse 
 ```{r eval=FALSE, include=FALSE}
   ## court_case_id is formatted differently across cases, sometimes with dashes, and sometimes with leading file date year. Unclear whether the same cases may be formatted differently across tables, have not found any evidence of such. 
 
@@ -2545,7 +2532,6 @@ court_df3 <- reduce(list(court_df2, court_dispo, court_fta_war, court_arraign), 
 
 # assumes that if all charges dismissed then its over
  
-
 ```
 
 
@@ -2947,7 +2933,7 @@ court_df %>%
 
 ```
 
-  Assessment Collapse
+Assessment Collapse
 ```{r}
 # Assessment data is duplicated across terms and conditions. These are collapsed. 
   ## Next Time fix NULL and NA values that are missing.  
@@ -3237,6 +3223,54 @@ write.xlsx(list(doj_cii, doj_book), file = "CIIs for DOJ/San Mateo CIIs and Demo
 
 
 ```
+
+P2 pulling CII's 
+```{r eval=FALSE, include=FALSE}
+# Grab Tables with CII
+df_list <- sapply(
+  ls()[which(sapply(ls(), function(i){
+    sum(names(get(i)) %in% "cii")
+    }) == 1)],
+  function(j){
+    df <- get(j)
+    df <- df %>%
+      select(any_of(c("cii", "cdl_id", "fbi", "last_name", "first_name", "middle_name", "dob", "sex_original", "race_original"))) %>%
+       mutate(
+         cii = parse_number(cii),
+         cii = case_when(nchar(cii) == 6 ~ paste0("0000", cii),
+                         nchar(cii) == 7 ~ paste0("000", cii),
+                         nchar(cii) == 8 ~ paste0("00", cii),
+                         nchar(cii) == 9 ~ paste0("0", cii),
+                         T ~ as.character(cii)),
+         cii = if_else(nchar(cii) != 10, NA_character_, cii)) %>%
+  distinct()
+ 
+})
+
+# CIIs from assessment tables
+doj_assess <- bind_rows(df_list[[1]]) %>%
+  mutate_all(as.character)
+
+# CIIs from booking tables
+doj_book <- bind_rows(df_list[[2]]) %>%
+   mutate_all(as.character)
+  
+# CIIs from court tables
+doj_court <- bind_rows(df_list[[3]]) %>%
+   mutate_all(as.character)
+
+#CIIs for DOJ
+doj_cii <- bind_rows(doj_book %>% select(cii), doj_court %>% select(cii), doj_assess %>% select(cii))  %>% 
+  distinct() %>%
+  filter(nchar(cii) == 10)
+
+
+#Create an excel workbook with all data table. Make sure to include the cii table first.
+write.xlsx(list(doj_cii, doj_book, doj_court, doj_assess), file = "G:/CrimJustice/PretrialAssessmentPilot/CIIs for DOJ/October 2020/San Mateo P2 CIIs and Demographics for DOJ.xlsx", sheetName = c("ciis", "booking", "court", "assessment"))
+
+
+```
+
 Compile Codebook Notes
 ```{r}
 files <- list.files("G:/CrimJustice/PretrialAssessmentPilot/Code Books/Code Book Notes", pattern = "San Mateo", full.names = T)
