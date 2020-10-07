@@ -1359,7 +1359,48 @@ doj_cii <- bind_rows(doj_book %>% select(cii), doj_court %>% select(cii)) %>% di
 write.xlsx(list(doj_cii, doj_book, doj_court), file = "CIIs for DOJ/Kings CIIs and Demographics for DOJ.xlsx", sheetName = c("ciis", "booking", "court"))
 ```
 
+CII extraction 10.2020
+```{r}
+# Grab Tables with CII
+df_list <- sapply(
+  ls()[which(sapply(ls(), function(i){
+    sum(names(get(i)) %in% "cii")
+    }) == 1)],
+  function(j){
+    df <- get(j)
+    df <- df %>%
+      select(any_of(c("cii", "cdl_id", "fbi", "name", "last_name", "first_name", "middle_name", "dob", "sex_original", "race_original"))) %>%
+       mutate(
+         cii = parse_number(cii),
+         cii = case_when(nchar(cii) == 6 ~ paste0("0000", cii),
+                         nchar(cii) == 7 ~ paste0("000", cii),
+                         nchar(cii) == 8 ~ paste0("00", cii),
+                         nchar(cii) == 9 ~ paste0("0", cii),
+                         T ~ as.character(cii)),
+         cii = if_else(nchar(cii) != 10, NA_character_, cii)) %>%
+  distinct()
+ 
+})
 
+# CIIs from assessment tables
+doj_assess <- bind_rows(df_list[[1]])
+
+# CIIs from booking tables
+doj_book <- bind_rows(df_list[[2]])
+
+# CIIs from court tables
+doj_court <- bind_rows(df_list[[3]])
+
+
+#CIIs for DOJ
+doj_cii <- bind_rows(doj_book %>% select(cii), doj_court %>% select(cii), doj_assess %>% select(cii))  %>% 
+  distinct() %>%
+  filter(nchar(cii) == 10)
+
+
+#Create an excel workbook with all data table. Make sure to include the cii table first.
+write.xlsx(list(doj_cii, doj_book, doj_court, doj_assess), file = "G:/CrimJustice/PretrialAssessmentPilot/CIIs for DOJ/October 2020/Kings P2 CIIs and Demographics for DOJ.xlsx", sheetName = c("ciis", "booking", "court", "assessment"))
+```
 
 # Napa
 
@@ -2251,10 +2292,12 @@ Assessment Data
   ##prob_df contains one row per assessment question, and has information on risk score, risk level, assessment date, and zip code
 prob_df <- read_excel("Historical Data Submissions/Napa/P2 Submission-June 30/Historical_7-1-2020_2.xlsx", sheet = 12)
 
+names_df1 <- tibble(original_field = names(prob_df)) 
 
 # Variable name standardization--See pg. xxx for more details. 
 names(prob_df) <- c("local_id", "zip_code", "assessment_id", "assessment_date", "item_label", "assessment_item", "assessment_response", "risk_score", "risk_level_original")
 
+names_df1$field <- names(prob_df)
 
 # Date Reformatting--See pg. xxx for more details.
 prob_df <- prob_df %>%
@@ -2284,8 +2327,10 @@ prob_df <- prob_df %>%
          oras_tool_response_5 = if_else(oras_tool_response_5 == "Not Lived at Same Residence", 1, 0),
          oras_tool_response_6 = if_else(oras_tool_response_6 == "Yes", 1, 0),
          oras_tool_response_7 = if_else(oras_tool_response_7 == "Yes", 1, 0))
-  
-  
+
+#Flags
+prob_df <- prob_df %>%
+  mutate(assess_flag = if_else(is.na(assessment_date), 0, 1))
 
 
 ####
@@ -2296,9 +2341,12 @@ prob_df <- prob_df %>%
 prob_bookings <- read_excel("Historical Data Submissions/Napa/P2 Submission-June 30/Historical_7-1-2020_ProbData_4.xlsx", sheet = 1) %>%
   distinct()
 
+names_df2 <- tibble(original_field = names(prob_bookings)) 
+
 # Variable name standardization--See pg. xxx for more details. 
 names(prob_bookings) <- c("pretrial_id", "local_id", "book_num", "assessment_id", "no_assessment_reason", "book_date_time", "excluded")
 
+names_df2$field <- names(prob_bookings)
 ## as per Dan Glascott on call 7.16.20, "excluded" indicates whether defendant is excluded from pre-arraignment release
 
 # Date Reformatting--See pg. xxx for more details.
@@ -2312,8 +2360,12 @@ prob_bookings <- prob_bookings %>%
 ## prob_reports has date range 2020-03-16 to 2020-06-30
 prob_reports <- read_excel("Historical Data Submissions/Napa/P2 Submission-June 30/Historical_7-1-2020_ProbData_4.xlsx", sheet = 2)
 
+names_df3 <- tibble(original_field = names(prob_reports)) 
+
 # Variable name standardization--See pg. xxx for more details. 
 names(prob_reports) <- c("pretrial_id", "local_id", "book_num", "report_date_time", "report_type", "release_recommendation_original", "release_decision_original")
+
+names_df3$field <- names(prob_reports)
 
 # Date Reformatting--See pg. xxx for more details.
 prob_reports <- prob_reports %>%
@@ -2334,6 +2386,16 @@ prob_reports <- prob_reports %>%
                                                 T ~ "Other_Unknown"))
 
 
+#Flags
+
+prob_reports <- prob_reports %>%
+  mutate(rec_release_flag = if_else(release_recommendation %in% c("OR", "Monitor"), 1, 0),
+         decision_release_flag = if_else(release_decision %in% c("OR", "Monitor"), 1, 0),
+         release_override_flag = if_else(rec_release_flag != decision_release_flag &
+                                            !release_recommendation %in% c("Ineligible", "Other_Unknown") &
+                                            !release_decision %in% c("Ineligible", "Other_Unknown"), 1, 0))
+
+
 ##TO ASK: what does a release recommendation of "Jail Released" mean?
 
 ####
@@ -2341,8 +2403,12 @@ prob_reports <- prob_reports %>%
 
 prob_case <- read_excel("Historical Data Submissions/Napa/P2 Submission-June 30/Historical_7-1-2020_ProbData_4.xlsx", sheet = 3)
 
+names_df4 <- tibble(original_field = names(prob_case)) 
+
 # Variable name standardization--See pg. xxx for more details. 
 names(prob_case) <- c("pretrial_id", "local_id", "court_case_id", "case_type", "case_status", "case_status_date_time")
+
+names_df4$field <- names(prob_case)
 
 prob_case <- prob_case %>%
   mutate(case_status_date = as_date(case_status_date_time))
@@ -2359,13 +2425,43 @@ prob_case %>%
 
 ## make a separate code book for this table with counts of case_type and case_status
 
-####  START HERE *********** 9.21.2020
 
 prob_cond <- read_excel("Historical Data Submissions/Napa/P2 Submission-June 30/Historical_7-1-2020_ProbData_4.xlsx", sheet = 4)
 
-# Variable name standardization--See pg. xxx for more details. 
-names(prob_cond) <- c("pretrial_id", "local_id", "court_case_id", "condition_status", "condition_original")
+names_df5 <- tibble(original_field = names(prob_cond)) 
 
+# Variable name standardization--See pg. xxx for more details. 
+names(prob_cond) <- c("pretrial_id", "local_id", "court_case_id", "condition_status", "release_conditions_original")
+
+names_df5$field <- names(prob_cond)
+
+
+#Flags
+
+prob_cond <- prob_cond %>%
+  mutate(
+         #rec_em_flag = if_else(grepl("SCRAM", toupper(release_recommendation_original)), 1, 0),
+         # rec_phone_flag = if_else(),
+         # rec_inperson_flag = if_else(),
+         # rec_drug_test_flag = if_else(grepl("TEST", toupper(release_recommendation_original)), 1, 0),
+         # rec_other_flag = if_else(),
+         condition_em_flag = if_else(grepl("ELECTRONIC MONITOR|GPS|SCRAM", toupper(release_conditions_original)), 1, 0),
+         # Discuss release_conditions_original with Kings along with their original materials to determine phone and inperson flag.
+         # condition_phone_flag = if_else(),
+         # condition_inperson_flag = if_else(),
+         ## Does test as requested entail a request flag? What is the treatment program?
+         # condition_drug_test_flag = if_else(grepl("SCRAM|TEST", toupper(release_conditions_original)), 1, 0),
+         condition_no_contact_flag = if_else(grepl("NOT TO CONTACT|136", toupper(release_conditions_original)), 1, 0),
+         #court_date_reminder_flag = if_else(court_date_reminder_original == "Yes", 1, 0),
+         # Transit service doesn't actually exist here.
+         #transit_service_flag = if_else(grepl("BUS", toupper(other_pretrial_service_original)), 1, 0),
+         ## Are all violations violations that result in termation?
+         #pretrial_violation_flag = if_else(!is.na(pretrial_violation_original), 1, 0))
+  )
+
+
+
+## Ask about the condition "install a GPS or SCRAM device at the discretion of the Probation Officer". Ask about condition "I promise not to contact" when it involves a place -- could this just be like a stayaway from a store or is it always a no contact about a person? Does everyone get court date reminders? Is the "submit to blood, breath, or urine test, if requested" condition an actual drug test condition or more like a rights waiver? Are the levels of supervision recorded anywhere?
 
 ####
 
@@ -2380,10 +2476,12 @@ names(prob_cond) <- c("pretrial_id", "local_id", "court_case_id", "condition_sta
   ## Historical_7-1-2020 was missing sex, so Historical_7_1_2020_2 was submitted with sex included
 person_df <- read_excel("Historical Data Submissions/Napa/P2 Submission-June 30/Historical_7-1-2020_2.xlsx", sheet = 1)
 
+names_df6 <- tibble(original_field = names(person_df)) 
 
 # Variable name standardization--See pg. xxx for more details. 
 names(person_df) <- c("fbi", "cii", "local_id", "cdl_id", "cdl_id_state", "name", "dob", "race_original", "sex_original") 
 
+names_df6$field <- names(person_df)
 
 # Standardize Factors--See pg. xxx for more details.
 person_df <- person_df %>%
@@ -2400,7 +2498,7 @@ person_df <- person_df %>%
 ```
 
 
-#Probation diagnostics
+Probation diagnostics
 ```{r}
 prob_df %>%
   distinct(assessment_id, .keep_all = T)
@@ -2458,20 +2556,174 @@ prob_bookings %>%
 Assessment collapse
 ```{r}
 
+#this join is not very good.
 
 assess_df <- prob_df %>%
   mutate(assessment_id = as.character(assessment_id)) %>%
   left_join(prob_bookings) %>%
   left_join(prob_reports) %>%
   left_join(person_df) %>%
+  left_join(prob_cond) %>%
+  left_join(prob_case) %>%
   distinct(local_id, assessment_date, .keep_all = T)
 
 # assess_df %>%
 #   filter(!is.na(assessment_date))
 #   distinct(pretrial_id)
   
+prob_df %>%
+  mutate(assessment_id = as.character(assessment_id)) %>%
+  semi_join(prob_reports)
+
+prob_reports %>%
+  anti_join(prob_df)
 
 ```
+
+Assessment code book (9/2020) 
+```{r}
+
+names_df <- bind_rows(names_df1, names_df2, names_df3, names_df4, names_df5, names_df6)
+
+names_df <- names_df %>%
+  mutate(
+    modified_field = case_when(
+      field == "sex_original" ~ "sex",
+      field == "race_original" ~ "race",
+      field == "risk_level_original" ~ "risk_level",
+      field == "release_recommendation_original" ~ "release_recommendation",
+      field == "pretrial_release_type_original" ~ "release_decision",
+      field == "release_decision_original" ~ "release_decision, pretrial_ineligible_reason",
+      field == "release_conditions_original" ~ "condition_em_flag, condition_no_contact_flag"
+      #field == "release_authorization_original" ~ "release_authorization",
+      #field == "court_date_reminder_original" ~ "court_date_reminder_flag",
+      #field =="pretrial_violation_original" ~ "pretrial_violation_flag")
+    )) %>%
+  filter(!is.na(modified_field)) %>%
+  separate_rows(modified_field, sep = ",") %>%
+  mutate_all(trimws)
+
+
+
+factor_df <- lapply(c('prob_df', 'person_df', 'prob_reports'), function(i){
+  df <- get(i)
+  
+  df <- lapply(c(1:nrow(names_df))[names_df$field %in% names(df)], function(j){
+    df <- df %>%
+      select(value = names_df$field[j], 
+             modified_value = names_df$modified_field[j]) %>%
+      group_by_all() %>%
+      count() %>%
+      arrange(desc(n)) %>%
+      group_by(modified_value)  %>%
+      summarise(value = paste(value, collapse = ", "), n = sum(n)) %>%
+      ungroup() %>%
+      mutate(percent = round(n/sum(n)*100, 1),
+             total = sum(n)) %>%
+      mutate(field = names_df$field[j], modified_field = names_df$modified_field[j]) %>%
+      arrange(desc(n)) %>%
+      select(field, modified_field, value, modified_value, n, percent, total) %>%
+      mutate_all(as.character)
+      
+      
+    
+    return(df)
+  }) %>% bind_rows()
+ 
+  df <- df %>% mutate(table_name = i)
+   }) %>% 
+  bind_rows() %>%
+  left_join(names_df) %>%
+  select(table_name, original_field, field, modified_field, value, modified_value, total, percent)
+  
+##not needed because no complex logic
+# factor_df <- factor_df %>%
+#   # mutate(value = case_when(
+#   # modified_field == "pretrial_ineligible_reason" & modified_value == "Bail_Bond" ~ "pretrial_release_type_original = 'Posted Bail' OR release_recommendation_original = 'Posted Bail'",
+#   # modified_field == "pretrial_ineligible_reason" & modified_value == "Case_Disposed" ~ "pretrial_release_type_original = ('No Complaint Filed', 'Time Served') OR release_recommendation_original = ('No Complaint Filed', 'Time Served')",
+#   # modified_field == "pretrial_ineligible_reason" & modified_value == "Other_Unknown" ~ "Other Values",
+#   # T ~ value)) %>%
+#   # filter(modified_field == "pretrial_ineligible_reason") %>%
+#   group_by(modified_field, value) %>%
+#   mutate_at(vars(original_field, field), funs(paste(., collapse = ", "))) %>%
+#   distinct(modified_field, value, .keep_all = T) %>%
+#   ungroup() %>%
+#   slice(-13)
+
+
+flag_df <- lapply('prob_cond', function(i){
+  df <- get(i)
+  
+  df <- lapply(c(1:nrow(names_df))[grepl("flag", names_df$modified_field)], function(j){
+    df <- df %>%
+      select(value = names_df$field[j], modified_value = names_df$modified_field[j]) %>%
+      group_by_all() %>%
+      count() %>%
+      arrange(desc(n)) %>%
+      group_by(modified_value) %>%
+      summarise(value = paste(value, collapse = ", "), n = sum(n)) %>%
+      ungroup() %>%
+      mutate(percent = round(n/sum(n)*100, 1),
+             total = sum(n)) %>%
+      mutate(field = names_df$field[j], modified_field = names_df$modified_field[j]) %>%
+      arrange(desc(n)) %>%
+      select(field, modified_field, value, modified_value, n, percent, total) %>%
+      mutate_all(as.character)
+    
+    return(df)
+  }) %>% bind_rows() 
+  
+ df <- df %>% mutate(table_name = i)
+   }) %>%
+
+  bind_rows() %>%
+  left_join(names_df) %>%
+  select(table_name, original_field, field, modified_field, value, modified_value, total, percent)
+
+
+flag_df <- flag_df %>%
+  filter(modified_value == 1) %>%
+  mutate(value = case_when(
+  modified_field == "condition_no_contact_flag" & modified_value == "1" ~ "MATCHES (NOT TO CONTACT)",
+  modified_field == "condition_em_flag" & modified_value == "1" ~ "MATCHES (SCRAM, ELECTRONIC MONITOR, GPS)",
+  #modified_field == "pretrial_violation_flag" & modified_value == "1" ~ "IF pretrial_violation_original EXISTS",
+  T ~ value)) %>%
+  # filter(modified_field == "pretrial_ineligible_reason") %>%
+  group_by(modified_field, value) %>%
+  mutate_at(vars(original_field, field), funs(paste(., collapse = ", "))) %>%
+  distinct(modified_field, value, .keep_all = T) %>%
+  ungroup()
+  
+
+
+
+date_df <- lapply(ls()[!grepl("original|^df|hier|names|factor|date|flag", ls())], function(i){
+  df <- get(i)
+  
+   if(sum(grepl("date", names(df))) > 0){
+  df2 <- df %>%
+  select(contains("date"), -contains("time"), -contains("court")) %>%
+  gather("field", "value") %>%
+  group_by(field) %>%
+  summarise_all(funs(min_date = as.character(min(., na.rm = T)),  max_date = as.character(max(., na.rm = T)))) %>%
+    mutate(table_name = i)
+  }else{
+    df2 <- tibble(field = NA_character_, min_date = NA_character_,  max_date = NA_character_, table_name = i)
+  }
+}) %>%
+  bind_rows() %>%
+  select(table_name, field, min_date, max_date) %>%
+  filter(!is.na(field))
+  
+
+case_df <- prob_case %>%
+  count(case_type, case_status) %>%
+  arrange(case_type, desc(n))
+
+#write.xlsx(list(factor_df, flag_df, date_df, case_df), file = "G:/CrimJustice/PretrialAssessmentPilot/Code Books/Assessment Code Book/Napa Assessment Code Book 9-20.xlsx", asTable = T, tableStyle = "TableStyleMedium1", colWidths = "auto", sheetName = c("Factors", "Flags", "Dates", "Case status"))
+
+```
+
 
 Assessment Tables 
 ```{r}
@@ -2818,6 +3070,51 @@ doj_cii <- doj_person %>%
 
 #Create an excel workbook with all data table. Make sure to include the cii table first. 
 write.xlsx(list(doj_cii, doj_person), file = "CIIs for DOJ/Napa CIIs and Demographics for DOJ.xlsx", sheetName = c("ciis", "person"))
+```
+
+CII extraction 10.2020
+```{r}
+# Grab Tables with CII
+df_list <- lapply(
+  ls()[which(lapply(ls(), function(i){
+    sum(names(get(i)) %in% "cii")
+    }) == 1)],
+  function(j){
+    df <- get(j)
+    df <- df %>%
+      select(any_of(c("cii", "cdl_id", "fbi", "name", "last_name", "first_name", "middle_name", "dob", "sex_original", "race_original"))) %>%
+       mutate(
+         cii = parse_number(cii),
+         cii = case_when(nchar(cii) == 6 ~ paste0("0000", cii),
+                         nchar(cii) == 7 ~ paste0("000", cii),
+                         nchar(cii) == 8 ~ paste0("00", cii),
+                         nchar(cii) == 9 ~ paste0("0", cii),
+                         T ~ as.character(cii)),
+         cii = if_else(nchar(cii) != 10, NA_character_, cii)) %>%
+  distinct()
+ 
+})
+
+# # CIIs from assessment tables
+# doj_assess <- bind_rows(df_list[[1]])
+# 
+# # CIIs from booking tables
+# doj_book <- bind_rows(df_list[[2]])
+# 
+# # CIIs from court tables
+# doj_court <- bind_rows(df_list[[3]])
+
+# CIIs from person tables
+doj_person <- bind_rows(df_list[[1]])
+
+#CIIs for DOJ
+doj_cii <- bind_rows(doj_person %>% select(cii))  %>% 
+  distinct() %>%
+  filter(nchar(cii) == 10)
+
+
+#Create an excel workbook with all data table. Make sure to include the cii table first.
+#write.xlsx(list(doj_cii, doj_person), file = "G:/CrimJustice/PretrialAssessmentPilot/CIIs for DOJ/October 2020/Napa P2 CIIs and Demographics for DOJ.xlsx", sheetName = c("ciis", "integrated"))
 ```
 
 
@@ -3614,18 +3911,22 @@ lapply(prob_df, function(i){
 # 
 
 
-prob_df %>%
-  filter(release_type == "")
+# prob_df %>%
+#   filter(release_type == "")
+# 
+# prob_df %>%
+#   count(termination_outcome) %>%
+#   arrange(desc(n))
+# 
+# prob_df %>%
+#   summarise(
+#     across(where(is.numeric), mean),
+#     across(where(is.factor), nlevels),
+#     n = n())
 
 prob_df %>%
   count(termination_outcome) %>%
   arrange(desc(n))
-
-prob_df %>%
-  summarise(
-    across(where(is.numeric), mean),
-    across(where(is.factor), nlevels),
-    n = n())
 ```
 
 
@@ -3888,6 +4189,50 @@ doj_cii <- doj_person %>%
 write.xlsx(list(doj_cii, doj_person), file = "CIIs for DOJ/Sacramento CIIs and Demographics for DOJ.xlsx", sheetName = c("ciis", "person"))
 ```
 
+CII extraction 10.2020
+```{r}
+# Grab Tables with CII
+df_list <- sapply(
+  ls()[which(sapply(ls(), function(i){
+    sum(names(get(i)) %in% "cii")
+    }) == 1)],
+  function(j){
+    df <- get(j)
+    df <- df %>%
+      select(any_of(c("cii", "cdl_id", "fbi", "name", "last_name", "first_name", "middle_name", "dob", "sex_original", "race_original"))) %>%
+       mutate(
+         cii = parse_number(cii),
+         cii = case_when(nchar(cii) == 6 ~ paste0("0000", cii),
+                         nchar(cii) == 7 ~ paste0("000", cii),
+                         nchar(cii) == 8 ~ paste0("00", cii),
+                         nchar(cii) == 9 ~ paste0("0", cii),
+                         T ~ as.character(cii)),
+         cii = if_else(nchar(cii) != 10, NA_character_, cii)) %>%
+  distinct()
+ 
+})
+
+# CIIs from assessment tables
+doj_assess <- bind_rows(df_list[[2]])
+
+# # CIIs from booking tables
+# doj_book <- bind_rows(df_list[[2]])
+
+# CIIs from court tables
+doj_court <- bind_rows(df_list[[1]])
+
+# # CIIs from person tables
+# doj_person <- bind_rows(df_list[[1]])
+
+#CIIs for DOJ
+doj_cii <- bind_rows(doj_assess %>% select(cii), doj_court %>% select(cii))  %>% 
+  distinct() %>%
+  filter(nchar(cii) == 10)
+
+
+#Create an excel workbook with all data table. Make sure to include the cii table first.
+#write.xlsx(list(doj_cii, doj_court, doj_assess), file = "G:/CrimJustice/PretrialAssessmentPilot/CIIs for DOJ/October 2020/Sacramento P2 CIIs and Demographics for DOJ.xlsx", sheetName = c("ciis", "court", "assessment"))
+```
 
 
 # Sonoma
@@ -4786,7 +5131,13 @@ names(prob_link) <- c("sprat_id", "lent_key", "book_num", "book_date", "ccas_key
 prob_link <- prob_link %>%
   mutate_at(vars(book_date), mdy)
 
-
+# prob_assess %>%
+#   view()
+#   count(outcome_fta_signup)
+# 
+# 
+# prob_violation %>%
+#   count(violation)
 ```
 
 Probation Collapse
@@ -5081,6 +5432,51 @@ doj_cii <- bind_rows(doj_book %>% select(cii), doj_court %>% select(cii), doj_co
 
 #Create an excel workbook with all data table. Make sure to include the cii table first. 
 write.xlsx(list(doj_cii, doj_book, doj_court, doj_court2, doj_prob), file = "CIIs for DOJ/Sonoma CIIs and Demographics for DOJ.xlsx", sheetName = c("ciis", "booking", "court", "court2", "assessment"))
+```
+
+CII extraction 10.2020
+```{r}
+# Grab Tables with CII
+df_list <- lapply(
+  ls()[which(lapply(ls(), function(i){
+    sum(names(get(i)) %in% "cii")
+    }) == 1)],
+  function(j){
+    df <- get(j)
+    df <- df %>%
+      select(any_of(c("cii", "cdl_id", "fbi", "name", "last_name", "first_name", "middle_name", "dob", "sex_original", "race_original"))) %>%
+       mutate(
+         cii = parse_number(cii),
+         cii = case_when(nchar(cii) == 6 ~ paste0("0000", cii),
+                         nchar(cii) == 7 ~ paste0("000", cii),
+                         nchar(cii) == 8 ~ paste0("00", cii),
+                         nchar(cii) == 9 ~ paste0("0", cii),
+                         T ~ as.character(cii)),
+         cii = if_else(nchar(cii) != 10, NA_character_, cii)) %>%
+  distinct()
+ 
+})
+
+# CIIs from assessment tables
+doj_assess <- bind_rows(df_list[[4]])
+
+# CIIs from booking tables
+doj_book <- bind_rows(df_list[[1]])
+
+# CIIs from court person tables
+doj_court_person <- bind_rows(df_list[[2]])
+
+# CIIs from court RA tables
+doj_court_ra <- bind_rows(df_list[[3]])
+
+#CIIs for DOJ
+doj_cii <- bind_rows(doj_assess %>% select(cii), doj_book %>% select(cii), doj_court_person %>% select(cii), doj_court_ra %>% select(cii))  %>% 
+  distinct() %>%
+  filter(nchar(cii) == 10)
+
+
+#Create an excel workbook with all data table. Make sure to include the cii table first.
+#write.xlsx(list(doj_cii, doj_book, doj_court_person, doj_court_ra, doj_assess), file = "G:/CrimJustice/PretrialAssessmentPilot/CIIs for DOJ/October 2020/Sonoma P2 CIIs and Demographics for DOJ.xlsx", sheetName = c("ciis", "booking", "court person", "court ra", "assessment"))
 ```
 
 
