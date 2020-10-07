@@ -249,7 +249,7 @@ book_df[!(book_df$ac_counts_match),
 
 
 ```
-Court Data Nevada
+Import Court Data Nevada
 ```{r eval=FALSE, include=FALSE}
 
 # Nevada Court Case Data Import 1/2/2015-6/30/2020
@@ -690,30 +690,11 @@ charge_hier%>%
 Import Court Data Sierra
 ```{r eval=FALSE, include=FALSE}
 
- ## On jan 7 and jan 14, 2020 we got these two files, but no similar files came in for period 2.  We had a cll with them and they will resubmit the data
-court_pt_1_fta <- read.csv("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Sierra/Pretrial_1_FTA.csv",
-                              as.is = TRUE)
-
-names(court_pt_1_fta) <- c("case_id", "case_name", "first_name", "last_name", "cdl_id", "cdl_id_type", "file_date", "charge_level", "disposition_date", "disposition_type", "disposition_manner", "fta_warrant_date", "fta_warrant_type")
-
-court_pt_1_ftat <- court_pt_1_fta %>%
-  mutate_at(vars(contains("date")), mdy)
-
-court_pt_grant <- read.xlsx("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Sierra/Pretrial Grant Cases.xlsx")
-
-
-names(court_pt_grant) <- c("case_id", "case_name", "charge_number", "charge_level", "charge", "violation_date", "file_date", "disposition_date", "disposition_type", "disposition_manner")
-
-court_pt_grant <- court_pt_grant %>%
-  mutate_at(vars(contains("date")), as_date, origin = "1899-12-30")
-
-
 
 #These 3 tables were submitted 7/28/2020 : contain historical data through P2 data  
   ##Court Demogrpahics: contain court case id, first name, last name, DOB, race, sex
   ##FTA, 
   ##charges_dispostions
- 
 
 
 ## Court Demographics
@@ -1014,6 +995,10 @@ assess_df <- assess_df %>%
          transit_service_flag = if_else(court_date_reminder_original == "TRANSIT", 1, 0),
          ## Are all violations violations that result in termation? 
          pretrial_violation_flag = if_else(!is.na(pretrial_violation_date), 1, 0))
+
+
+assess_df_case %>%
+  count(pretrial_termination_outcome_original, pretrial_termination_outcome)
 ```
 Probation Join Tables
 ```{r}
@@ -1697,18 +1682,18 @@ San Mateo Jail Data
   ## book_df contains one row per booking/charge and includes information on the person as well as the time of booking and release. 
 
 #This is old code from when they did not filter on both bookings and releases during the time periodS
-book_df <- fread("Historical Data Submissions/San Mateo/41-SO-01OF01-JAN2015-JUN2019.csv", colClasses = "text")
-book_df2 <- fread("Historical Data Submissions/San Mateo/41-SO-01OF02-JUL2019-SEPT2019.csv", colClasses = "text", header = F)
-book_df3 <- fread("Historical Data Submissions/San Mateo/41-SO-01OF01-OCT2019-DEC2019.csv", colClasses = "text", header = F)
-book_df4 <- fread("Historical Data Submissions/San Mateo/P2 Submission-June 30/41-SO-01OF01-JAN2020-JUN2020.csv", colClasses = "text", header = F)
-
-names(book_df2) <- names(book_df)
-names(book_df3)<- names(book_df)
-names(book_df4)<- names(book_df)
-
-book_df <- bind_rows(book_df, book_df2, book_df3, book_df4)
-
-rm(book_df2, book_df3, book_df4)
+# book_df <- fread("Historical Data Submissions/San Mateo/41-SO-01OF01-JAN2015-JUN2019.csv", colClasses = "text")
+# book_df2 <- fread("Historical Data Submissions/San Mateo/41-SO-01OF02-JUL2019-SEPT2019.csv", colClasses = "text", header = F)
+# book_df3 <- fread("Historical Data Submissions/San Mateo/41-SO-01OF01-OCT2019-DEC2019.csv", colClasses = "text", header = F)
+# book_df4 <- fread("Historical Data Submissions/San Mateo/P2 Submission-June 30/41-SO-01OF01-JAN2020-JUN2020.csv", colClasses = "text", header = F)
+# 
+# names(book_df2) <- names(book_df)
+# names(book_df3)<- names(book_df)
+# names(book_df4)<- names(book_df)
+# 
+# book_df <- bind_rows(book_df, book_df2, book_df3, book_df4)
+# 
+# rm(book_df2, book_df3, book_df4)
 
 ####
 
@@ -2477,11 +2462,6 @@ load("Complete Charge Code Hierarchy.RData")
 court diagnostics and notes 
 ```{r eval=FALSE, include=FALSE}
 
-
-
-
-
-
 San Mateo Court Collapse 
 ```{r eval=FALSE, include=FALSE}
   ## court_case_id is formatted differently across cases, sometimes with dashes, and sometimes with leading file date year. Unclear whether the same cases may be formatted differently across tables, have not found any evidence of such. 
@@ -2801,7 +2781,8 @@ assess_df <- assess_df %>%
 ## release_authorization_original is mostly NA(357) and sometimes Judge, Judge At arr or judge pre arr, not standardizing further at this point.
 ##release_type_original has "N/A" (26 rows none with a release date) annd "pending" (14 rwos two with a release date)
 ## pretrial violation flag says nothing about abscond
-##there is no recommended level of supervision in the data only a risk score
+##there is no recommended level of supervision 
+##there is a supervion release type--Basic=phone 1 time/wk Regualar=inperson 1 time/wk, Enhanced=come in 1 time wk and additional conditions 6/7/2020 notes
 
 assess_df <- assess_df %>%
   mutate(sex = case_when(sex_original %in% c("Male") ~ "Male",
@@ -2873,6 +2854,7 @@ assess_df <- assess_df %>%
   ## under release type what does denied mean? does it man bail set? 
   ## under release type what does N/A mean? does it man bail set? 
   ## court_date_reminder_original has no values filled in m ay need to addd when new data comes in
+  ## all pretrail termination dates are missing
  
  assess_df <- assess_df %>%
     mutate(assess_flag = if_else(is.na(assessment_date), 0, 1),
@@ -3491,10 +3473,24 @@ join_df <- bind_rows(join1, join2, join3)
 ```
 
 
-# Sierra
+# Sierra Old
 
-Court Data
+Court Data Sierra Old
 ```{r}
+
+## On jan 7 and jan 14, 2020 we got these two files, but no similar files came in for period 2.  We had a cll with them and they will resubmit the data
+# court_pt_1_fta <- read.csv("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Sierra/Pretrial_1_FTA.csv",
+#                               as.is = TRUE)
+# 
+# names(court_pt_1_fta) <- c("case_id", "case_name", "first_name", "last_name", "cdl_id", "cdl_id_type", "file_date", "charge_level", "disposition_date", "disposition_type", "disposition_manner", "fta_warrant_date", "fta_warrant_type")
+# 
+# 
+# court_pt_grant <- read.xlsx("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Sierra/Pretrial Grant Cases.xlsx")
+# 
+# 
+# names(court_pt_grant) <- c("case_id", "case_name", "charge_number", "charge_level", "charge", "violation_date", "file_date", "disposition_date", "disposition_type", "disposition_manner")
+# 
+
 
 original_df <- list()
 
