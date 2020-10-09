@@ -45,6 +45,7 @@ book_df<- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Sub
   
   #c("text", rep("guess", 10), "date", rep("guess", 8)), na = "NULL")
 
+
 # Variable name standardization--See pg. xxx for more details
 names(book_df) <- c("cii", "name", "dob", "arrest_date_time", "book_num", "book_date_time", "book_type_original", "court_case_id", "arrest_charge_original", "charge_description", "arrest_charge_level_original", "release_date_time", "release_type_original", "fbi", "cdl_id", "sex_original", "race_original", "bail_amt", "employment_status", "county")
 
@@ -475,8 +476,8 @@ court_hearing <- court_hearing %>%
 ####
 
 # Court FTAs with Warrants date range 1/5/2015-7/6/2020
-court_warrants <- lapply(c("Historical Data Submissions/Nevada/PTRiskAss-BW.csv",
-                           "Historical Data Submissions/Nevada/Submitted 2-3/PTRiskAss-BW.csv",
+court_warrants <- lapply(c("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Nevada/PTRiskAss-BW.csv",
+                           "G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Nevada/Submitted 2-3/PTRiskAss-BW.csv",
                            "G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Nevada/P2 Submission-June 30/PTRiskAss-BenchWarrantData.csv"),
                          fread) %>%
   bind_rows() %>%
@@ -1410,9 +1411,10 @@ doj_assess <- bind_rows(df_list[[1]]) %>%
 doj_book <- bind_rows(df_list[[2]]) %>%
    mutate_all(as.character)
    
-# CIIs from court tables
+# CIIs from court tables--when we included fbi excel would not make the file because the data had some wield character
 doj_court <- bind_rows(df_list[[3]]) %>%
-   mutate_all(as.character)
+   mutate_all(as.character)%>%
+  select(-fbi)
 
 #CIIs for DOJ
 doj_cii <- bind_rows(doj_book %>% select(cii), doj_court %>% select(cii), doj_assess %>% select(cii))  %>% 
@@ -1421,8 +1423,20 @@ doj_cii <- bind_rows(doj_book %>% select(cii), doj_court %>% select(cii), doj_as
 
 
 #Create an excel workbook with all data table. Make sure to include the cii table first.
-write.xlsx(list(doj_cii, doj_book, doj_court, doj_assess), file = "G:/CrimJustice/PretrialAssessmentPilot/CIIs for DOJ/October 2020/Nevada P2 CIIs and Demographics for DOJ.xlsx", sheetName = c("ciis", "booking", "court", "assessment"))
+write.xlsx(list(doj_cii, doj_book, doj_assess, doj_court), file = "G:/CrimJustice/PretrialAssessmentPilot/CIIs for DOJ/October 2020/Nevada P2 CIIs and Demographics for DOJ.xlsx", sheetName = c("ciis", "booking", "assess", "court"))
 
+
+
+###diagnostics looking for source of character that excel could not interpret
+doj_court <- doj_court %>%
+  mutate_all(funs(gsub("[[:punct:]]", "", .))) 
+
+
+doj_court <- doj_court%>%
+  select( dob	)
+ 
+  filter_all(any_vars(grepl("/", .)))
+sex_original,	race_original
 
 ```
 
@@ -2448,8 +2462,8 @@ load("G:/CrimJustice/PretrialAssessmentPilot/Complete Charge Code Hierarchy.RDat
  
  ####
 
-
-#San Mateo Court Collapse 
+```
+San Mateo Court Collapse 
 ```{r eval=FALSE, include=FALSE}
   ## court_case_id is formatted differently across cases, sometimes with dashes, and sometimes with leading file date year. Unclear whether the same cases may be formatted differently across tables, have not found any evidence of such. 
 
@@ -2531,6 +2545,10 @@ court_df3 <- reduce(list(court_df2, court_dispo, court_fta_war, court_arraign), 
  
 
 # assumes that if all charges dismissed then its over
+
+
+
+
  
 ```
 
@@ -3247,26 +3265,29 @@ df_list <- sapply(
  
 })
 
-# CIIs from assessment tables
-doj_assess <- bind_rows(df_list[[1]]) %>%
-  mutate_all(as.character)
+# CIIs from assessment tables--
+#doj_assess <- bind_rows(df_list[[1]]) %>%
+  #mutate_all(as.character)
 
 # CIIs from booking tables
-doj_book <- bind_rows(df_list[[2]]) %>%
+doj_book <- bind_rows(df_list[[1]]) %>%
    mutate_all(as.character)
   
 # CIIs from court tables
-doj_court <- bind_rows(df_list[[3]]) %>%
+doj_court <- bind_rows(df_list[[4]]) %>%
    mutate_all(as.character)
 
 #CIIs for DOJ
-doj_cii <- bind_rows(doj_book %>% select(cii), doj_court %>% select(cii), doj_assess %>% select(cii))  %>% 
+doj_cii <- bind_rows(doj_book %>% select(cii), doj_court %>% select(cii))  %>% 
   distinct() %>%
   filter(nchar(cii) == 10)
 
+rm(doj_assess)
 
-#Create an excel workbook with all data table. Make sure to include the cii table first.
-write.xlsx(list(doj_cii, doj_book, doj_court, doj_assess), file = "G:/CrimJustice/PretrialAssessmentPilot/CIIs for DOJ/October 2020/San Mateo P2 CIIs and Demographics for DOJ.xlsx", sheetName = c("ciis", "booking", "court", "assessment"))
+#Create an excel workbook with all data table. Make sure to include the cii table first.--Note there are no ciis in the assessment data
+write.xlsx(list(doj_cii, doj_book, doj_court), file = "G:/CrimJustice/PretrialAssessmentPilot/CIIs for DOJ/October 2020/San Mateo P2 CIIs and Demographics for DOJ.xlsx", sheetName = c("ciis", "booking", "court"))
+
+
 
 
 ```
