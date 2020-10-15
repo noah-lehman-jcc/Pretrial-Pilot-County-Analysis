@@ -2002,6 +2002,8 @@ book_df <- book_df %>%
   filter(hierarchy == min(hierarchy)) %>%
   ungroup() %>%
   distinct(book_num, court_case_id, .keep_all = T)
+
+
 ```
 
 San Mateo Jail Diagnostics
@@ -2152,7 +2154,8 @@ San Mateo Court Data
 # Court Cases
 court_df <- lapply(c("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/San Mateo/41-COURT-01OF03-JAN2016-SEP2019.csv", 
                     "G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/San Mateo/41-COURT-01OF03-OCT2019-DEC2019.csv",
-                    "G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/San Mateo/P2 Submission-June 30/41-COURT-01OF03-JAN2020-JUN2020.csv"), 
+                    "G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/San Mateo/P2 Submission-June 30/41-COURT-01OF03-JAN2020-JUN2020.csv",
+                    "G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/San Mateo/P2 Submission-June 30/41-COURT-01OF03-JUL2020-SEP2020.csv"), 
                                      function(x) {
                     fread(x, na.strings=c("NULL",""), colClasses = "character")
                   }) %>%
@@ -2192,8 +2195,6 @@ court_df <- court_df %>%
 
 
 
-
-
 ####
 
 # Court Sentences and Court Filing Charges 
@@ -2213,10 +2214,11 @@ court_charge_1 <- fread("G:/CrimJustice/PretrialAssessmentPilot/Historical Data 
 
 court_charge_2 <- fread("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/San Mateo/P2 Submission-June 30/41-COURT-02OF03-JAN2020-JUN2020.csv", na.strings=c("NULL",""))
 
+court_charge_3 <- fread("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/San Mateo/P2 Submission-June 30/41-COURT-02OF03-JUL2020-SEP2020.csv", colClasses = "character") 
 
-court_charge <- bind_rows(court_charge, court_charge_1, court_charge_2) %>% distinct()
+court_charge <- bind_rows(court_charge, court_charge_1, court_charge_2, court_charge_3) %>% distinct()
 
-rm(court_charge_1, court_charge_2)
+rm(court_charge_1, court_charge_2, court_charge_3)
 
 
 # Variable name standardization--See pg. xxx for more details.
@@ -2391,11 +2393,16 @@ load("G:/CrimJustice/PretrialAssessmentPilot/Complete Charge Code Hierarchy.RDat
   court_hearing_2 <-
    fread("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/San Mateo/P2 Submission-June 30/41-COURT-03OF03-JAN2020-JUN2020.csv",  na.strings = c("NULL","")) %>%
         mutate_at(vars(contains("date"), DtFile), mdy)
+  
+   court_hearing_3 <-
+   fread("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/San Mateo/P2 Submission-June 30/41-COURT-03OF03-JUL2020-SEP2020.csv",  na.strings = c("NULL","")) %>%
+        mutate_at(vars(contains("date"), DtFile), mdy)
+  
 
  court_hearing <-
-   bind_rows(court_hearing, court_hearing_1, court_hearing_2) %>% distinct()
+   bind_rows(court_hearing, court_hearing_1, court_hearing_2, court_hearing_3) %>% distinct()
  
- rm(court_hearing_1, court_hearing_2)
+ rm(court_hearing_1, court_hearing_2, court_hearing_3)
  
  
 
@@ -2404,7 +2411,7 @@ load("G:/CrimJustice/PretrialAssessmentPilot/Complete Charge Code Hierarchy.RDat
    c( "court_docket_id", "court_case_id_original", "file_date", "court_case_type", "setting_id",  "hearing_date", "hearing_type_loc", "court_loc", "hearing_type_code", "hearing_type_original",
      "hearing_result",  "hearing_date_next",  "fta", "fta_warrant" )
  
- 
+
  court_hearing <- court_hearing %>%
    ## remove -HTA from court_case_id_original so that information and complaint will have the same court_case_id since they are the same case at different stages
    mutate(court_case_id = gsub("-HTA", "", court_case_id_original)) %>%
@@ -2913,11 +2920,11 @@ court_charge %>%
 San Mateo Assessment Data (Probation) Go live date was Jan 23, 2020
 ```{r}
 # San Mateo Assessment Data Import
-  ## assess_df contains one row per risk assessment event/risk assessment question/pretrial terms and conditions. The tool questions are widened into columns.
- ##assessment date range is 1/23/2020 to 6/30/2020
- ## SM said local_id is the number their jail uses, but their jail extract does not have it.  They currently dont have         court_case_id, booking_num, or arrest_date 
- ## Condition under basic=phone 1 time per week, regular MOR= come in 1 x per week, enhanced=come in 1 x per week and       additonal conditions
- ## According to Octavio's site visit notes low risk is 0-2, med 3 and high risk 4+
+  ## assess_df contains one row per risk assessment event/risk assessment question/pretrial terms and conditions.   ##The tool questions are widened into columns.
+  ##assessment date range is 1/23/2020 to 6/30/2020
+  ## SM said local_id is the number their jail uses, but their original jail extract does not have it. On         ##10/6/2020 their jail submitted data with the local_id (still need to check for match).  Probation currently ##doesnt have court_case_id, booking_num, or arrest_date 
+ ## Condition under basic=phone 1 time per week, regular MOR= come in 1 x per week, enhanced=come in 1 x per week ##and additional conditions
+ 
 
 assess_df <- read_csv("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/San Mateo/P2 Submission-June 30/41-Probation-01OF02-JAN232020-JUN302020.csv")
 
@@ -2934,8 +2941,6 @@ assess_df <- assess_df %>%
   mutate (assessment_date_time=parse_date_time(assessment_date_time, c('%m/%d/%Y %H:%M %p')), 
           assessment_date=as_date(assessment_date_time))
 
-
-
 # Risk Score Standardization--Tool Response values are changed to their numeric point value.
 assess_df <- assess_df %>%
   mutate(vprair_tool_response_1 = if_else(vprair_tool_response_1 == "Yes", 2, 0),
@@ -2947,14 +2952,12 @@ assess_df <- assess_df %>%
          vprair_tool_response_7 = if_else(vprair_tool_response_7 == "Yes", 1, 0),
          vprair_tool_response_8 = if_else(vprair_tool_response_8 == "Yes", 2, 0))
 
-
-
 # Standardize Factors--See pg. xxx for more details.
 ## release_authorization_original is mostly NA(357) and sometimes Judge, Judge At arr or judge pre arr, not standardizing further at this point.
-##release_type_original has "N/A" (26 rows none with a release date) annd "pending" (14 rwos two with a release date)
-## pretrial violation flag says nothing about abscond
+##release_type_original has "N/A" (26 rows none with a release date) and "pending" (14 rows two with a release date)
+## pretrial violation says nothing about abscond
 ##there is no recommended level of supervision 
-##there is a supervion release type--Basic=phone 1 time/wk Regualar=inperson 1 time/wk, Enhanced=come in 1 time wk and additional conditions 6/7/2020 notes
+##there is a supervision release type--Basic=phone 1 time/wk Regualar=inperson 1 time/wk, Enhanced=come in 1 time wk and additional conditions 6/7/2020 notes
 
 assess_df <- assess_df %>%
   mutate(sex = case_when(sex_original %in% c("Male") ~ "Male",
@@ -2972,27 +2975,28 @@ assess_df <- assess_df %>%
                                              release_recommendation_original %in% c("OR", "Promise to Appear") ~ "OR",
                                              release_recommendation_original %in% c("Denied") ~ "Detain",
                                              release_recommendation_original %in% c("N/A") ~ "Other_Unknown"),
-         release_decision = case_when(pretrial_release_type_original %in% c("OR") ~ "OR",
+         release_decision = case_when(pretrial_release_type_original %in% c("OR", "Promise to Appear") ~ "OR",
                                       pretrial_release_type_original %in% c("MOR Basic", "MOR BASIC", "Mor Enhanced", 
                                                                    "MOR Enhanced", "MOR Regular") ~ "Monitor",
                                       pretrial_release_type_original %in% c("Denied") ~ "Detain",
                                       pretrial_release_type_original %in% c("Bailed Out", "DA declined to file", 
-                                                                   "Case dismissed") ~ "Ineligible"), 
+                                                                   "Case dismissed") ~ "Ineligible",
+                                      T ~ "Other_Unknown"),
           risk_level = case_when(vprair_risk_score %in% c("0", "1", "2", "3", "4") ~ "Low",
                                   vprair_risk_score %in% c("5", "6", "7", "8") ~ "Medium",                        
                                   vprair_risk_score %in% c( "9", "10" , "11", 
                                                            "12", "13", "14") ~ "High"),
-          pretrial_release_type = case_when(pretrial_release_type_original %in% c("OR") ~ "OR",
+          pretrial_release_type = case_when(pretrial_release_type_original %in% c("OR", "Promise to Appear") ~ "OR",
                                       pretrial_release_type_original %in% c("MOR Basic", "MOR BASIC", "Mor Enhanced", 
                                                                    "MOR Enhanced", "MOR Regular") ~ "Monitor",
                                       pretrial_release_type_original %in% c("Denied") ~ "Detain",
                                       pretrial_release_type_original %in% c("Bailed Out") ~ "Bail_Bond", 
                                       pretrial_release_type_original %in% c("DA declined to file", 
-                                                                   "Case dismissed") ~ "Other_Unknown" ),
+                                                                   "Case dismissed", "N/A", "Pending") ~ "Other_Unknown" ),
          pretrial_ineligible_reason = case_when(pretrial_release_type_original %in% c("Bailed Out") ~ "Bail_Bond",
                                                 pretrial_release_type_original %in% c("DA declined to file", 
-                                                                              "Case dismissed") ~ "Case_Disposed"), 
-                                                                               
+                                                                              "Case dismissed") ~ "Case_Disposed",
+                                                T ~ "Other_Unknown"), 
          
          pretrial_termination_outcome = case_when(pretrial_termination_outcome_original %in% c("Successful") ~
                                                     "Successful",
@@ -3018,15 +3022,15 @@ assess_df <- assess_df %>%
 
 
 # Flag Standardization---See pg. xxx for more details.
-  ## Need to find out what NA means in the context of recommended for release
-  ## drug, alcohol flags are from a notesfield and are not consistent. 
-  ## what is difference between OR and Promise to Appear, they are the same
-  ## clarify that denied means recommned for detention?
+  ## Need to find out what NA means in the context of recommended for release--looks like someone bails out or A declines to file before recommendation can be made
+  ## drug, alcohol flags are from a notes field and are not consistent. 
+  ## already asked SM what is difference between OR and Promise to Appear, they are the same
+  ## clarify that denied means recommend for detention?
   ## why so many people recommended for MOR enhanced
   ## under release type what does denied mean? does it man bail set? 
-  ## under release type what does N/A mean? does it man bail set? 
-  ## court_date_reminder_original has no values filled in m ay need to addd when new data comes in
-  ## all pretrail termination dates are missing
+  ## under release type what does N/A mean? does it mean bail set? 
+  ## court_date_reminder_original has no values filled in may need to add when new data comes in
+  ## all pretrial termination dates are missing
  
  assess_df <- assess_df %>%
     mutate(assess_flag = if_else(is.na(assessment_date), 0, 1),
@@ -3043,10 +3047,11 @@ assess_df <- assess_df %>%
          #rec_drug_test_flag = if_else(grepl("TEST", toupper( )), 1, 0),
          # rec_other_flag = if_else(),
          condition_em_flag = if_else(grepl("ELECTRONIC MONITOR|GPS|SCRAM", toupper(release_conditions_original)), 1, 0),
-         # Discuss release_conditions_original with Santa Barbara along with their original materias to determine phone and inperson flag. 
+         # Discuss release_conditions_original to see if they have GPS. 
          condition_phone_flag = if_else(grepl("ENHANCED|REGULAR|BASIC", toupper(pretrial_release_type_original)), 1, 0),
+         # enhanced might not belong here becasue they have in-person ceck ins not phone check ins
          condition_inperson_flag = if_else(grepl("ENHANCED|REGULAR", toupper(pretrial_release_type_original)), 1, 0),
-         condition_drug_test_flag = if_else(grepl("TEST", toupper(release_conditions_original)), 1, 0),
+         condition_drug_test_flag = if_else(grepl("TEST|TST", toupper(release_conditions_original)), 1, 0),
          #condition_no_contact_flag = if_else(grepl("NO CONTACT|136", toupper(release_conditions_original)), 1, 0),
          # court_date_reminder_flag = if_else(court_date_reminder_original == "CourtAppearance", 1, 0),  ask San Mateo   what is diff b/w "NA" and "N/A"
          # Transit service doesn't actually exist here.  
@@ -3054,13 +3059,21 @@ assess_df <- assess_df %>%
          pretrial_violation_flag= if_else(!is.na(pretrial_violation_date) & 
                                            pretrial_termination_outcome_original %in% 
                                             c("Revoked", "Unsuccessful"), 1, 0))
+
  
+assess_df %>%
+  count(release_recommendation_original, pretrial_release_type_original) %>%
+  arrange(desc(n)) 
 assess_df %>%
   count(pretrial_termination_outcome_original, pretrial_violation_type_original) %>%
   arrange(desc(n))
 assess_df %>%
-  count(release_conditions_original, pretrial_release_type_original) %>%
+  count( pretrial_release_type_original) %>%
   arrange(desc(n))
+assess_df %>%
+  count(court_date_reminder_original) %>%
+  arrange(desc(n))
+
 ```
 
 Assessment Table 
@@ -3238,7 +3251,7 @@ flag_df <- lapply(ls()[!grepl("original|^df|hier|names|factor|date|flag", ls())]
 flag_df <- flag_df %>%
   filter(modified_value == 1) %>%
   mutate(value = case_when(
-  modified_field == "condition_drug_test_flag" & modified_value == "1" ~ "MATCHES (TEST)",
+  modified_field == "condition_drug_test_flag" & modified_value == "1" ~ "MATCHES (TEST|TST)",
   # modified_field == "condition_em_flag" & modified_value == "1" ~ "MATCHES (ELECTRONIC MONITOR|GPS|SCRAM)",
   # modified_field == "court_date_reminder_flag" & modified_value == "1" ~ "CourtAppearance / (PTS with court reminders, OR-with court reminders)",
   # modified_field == "condition_no_contact_flag" & modified_value == "1" ~ "Matches (NO CONTACT|136)",
@@ -3274,12 +3287,12 @@ date_df <- lapply(ls()[!grepl("original|^df|hier|names|factor|date|flag", ls())]
   bind_rows() %>%
   select(table_name, field, min_date, max_date)
   
-
-write.xlsx(list(factor_df, flag_df, termination_df, date_df), file = "G:/CrimJustice/PretrialAssessmentPilot/Code Books/Assessment Code Book/San Mateo Assessment Code Book 9-20.xlsx", asTable = T, tableStyle = "TableStyleMedium1", colWidths = "auto", sheetName = c("Factors", "Flags", "Terminations", "Dates"))
+##saved this as version 2 of San Mateo to fix the Other_Unknowns
+write.xlsx(list(factor_df, flag_df, termination_df, date_df), file = "G:/CrimJustice/PretrialAssessmentPilot/Code Books/Assessment Code Book/San Mateo Assessment Code Book v2 9-20.xlsx", asTable = T, tableStyle = "TableStyleMedium1", colWidths = "auto", sheetName = c("Factors", "Flags", "Terminations", "Dates"))
 ```
 
 
-Orignal Code Book
+Orignal Code Book   
 ```{r eval=FALSE, include=FALSE}
 # the original codebook got messed up, so it had to be remade
 rm(original_field)
