@@ -2885,8 +2885,7 @@ assess_df_new <- read_csv("G:/CrimJustice/PretrialAssessmentPilot/Historical Dat
 names_df <- tibble(original_field = names(assess_df_new))
 
 # Variable name standardization--See pg. xxx for more details.
-names(assess_df_new) <- c("local_id", "book_num", "arrest_date", "book_date_time", "last_name", "first_name", "middle_name", "dob", "sex_original", "cii", "fbi", "ipid", "cdl_id", "hispanic_flag", "race_original", "zip_code", "assessment_date_time",  "tool_name",  "vprair_tool_response_1", "vprair_tool_response_2", "vprair_tool_response_3", "vprair_tool_response_4", "vprair_tool_response_5", "vprair_tool_response_6", "vprair_tool_response_7", "vprair_tool_response_8",   "vprair_risk_score", "pretrial_referral_disposition",  "release_recommendation_original", "release_type_at_arraign", 
-                      "condition_drug_test_original", "conditions_cam_monitoring_original", "condition_gps_original", "condition_home_detention_original", "condition_curfew_original", "condition_search_original", "condition_stay_away_original", "condition_other_original", "pretrial_signature_date_time", "num_fta" , "num_new_arrests", "office_ftas", "scram", "gps", "total_tc_violations", "num_court_reminders", "pretrial_termination_date",  "pretrial_termination_outcome_original")
+names(assess_df_new) <- c("local_id", "book_num", "arrest_date", "book_date_time", "last_name", "first_name", "middle_name", "dob", "sex_original", "cii", "fbi", "ipid", "cdl_id", "hispanic_original", "race_original", "zip_code", "assessment_date_time",  "tool_name",  "vprair_tool_response_1", "vprair_tool_response_2", "vprair_tool_response_3", "vprair_tool_response_4", "vprair_tool_response_5", "vprair_tool_response_6", "vprair_tool_response_7", "vprair_tool_response_8",   "vprair_risk_score", "pretrial_release_type_original",  "release_recommendation_original", "release_type_at_arraign", "condition_drug_test_original", "conditions_cam_monitoring_original", "condition_gps_original", "condition_home_detention_original", "condition_curfew_original", "condition_search_original", "condition_stay_away_original", "condition_other_original", "pretrial_signature_date_time", "num_fta" , "num_new_arrests", "office_ftas", "scram_vio", "gps_vio", "total_tc_violations", "num_court_reminders", "pretrial_termination_date",  "pretrial_termination_outcome_original")
                     
  
 names_df$field <- names(assess_df_new)
@@ -2895,7 +2894,8 @@ names_df$field <- names(assess_df_new)
 assess_df_new <- assess_df_new %>%
   mutate_at(vars(dob, arrest_date, pretrial_termination_date), mdy) %>%
   mutate (assessment_date = as_date(assessment_date_time),
-          pretrial_signature_date = as_date(pretrial_signature_date_time))
+          pretrial_signature_date = as_date(pretrial_signature_date_time),
+          book_date = as_date(book_date_time))
 
 
 # Risk Score Standardization--Tool Response values are changed to their numeric point value.
@@ -2914,12 +2914,12 @@ assess_df_new <- assess_df_new %>%
 
 
 
-assess_df <- assess_df %>%
+assess_df_new <- assess_df_new  %>%
   mutate(sex = case_when(sex_original %in% c("Male") ~ "Male",
                          sex_original %in% c("Female") ~ "Female",
                          T ~ "Other_Unknown"),
          race_original = trimws(race_original),
-         race = case_when(hispanic_flag %in% c("Hispanic or Latino") ~ "Hispanic",
+         race = case_when(hispanic_original %in% c("Hispanic or Latino") ~ "Hispanic",
                           race_original %in% c("Black or African American") ~ "Black",
                           race_original %in% c("Hispanic, Latino, or Spanish origin") ~ "Hispanic",
                           race_original %in% c("White") ~ "White",
@@ -2927,52 +2927,61 @@ assess_df <- assess_df %>%
          release_recommendation = case_when(release_recommendation_original %in% c("MOR Basic", "MOR BASIC", 
                                                                                    "Mor Enhanced", "MOR Enhanced", 
                                                                                    "MOR Regular") ~ "Monitor",
-                                             release_recommendation_original %in% c("OR", "Promise to Appear") ~ "OR",
+                                             release_recommendation_original %in% c("Own Recognizance", "Promise to Appear") ~ "OR",
                                              release_recommendation_original %in% c("Denied") ~ "Detain",
-                                             release_recommendation_original %in% c("N/A") ~ "Other_Unknown"),
-         release_decision = case_when(pretrial_release_type_original %in% c("OR", "Promise to Appear") ~ "OR",
+                                             T  ~ "Other_Unknown"),
+        
+        # we assume pretrial_referral_disposition is the original release type.
+        release_decision = case_when(pretrial_release_type_original %in% c("Own Recognizance", "Promise to Appear") ~ "OR",
                                       pretrial_release_type_original %in% c("MOR Basic", "MOR BASIC", "Mor Enhanced", 
                                                                    "MOR Enhanced", "MOR Regular") ~ "Monitor",
                                       pretrial_release_type_original %in% c("Denied") ~ "Detain",
                                       pretrial_release_type_original %in% c("Bailed Out", "DA declined to file", 
-                                                                   "Case dismissed") ~ "Ineligible",
+                                                                   "Dismissed", "DA Rejected") ~ "Ineligible",
                                       T ~ "Other_Unknown"),
           risk_level = case_when(vprair_risk_score %in% c("0", "1", "2", "3", "4") ~ "Low",
                                   vprair_risk_score %in% c("5", "6", "7", "8") ~ "Medium",                        
                                   vprair_risk_score %in% c( "9", "10" , "11", 
                                                            "12", "13", "14") ~ "High"),
+        
+        
           pretrial_release_type = case_when(pretrial_release_type_original %in% c("OR", "Promise to Appear") ~ "OR",
                                       pretrial_release_type_original %in% c("MOR Basic", "MOR BASIC", "Mor Enhanced", 
                                                                    "MOR Enhanced", "MOR Regular") ~ "Monitor",
                                       pretrial_release_type_original %in% c("Denied") ~ "Detain",
                                       pretrial_release_type_original %in% c("Bailed Out") ~ "Bail_Bond", 
-                                      pretrial_release_type_original %in% c("DA declined to file", 
+                                      pretrial_release_type_original %in% c("DA declined to file", "DA Rejected",
                                                                    "Case dismissed", "N/A", "Pending") ~ "Other_Unknown" ),
          pretrial_ineligible_reason = case_when(pretrial_release_type_original %in% c("Bailed Out") ~ "Bail_Bond",
-                                                pretrial_release_type_original %in% c("DA declined to file", 
-                                                                              "Case dismissed") ~ "Case_Disposed",
+                                                pretrial_release_type_original %in% c("DA declined to file" , 
+                                                                              "Dismissed", "DA Rejected") ~ "Case_Disposed",
                                                 T ~ "Other_Unknown"), 
          
-         pretrial_termination_outcome = case_when(pretrial_termination_outcome_original %in% c("Successful") ~
+         pretrial_termination_outcome = case_when(pretrial_termination_outcome_original %in% c("Closed - Successful") ~
                                                     "Successful",
-                                                  pretrial_termination_outcome_original %in% c("Revoked", 
-                                                                                              "Unsuccessful") ~
+                                                  pretrial_termination_outcome_original %in% c("Revoked and Bench Warrant", 
+                                                                                              "Closed - Unsuccessful") ~
                                                    "Unsuccessful",
                                                   pretrial_termination_outcome_original %in%
-                                                    c("Unsuccessful - Case Dismissed", 
-                                                      "Unsuccessful - DA declined to file") ~ "Other_Unknown"),
+                                                    c("Closed - Other") ~ "Other_Unknown"))
+  
+        
+        #how come we sometimes see people who were terminated unsuccessfully who have no FTA, or new arrest or technical violations.  We are trying to define reason for termination with the reasons being FTA, new Arrest, abscond, violation, case disposed, not tracked , other unknown.      
+        # are the technical violations somethihg you plan to collect in the future those field are unpopulated
          
-         
-         pretrial_termination_reason = case_when(pretrial_violation_type_original %in% c("FTA") ~
-                                                    "FTA",
-                                                  pretrial_violation_type_original %in% c("New charges") ~
-                                                   "New_Crime",
-                                                 pretrial_violation_type_original  %in% c("New law violation, alcohol use") ~
-                                                   "Violation",
-                                                  pretrial_termination_outcome_original %in%
-                                                    c("Unsuccessful - Case Dismissed", 
-                                                      "Unsuccessful - DA declined to file",
-                                                      "Successful") ~ "Case_Disposed"))
+         # pretrial_termination_reason = case_when(pretrial_violation_type_original %in% c("FTA") ~
+         #                                            "FTA",
+         #                                          pretrial_violation_type_original %in% c("New charges") ~
+         #                                           "New_Crime",
+         #                                         pretrial_violation_type_original  %in% c("New law violation, alcohol use") ~
+         #                                           "Violation",
+         #                                         
+         #                                          pretrial_termination_outcome_original %in%
+         #                                            c("Unsuccessful - Case Dismissed", 
+         #                                              "Unsuccessful - DA declined to file",
+         #                                              "Successful") ~ "Case_Disposed"))
+
+
 
 
 
@@ -2987,7 +2996,7 @@ assess_df <- assess_df %>%
   ## court_date_reminder_original has no values filled in may need to add when new data comes in
   ## all pretrial termination dates are missing
  
- assess_df <- assess_df %>%
+ assess_df_new <- assess_df_new %>%
     mutate(assess_flag = if_else(is.na(assessment_date), 0, 1),
          rec_release_flag = if_else(release_recommendation %in% c("OR", "Monitor"), 1, 0),
          decision_release_flag = if_else(release_decision %in% c("OR", "Monitor"), 1, 0),
@@ -3001,33 +3010,32 @@ assess_df <- assess_df %>%
          #rec_inperson_flag = if_else(),
          #rec_drug_test_flag = if_else(grepl("TEST", toupper( )), 1, 0),
          # rec_other_flag = if_else(),
-         condition_em_flag = if_else(grepl("ELECTRONIC MONITOR|GPS|SCRAM", toupper(release_conditions_original)), 1, 0),
-         # Discuss release_conditions_original to see if they have GPS. 
+         condition_em_flag = if_else(conditions_cam_monitoring_original=="Yes"|condition_gps_original=="Yes", 1, 0),
+         # Does enhanced monitoring involve a a phone in?         
          condition_phone_flag = if_else(grepl("ENHANCED|REGULAR|BASIC", toupper(pretrial_release_type_original)), 1, 0),
          # enhanced might not belong here becasue they have in-person ceck ins not phone check ins
          condition_inperson_flag = if_else(grepl("ENHANCED|REGULAR", toupper(pretrial_release_type_original)), 1, 0),
-         condition_drug_test_flag = if_else(grepl("TEST|TST", toupper(release_conditions_original)), 1, 0),
+         condition_drug_test_flag = if_else(condition_drug_test_original=="Yes", 1, 0),
+         # is stay away the same as no contact order
          #condition_no_contact_flag = if_else(grepl("NO CONTACT|136", toupper(release_conditions_original)), 1, 0),
-         # court_date_reminder_flag = if_else(court_date_reminder_original == "CourtAppearance", 1, 0),  ask San Mateo   what is diff b/w "NA" and "N/A"
+         
+         # num_court_date_reminders is not populated, will you be collecting data in the future
+         court_date_reminder_flag = if_else(num_court_reminders > 0 , 1, 0),  
          # Transit service doesn't actually exist here.  
          # transit_service_flag = if_else(court_date_reminder_original == "TRANSIT", 1, 0),
-         pretrial_violation_flag= if_else(!is.na(pretrial_violation_date) & 
-                                           pretrial_termination_outcome_original %in% 
-                                            c("Revoked", "Unsuccessful"), 1, 0))
+         
+         
+         pretrial_violation_flag= if_else(pretrial_termination_outcome %in% 
+                                            c("Unsuccessful"), 1, 0))
 
- 
-assess_df %>%
-  count(release_recommendation_original, pretrial_release_type_original) %>%
-  arrange(desc(n)) 
-assess_df %>%
-  count(pretrial_termination_outcome_original, pretrial_violation_type_original) %>%
-  arrange(desc(n))
-assess_df %>%
-  count( pretrial_release_type_original) %>%
-  arrange(desc(n))
-assess_df %>%
-  count(court_date_reminder_original) %>%
-  arrange(desc(n))
+
+
+assess_df_new %>%
+arrange(assessment_date)
+
+
+  
+  
 
 ```
 
