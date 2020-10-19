@@ -39,7 +39,8 @@ my_kable <- function(x){
 
 Import Data
 ```{r}
-files <- list.files("C:/Work/PretrialAssessmentPilot/Assessment Output Tables", pattern = "csv", full.names = T)
+#files <- list.files("C:/Work/PretrialAssessmentPilot/Assessment Output Tables", pattern = "csv", full.names = T)
+files <- list.files("G:/CrimJustice/PretrialAssessmentPilot/Assessment Output Tables", pattern = "csv", full.names = T)
 files <- files[grepl("9", files)]
 
 df <- lapply(files, function(i){
