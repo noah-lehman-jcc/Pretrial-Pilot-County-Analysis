@@ -539,8 +539,6 @@ df_tables %>%
   facet_wrap(~toupper(tool_name), scales = "free") +
    # scale_y_continuous(labels=percent) +
   theme_few()
-
-
 ```
 
 
@@ -665,6 +663,25 @@ regress_df %>%
     labs(x = "Lower Risk----------------------------------------------------------------------Higher Risk \n Standardized Risk Score ", y = "Percent",
        title = "Percent of Release Decisions by Standardized Risk Score", fill = "Release Decision") +
     scale_y_continuous(labels = scales::percent)
-    
+  
+df_ref <- df %>%
+  filter(release_decision %in% c("Monitor", "Detain", "OR"),
+         race != "Other_Unknown",
+         sex != "Other_Unknown") %>%
+  mutate(release_flag = if_else(release_decision %in% c("Monitor", "OR"), 1, 0),
+         race = factor(race, levels = c("White", "Black", "Hispanic"))) %>%
+  mutate(white_flag = if_else(race == "White", 0, 1))
+
+
+
+
+summary(lm(df_ref$release_flag ~ df_ref$white_flag*df_ref$standard_risk_score + df_ref$county))
+
+
+summary(lm(df_ref$release_flag ~ df_ref$race*df_ref$standard_risk_score + df_ref$county))
+
+
+
+
 ```
 
