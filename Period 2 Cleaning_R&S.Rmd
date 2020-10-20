@@ -37,9 +37,9 @@ Jail Data
 
 #Jail Bookings Data Import--Nevada Jail Data 1/1/2015 to 7/27/2020
   ##this is a new file they sent that has all data from 1/1/2015 to 7/27/2020
-  ##they fixed it so it also has the code (PC, VC, HS)
+  ##they fixed it so it has the codes (PC, VC, HS)
   ##they also added a charge description. 
-  ## ??? this has 20 vriables this is the new data it came through, but the dates for arrest, book and rls came in as times only, also    ##there were 39 variables in   the extract Cory sent, rather than 19 as before.  I asked cory to give us all the data back to 1/1/2015  ##with the dates corrected in     the 39 variable format.
+  ## ??? the new data has 20 variables, but the dates for arrest, book and rls came in as times only, also  there were 39 variables in   the extract Cory sent, rather than 19 as before.  I asked cory to give us all the data back to 1/1/2015  ##with the dates corrected in the 39 variable format.
 
 book_df<- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Nevada/P2 Submission-June 30/Jail Data Extract2.xlsx", col_types = c("text", rep("guess", 10), "date", rep("guess", 8)), , na = "NULL") %>%
   distinct () 
@@ -49,7 +49,6 @@ book_df<- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Sub
 
 # Variable name standardization--See pg. xxx for more details
 names(book_df) <- c("cii", "name", "dob", "arrest_date_time", "book_num", "book_date_time", "book_type_original", "court_case_id", "arrest_charge_original", "charge_description", "arrest_charge_level_original", "release_date_time", "release_type_original", "fbi", "cdl_id", "sex_original", "race_original", "bail_amt", "employment_status", "county")
-
 
 
 
@@ -132,9 +131,9 @@ book_df<- book_df %>%
            attempt_flag=if_else(attempt=="1", 1, 0)) 
            
 # Code for Charge Hierarchy
+  ## the new data corrects for the problem cited below
   ## county data has no charge code data, so we had to make join_var2 for the join with the hierarchy/this is corrected 
-  ## ordering charge_code so that we join using join_var2 we select only one and get a PC or HS preferentially if there is also and other 
-  ## some codes section occur in both PC and VC or (other combo), so we may be getting wring section, but only happends with about 30 code sections
+  ## ordering charge_code so that we join using join_var2 we select only one and get a PC or HS preferentially if there is 
 
 
 load("G:/CrimJustice/PretrialAssessmentPilot/Complete Charge Code Hierarchy.RData")
@@ -1007,12 +1006,13 @@ assess_df_viol <- assess_df_viol %>%
 ```
 Probation Join Tables
 ```{r}
-##this is a first run at joing tables we need to ask probation what IDs mean and do it better
+##this is a first run at joining tables we need to ask probation what IDs mean and do it better
 assess_df_score <- assess_df_score %>%
   distinct(pretrial_id2, .keep_all = TRUE)
   
 assess_df_case <- assess_df_case%>%
   distinct(pretrial_id2, .keep_all = TRUE)
+
 assess_df_demo <- assess_df_demo%>%
   distinct(pretrial_id2 , .keep_all = TRUE) %>%
   mutate (pretrial_id2 = as.numeric(pretrial_id2))
@@ -1023,7 +1023,7 @@ assess_df <- assess_df_score %>%
 
 
 ```
-Assessment Tables for Noah
+Assessment Tables for Noah 9-2020
 ```{r}
 ##Assessment Table 
  
@@ -1041,6 +1041,27 @@ Assessment Tables for Noah
 
 # Save file  
 fwrite(assess_table, file = "G:/CrimJustice/PretrialAssessmentPilot/Assessment Output Tables/Nevada Assessment Output 09-2020.csv")
+```
+Assessment Tables for Noah 10-2020
+```{r}
+assess_table <- assess_df %>%
+  # Collapse to each assessment.
+  distinct(pretrial_id, .keep_all = T) %>%
+  # Filter for only those actually assessed
+  filter(!is.na(assessment_date)) %>%
+  # Create county name.
+  mutate(county = "Nevada", risk_score = oras_risk_score) %>%
+  # Select relevants variables.
+  select(county, release_recommendation, release_decision, assessment_date, risk_score, tool_name, assessment_date, dob, sex, race, risk_level,  pretrial_termination_reason)
+
+# No booking number in assessment data,  so removing charge_level
+# no Monitoring Level still need to ask county, so removing monitor_level
+
+ 
+# Save file  
+fwrite(assess_table, file = "G:/CrimJustice/PretrialAssessmentPilot/Assessment Output Tables/Nevada Assessment Output 10-2020.csv")
+
+
 ```
 
 Assessment Codebook (10/2020) 
