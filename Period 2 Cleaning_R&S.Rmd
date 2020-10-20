@@ -2908,16 +2908,17 @@ names_df <- tibble(original_field = names(assess_df_new))
 # Variable name standardization--See pg. xxx for more details.
 names(assess_df_new) <- c("local_id", "book_num", "arrest_date", "book_date_time", "last_name", "first_name", "middle_name", "dob", "sex_original", "cii", "fbi", "ipid", "cdl_id", "hispanic_original", "race_original", "zip_code", "assessment_date_time",  "tool_name",  "vprair_tool_response_1", "vprair_tool_response_2", "vprair_tool_response_3", "vprair_tool_response_4", "vprair_tool_response_5", "vprair_tool_response_6", "vprair_tool_response_7", "vprair_tool_response_8",   "vprair_risk_score", "pretrial_release_type_original",  "release_recommendation_original", "release_type_at_arraign", "condition_drug_test_original", "conditions_cam_monitoring_original", "condition_gps_original", "condition_home_detention_original", "condition_curfew_original", "condition_search_original", "condition_stay_away_original", "condition_other_original", "pretrial_signature_date_time", "num_fta" , "num_new_arrests", "office_ftas", "scram_vio", "gps_vio", "total_tc_violations", "num_court_reminders", "pretrial_termination_date",  "pretrial_termination_outcome_original")
                     
- 
+
 names_df$field <- names(assess_df_new)
 
 # Date Reformatting--See pg. xxx for more details.
 assess_df_new <- assess_df_new %>%
+  #mutate(assessment_date_time = parse_date_time(assessment_date_time, c('%m/%d/%Y %H:%M'))) %>%
+  mutate_at (vars(assessment_date_time,pretrial_signature_date_time, book_date_time),  mdy_hm) %>% 
   mutate_at(vars(dob, arrest_date, pretrial_termination_date), mdy) %>%
   mutate (assessment_date = as_date(assessment_date_time),
           pretrial_signature_date = as_date(pretrial_signature_date_time),
           book_date = as_date(book_date_time))
-
 
 # Risk Score Standardization--Tool Response values are changed to their numeric point value.
 assess_df_new <- assess_df_new %>%
@@ -2984,23 +2985,19 @@ assess_df_new <- assess_df_new  %>%
                                                                                               "Closed - Unsuccessful") ~
                                                    "Unsuccessful",
                                                   pretrial_termination_outcome_original %in%
-                                                    c("Closed - Other") ~ "Other_Unknown"))
+                                                    c("Closed - Other") ~ "Other_Unknown"),
   
         
         #how come we sometimes see people who were terminated unsuccessfully who have no FTA, or new arrest or technical violations.  We are trying to define reason for termination with the reasons being FTA, new Arrest, abscond, violation, case disposed, not tracked , other unknown.      
         # are the technical violations somethihg you plan to collect in the future those field are unpopulated
          
-         # pretrial_termination_reason = case_when(pretrial_violation_type_original %in% c("FTA") ~
-         #                                            "FTA",
-         #                                          pretrial_violation_type_original %in% c("New charges") ~
-         #                                           "New_Crime",
-         #                                         pretrial_violation_type_original  %in% c("New law violation, alcohol use") ~
-         #                                           "Violation",
-         #                                         
-         #                                          pretrial_termination_outcome_original %in%
-         #                                            c("Unsuccessful - Case Dismissed", 
-         #                                              "Unsuccessful - DA declined to file",
-         #                                              "Successful") ~ "Case_Disposed"))
+         pretrial_termination_reason = case_when(pretrial_ineligible_reason %in% c("Case_Disposed") ~
+                                                     "Case_Disposed",
+                                                   pretrial_ineligible_reason %in% c("Bail_Bond") ~
+                                                   "Not_Tracked",
+                                                  T ~ "Other_Unknown"))
+                                                
+                                               
 
 
 
@@ -3049,16 +3046,34 @@ assess_df_new <- assess_df_new  %>%
          pretrial_violation_flag= if_else(pretrial_termination_outcome %in% 
                                             c("Unsuccessful"), 1, 0))
 
+# add a leading zero to book_num in the assessment data so that the join with the jail data would work
+assess_df_new <- assess_df_new %>%
+   mutate(book_num = str_c("0", book_num))
 
+
+# we joined a few variables from the booking data to the assessment data by book_num.
+#we collapsed to a person date in the assessment data using local_id and assesmnet date.
+assess_df <- assess_df_new %>%
+  left_join(book_df %>%
+              select(book_num, charge_level), by = "book_num") %>%
+  mutate (charge_level = ordered(charge_level, levels = c("I", "M", "F"))) %>%
+  group_by(local_id, assessment_date) %>%
+  mutate(charge_level = max(charge_level, na.rm = T)) %>%
+  ungroup() %>%
+  distinct(local_id, assessment_date, .keep_all = T)
+ 
+
+# this is a little diagnostic to see whether we get the expected reductions in M and F that we expect  
+assess_df %>%
+  count(charge_level)
 
 assess_df_new %>%
-arrange(assessment_date)
-
-
-  
-  
+  left_join(book_df %>%
+              select(book_num, charge_level), by = "book_num") %>%
+  count(charge_level)
 
 ```
+
 
 
 San Mateo Assessment Data (Probation) Go live date was Jan 23, 2020
@@ -3220,7 +3235,7 @@ assess_df %>%
 
 ```
 
-Assessment Table 
+Assessment Table 9-2020 
 ```{r}
 ##Assessment Table 
  
@@ -3239,7 +3254,27 @@ Assessment Table
 # Save file  
 fwrite(assess_table, file = "G:/CrimJustice/PretrialAssessmentPilot/Assessment Output Tables/San Mateo Assessment Output 09-2020.csv")
 ```
+Assessment Tables for Noah 10-2020
+```{r}
+assess_table <- assess_df %>%
+  # Collapse to each assessment.
+  distinct(local_id, assessment_date, .keep_all = T) %>%
+  # Filter for only those actually assessed
+  filter(!is.na(assessment_date)) %>%
+  # Create county name.
+  mutate(county = "San Mateo", risk_score = vprair_risk_score) %>%
+  # Select relevant variables.
+  select(county, release_recommendation, release_decision, assessment_date, risk_score, tool_name, assessment_date, dob, sex, race, risk_level,  pretrial_termination_reason, charge_level)
 
+
+# no Monitoring Level still need to ask county, so removing monitor_level
+
+ 
+# Save file  
+fwrite(assess_table, file = "G:/CrimJustice/PretrialAssessmentPilot/Assessment Output Tables/San Mateo Assessment Output 10-2020.csv")
+
+
+```
 Assessment Diagnostics
 ```{r}
 summary(assess_df$Assessment_Date_Time)     
