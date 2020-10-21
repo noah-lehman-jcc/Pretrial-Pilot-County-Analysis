@@ -682,23 +682,54 @@ book_charge <- book_charge %>%
   mutate(arrest_felony_flag = if_else(arrest_charge_level == "F", 1, 0),
          arrest_misd_flag = if_else(arrest_charge_level == "M", 1, 0)) %>%
   rename_at(vars(contains("flag")), funs(paste0("arrest_", .))) 
-
-
-
-
 ```
 
 Alameda Extra
 ```{r}
 # df1 <- read_excel("C:/Work/PretrialAssessmentPilot/Historical Data Submissions/Alameda/P2 Submission-June 30/1_Identifiers-and-Demographics.xls")
 
-files <- list.files("C:/Work/PretrialAssessmentPilot/Historical Data Submissions/Alameda/P2 Submission-June 30/", full.names = T)
+files <- list.files("C:/Work/PretrialAssessmentPilot/Historical Data Submissions/Alameda/P2 Submission-June 30/Resubmission 10-13-2020", full.names = T)
 
-files <- files[grepl("/[0-9]", files)]
+files <- files[grepl("xls", files)]
 
-files <- files[c(1, 10:17, 2, 4:9)]
+files <- files[c(1, 5:16, 2:4, 17:18)]
+
+
+
+# files <- files[c(1, 10:17, 2, 4:9)]
 
 df_list <- lapply(files, read_excel, col_types = "text")
+
+lapply(df_list, function(df){
+  df <- df %>%
+    select(contains("date")) %>%
+    mutate_all(convertToDateTime)
+  
+  summary(df)
+})
+
+df_list[[4]]
+
+df_list[[11]] %>%
+  semi_join(df_list[[1]], by = "PFN")
+
+df_list[[1]] %>%
+  semi_join(df_list[[11]], by = "CaseID")
+
+df_list[[10]] %>%
+  mutate(FiledChargeDate = convertToDate(FiledChargeDate)) 
+  arrange(desc(n))
+
+df_list[[11]] %>%
+  mutate(HearingDate = convertToDate(HearingDate)) %>%
+  arrange(desc(HearingDate))
+
+df_list[[2]] %>%
+  filter(CaseNumber != "NULL") %>%
+  semi_join(df_list[[12]])
+  semi_join(df_list[[11]])
+  
+min(convertToDate(df_list[[2]]$BookDate), na.rm = T)
 
 person_df <- df_list[[1]] %>%
   distinct()
@@ -1231,7 +1262,7 @@ court_charge %>%
 
 Assessment Data
 ```{r}
-# Santa Barbara Assessment Data Import
+# Alameda Assessment Data Import
   ## assess_df contains one row per risk assessment event/risk assessment question/pretrial terms and conditions. The tool questions are widened into columns.
 
 ####
@@ -1323,31 +1354,40 @@ assess_df <- assess_df %>%
     #                       race_original %in% c("White") ~ "White",
     #                       #All Other races/ethnicities collapsed into other
     #                       T ~ "Other_Unknown"),
-         release_recommendation = case_when(
-           release_recommendation_original %in% c("Release") ~ "Release_Unspecified",
-           release_recommendation_original %in% c("Detain") ~ "Detain",
-           T ~ "Other_Unknown"),
-         release_decision = if_else(is.na(release_decision_original), pretrial_release_type_original, release_decision_original),
-         release_decision = case_when(
-           release_decision %in% c("Release (Own Recognizance)") ~ "OR",
-           release_decision %in% c("Release (Supervision Level I)", "Release (Supervision Level II)",
-                                                 "Release (Supervision Level II)", "Release (Monitoring)", 
-                                                 "Supervised (Pending R&S)") ~ "Monitor",
-           release_decision %in% c("Detain") ~ "Detain",
-           release_decision %in% c("Charges Dismissed", "Bail", "Ineligible - Other", "Sentenced",  
-                                                 "Cite", "Ineligible - Probation/Parole", "Diversion Program",
-                                                 "Ineligible - Warrant") ~ "Ineligible",
-           T ~ "Other_Unknown"),
-         pretrial_ineligible_reason = case_when(
-           pretrial_release_type_original %in% c("Bail") ~ "Bail_Bond",
-           pretrial_release_type_original %in% c("Charges Dismissed", "Sentenced") ~ "Case_Disposed",
-           T ~ "Other_Unknown"),
-         risk_level = case_when(
-           risk_level_original %in% c("Level 1", "Level 2") ~ "Low",
-           risk_level_original %in% c("Level 3", "Level 4") ~ "Medium",
-           risk_level_original %in% c("Level 5", "Level 6") ~ "High",
-           T ~ "Other_Unknown"
-         )) 
+     release_recommendation = case_when(
+       release_recommendation_original %in% c("Release") ~ "Release_Unspecified",
+       release_recommendation_original %in% c("Detain") ~ "Detain",
+       T ~ "Other_Unknown"),
+     release_decision = if_else(is.na(release_decision_original), pretrial_release_type_original, release_decision_original),
+     release_decision = case_when(
+       release_decision %in% c("Release (Own Recognizance)") ~ "OR",
+       release_decision %in% c("Release (Supervision Level I)", "Release (Supervision Level II)",
+                                             "Release (Supervision Level II)", "Release (Monitoring)", 
+                                             "Supervised (Pending R&S)") ~ "Monitor",
+       release_decision %in% c("Detain") ~ "Detain",
+       release_decision %in% c("Charges Dismissed", "Bail", "Ineligible - Other", "Sentenced",  
+                                             "Cite", "Ineligible - Probation/Parole", "Diversion Program",
+                                             "Ineligible - Warrant") ~ "Ineligible",
+       T ~ "Other_Unknown"),
+     pretrial_ineligible_reason = case_when(
+       pretrial_release_type_original %in% c("Bail") ~ "Bail_Bond",
+       pretrial_release_type_original %in% c("Charges Dismissed", "Sentenced") ~ "Case_Disposed",
+       T ~ "Other_Unknown"),
+     risk_level = case_when(
+       risk_level_original %in% c("Level 1", "Level 2") ~ "Low",
+       risk_level_original %in% c("Level 3", "Level 4") ~ "Medium",
+       risk_level_original %in% c("Level 5", "Level 6") ~ "High",
+       T ~ "Other_Unknown"
+     ),
+    #What about when Release = Monitoring?
+    monitor_level = case_when(release_decision_original == "Release (Supervision Level I)" ~ "Low",
+                              release_decision_original == "Release (Supervision Level II)" ~ "Medium",
+                              release_decision_original == "Release (Supervision Level III)" ~ "High",
+                              T ~ "Other_Unknown"),
+    pretrial_termination_reason = case_when(pretrial_status_original %in% c("PTS - Closed Successful") ~ "Case_Disposed",
+                                            pretrial_status_original %in% c("PTS - Revoked") ~ "Violation",
+                                            T ~ "Other_Unknown")
+    ) 
 
 # Flag Standardization---See pg. xxx for more details.
   ## Need to follow up with Santa Barbara on the definitions of release recommendation, release type, release authorization, pretrial_violation_flag, and pretrial_termination_outcome. What does pretrial ID uniquely identify? Also need to figure out if we can determine Judge overrides. When do people have mulitple assessments. 
@@ -1630,15 +1670,23 @@ write.xlsx(factor_df, file = "C:/Work/PretrialAssessmentPilot/Code Books/Factor 
 
 DOJ CII/Linking Extraction
 ```{r}
+#Alameda has an integrated system. Only one CII file.
+
+cii_df <- read_excel("C:/Work/PretrialAssessmentPilot/Historical Data Submissions/Alameda/P2 Submission-June 30/1_Identifiers-and-Demographics.xls")  
+
+names(cii_df) <- c("local_id", "court_docket_id", "cii", "fbi", "local_id2", "last_name", "first_name", "dob", "cdl_id", "cdl_state", "court_case_id",  "sex_original", "race_original", "employed", "zip_code")
+
 # Grab Tables with CII
-df <- sapply(ls()[which(sapply(ls(), function(i){
-  sum(names(get(i)) %in% "cii")
-}) == 1)], get)
-
-# Pull CII and other identifiers
-doj_book <- df[[1]] %>%
-  select(cii, fbi, local_id, first_name, last_name, dob, cdl_id, cdl_state, race_original, sex_original, local_id) %>%
-  mutate(cii = parse_number(cii),
+df_list <- lapply(
+  ls()[which(sapply(ls(), function(i){
+    sum(names(get(i)) %in% "cii")
+    }) == 1)],
+  function(j){
+    df <- get(j)
+    df <- df %>%
+      select(any_of(c("cii", "cdl_id", "fbi", "last_name", "first_name", "middle_name", "dob", "sex_original", "race_original"))) %>%
+       mutate(
+         cii = parse_number(cii),
          cii = case_when(nchar(cii) == 6 ~ paste0("0000", cii),
                          nchar(cii) == 7 ~ paste0("000", cii),
                          nchar(cii) == 8 ~ paste0("00", cii),
@@ -1646,83 +1694,55 @@ doj_book <- df[[1]] %>%
                          T ~ as.character(cii)),
          cii = if_else(nchar(cii) != 10, NA_character_, cii)) %>%
   distinct()
+  
+})
 
+# CIIs from assessment tables
+doj_integrated <- df_list[[1]]
 
-doj_court <- df[[2]] %>%
-  select(cii, fbi, cdl_id, cdl_state, dob, race_original, sex_original, first_name, last_name, local_id, local_id) %>%
-  mutate(cii = parse_number(cii),
-         cii = case_when(nchar(cii) == 6 ~ paste0("0000", cii),
-                         nchar(cii) == 7 ~ paste0("000", cii),
-                         nchar(cii) == 8 ~ paste0("00", cii),
-                         nchar(cii) == 9 ~ paste0("0", cii),
-                         T ~ as.character(cii)),
-         cii = if_else(nchar(cii) != 10, NA_character_, cii)) %>%
-  distinct()
+#CIIS from the past Court
+doj_court <- read_xlsx("CIIs for DOJ/June 2020/Alameda CIIs and Demographics for DOJ.xlsx", sheet = "court")
 
-# Examine missing ciis and duplicates on cii. 
-doj_book %>% #Off by about 55,000
-  distinct()
-
-doj_book %>% 
-  distinct(cii)
-
-doj_book %>% 
-  distinct() %>%
-  add_count(cii) %>%
-  filter(n > 1) %>%
-  arrange(desc(n)) %>% 
-  View()
-
-doj_court %>% #Off by about 45,000
-  distinct()
-
-doj_court %>% 
-  distinct(cii)
-
-doj_court %>% 
-  distinct() %>%
-  add_count(cii) %>%
-  filter(n > 1) %>%
-  arrange(desc(n)) %>% 
-  View()
-
-#In this case, it is clear that the local ID is not a true person identifier but rather an event identifier and so should be removed.
-
-doj_book <- doj_book %>% select(-local_id)
-doj_court <- doj_court %>% select(-local_id)
-
-doj_book %>% # Off by about 7,000
-  distinct()
-
-doj_book %>% 
-  distinct(cii)
-
-doj_book %>% 
-  distinct() %>%
-  add_count(cii) %>%
-  filter(n > 1) %>%
-  arrange(desc(n)) %>% 
-  View()
-
-doj_court %>% #Off by about 9,000
-  distinct()
-
-doj_court %>% 
-  distinct(cii)o
-
-doj_court %>% 
-  distinct() %>%
-  add_count(cii) %>%
-  filter(n > 1) %>%
-  arrange(desc(n)) %>% 
-  View()
+#CIIS from the past Jail
+doj_jail <- read_xlsx("CIIs for DOJ/June 2020/Alameda CIIs and Demographics for DOJ.xlsx", sheet = "booking")
 
 #CIIs for DOJ
-doj_cii <- bind_rows(doj_book %>% select(cii), doj_court %>% select(cii)) %>% distinct()
+doj_cii <- bind_rows(doj_integrated %>% select(cii), doj_court %>% select(cii), doj_jail %>% select(cii)) %>%
+  select(cii) %>%
+  distinct() %>%
+  filter(nchar(cii) == 10)
+
 
 
 #Create an excel workbook with all data table. Make sure to include the cii table first. 
-write.xlsx(list(doj_cii, doj_book, doj_court), file = "CIIs for DOJ/Alameda CIIs and Demographics for DOJ.xlsx", sheetName = c("ciis", "booking", "court"))
+write.xlsx(list(doj_cii, doj_integrated, doj_jail, doj_court), file = "CIIs for DOJ/October 2020/Alameda P2 CIIs and Demographics for DOJ.xlsx", sheetName = c("ciis", "integrated", "jail", "court"))
+
+# # Examine missing ciis and duplicates on cii. 
+# doj_book %>% #Off by about 3,000-2633 due to missing cii
+#   distinct()
+# 
+# doj_book %>% 
+#   distinct(cii)
+# 
+# doj_book %>% 
+#   distinct() %>%
+#   add_count(cii) %>%
+#   filter(n > 1) %>%
+#   arrange(desc(n)) %>% 
+#   View()
+# 
+# doj_court %>% #Off by about 12,000, 13,069/25,642
+#   distinct()
+# 
+# doj_court %>% 
+#   distinct(cii)
+# 
+# doj_court %>% #11,510 due to missing cii
+#   distinct() %>%
+#   add_count(cii) %>%
+#   filter(n > 1) %>%o
+#   arrange(desc(n)) %>% 
+#   View()
 ```
 
 Assessment Tables
@@ -1738,10 +1758,10 @@ assess_table <- assess_df %>%
   # Create county name.
   mutate(county = "Alameda") %>%
   # Select relevants variables.
-  select(county, risk_level, release_recommendation, release_decision, assessment_date, vprair_risk_score, tool_name, assessment_date, dob, sex, race, book_num)
+  select(county, release_recommendation, release_decision, assessment_date, vprair_risk_score, tool_name, dob, sex, race, risk_level, monitor_level, pretrial_termination_reason)
 
 # Save file  
-fwrite(assess_table, file = "C:/Work/PretrialAssessmentPilot/Assessment Output Tables/Alameda Assessment Output 09-2020.csv")
+fwrite(assess_table, file = "C:/Work/PretrialAssessmentPilot/Assessment Output Tables/Alameda Assessment Output 10-2020.csv")
 
 # assess_df %>%
 #   # Collapse to each assessment
@@ -1761,9 +1781,6 @@ assess_df %>%
 assess_df %>%
   left_join(book_df %>% select(local_id, dob, sex, race, book_num)) %>%
   distinct()
-
-assess_decision
-
 ```
 
 
@@ -1887,6 +1904,8 @@ book_df %>%
   filter(as_date(release_date) >= as_date("2020-01-01"))
 
 summary(as_date(book_df$release_date))
+
+getwd()
 ```
 
   Jail Collapse
@@ -2224,7 +2243,7 @@ court_df %>%
 Probation (assessment) Data
 Assessment Data (Probation)
 ```{r}
-# Santa Barbara Assessment Data Import
+# Los Angeles Assessment Data Import
   ## assess_df contains one row per risk assessment event/risk assessment question/pretrial terms and conditions. The tool questions are widened into columns.
 
 ####
@@ -2882,82 +2901,72 @@ write.xlsx(factor_df, file = "C:/Work/PretrialAssessmentPilot/Code Books/Factor 
   
 DOJ CII/Linking Extraction
 ```{r}
-# Grab Tables with CIIo
-df <- sapply(ls()[which(sapply(ls(), function(i){
-  sum(names(get(i)) %in% "cii")
-}) == 1)], get)
-
-# Pull CII and other identifiers
-doj_book <- df[[4]] %>%
-  select(cii, cdl_id, first_name, last_name, race_original, sex_original) %>%
-  mutate(cii = parse_number(cii),
+# Grab Tables with CII
+df_list <- sapply(
+  ls()[which(sapply(ls(), function(i){
+    sum(names(get(i)) %in% "cii")
+    }) == 1)],
+  function(j){
+    df <- get(j)
+    df <- df %>%
+      select(any_of(c("cii", "cdl_id", "fbi", "last_name", "first_name", "middle_name", "dob", "sex_original", "race_original"))) %>%
+       mutate(
+         cii = parse_number(cii),
          cii = case_when(nchar(cii) == 6 ~ paste0("0000", cii),
                          nchar(cii) == 7 ~ paste0("000", cii),
                          nchar(cii) == 8 ~ paste0("00", cii),
                          nchar(cii) == 9 ~ paste0("0", cii),
                          T ~ as.character(cii)),
          cii = if_else(nchar(cii) != 10, NA_character_, cii)) %>%
-  ungroup() %>%
   distinct()
+  
+})
 
-doj_court <- df[[5]] %>%
-  select(cii, local_id, first_name, last_name, dob, sex_original, race_original) %>%
-  mutate(cii = parse_number(cii),
-         cii = case_when(nchar(cii) == 6 ~ paste0("0000", cii),
-                         nchar(cii) == 7 ~ paste0("000", cii),
-                         nchar(cii) == 8 ~ paste0("00", cii),
-                         nchar(cii) == 9 ~ paste0("0", cii),
-                         T ~ as.character(cii)),
-         cii = if_else(nchar(cii) != 10, NA_character_, cii)) %o>%
-  ungroup() %>%
-  distinct()
+# CIIs from assessment tables
+doj_assess <- bind_rows(df_list[[1]])
 
-doj_prob <- bind_rows(df[[2]], df[[1]], df[[3]]) %>%
-  select(cii, fbi,local_id, cdl_id, first_name, last_name, dob, race_original, sex_original) %>%
-  mutate(cii = parse_number(cii),
-         cii = case_when(nchar(cii) == 6 ~ paste0("0000", cii),
-                         nchar(cii) == 7 ~ paste0("000", cii),
-                         nchar(cii) == 8 ~ paste0("00", cii),
-                         nchar(cii) == 9 ~ paste0("0", cii),
-                         T ~ as.character(cii)),
-         cii = if_else(nchar(cii) != 10, NA_character_, cii)) %>%
-  ungroup() %>%
-  distinct()
+# CIIs from booking tables
+doj_book <- bind_rows(df_list[[3]])
 
-# Examine missing ciis and duplicates on cii. 
-doj_book %>% #Off by about 55,000
-  distinct()
-
-doj_book %>% 
-  distinct(cii)
-
-doj_book %>% 
-  distinct() %>%
-  add_count(cii) %>%
-  filter(n > 1) %>%
-  arrange(desc(n)) %>% 
-  View()
-
-doj_court %>% #Off by about 45,000
-  distinct()
-
-doj_court %>% 
-  distinct(cii)
-
-doj_court %>% 
-  distinct() %>%
-  add_count(cii) %>%
-  filter(n > 1) %>%
-  arrange(desc(n)) %>% 
-  View()
+# CIIs from court tables
+doj_court <- bind_rows(df_list[[4]]) 
 
 
 #CIIs for DOJ
-doj_cii <- bind_rows(doj_book %>% select(cii), doj_court %>% select(cii), doj_prob %>% select(cii)) %>% distinct()
+doj_cii <- bind_rows(doj_book %>% select(cii), doj_court %>% select(cii), doj_assess %>% select(cii)) %>% 
+  distinct() %>%
+  filter(nchar(cii) == 10)
 
 
 #Create an excel workbook with all data table. Make sure to include the cii table first. 
-write.xlsx(list(doj_cii, doj_book, doj_court, doj_prob), file = "CIIs for DOJ/Los Angeles CIIs and Demographics for DOJ.xlsx", sheetName = c("ciis", "booking", "court", "assessment"))
+write.xlsx(list(doj_cii, doj_book, doj_court, doj_assess), file = "CIIs for DOJ/October 2020/Los Angeles P2 CIIs and Demographics for DOJ.xlsx", sheetName = c("ciis", "booking", "court", "assessment"))
+
+# # Examine missing ciis and duplicates on cii. 
+# doj_book %>% #Off by about 3,000-2633 due to missing cii
+#   distinct()
+# 
+# doj_book %>% 
+#   distinct(cii)
+# 
+# doj_book %>% 
+#   distinct() %>%
+#   add_count(cii) %>%
+#   filter(n > 1) %>%
+#   arrange(desc(n)) %>% 
+#   View()
+# 
+# doj_court %>% #Off by about 12,000, 13,069/25,642
+#   distinct()
+# 
+# doj_court %>% 
+#   distinct(cii)
+# 
+# doj_court %>% #11,510 due to missing cii
+#   distinct() %>%
+#   add_count(cii) %>%
+#   filter(n > 1) %>%o
+#   arrange(desc(n)) %>% 
+#   View()
 ```
 
 
@@ -2975,7 +2984,7 @@ assess_table <- assess_df %>%
 
 
 # Save file  
-fwrite(assess_table, file = "C:/Work/PretrialAssessmentPilot/Assessment Output Tables/Los Angeles Assessment Output 09-2020.csv")
+fwrite(assess_table, file = "C:/Work/PretrialAssessmentPilot/Assessment Output Tables/Los Angeles Assessment Output 10-2020.csv")
 
 # assess_df %>%
 #   # Collapse to each assessment
@@ -3268,6 +3277,7 @@ court_charge <- court_charge %>%
                                       disposition_type_original %in% c("Found Not Guilty: Jury") ~ "Not_Guilty",
                                       T ~ "Other"))
 
+
 ####
 
 # Court hearing data
@@ -3288,6 +3298,8 @@ court_hearing <- court_hearing %>%
 court_hearing <- court_hearing %>%
   mutate(hearing_type = case_when(grepl("Arraignment", hearing_type_original) ~ "Arraignment",
                                   T ~ "Other"))
+
+summary(court_hearing$hearing_date)
 
 ####
 
@@ -3403,8 +3415,6 @@ court_status <- court_status %>%
 court_status <- court_status %>%
          mutate(case_status = if_else(case_status_original == "Active", "Active", "Inactive"))
 
-court_person %>%
-  semi_join(court_fta_war, by = "court_case_id") 
 ```
 
   Court Collapse
@@ -3483,7 +3493,8 @@ court_person <- court_person %>%
 
 
 #many missing dispos from court_person
-court_df <- reduce(list(court_person, court_dispo, court_fta_war, court_hearing, court_plea, court_sent), left_join, by = c("court_case_id", "court_docket_id")) %>%
+court_df <- reduce(list(court_person, court_dispo, court_fta_war, court_hearing, court_plea, court_sent), 
+                   left_join, by = c("court_case_id", "court_docket_id")) %>%
   select(-contains(".y")) %>% 
   rename_at(vars(contains(".x")), funs(gsub("\\.x", "", .))) %>%
   mutate(pretrial_end_date = if_else(disposition_date <= sentence_date|is.na(sentence_date), disposition_date, sentence_date),
@@ -3726,7 +3737,24 @@ assess_df <- assess_df %>%
          pretrial_termination_outcome = case_when(pretrial_termination_reason %in% c("Case_Disposed") ~ "Successful",
                                                   pretrial_termination_reason %in% c("Abscond", "FTA", "New_Crime", "Violation") ~ "Unsuccessful",
                                                   pretrial_termination_reason %in% c("Not_Tracked") ~ "Not_Tracked",
-                                                  T ~ "Other_Unknown")) 
+                                                  T ~ "Other_Unknown"),
+         #Risk Level and monitoring level are drawn deterministically from their matrix. 
+         risk_level_original = case_when(vprair_risk_score %in% 0:2 ~ "Level 1",
+                                         vprair_risk_score %in% 3:4 ~ "Level 2",
+                                         vprair_risk_score %in% 5:6 ~ "Level 3",
+                                         vprair_risk_score %in% 7:8 ~ "Level 4",
+                                         vprair_risk_score %in% 9:10 ~ "Level 5",
+                                         vprair_risk_score %in% 11:14 ~ "Level 6",
+                                         T ~ "Other_Unknown"),
+         
+         risk_level = case_when(vprair_risk_score %in% 0:4 ~ "Low",
+                                vprair_risk_score %in% 5:8 ~ "Medium",
+                                vprair_risk_score %in% 9:14 ~ "High"),
+         
+         monitor_level = case_when(vprair_risk_score %in% 0:4 ~ "Low",
+                                   vprair_risk_score %in% 5:8 ~ "Medium",
+                                   vprair_risk_score %in% 9:14 ~ "High"))
+         
           ## Get from jail data
          # pretrial_release_type = case_when(pretrial_release_type_original),
          #Follow up with SB about appropriate ways to understand monitoring levels in SB.  
@@ -3763,15 +3791,15 @@ assess_df <- assess_df %>%
          pretrial_violation_flag = if_else(!is.na(pretrial_violation_date), 1, 0))
 
 # names_check <- read_excel("Data Preparation Documentation/Variable Standardization.xlsx", sheet = 3)
-
-assess_df %>%
-  filter(release_conditions_original != "NULL") %>%
-  filter(!is.na(vprair_risk_score)) %>%
-  count(vprair_risk_score, release_conditions_original) %>%
-  arrange(desc(n)) %>%
-  group_by(vprair_risk_score) %>%
-  slice(1:10) %>%
-  View()
+# 
+# assess_df %>%
+#   filter(release_conditions_original != "NULL") %>%
+#   filter(!is.na(vprair_risk_score)) %>%
+#   count(vprair_risk_score, release_conditions_original) %>%
+#   arrange(desc(n)) %>%
+#   group_by(vprair_risk_score) %>%
+#   slice(1:10) %>%
+#   View()
 
 #### County Notes
 
@@ -4511,13 +4539,16 @@ write.xlsx(list(factor_df, flag_df, date_df), file = "C:/Work/PretrialAssessment
 DOJ CII/Linking Extraction
 ```{r}
 # Grab Tables with CII
-df <- sapply(ls()[which(sapply(ls(), function(i){
-  sum(names(get(i)) %in% "cii")
-}) == 1)], get)
-
-doj_book <- df[[1]] %>%
-  select(cii, dob, race_original, sex_original, first_name, last_name) %>%
-  mutate(cii = parse_number(cii),
+df_list <- sapply(
+  ls()[which(sapply(ls(), function(i){
+    sum(names(get(i)) %in% "cii")
+    }) == 1)],
+  function(j){
+    df <- get(j)
+    df <- df %>%
+      select(any_of(c("cii", "cdl_id", "fbi", "last_name", "first_name", "middle_name", "dob", "sex_original", "race_original"))) %>%
+       mutate(
+         cii = parse_number(cii),
          cii = case_when(nchar(cii) == 6 ~ paste0("0000", cii),
                          nchar(cii) == 7 ~ paste0("000", cii),
                          nchar(cii) == 8 ~ paste0("00", cii),
@@ -4525,52 +4556,54 @@ doj_book <- df[[1]] %>%
                          T ~ as.character(cii)),
          cii = if_else(nchar(cii) != 10, NA_character_, cii)) %>%
   distinct()
+  
+})
 
-doj_court <- df[[2]] %>%
-  select(cii, cdl_id, fbi, last_name, first_name, middle_name, dob, sex_original, race_original) %>%
-  mutate(cii = parse_number(cii),
-         cii = case_when(nchar(cii) == 6 ~ paste0("0000", cii),
-                         nchar(cii) == 7 ~ paste0("000", cii),
-                         nchar(cii) == 8 ~ paste0("00", cii),
-                        nchar(cii) == 9 ~ paste0("0", cii),
-                         T ~ as.character(cii)),
-         cii = if_else(nchar(cii) != 10, NA_character_, cii)) %>%
-  distinct()
+# CIIs from assessment tables
+doj_assess <- bind_rows(df_list[[1]])
 
+# CIIs from booking tables
+doj_book <- bind_rows(df_list[[2]])
 
-# Examine missing ciis and duplicates on cii. 
-doj_book %>% #Off by about 3,000-2633 due to missing cii
-  distinct()
+# CIIs from court tables
+doj_court <- bind_rows(df_list[[3]]) 
 
-doj_book %>% 
-  distinct(cii)
-
-doj_book %>% 
-  distinct() %>%
-  add_count(cii) %>%
-  filter(n > 1) %>%
-  arrange(desc(n)) %>% 
-  View()
-
-doj_court %>% #Off by about 12,000, 13,069/25,642
-  distinct()
-
-doj_court %>% 
-  distinct(cii)
-
-doj_court %>% #11,510 due to missing cii
-  distinct() %>%
-  add_count(cii) %>%
-  filter(n > 1) %>%o
-  arrange(desc(n)) %>% 
-  View()
 
 #CIIs for DOJ
-doj_cii <- bind_rows(doj_book %>% select(cii), doj_court %>% select(cii)) %>% distinct()
+doj_cii <- bind_rows(doj_book %>% select(cii), doj_court %>% select(cii), doj_assess %>% select(cii)) %>% 
+  distinct() %>%
+  filter(nchar(cii) == 10)
 
 
 #Create an excel workbook with all data table. Make sure to include the cii table first. 
-write.xlsx(list(doj_cii, doj_book, doj_court), file = "CIIs for DOJ/Santa Barbara/P2 Submission-June 30 CIIs and Demographics for DOJ.xlsx", sheetName = c("ciis", "booking", "court"))
+write.xlsx(list(doj_cii, doj_book, doj_court, doj_assess), file = "CIIs for DOJ/October 2020/Santa Barbara P2 CIIs and Demographics for DOJ.xlsx", sheetName = c("ciis", "booking", "court", "assessment"))
+
+# # Examine missing ciis and duplicates on cii. 
+# doj_book %>% #Off by about 3,000-2633 due to missing cii
+#   distinct()
+# 
+# doj_book %>% 
+#   distinct(cii)
+# 
+# doj_book %>% 
+#   distinct() %>%
+#   add_count(cii) %>%
+#   filter(n > 1) %>%
+#   arrange(desc(n)) %>% 
+#   View()
+# 
+# doj_court %>% #Off by about 12,000, 13,069/25,642
+#   distinct()
+# 
+# doj_court %>% 
+#   distinct(cii)
+# 
+# doj_court %>% #11,510 due to missing cii
+#   distinct() %>%
+#   add_count(cii) %>%
+#   filter(n > 1) %>%o
+#   arrange(desc(n)) %>% 
+#   View()
 ```
 
 Assessment Tables
@@ -4583,10 +4616,10 @@ assess_table <- assess_df %>%
   # Create county name.
   mutate(county = "Santa Barbara") %>%
   # Select relevants variables.
-  select(county, risk_level, release_recommendation, release_decision, assessment_date, vprai_risk_score, vprair_risk_score, tool_name, assessment_date, dob, sex, race, pretrial_termination_outcome, pretrial_termination_reason)
+  select(county, risk_level, monitor_level, release_recommendation, release_decision, assessment_date, vprai_risk_score, vprair_risk_score, tool_name, assessment_date, dob, sex, race, pretrial_termination_reason)
 
 # Save file  
-fwrite(assess_table, file = "C:/Work/PretrialAssessmentPilot/Assessment Output Tables/Santa Barbara Assessment Output 09-2020.csv")
+fwrite(assess_table, file = "C:/Work/PretrialAssessmentPilot/Assessment Output Tables/Santa Barbara Assessment Output 10-2020.csv")
 
 # assess_df %>%
 #   # Collapse to each assessment
@@ -4721,32 +4754,7 @@ fwrite(jail_df, file = "C:/Work/PretrialAssessmentPilot/Historical Data Submissi
 
 book_df <- fread("Historical Data Submissions/Tulare/Tulare Jail xml to csv.csv", colClasses = "character")
 
-book_df <- book_df %>%
-  mutate(x = gsub(", ,", ",NA,", x),
-         x = gsub(", ", " ", x),
-         x = gsub("[A-Z](,,,,)[A-Z]", ",,,", x)) %>%
-  separate(x, c("cii", "fbi", "ref", "cdl_id", "name", "dob", "ref2", "race_original", "bail_amt", "date",
-                "charge_original", "ref3", "ref4", "name2", "dob2", "arrest_date_time", "book_num", "book_date_time", "ref5", 
-                "ref6", "charge2", "date4", "release_date_time", "numeric"),
-           sep = ",") %>%
-  select(-contains("ref"), -contains("2"), -starts_with("date"))
-
-book_df2 <- fread("Historical Data Submissions/Tulare/")
-
-book_df <- book_df %>%
-  mutate_at(vars(dob), funs(mdy(if_else(nchar(.) == 7, paste0("0", .), .)))) %>%
-  mutate_at(vars(contains("date")), ymd_hms) %>%
-  mutate(book_date = as_date(book_date_time),
-         arrest_date = as_date(arrest_date_time),
-         release_date = as_date(release_date_time)) 
-
-#Fixing Tulare Charges
-
-  
-
-# shell.exec(paste(getwd(),"Historical Data Submissions/Tulare", sep = "/"))
-
-list.files("Historical Data Submissions/Tulare/PreTrialProject_DataElementInventory DRAFT 20200130 0944.xlsx")
+names(book_df) <- c("book_id", "book_date", "book_time", "book_num", "charge_level", "local_id", "last_name", "first_name", "middle_name", "dob", "sex_original", "ht", "wt", "hair", "eye", "race_original", "veteran", "cld_id", "fbi", "ssn", "cii", "employed", "address", "city", "phone_num", "arrest_date", "arrest_time", "officer_id", "arrest_agency", "arrest_location", "charge", "charge_level", "division", "department", "court_date", "bail_type", "bail_amt", "release_date", "release_type")
 ```
 
   Jail Diagnostics
@@ -5020,7 +5028,31 @@ assess_df <- assess_df %>%
          # Transit service doesn't actually exist here.  
          # transit_service_flag = if_else(grepl("BUS", toupper(other_pretrial_service_original)), 1, 0),
          ## Are all violations violations that result in termation? 
-         pretrial_violation_flag = if_else(!is.na(pretrial_violation_original), 1, 0))
+         pretrial_violation_flag = if_else(!is.na(pretrial_violation_original), 1, 0),
+         monitor_level = case_when(
+           release_decision_original == "PML 1 - Low" ~ "Low",
+           release_decision_original == "PML 2 - Medium" ~ "Medium",
+           release_decision_original == "PML 3 - High" ~ "High",
+           
+           psa_nca_risk_score == 3 & psa_fta_risk_score == 2 ~ "Low",
+           psa_nca_risk_score == 3 & psa_fta_risk_score == 3 ~ "Low",
+           psa_nca_risk_score == 3 & psa_fta_risk_score == 4 ~ "Low",
+           psa_nca_risk_score == 2 & psa_fta_risk_score == 3 ~ "Low",
+           psa_nca_risk_score == 2 & psa_fta_risk_score == 4 ~ "Low",
+           
+           psa_nca_risk_score == 2 & psa_fta_risk_score == 5 ~ "Medium",
+           psa_nca_risk_score == 3 & psa_fta_risk_score == 5 ~ "Medium",
+           psa_nca_risk_score == 4 & psa_fta_risk_score == 2 ~ "Medium",
+           psa_nca_risk_score == 4 & psa_fta_risk_score == 3 ~ "Medium",
+           psa_nca_risk_score == 4 & psa_fta_risk_score == 4 ~ "Medium",
+           
+           psa_nca_risk_score == 4 & psa_fta_risk_score == 5 ~ "High",
+           psa_nca_risk_score == 5 & psa_fta_risk_score == 2 ~ "High",
+           psa_nca_risk_score == 5 & psa_fta_risk_score == 3 ~ "High",
+           psa_nca_risk_score == 5 & psa_fta_risk_score == 4 ~ "High",
+           
+           T ~ "Other_Unknown"
+           ))
 
 
 
@@ -5058,16 +5090,14 @@ assess_response <- assess_response %>%
          psa_tool_response_8 = if_else(psa_tool_response_1 == "Yes", 1, 0),
          psa_tool_response_9 = if_else(psa_tool_response_1 == "Yes", 2, 0))
 
-assess_df %>%
-  count(release_decision_original)
+# assess_df %>%
+#   count(release_decision_original)
+# 
+# assess_df2 <- assess_df %>%
+#   filter(as_date(assessment_date) > as_date(pretrial_termination_date)| as_date(assessment_date) > as_date(release_date)) %>%
+#   select(name, dob, contains("date"), - court_date_reminder_flag, -court_date_reminder_original)
 
-assess_df2 <- assess_df %>%
-  filter(as_date(assessment_date) > as_date(pretrial_termination_date)| as_date(assessment_date) > as_date(release_date)) %>%
-  select(name, dob, contains("date"), - court_date_reminder_flag, -court_date_reminder_original)
-
-write.xlsx(assess_df2, file = "People who have assessment dates after release or termination dates.xlsx")
-
-getwd()
+# write.xlsx(assess_df2, file = "People who have assessment dates after release or termination dates.xlsx")
 ```
 
 
@@ -5237,15 +5267,17 @@ write.xlsx(factor_df, file = "G:/CrimJustice/PretrialAssessmentPilot/Code Books/
   
 DOJ CII/Linking Extraction
 ```{r}
-# Grab Tables with CIIo
-df <- sapply(ls()[which(sapply(ls(), function(i){
-  sum(names(get(i)) %in% "cii")
-}) == 1)], get)
-
-# Pull CII and other identifiers
-doj_book <- book_df %>%
-  select(cii, fbi, cdl_id, name, dob, race_original) %>%
-  mutate(cii = parse_number(cii),
+# Grab Tables with CII
+df_list <- sapply(
+  ls()[which(sapply(ls(), function(i){
+    sum(names(get(i)) %in% "cii")
+    }) == 1)],
+  function(j){
+    df <- get(j)
+    df <- df %>%
+      select(any_of(c("cii", "cdl_id", "fbi", "last_name", "first_name", "middle_name", "dob", "sex_original", "race_original"))) %>%
+       mutate(
+         cii = parse_number(cii),
          cii = case_when(nchar(cii) == 6 ~ paste0("0000", cii),
                          nchar(cii) == 7 ~ paste0("000", cii),
                          nchar(cii) == 8 ~ paste0("00", cii),
@@ -5253,63 +5285,54 @@ doj_book <- book_df %>%
                          T ~ as.character(cii)),
          cii = if_else(nchar(cii) != 10, NA_character_, cii)) %>%
   distinct()
+  
+})
 
-doj_court <- court_df %>%
-  select(cii, fbi, cdl_id, name, dob, sex_original, race_original) %>%
-  mutate(cii = parse_number(cii),
-         cii = case_when(nchar(cii) == 6 ~ paste0("0000", cii),
-                         nchar(cii) == 7 ~ paste0("000", cii),
-                         nchar(cii) == 8 ~ paste0("00", cii),
-                         nchar(cii) == 9 ~ paste0("0", cii),
-                         T ~ as.character(cii)),
-         cii = if_else(nchar(cii) != 10, NA_character_, cii)) %>%
-  distinct()
+# CIIs from assessment tables
+doj_assess <- bind_rows(df_list[[1]])
 
-doj_prob <- prob_df %>%
-  select(cii, fbi, name, dob, race_original, sex_original) %>%
-  mutate(cii = parse_number(cii),
-         cii = case_when(nchar(cii) == 6 ~ paste0("0000", cii),
-                         nchar(cii) == 7 ~ paste0("000", cii),
-                         nchar(cii) == 8 ~ paste0("00", cii),
-                         nchar(cii) == 9 ~ paste0("0", cii),
-                         T ~ as.character(cii)),
-         cii = if_else(nchar(cii) != 10, NA_character_, cii)) %>%
-  distinct()
+# CIIs from booking tables
+doj_book <- bind_rows(df_list[[2]])
 
-# Examine missing ciis and duplicates on cii. 
-doj_book %>% #Off by about 55,000
-  distinct()
-
-doj_book %>% 
-  distinct(cii)
-
-doj_book %>% 
-  distinct() %>%
-  add_count(cii) %>%
-  filter(n > 1) %>%
-  arrange(desc(n)) %>% 
-  View()
-
-doj_court %>% #Off by about 45,000
-  distinct()
-
-doj_court %>% 
-  distinct(cii)
-
-doj_court %>% 
-  distinct() %>%o
-  add_count(cii) %>%
-  filter(n > 1) %>%
-  arrange(desc(n)) %>% 
-  View()
+# CIIs from court tables
+doj_court <- bind_rows(df_list[[3]]) 
 
 
 #CIIs for DOJ
-doj_cii <- bind_rows(doj_book %>% select(cii), doj_court %>% select(cii), doj_prob %>% select(cii)) %>% distinct()
+doj_cii <- bind_rows(doj_book %>% select(cii), doj_court %>% select(cii), doj_assess %>% select(cii)) %>% 
+  distinct() %>%
+  filter(nchar(cii) == 10)
 
 
 #Create an excel workbook with all data table. Make sure to include the cii table first. 
-write.xlsx(list(doj_cii, doj_book, doj_court, doj_prob), file = "CIIs for DOJ/Tulare CIIs and Demographics for DOJ.xlsx", sheetName = c("ciis", "booking", "court", "assessment"))
+write.xlsx(list(doj_cii, doj_book, doj_court, doj_assess), file = "CIIs for DOJ/October 2020/Tulare P2 CIIs and Demographics for DOJ.xlsx", sheetName = c("ciis", "booking", "court", "assessment"))
+
+# # Examine missing ciis and duplicates on cii. 
+# doj_book %>% #Off by about 3,000-2633 due to missing cii
+#   distinct()
+# 
+# doj_book %>% 
+#   distinct(cii)
+# 
+# doj_book %>% 
+#   distinct() %>%
+#   add_count(cii) %>%
+#   filter(n > 1) %>%
+#   arrange(desc(n)) %>% 
+#   View()
+# 
+# doj_court %>% #Off by about 12,000, 13,069/25,642
+#   distinct()
+# 
+# doj_court %>% 
+#   distinct(cii)
+# 
+# doj_court %>% #11,510 due to missing cii
+#   distinct() %>%
+#   add_count(cii) %>%
+#   filter(n > 1) %>%o
+#   arrange(desc(n)) %>% 
+#   View()
 ```
 
   Assessment (9/2020)
@@ -5466,10 +5489,10 @@ assess_table <- assess_df %>%
   # Create county name.
   mutate(county = "Tulare") %>%
   # Select relevants variables.
-  select(county, release_recommendation, release_decision, assessment_date, psa_nvca_risk_score, psa_nca_risk_score, psa_fta_risk_score, tool_name, assessment_date, dob, sex, race, pretrial_termination_outcome, pretrial_termination_reason)
+  select(county, release_recommendation, release_decision, assessment_date, psa_nvca_risk_score, psa_nca_risk_score, psa_fta_risk_score, tool_name, assessment_date, dob, sex, race, monitor_level, pretrial_termination_reason)
 
 # Save file  
-fwrite(assess_table, file = "C:/Work/PretrialAssessmentPilot/Assessment Output Tables/Tulare Assessment Output 09-2020.csv")
+fwrite(assess_table, file = "C:/Work/PretrialAssessmentPilot/Assessment Output Tables/Tulare Assessment Output 10-2020.csv")
 
 # assess_df %>%
 #   # Collapse to each assessment
@@ -5490,6 +5513,7 @@ assess_df %>%
   filter(n > 1) %>%
   arrange(local_id) %>%
   View()
+
 ```
 Join
 ```{r eval=FALSE, include=FALSE}
@@ -5519,69 +5543,71 @@ Jail Data
 ```{r}
 #Jail Data
 # doc <- read_xml("Historical Data Submissions/Tuolumne/Inmates-202001115.XML")
-doc <- read_xml("Historical Data Submissions/Tuolumne/P2 Submission-June 30/Inmates-20200814.XML")
+# doc <- read_xml("Historical Data Submissions/Tuolumne/P2 Submission-June 30/Inmates-20200814.XML")
+# 
+# jail_list <- as_list(doc)
+# 
+# jail_df <- tibble(inmate = jail_list)
+# 
+# jail_df <- jail_df %>%
+#   unnest(inmate) %>%
+#   unnest_wider(inmate)
+# 
+# jail_df <- jail_df %>%
+#   unnest_auto(Name) %>%
+#   unnest_auto(DOB) %>%
+#   unnest_auto(CII) %>%
+#   unnest_auto(FBI) %>%
+#   unnest_auto(Occupation) %>%
+#   unnest_auto(Employer) %>%
+#   unnest_auto(Gender) %>%
+#   unnest_auto(Race) %>%
+#   unnest_auto(Last) %>%
+#   unnest_auto(First) %>%
+#   unnest_auto(Middle) #%>%
+#   # unnest_auto(Suffix)
+# 
+# jail_df <- jail_df %>%
+#   unnest_longer(CDL) %>%
+#   unnest_longer(CDL) %>%
+#   mutate(CDL_id = if_else(is.na(CDL_id), "Number", CDL_id)) %>%
+#   pivot_wider(names_from = CDL_id, values_from = CDL)
+# 
+# 
+# jail_df <- jail_df %>%
+#   unnest(Bookings)  %>%
+#   unnest_wider(Bookings)
+# 
+# jail_df <- jail_df %>%
+#   unnest_longer(ArrestDateTime) %>%
+#   unnest_longer(BookingType) %>%
+#   unnest_longer(BookingNumber) %>%
+#   unnest_longer(BookingDateTime) %>%
+#   unnest_longer(CourtDocket) %>%
+#   unnest_longer(ReleaseDate) %>%
+#   unnest_longer(ReleaseType) %>%
+#   unnest_longer(ConvictionDate)
+# 
+# jail_df <- jail_df %>%
+#   unnest(Charges) %>%
+#   unnest_wider(Charges)
+# 
+# jail_df <- jail_df %>%
+#   unnest_longer(ChargeLevel) %>%
+#   unnest_longer(ChargeSection) %>%
+#   unnest_longer(ChargeStatute) %>%
+#   unnest_longer(WN) %>%
+#   unnest_longer(Suffix)
 
-jail_list <- as_list(doc)
-
-jail_df <- tibble(inmate = jail_list)
-
-jail_df <- jail_df %>%
-  unnest(inmate) %>%
-  unnest_wider(inmate)
-
-jail_df <- jail_df %>%
-  unnest_auto(Name) %>%
-  unnest_auto(DOB) %>%
-  unnest_auto(CII) %>%
-  unnest_auto(FBI) %>%
-  unnest_auto(Occupation) %>%
-  unnest_auto(Employer) %>%
-  unnest_auto(Gender) %>%
-  unnest_auto(Race) %>%
-  unnest_auto(Last) %>%
-  unnest_auto(First) %>%
-  unnest_auto(Middle) #%>%
-  # unnest_auto(Suffix)
-
-jail_df <- jail_df %>%
-  unnest_longer(CDL) %>%
-  unnest_longer(CDL) %>%
-  mutate(CDL_id = if_else(is.na(CDL_id), "Number", CDL_id)) %>%
-  pivot_wider(names_from = CDL_id, values_from = CDL)
-
-
-jail_df <- jail_df %>%
-  unnest(Bookings)  %>%
-  unnest_wider(Bookings)
-
-jail_df <- jail_df %>%
-  unnest_longer(ArrestDateTime) %>%
-  unnest_longer(BookingType) %>%
-  unnest_longer(BookingNumber) %>%
-  unnest_longer(BookingDateTime) %>%
-  unnest_longer(CourtDocket) %>%
-  unnest_longer(ReleaseDate) %>%
-  unnest_longer(ReleaseType) %>%
-  unnest_longer(ConvictionDate)
-
-jail_df <- jail_df %>%
-  unnest(Charges) %>%
-  unnest_wider(Charges)
-
-jail_df <- jail_df %>%
-  unnest_longer(ChargeLevel) %>%
-  unnest_longer(ChargeSection) %>%
-  unnest_longer(ChargeStatute) %>%
-  unnest_longer(WN)
-
-fwrite(jail_df, file = "C:/Work/PretrialAssessmentPilot/Historical Data Submissions/Tuolumne/Tuolumne Jail xml to csv Period 2.csv")
+# fwrite(jail_df, file = "C:/Work/PretrialAssessmentPilot/Historical Data Submissions/Tuolumne/Tuolumne Jail xml to csv Period 2.csv")
 
 #Jail Data Loaded from fixed XML bullshit
-# book_df <- fread("C:/Work/PretrialAssessmentPilot/Historical Data Submissions/Tuolumne/Tuolumne Jail xml to csv.csv")
+
+book_df <- fread("C:/Work/PretrialAssessmentPilot/Historical Data Submissions/Tuolumne/Tuolumne Jail xml to csv Period 2.csv")
 
 # original_field <- names(book_df)
 
-names(book_df) <- c("last_name", "first_name", "middle_name", "name_suffix","dob", "cii", "fbi", "occupation", "employer", "arrest_date_time", "book_type_original", "book_num", "book_date_time", "court_docket_id", "release_date_time", "arrest_charge_level_original", "arrest_charge_original", "arrest_charge_code_original", "court_case_id", "conviction_date", "sex_original", "race_original", "cdl_state", "cdl_id")
+names(book_df) <- c("last_name", "first_name", "middle_name", "name_suffix","dob", "cii", "fbi", "occupation", "employer", "arrest_date_time", "book_type_original", "book_num", "book_date_time", "court_docket_id", "release_date_time", "release_type_original", "arrest_charge_level_original", "arrest_charge_original", "arrest_charge_code_original", "court_case_id", "conviction_date", "sex_original", "race_original", "cdl_state", "cdl_id")
 
 book_df <- book_df %>%
   mutate_at(vars(dob, conviction_date), as_date) %>%
@@ -5637,8 +5663,7 @@ book_df <- book_df %>%
                                book_type_original %in% c("REMAND") ~ "Court_Order",
                                book_type_original %in% c("COMMITMENT") ~ "Commitment",
                                T ~ "Other"))
-jail_df
-summary(ymd_hm(jail_df$BookingDateTime))
+
 ```
 
   Jail Collapse
@@ -6111,14 +6136,14 @@ charge_hier %>%
 
 Assessment Data (New)
 ```{r}
-# Tulare Assessment Data Import
+# Tuolumne Assessment Data Import
   ## assess_df contains one row per risk assessment event/risk assessment question/pretrial terms and conditions. The tool questions are widened into columns.
 
 ####
 
 # Assessments Data Import
   ## assess_df contains one row per risk assessment event/risk assessment question/pretrial terms and conditions. The questions are widened into columns.
-assess_df <- read_excel("C:/Work/PretrialAssessmentPilot/Historical Data Submissions/Tuolumne/P2 Submission-June 30/Pre-Trial Spreadsheet April-June 2020.xlsx")
+assess_df <- read_excel("C:/Work/PretrialAssessmentPilot/Historical Data Submissions/Tuolumne/P2 Submission-June 30/Pre-Trial Spreadsheet April-June 2020.xlsx", col_types = "text")
 
 
 # Variable name standardization--See pg. xxx for more details.
@@ -6129,20 +6154,19 @@ names(assess_df) <- c("name", "local_id", "cii", "fbi", "cdl_id", "dob", "sex_or
 assess_df <- assess_df %>%
   mutate(assessment_date = gsub(" -.*|,.*", "", assessment_date),
          pretrial_termination_date = gsub(" -.*|,.*", "", pretrial_termination_date)) %>%
-  mutate_at(vars(contains("date"), -court_date_reminder_original, -arrest_date_time), 
+  mutate_at(vars(contains("date"), dob, -court_date_reminder_original, -arrest_date_time), 
             funs(if_else(grepl("/", .), mdy(.), convertToDate(.)))) %>%
   mutate(arrest_date_time = mdy_hm(arrest_date_time),
          arrest_date = as_date(arrest_date_time))
 
-
 # Risk Score Standardization--Tool Response values are changed to their numeric point value.
 assess_df <- assess_df %>%
-  mutate(tool_name = "tuol_co_pretrial")
+  mutate(tool_name = "tuol_co_pretrial",
+         release_authorization = "Judge")
 
 # Standardize Factors--See pg. xxx for more details.
 assess_df <- assess_df %>%
-  mutate(tool_name = "tuol_co_pretrial",
-         risk_level = case_when(risk_level_original %in% c("High", "Mod-High") ~ "High",
+  mutate(risk_level = case_when(risk_level_original %in% c("High", "Mod-High") ~ "High",
                                 risk_level_original %in% c("Mod", "Low-Mod") ~ "Medium",
                                 risk_level_original %in% c("Low") ~ "Low",
                                 T ~ "Other"),
@@ -6157,21 +6181,36 @@ assess_df <- assess_df %>%
                           race_original %in% c("Hispanic") ~ "Hispanic",
                           race_original %in% c("White") ~ "White",
                           #All Other races/ethnicities collapsed into other
-                          T ~ "Other_Unknown"))
-         # release_recommendation = case_when(
-         #   # release_recommendation_original %in% c("Release Own Recognizance") ~ "OR",
-         #   # release_recommendation_original %in% c("PML 1 - Low", "PML 2 - Medium", "PML 3 - High") ~ "Monitor",
-         #   # release_recommendation_original %in% c("Detain", "Detain/If released, max reporting") ~ "Detain",
-         #   T ~ "Other_Unknown"),
-         # release_decision = case_when(
-         #   pretrial_release_type_original %in% c("Release Own Recognizance") ~ "OR",
-         #   pretrial_release_type_original %in% c("PML 1 - Low", "PML 2 - Medium", "PML 3 - High", "SORR") ~ "Monitor",
-         #   pretrial_release_type_original %in% c("Detain") ~ "Detain",
-         #   pretrial_release_type_original %in% c("No Case Filed, Released") ~ "Ineligible",
-         #   T ~ "Other_Unknown"),
-         # pretrial_ineligible_reason = case_when(
-         #   pretrial_release_type_original %in% c("No Case Filed, Released") ~ "Case_Disposed",
-         #   T ~ "Other_Unknown"),
+                          T ~ "Other_Unknown"),
+         release_recommendation = case_when(
+           # release_recommendation_original %in% c("Release Own Recognizance") ~ "OR",
+           # release_recommendation_original %in% c("PML 1 - Low", "PML 2 - Medium", "PML 3 - High") ~ "Monitor",
+           # release_recommendation_original %in% c("Detain", "Detain/If released, max reporting") ~ "Detain",
+           T ~ "Other_Unknown"),
+         release_decision = case_when(
+           # pretrial_release_type_original %in% c("Release Own Recognizance") ~ "OR",
+           # pretrial_release_type_original %in% c("PML 1 - Low", "PML 2 - Medium", "PML 3 - High", "SORR") ~ "Monitor",
+           # pretrial_release_type_original %in% c("Detain") ~ "Detain",
+           # pretrial_release_type_original %in% c("No Case Filed, Released") ~ "Ineligible",
+           T ~ "Other_Unknown"),
+         pretrial_ineligible_reason = case_when(
+           # pretrial_release_type_original %in% c("No Case Filed, Released") ~ "Case_Disposed",
+           T ~ "Other_Unknown"),
+         pretrial_termination_reason = case_when(
+           pretrial_termination_reason_original %in% c("DA Not Filing", 
+                                                       "Dismissed", "Sentenced") ~ "Case_Disposed",
+           pretrial_termination_reason_original %in% c("Abscond") ~ "Abscond",
+           pretrial_termination_reason_original %in% c("Failure to Appear") ~ "FTA",
+           pretrial_termination_reason_original %in% c("Abscond") ~ "Abscond",
+           pretrial_termination_reason_original %in% c("Felony Arrest", "Misdemeanor Arrest") ~ "New_Crime",
+           pretrial_termination_reason_original %in% c("OR Revoked", "Remand") ~ "Violation",
+           pretrial_termination_reason_original %in% c("Bond") ~ "Not_Tracked",
+           T ~ "Other_Unknown"),
+         pretrial_termination_outcome = case_when(
+           pretrial_termination_reason %in% c("Case_Disposed") ~ "Successful",
+           pretrial_termination_reason %in% c("Abscond", "FTA", "New_Crime", "Violation") ~ "Unsuccessful",
+           pretrial_termination_reason %in% c("Not_Tracked") ~ "Not_Tracked",
+           T ~ "Other_Unknown"))
          #  pretrial_release_type = case_when(
          #   pretrial_release_type_original %in% c("Release Own Recognizance") ~ "OR",
          #   pretrial_release_type_original %in% c("PML 1 - Low", "PML 2 - Medium", "PML 3 - High", "SORR") ~ "Monitor",
@@ -6181,23 +6220,137 @@ assess_df <- assess_df %>%
 
 # Flag Standardization---See pg. xxx for more details.
   ## Need to follow up with Santa Barbara on the definitions of release recommendation, release type, release authorization, pretrial_violation_flag, and pretrial_termination_outcome. What does pretrial ID uniquely identify? Also need to figure out if we can determine Judge overrides. When do people have mulitple assessments. 
-# assess_df <- assess_df %>%
-#   mutate(assess_flag = if_else(is.na(assessment_date), 0, 1),
-#          rec_release_flag = if_else(),
-#          decision_release_flag = if_else(),
-#          condition_release_flag = if_else(),
-#          pretrial_override_flag = if_else(),
-#          rec_em_flag = if_else(),
-#          rec_phone_flag = if_else(),
-#          rec_inperson_flag = if_else(),
-#          rec_drug_alc_flag = if_else(),
-#          rec_other_flag = if_else(),
-#          condition_em_flag = if_else(),
-#          condition_phone_flag = if_else(),
-#          condition_inperson_flag = if_else(),
-#          condition_drug_alc_flag = if_else(),
-#          condition_other_flag = if_else(),
-#          pretrial_violation_flag= if_else(!is.na(pretrial_violation_date)))
+assess_df <- assess_df %>%
+  mutate(assess_flag = if_else(is.na(assessment_date), 0, 1),
+         rec_release_flag = if_else(release_recommendation %in% c("OR", "Monitor"), 1, 0),
+         decision_release_flag = if_else(release_decision %in% c("OR", "Monitor"), 1, 0),
+         #This field needs to come from the jail data.
+         # pretrial_release_flag = if_else(),
+         release_override_flag = if_else(rec_release_flag != decision_release_flag & 
+                                            !release_recommendation %in% c("Ineligible", "Other_Unknown") & 
+                                            !release_decision %in% c("Ineligible", "Other_Unknown"), 1, 0),
+         # rec_em_flag = if_else(grepl("SCRAM", toupper(release_recommendation_original)), 1, 0),
+         # rec_phone_flag = if_else(),
+         # rec_inperson_flag = if_else(),
+         # rec_drug_test_flag = if_else(grepl("TEST", toupper(release_recommendation_original)), 1, 0),
+         condition_em_flag = if_else(!is.na(emp_status), 1, 0),
+         # condition_drug_test_flag = if_else(grepl("SCRAM|TEST", toupper(release_conditions_original))|
+                                                    # grepl("SCRAM|TEST", toupper(pretrial_release_type_original)), 1, 0),
+         # condition_no_contact_flag = if_else(grepl("NO CONTACT|136", toupper(release_conditions_original)), 1, 0),
+         court_date_reminder_flag = if_else(is.na(court_date_reminder_original) | court_date_reminder_original == "No number", 0, 1),
+         # Transit service doesn't actually exist here.  
+         # transit_service_flag = if_else(grepl("BUS", toupper(other_pretrial_service_original)), 1, 0),
+         ## Are all violations violations that result in termation? 
+         pretrial_violation_flag = if_else(!is.na(pretrial_violation_original), 1, 0))
+
+
+
+# Period 3 Assessment Data Import
+assess_df2 <- read_excel("C:/Work/PretrialAssessmentPilot/Historical Data Submissions/Tuolumne/P2 Submission-June 30/6.30.20 - 9.30.20 Probation Pretrial Spreadsheet.xlsx", col_types = "text")
+
+# Variable name standardization--See pg. xxx for more details.
+names(assess_df2) <- c("name", "local_id", "cii", "fbi", "cdl_id", "dob", "sex_original", "race_original", "zip_code", "arrest_date", "arrest_time", "book_num",  "court_case_id", "book_type", "assessment_date", "assessment_time", "psa_fta_score", "psa_nca_score", "psa_nvca_risk_score", "monitor_level_original", "eligible_flag", "release_recommendation_original", "release_decision_prearraignment", "release_decision_post_arraignment", "release_authorization_original", "case_status", "OR_release_date", "release_conditions_original", "pretrial_violation_original", "pretrial_violation_date", "next_hearing_date", "next_hearing_time",  "emp_status", "pretrial_termination_outcome_original", "pretrial_termination_reason_original", "pretrial_termination_date", "pretrial_termination_time", "fta_count", "other_pretrial_service_original", "notes")
+
+####
+
+# Date Reformatting--See pg. xxx for more details.
+  ## Violation dates are duplicated and inconsistent. Fix later. 
+assess_df2 <- assess_df2 %>%
+  mutate_at(vars(contains("date"), dob), 
+            funs(if_else(grepl("/", .), mdy(.), convertToDate(.)))) %>%
+  mutate(arrest_date_time = ymd_hm(paste(arrest_date, arrest_time)),
+         assessment_date_time = ymd_hm(paste(assessment_date, assessment_time)),
+         next_hearing_date_time = ymd_hm(paste(next_hearing_date, next_hearing_time)),
+         pretrial_termination_date_time = ymd_hm(paste(pretrial_termination_date, pretrial_termination_time))) %>%
+  select(-contains("time"), contains("date"))
+         
+
+# Risk Score Standardization--Tool Response values are changed to their numeric point value.
+assess_df2 <- assess_df2 %>%
+  mutate(tool_name = "psa")
+
+
+### Start Here
+
+# Standardize Factors--See pg. xxx for more details.
+assess_df2 <- assess_df2 %>%
+  mutate(sex = case_when(sex_original %in% c("M") ~ "Male",
+                         sex_original %in% c("F") ~ "Female",
+                         T ~ "Other_Unknown"),
+         
+         #Trimming white space on original race first
+         race_original = trimws(race_original),
+         race = case_when(race_original %in% c("Black") ~ "Black",
+                          race_original %in% c("Hispanic") ~ "Hispanic",
+                          race_original %in% c("White") ~ "White",
+                          #All Other races/ethnicities collapsed into other
+                          T ~ "Other_Unknown"),
+         release_recommendation = case_when(
+           release_recommendation_original %in% c("Release Prearraignment") ~ "OR",
+           # release_recommendation_original %in% c("PML 1 - Low", "PML 2 - Medium", "PML 3 - High") ~ "Monitor",
+           release_recommendation_original %in% c("Detain to Arraignment") ~ "Detain",
+           T ~ "Other_Unknown"),
+         release_decision = case_when(
+           release_decision_prearraignment %in% c("Granted") ~ "OR",
+           grepl("Released", release_decision_post_arraignment) ~ "OR",
+           release_decision_prearraignment %in% c("Denied") & release_decision_post_arraignment == "NA" ~ "Detain",
+           release_decision_prearraignment %in% c("Bailed Before PSA Review", "Bailed Before PSA Scored", 
+                                                  "Cited/Released before PSA Scored") ~ "Ineligible",
+           T ~ "Other_Unknown"),
+         pretrial_ineligible_reason = case_when(
+           release_decision_prearraignment %in% c("Bailed Before PSA Review", "Bailed Before PSA Scored") ~ "Bail_Bond",
+           T ~ "Other_Unknown"),
+         pretrial_termination_reason = case_when(
+           pretrial_termination_reason_original %in% c("DA Not Filing", 
+                                                       "Dismissed", "Sentenced") ~ "Case_Disposed",
+           pretrial_termination_reason_original %in% c("Abscond") ~ "Abscond",
+           pretrial_termination_reason_original %in% c("Failure to Appear") ~ "FTA",
+           pretrial_termination_reason_original %in% c("Abscond") ~ "Abscond",
+           pretrial_termination_reason_original %in% c("Felony Arrest", "Misdemeanor Arrest") ~ "New_Crime",
+           pretrial_termination_reason_original %in% c("OR Revoked", "Remand") ~ "Violation",
+           pretrial_termination_reason_original %in% c("Bond") ~ "Not_Tracked",
+           T ~ "Other_Unknown"),
+         pretrial_termination_outcome = case_when(
+           pretrial_termination_reason %in% c("Case_Disposed") ~ "Successful",
+           pretrial_termination_reason %in% c("Abscond", "FTA", "New_Crime", "Violation") ~ "Unsuccessful",
+           pretrial_termination_reason %in% c("Not_Tracked") ~ "Not_Tracked",
+           T ~ "Other_Unknown"))
+
+
+# Flag Standardization---See pg. xxx for more details.
+  ## Need to follow up with Santa Barbara on the definitions of release recommendation, release type, release authorization, pretrial_violation_flag, and pretrial_termination_outcome. What does pretrial ID uniquely identify? Also need to figure out if we can determine Judge overrides. When do people have mulitple assessments. 
+assess_df2 <- assess_df2 %>%
+  mutate(assess_flag = if_else(is.na(assessment_date), 0, 1),
+         rec_release_flag = if_else(release_recommendation %in% c("OR", "Monitor"), 1, 0),
+         decision_release_flag = if_else(release_decision %in% c("OR", "Monitor"), 1, 0),
+         #This field needs to come from the jail data.
+         # pretrial_release_flag = if_else(),
+         release_override_flag = if_else(rec_release_flag != decision_release_flag & 
+                                            !release_recommendation %in% c("Ineligible", "Other_Unknown") & 
+                                            !release_decision %in% c("Ineligible", "Other_Unknown"), 1, 0),
+         # rec_em_flag = if_else(grepl("SCRAM", toupper(release_recommendation_original)), 1, 0),
+         # rec_phone_flag = if_else(),
+         # rec_inperson_flag = if_else(),
+         # rec_drug_test_flag = if_else(grepl("TEST", toupper(release_recommendation_original)), 1, 0),
+         condition_em_flag = if_else(!is.na(emp_status), 1, 0),
+         # condition_drug_test_flag = if_else(grepl("SCRAM|TEST", toupper(release_conditions_original))|
+                                                    # grepl("SCRAM|TEST", toupper(pretrial_release_type_original)), 1, 0),
+         # condition_no_contact_flag = if_else(grepl("NO CONTACT|136", toupper(release_conditions_original)), 1, 0),
+         court_date_reminder_flag = if_else(is.na(court_date_reminder_original) | court_date_reminder_original == "No number", 0, 1),
+         # Transit service doesn't actually exist here.  
+         # transit_service_flag = if_else(grepl("BUS", toupper(other_pretrial_service_original)), 1, 0),
+         ## Are all violations violations that result in termation? 
+         pretrial_violation_flag = if_else(!is.na(pretrial_violation_original), 1, 0))
+
+
+assess_df <- bind_rows(assess_df, assess_df2)
+
+lapply(assess_df %>% 
+         select_if(is.character) %>%
+         select(-c(1:5)), table)
+         
+# How can we use OR Release Date and Case Status to inform our understanding?
+# What are the numbers for release conditions?
 ```
 
 Probation Assessment Data (old)
@@ -6630,23 +6783,17 @@ fwrite(assess_table, file = "C:/Work/PretrialAssessmentPilot/Assessment Output T
 
 DOJ CII/Linking Extraction
 ```{r}
-
-# Hi Sal! Sonya and Rob here messing with your code while you are out sick. We had to re-import your booking data for Tuolumne so we could create the CIIs list for Noah to submit to DOJ. You can probably get rid of some of the inital part of this chunk if/when you have to re-run it. Much of it represents a workaround to compensate for the fact we're both missing the package to read xml files you and Noah used above and couldn't get it to install properly. Also, we updated some of the names in the book_df dataframe according to what we used for the other counties (see below).
-
 # Grab Tables with CII
-# df <- sapply(ls()[which(sapply(ls(), function(i){
-#   sum(names(get(i)) %in% "cii")
-# }) == 1)], get)
-
-# Pull CII and other identifiers
-
-book_df <- read.csv("Historical Data Submissions/Tuolumne/Tuolumne Booking Data.csv", as.is = TRUE)
-
-names(book_df) <- c("dob", "cii", "fbi", "occupation", "employer", "sex_original", "race_original", "name_last", "name_first", "name_middle", "name_suffix", "cdl_state", "cdl_id", "book_num", "arrest_date_time", "book_type_original", "book_date_time", "court_case_id", "release_date_time", "arrest_charge_level_original", "arrest_charge_original", "arrest_charge_code_original", "court_docket_id", "conviction_date", "arrest_date", "book_date", "release_date")
-
-doj_book <- book_df %>%
-  select(cii, fbi, dob, name_last, name_first, name_middle, name_suffix, cdl_id, cdl_state, race_original, sex_original) %>%
-  mutate(cii = parse_number(cii),
+df_list <- sapply(
+  ls()[which(sapply(ls(), function(i){
+    sum(names(get(i)) %in% "cii")
+    }) == 1)],
+  function(j){
+    df <- get(j)
+    df <- df %>%
+      select(any_of(c("cii", "cdl_id", "fbi", "last_name", "first_name", "middle_name", "dob", "sex_original", "race_original"))) %>%
+       mutate(
+         cii = parse_number(cii),
          cii = case_when(nchar(cii) == 6 ~ paste0("0000", cii),
                          nchar(cii) == 7 ~ paste0("000", cii),
                          nchar(cii) == 8 ~ paste0("00", cii),
@@ -6654,84 +6801,54 @@ doj_book <- book_df %>%
                          T ~ as.character(cii)),
          cii = if_else(nchar(cii) != 10, NA_character_, cii)) %>%
   distinct()
+  
+})
 
+# CIIs from assessment tables
+doj_assess <- bind_rows(df_list[[1]])
 
-# doj_court <- df[[2]] %>%
-#   select(cii, fbi, dob, race_original, sex_original, name, local_id) %>%
-#   mutate(cii = parse_number(cii),
-#          cii = case_when(nchar(cii) == 6 ~ paste0("0000", cii),
-#                          nchar(cii) == 7 ~ paste0("000", cii),
-#                          nchar(cii) == 8 ~ paste0("00", cii),
-#                          nchar(cii) == 9 ~ paste0("0", cii)),
-#                          T ~ as.character(cii)),
-#          cii = if_else(nchar(cii) != 10, NA_character_, cii)) %>%
-#   distinct()
-# 
-# court_df %>%
-#   filter(!is.na(cii))
+# CIIs from booking tables
+doj_book <- bind_rows(df_list[[2]])
 
-# Examine missing ciis and duplicates on cii. 
-# doj_book %>% #Off by about 55,000
-#   distinct()
-# 
-# doj_book %>% 
-#   distinct(cii)
-# 
-# doj_book %>% 
-#   distinct() %>%
-#   add_count(cii) %>%
-#   filter(n > 1) %>%
-#   arrange(desc(n)) %>% 
-#   View()
-# 
-# doj_court %>% #Off by about 45,000
-#   distinct()
-# 
-# doj_court %>% 
-#   distinct(cii)
-# 
-# doj_court %>% 
-#   distinct() %>%
-#   add_count(cii) %>%
-#   filter(n > 1) %>%
-#   arrange(desc(n)) %>% 
-#   View()
-# 
-# 
-# doj_book %>% # Off by about 7,000
-#   distinct()
-# 
-# doj_book %>% 
-#   distinct(cii)
+# CIIs from court tables
+doj_court <- bind_rows(df_list[[3]]) 
 
-# doj_book %>% 
-#   distinct() %>%
-#   add_count(cii) %>%
-#   filter(n > 1) %>%
-#   arrange(desc(n)) %>% 
-#   View()
-# 
-# doj_court %>% #Off by about 9,000
-#   distinct()
-# 
-# doj_court %>% 
-#   distinct(cii)
-# 
-# doj_court %>% 
-#   distinct() %>%
-#   add_count(cii) %>%
-#   filter(n > 1) %>%
-#   arrange(desc(n)) %>% 
-#   View()
 
 #CIIs for DOJ
-doj_cii <- (doj_book %>% select(cii)) %>% distinct()
+doj_cii <- bind_rows(doj_book %>% select(cii), doj_court %>% select(cii), doj_assess %>% select(cii)) %>% 
+  distinct() %>%
+  filter(nchar(cii) == 10)
 
 
 #Create an excel workbook with all data table. Make sure to include the cii table first. 
-write.xlsx(list(doj_cii, doj_book), file = "CIIs for DOJ/Tuolumne CIIs and Demographics for DOJ.xlsx", sheetName = c("ciis", "booking"))
+write.xlsx(list(doj_cii, doj_book, doj_court, doj_assess), file = "CIIs for DOJ/October 2020/Tuolumne P2 CIIs and Demographics for DOJ.xlsx", sheetName = c("ciis", "booking", "court", "assessment"))
 
-
+# # Examine missing ciis and duplicates on cii. 
+# doj_book %>% #Off by about 3,000-2633 due to missing cii
+#   distinct()
+# 
+# doj_book %>% 
+#   distinct(cii)
+# 
+# doj_book %>% 
+#   distinct() %>%
+#   add_count(cii) %>%
+#   filter(n > 1) %>%
+#   arrange(desc(n)) %>% 
+#   View()
+# 
+# doj_court %>% #Off by about 12,000, 13,069/25,642
+#   distinct()
+# 
+# doj_court %>% 
+#   distinct(cii)
+# 
+# doj_court %>% #11,510 due to missing cii
+#   distinct() %>%
+#   add_count(cii) %>%
+#   filter(n > 1) %>%o
+#   arrange(desc(n)) %>% 
+#   View()
 ```
 
 
