@@ -34,14 +34,14 @@ my_kable <- function(x){
   #        age = if_else(month(assessment_date) < month(dob), age - 1L, age),
   #        age = if_else(month(assessment_date) == month(dob) & day(assessment_date) < day(dob), age - 1L, age))
 
-?kable_styling
+
 ```
 
 Import Data
 ```{r}
 #files <- list.files("C:/Work/PretrialAssessmentPilot/Assessment Output Tables", pattern = "csv", full.names = T)
-files <- list.files("G:/CrimJustice/PretrialAssessmentPilot/Assessment Output Tables", pattern = "csv", full.names = T)
-files <- files[grepl("9", files)]
+files <- list.files("C:/Work/PretrialAssessmentPilot/Assessment Output Tables", pattern = "csv", full.names = T)
+files <- files[grepl("10", files)]
 
 df <- lapply(files, function(i){
   df <- fread(i, colClasses = "character")
@@ -77,6 +77,19 @@ df <- df %>%
                          age >= 56 & age <= 120 ~ "56+",
                          T ~ "Other_Unknown"),
          tool_name = tolower(gsub("-", "", tool_name)))
+
+df <- df %>%
+  filter(assessment_date >= as_date("2019-10-01")) %>%
+  mutate(risk_level = if_else(is.na(risk_level), "Other_Unknown", risk_level)) %>%
+  mutate(charge_level = case_when(charge_level == "F" ~ "Felony",
+                                  charge_level == "M" ~ "Misdemeanor",
+                                  T ~ "Other_Unknown")) %>%
+  mutate(release_decision = if_else(release_decision == "Ineligible"|is.na(release_decision), "Other_Unknown", release_decision)) %>%
+  mutate(monitor_level = if_else(is.na(monitor_level), "Other_Unknown", monitor_level)) %>%
+  mutate(pretrial_termination_reason = case_when(pretrial_termination_reason %in% c("FTA", "Abscond") ~ "FTA",
+                                                 pretrial_termination_reason %in% c("New_Crime") ~ "New_Crime",
+                                                 pretrial_termination_reason %in% c("Violation") ~ "Revoked",
+                                                 T ~ "Other_Unknown"))
   
 df2 <- df %>% 
   pivot_longer(c(psa_fta_risk_score, psa_nca_risk_score, psa_nvca_risk_score), names_to = "psa_value",
@@ -93,7 +106,202 @@ df_tables <- df %>%
   select(-psa_fta_risk_score, -psa_nca_risk_score, -psa_nvca_risk_score) %>%
   unite(risk_score, c(contains("score"), - standard_risk_score), sep = "") %>%
   mutate(risk_score = parse_number(risk_score))
+```
+
+Complete Variables
+```{r}
+# Monitoring Levels
+  ## Calaveras, Kings, Napa, Nevada, San Mateo missing monitoring levels.
+df %>%
+  count(county, monitor_level) %>%
+  group_by(county) %>%
+  mutate(total = sum(n)) %>%
+  filter(is.na(monitor_level)) %>%
+  filter(n == total)
+
+# Risk Level
+df %>%
+  count(county, risk_level, tool_name) %>%
+  group_by(county) %>%
+  mutate(total = sum(n)) %>%
+  filter(is.na(risk_level)) %>%
+  filter(n == total)
+
+# Release Decision
+df %>%
+  count(county, release_decision) %>%
+  group_by(county) %>%
+  mutate(total = sum(n)) 
+  # filter(is.na(release_decision)) %>%
+  # filter(n == total)
+
+# Charge Level
+df %>%
+  count(county, charge_level) %>%
+  group_by(county) %>%
+  mutate(total = sum(n)) %>%
+  filter(is.na(charge_level)) %>%
+  filter(n == total)
+
+# Charge Level
+df %>%
+  count(county, pretrial_termination_reason) %>%
+  group_by(county) %>%
+  mutate(total = sum(n)) %>%
+  filter(is.na(pretrial_termination_reason)) %>%
+  filter(n == total)
+
+df %>%
+  count(county, pretrial_termination_reason) %>% 
+  group_by(county) %>%
+  mutate(total = sum(n)) %>%
+  ungroup() %>%
+  pivot_wider(names_from = pretrial_termination_reason, values_from = n)
+
 ```  
+
+AB 74 (a): Tables
+```{r}
+gender_df <- df %>%
+  count(county, sex) %>%
+  group_by(county) %>%
+  mutate(Total = sum(n)) %>%
+  pivot_wider(names_from =  sex, values_from =  n, values_fill = 0) %>%
+  select(county, Male, Female, Other_Unknown, Total) %>%
+  bind_rows(df %>%
+              count(sex) %>%
+              mutate(Total = sum(n)) %>%
+              pivot_wider(names_from =  sex, values_from =  n, values_fill = 0) %>%
+              mutate(county = "Total") %>%
+              select(county, Male, Female, Other_Unknown, Total))
+
+race_df <- df %>%
+  count(county, race) %>%
+  group_by(county) %>%
+  mutate(Total = sum(n)) %>%
+  pivot_wider(names_from =  race, values_from =  n, values_fill = 0) %>%
+  select(county, Black, White, Hispanic, Other_Unknown, Total) %>%
+  bind_rows(df %>%
+              count(race) %>%
+              mutate(Total = sum(n)) %>%
+              pivot_wider(names_from =  race, values_from =  n, values_fill = 0) %>%
+              mutate(county = "Total") %>%
+              select(county, Black, White, Hispanic, Other_Unknown, Total))
+
+age_df <- df %>%
+  count(county, age) %>%
+  group_by(county) %>%
+  mutate(Total = sum(n)) %>%
+  pivot_wider(names_from =  age, values_from =  n, values_fill = 0) %>%
+  select(county, `18-25`, `26-35`, `36-45`, `46-55`, `56+`,  Other_Unknown, Total) %>%
+  bind_rows(df %>%
+              count(age) %>%
+              mutate(Total = sum(n)) %>%
+              pivot_wider(names_from =  age, values_from =  n, values_fill = 0) %>%
+              mutate(county = "Total") %>%
+              select(county, `18-25`, `26-35`, `36-45`, `46-55`, `56+`,  Other_Unknown, Total))
+
+```
+
+AB 74 (b): Tables
+```{r}
+risk_df <- df %>%
+  count(county, risk_level) %>%
+  group_by(county) %>%
+  mutate(Total = sum(n)) %>%
+  pivot_wider(names_from =  risk_level, values_from =  n, values_fill = 0) %>%
+  select(county, Low, Medium, High,  Other_Unknown, Total) %>%
+  bind_rows(df %>%
+              count(risk_level) %>%
+              mutate(Total = sum(n)) %>%
+              pivot_wider(names_from =  risk_level, values_from =  n, values_fill = 0) %>%
+              mutate(county = "Total") %>%
+              select(county, Low, Medium, High,  Other_Unknown, Total))
+
+charge_level_df <- df %>%
+  count(county, charge_level) %>%
+  group_by(county) %>%
+  mutate(Total = sum(n)) %>%
+  pivot_wider(names_from =  charge_level, values_from =  n, values_fill = 0) %>%
+  select(county, Felony, Misdemeanor, Other_Unknown, Total) %>%
+  bind_rows(df %>%
+              count(charge_level) %>%
+              mutate(Total = sum(n)) %>%
+              pivot_wider(names_from =  charge_level, values_from =  n, values_fill = 0) %>%
+              mutate(county = "Total") %>%
+              select(county, Felony, Misdemeanor, Other_Unknown, Total))
+
+release_df <- df %>%
+  count(county, release_decision) %>%
+  group_by(county) %>%
+  mutate(Total = sum(n)) %>%
+  pivot_wider(names_from =  release_decision, values_from =  n, values_fill = 0) %>%
+  select(county, Detain, Monitor, OR, Other_Unknown, Total) %>%
+  bind_rows(df %>%
+              count(release_decision) %>%
+              mutate(Total = sum(n)) %>%
+              pivot_wider(names_from =  release_decision, values_from =  n, values_fill = 0) %>%
+              mutate(county = "Total") %>%
+              select(county, Detain, Monitor, OR, Other_Unknown, Total))
+```
+
+AB 74 (c): Tables
+```{r}
+monitor_df <- df %>%
+  filter(release_decision == "Monitor") %>%
+  count(county, monitor_level, tool_name) %>%
+  group_by(county) %>%
+  mutate(Total = sum(n), n = paste0(round(n = n/Total*100), "%")) %>%
+  pivot_wider(names_from =  monitor_level, values_from =  n) %>%
+  select(county, Low, Medium, High, Other_Unknown, Total, tool_name) %>%
+  bind_rows(df %>%
+              count(monitor_level) %>%
+              filter(release_decision == "Monitor") %>%
+              mutate(Total = sum(n), n = paste0(round(n = n/Total*100), "%")) %>%
+              pivot_wider(names_from =  monitor_level, values_from =  n)) %>%
+  ungroup() %>%
+  mutate(county = if_else(is.na(county), "Total", county)) %>%
+  mutate(tool_name=toupper(tool_name),
+         tool_name= gsub("CO_", "", tool_name)) %>%
+  select("County" = county, Total, Low, Medium, High, Other_Unknown, "Tool Name" = tool_name) 
+```
+
+AB 74 (D): Tables
+```{r}
+outcome_df <- df %>%
+  count(county, pretrial_termination_reason, tool_name) %>%
+  group_by(county) %>%
+  mutate(Total = sum(n), n = paste0(round(n = n/Total*100), "%")) %>%
+  pivot_wider(names_from =  pretrial_termination_reason, values_from =  n) %>%
+  select(county, FTA, New_Crime, Revoked, Total, tool_name) %>%
+  bind_rows(df %>%
+              count(pretrial_termination_reason) %>%
+              mutate(Total = sum(n), n = paste0(round(n = n/Total*100), "%")) %>%
+              pivot_wider(names_from =  pretrial_termination_reason, values_from =  n)) %>%
+  ungroup() %>%
+  mutate(county = if_else(is.na(county), "Total", county)) %>%
+  mutate(tool_name=toupper(tool_name),
+         tool_name= gsub("CO_", "", tool_name)) %>%
+  select(county, FTA, New_Crime, Revoked, Total, tool_name)
+
+outcome_df2 <- df %>%
+  filter(release_decision == "Monitor") %>%
+  count(county, monitor_level, tool_name) %>%
+  group_by(county) %>%
+  mutate(Total = sum(n), n = paste0(round(n = n/Total*100), "%")) %>%
+  pivot_wider(names_from =  monitor_level, values_from =  n) %>%
+  select(county, FTA, New_Crime, Revoked, Total, tool_name) %>%
+  bind_rows(df %>%
+              count(monitor_level) %>%
+              filter(release_decision == "Monitor") %>%
+              mutate(Total = sum(n), n = paste0(round(n = n/Total*100), "%")) %>%
+              pivot_wider(names_from =  monitor_level, values_from =  n)) %>%
+  ungroup() %>%
+  mutate(county = if_else(is.na(county), "Total", county)) %>%
+  mutate(tool_name=toupper(tool_name),
+         tool_name= gsub("CO_", "", tool_name)) %>%
+  select(county, FTA, New_Crime, Revoked, Total, tool_name) 
+```
 
 Tables
 ```{r}
