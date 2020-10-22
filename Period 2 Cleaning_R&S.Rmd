@@ -834,8 +834,12 @@ assess_df_case <- assess_df_case %>%
                                             !release_recommendation %in% c("Ineligible", "Other_Unknown") & 
                                             !release_decision %in% c("Ineligible", "Other_Unknown"), 1, 0))
 
+         
 
-      
+assess_df_case %>%
+  count(pretrial_release_type_original, pretrial_termination_outcome_original) %>%
+  view
+    
 
 ##Readin Demographic data
 
@@ -912,7 +916,23 @@ assess_df_score <- assess_df_score %>%
          assess_flag = if_else(is.na(assessment_date), 0, 1),
          risk_level = case_when(oras_risk_score %in% c(0,1,2) ~"Low",
                                 oras_risk_score %in% c(3, 4,5) ~ "Medium",
-                                oras_risk_score %in% c(6, 7, 8, 9) ~ "High"))
+                                oras_risk_score %in% c(6, 7, 8, 9) ~ "High"),
+         #I applied monitor level here, but it should only be applied to those who actually get released to pretrial not to everyone assessed.
+         monitor_level = case_when(oras_risk_score %in% c(0,1,2) ~"Low",
+                                oras_risk_score %in% c(3, 4,5) ~ "Medium",
+                                oras_risk_score %in% c(6, 7, 8, 9) ~ "High"),
+         # they call this CE check in It is remote or can be done from a kiosk
+         condition_phone_flag = if_else(oras_risk_score %in% c(0,1,2), 1,0),
+         condition_inperson_flag = if_else(oras_risk_score %in% c(3,4,5,6,7,8,9), 1, 0))
+
+#Standardize Flags
+assess_df_score <- assess_df_score %>%
+  mutate(monitor_level = case_when(oras_risk_score %in% c(0,1,2) ~"Low",
+                                oras_risk_score %in% c(3, 4,5) ~ "Medium",
+                                oras_risk_score %in% c(6, 7, 8, 9) ~ "High"),
+         # they call this CE check in It is remote or can be done from a kiosk
+         condition_phone_flag = if_else(oras_risk_score %in% c(0,1,2), 1,0),
+         condition_inperson_flag = if_else(oras_risk_score %in% c(3,4,5,6,7,8,9), 1, 0))
 
 
 ## The id that these files should be joined on is pretrial_id2 according to Brendon Brown email 10/6/2020
@@ -958,6 +978,7 @@ assess_df_terms <- assess_df_terms %>%
                                                   toupper(release_conditions_original)), 1, 0),
          condition_no_contact_flag = if_else(grepl("NO CONTACT|136|HARASS|CONTACT|STAY AWAY|STAY.*AWAY FROM|THREATEN|ANNOY",
                                                    toupper(release_conditions_original)), 1, 0))
+          # condition_inperson_flag and condition_phone_flag are coded in the assess_df_score
          # the court_date_reminder flag is in assess_df_case
          # Transit service doesn't actually exist here.  
          #transit_service_flag = if_else(court_date_reminder_original == "TRANSIT", 1, 0),
@@ -1013,14 +1034,29 @@ assess_df_score <- assess_df_score %>%
 assess_df_case <- assess_df_case%>%
   distinct(pretrial_id2, .keep_all = TRUE)
 
+assess_df_case <- assess_df_case%>%
+  distinct(pretrial_id2, .keep_all = TRUE)
+
+assess_df_viol <- assess_df_viol%>%
+  distinct(pretrial_id2, .keep_all = TRUE)
+
 assess_df_demo <- assess_df_demo%>%
   distinct(pretrial_id2 , .keep_all = TRUE) %>%
   mutate (pretrial_id2 = as.numeric(pretrial_id2))
 
-assess_df <- assess_df_score %>%
+assess_df_test <- assess_df_score %>%
   left_join(assess_df_demo, by = "pretrial_id2") %>%
-  left_join(assess_df_case, by = "pretrial_id2")
+  left_join(assess_df_case, by = "pretrial_id2") %>%
+  left_join(assess_df_viol, by = "pretrial_id2")
+  
 
+# now that all the assessment tables are joined I can apply the monitor level to only those who were released.
+assess_df_test <- assess_df %>%
+  mutate(monitor_level = ifelse(release_decision == "Monitor", monitor_level, NA  ))
+
+
+assess_df_test %>%
+  count( pretrial_termination_outcome_original, pretrial_termination_reason, pretrial_violation_flag)
 
 ```
 Assessment Tables for Noah 9-2020
@@ -1052,14 +1088,14 @@ assess_table <- assess_df %>%
   # Create county name.
   mutate(county = "Nevada", risk_score = oras_risk_score) %>%
   # Select relevants variables.
-  select(county, release_recommendation, release_decision, assessment_date, risk_score, tool_name, assessment_date, dob, sex, race, risk_level,  pretrial_termination_reason)
+  select(county, release_recommendation, release_decision, assessment_date, risk_score, tool_name, assessment_date, dob, sex, race, risk_level,  pretrial_termination_reason, monitor_level)
 
 # No booking number in assessment data,  so removing charge_level
 # no Monitoring Level still need to ask county, so removing monitor_level
 
  
 # Save file  
-fwrite(assess_table, file = "G:/CrimJustice/PretrialAssessmentPilot/Assessment Output Tables/Nevada Assessment Output 10-2020.csv")
+fwrite(assess_table, file = "G:/CrimJustice/PretrialAssessmentPilot/Assessment Output Tables/Nevada Assessment Output 10-2020v2.csv")
 
 
 ```
@@ -1200,7 +1236,7 @@ date_df <- lapply(ls()[!grepl("original|^df|hier|names|factor|date|flag|book|tes
   select(table_name, field, min_date, max_date)
   
 
-write.xlsx(list(factor_df, flag_df, date_df), file = "G:/CrimJustice/PretrialAssessmentPilot/Code Books/Assessment Code Book/Nevada Assessment Code Book 9-20.xlsx", asTable = T, tableStyle = "TableStyleMedium1", colWidths = "auto", sheetName = c("Factors", "Flags", "Dates"))
+write.xlsx(list(factor_df, flag_df, date_df), file = "G:/CrimJustice/PretrialAssessmentPilot/Code Books/Assessment Code Book/Nevada Assessment Code Book 10-20.xlsx", asTable = T, tableStyle = "TableStyleMedium1", colWidths = "auto", sheetName = c("Factors", "Flags", "Dates"))
 ```
 Probation Data Old Dont Use
 ```{r eval=FALSE, include=FALSE}
@@ -2936,7 +2972,7 @@ assess_df_new <- assess_df_new %>%
 
 
 
-assess_df_new <- assess_df_new  %>%
+assess_df_new <- assess_df_new%>%
   mutate(sex = case_when(sex_original %in% c("Male") ~ "Male",
                          sex_original %in% c("Female") ~ "Female",
                          T ~ "Other_Unknown"),
@@ -2952,7 +2988,11 @@ assess_df_new <- assess_df_new  %>%
                                              release_recommendation_original %in% c("Own Recognizance", "Promise to Appear") ~ "OR",
                                              release_recommendation_original %in% c("Denied") ~ "Detain",
                                              T  ~ "Other_Unknown"),
-        
+         monitor_level = case_when(release_recommendation_original %in% c("MOR Basic", "MOR BASIC") ~ "Low",
+                                   release_recommendation_original %in% c("MOR Regular") ~ "Medium",
+                                   release_recommendation_original %in% c("Mor Enhanced", "MOR Enhanced") ~ "High",
+                                   T  ~ "Other_Unknown"),                                         
+        # we assume that monitoring level corresponds with risk level.
         # we assume pretrial_referral_disposition is the original release type.
         release_decision = case_when(pretrial_release_type_original %in% c("Own Recognizance", "Promise to Appear") ~ "OR",
                                       pretrial_release_type_original %in% c("MOR Basic", "MOR BASIC", "Mor Enhanced", 
@@ -2967,13 +3007,14 @@ assess_df_new <- assess_df_new  %>%
                                                            "12", "13", "14") ~ "High"),
         
         
-          pretrial_release_type = case_when(pretrial_release_type_original %in% c("OR", "Promise to Appear") ~ "OR",
+          pretrial_release_type = case_when(pretrial_release_type_original %in% c("OR", "Promise to Appear", "Own Recognizance") ~ "OR",
                                       pretrial_release_type_original %in% c("MOR Basic", "MOR BASIC", "Mor Enhanced", 
                                                                    "MOR Enhanced", "MOR Regular") ~ "Monitor",
                                       pretrial_release_type_original %in% c("Denied") ~ "Detain",
                                       pretrial_release_type_original %in% c("Bailed Out") ~ "Bail_Bond", 
                                       pretrial_release_type_original %in% c("DA declined to file", "DA Rejected",
-                                                                   "Case dismissed", "N/A", "Pending") ~ "Other_Unknown" ),
+                                                                   "Case dismissed", "N/A", "Pending", "Pending Court", "Dismissed") ~ "Other_Unknown" ),
+        
          pretrial_ineligible_reason = case_when(pretrial_release_type_original %in% c("Bailed Out") ~ "Bail_Bond",
                                                 pretrial_release_type_original %in% c("DA declined to file" , 
                                                                               "Dismissed", "DA Rejected") ~ "Case_Disposed",
@@ -2986,7 +3027,7 @@ assess_df_new <- assess_df_new  %>%
                                                    "Unsuccessful",
                                                   pretrial_termination_outcome_original %in%
                                                     c("Closed - Other") ~ "Other_Unknown"),
-  
+
         
         #how come we sometimes see people who were terminated unsuccessfully who have no FTA, or new arrest or technical violations.  We are trying to define reason for termination with the reasons being FTA, new Arrest, abscond, violation, case disposed, not tracked , other unknown.      
         # are the technical violations somethihg you plan to collect in the future those field are unpopulated
@@ -2997,8 +3038,6 @@ assess_df_new <- assess_df_new  %>%
                                                    "Not_Tracked",
                                                   T ~ "Other_Unknown"))
                                                 
-                                               
-
 
 
 
@@ -3046,13 +3085,14 @@ assess_df_new <- assess_df_new  %>%
          pretrial_violation_flag= if_else(pretrial_termination_outcome %in% 
                                             c("Unsuccessful"), 1, 0))
 
+# This is code for making the Assessment Tables for the first legislative report
 # add a leading zero to book_num in the assessment data so that the join with the jail data would work
-assess_df_new <- assess_df_new %>%
-   mutate(book_num = str_c("0", book_num))
-
-
-# we joined a few variables from the booking data to the assessment data by book_num.
-#we collapsed to a person date in the assessment data using local_id and assesmnet date.
+# assess_df_new <- assess_df_new %>%
+#    mutate(book_num = str_c("0", book_num))
+# 
+# 
+# # we joined a few variables from the booking data to the assessment data by book_num.
+# #we collapsed to a person date in the assessment data using local_id and assessment date.
 assess_df <- assess_df_new %>%
   left_join(book_df %>%
               select(book_num, charge_level), by = "book_num") %>%
@@ -3061,17 +3101,19 @@ assess_df <- assess_df_new %>%
   mutate(charge_level = max(charge_level, na.rm = T)) %>%
   ungroup() %>%
   distinct(local_id, assessment_date, .keep_all = T)
- 
-
-# this is a little diagnostic to see whether we get the expected reductions in M and F that we expect  
-assess_df %>%
-  count(charge_level)
+#  
+# 
+# # this is a little diagnostic to see whether we get the expected reductions in M and F that we expect  
+# assess_df %>%
+#   count(charge_level)
+# 
+# assess_df_new %>%
+#   left_join(book_df %>%
+#               select(book_num, charge_level), by = "book_num") %>%
+#   count(charge_level)
 
 assess_df_new %>%
-  left_join(book_df %>%
-              select(book_num, charge_level), by = "book_num") %>%
-  count(charge_level)
-
+count (release_recommendation_original)
 ```
 
 
@@ -3264,14 +3306,14 @@ assess_table <- assess_df %>%
   # Create county name.
   mutate(county = "San Mateo", risk_score = vprair_risk_score) %>%
   # Select relevant variables.
-  select(county, release_recommendation, release_decision, assessment_date, risk_score, tool_name, assessment_date, dob, sex, race, risk_level,  pretrial_termination_reason, charge_level)
+  select(county, release_recommendation, release_decision, assessment_date, risk_score, tool_name, assessment_date, dob, sex, race, risk_level,  pretrial_termination_reason, charge_level, monitor_level)
 
 
 # no Monitoring Level still need to ask county, so removing monitor_level
 
  
 # Save file  
-fwrite(assess_table, file = "G:/CrimJustice/PretrialAssessmentPilot/Assessment Output Tables/San Mateo Assessment Output 10-2020.csv")
+fwrite(assess_table, file = "G:/CrimJustice/PretrialAssessmentPilot/Assessment Output Tables/San Mateo Assessment Output 10-2020v2.csv")
 
 
 ```
@@ -3335,14 +3377,16 @@ names_df <- names_df %>%
       field == "sex_original" ~ "sex",
       field == "race_original" ~ "race",
       field == "release_recommendation_original" ~ "release_recommendation",
-      field == "pretrial_release_type_original" ~ "release_decision, pretrial_release_type, pretrial_ineligible_reason,  condition_inperson_flag", 
-      field == "release_conditions_original" ~ "condition_em_flag, condition_drug_test_flag",
+      field == "pretrial_release_type_original" ~ "release_decision, pretrial_release_type, pretrial_ineligible_reason,  condition_inperson_flag,
+      pretrial_termination_reason", 
+      field == "conditions_cam_monitoring" ~ "condition_em_flag",
+      field == "condition_gps_monitoring" ~ "condition_em_flag",
+      field == "condition_drug_test_original"  ~ "condition_drug_test_flag", 
       ##field == "release_authorization_original" ~ "release_authorization",
-      field == "pretrial_termination_outcome_original" ~ "pretrial_termination_reason,  pretrial_violation_flag",
+      field == "pretrial_termination_outcome_original" ~ "pretrial_violation_flag, pretrial_termination_outcome",
       ##field == "court_date_reminder_original" ~ "court_date_reminder_flag",
       ##field =="other_pretrial_service_original" ~ "transit_service_flag",
-      field =="vprair_risk_score" ~ "risk_level",
-      field =="pretrial_violation_type_original" ~ "pretrial_termination_reason")) %>%
+      field =="vprair_risk_score" ~ "risk_level")) %>%
   filter(!is.na(modified_field)) %>%
   separate_rows(modified_field, sep = ",") %>%
   mutate_all(trimws)
@@ -3430,8 +3474,8 @@ flag_df <- lapply(ls()[!grepl("original|^df|hier|names|factor|date|flag", ls())]
 flag_df <- flag_df %>%
   filter(modified_value == 1) %>%
   mutate(value = case_when(
-  modified_field == "condition_drug_test_flag" & modified_value == "1" ~ "MATCHES (TEST|TST)",
-  # modified_field == "condition_em_flag" & modified_value == "1" ~ "MATCHES (ELECTRONIC MONITOR|GPS|SCRAM)",
+  modified_field == "condition_drug_test_flag" & modified_value == "1" ~ "if conditions drug test original = yes",
+  modified_field == "condition_em_flag" & modified_value == "1" ~ "if conditions_cam_original and conditions_em_original=yes",
   # modified_field == "court_date_reminder_flag" & modified_value == "1" ~ "CourtAppearance / (PTS with court reminders, OR-with court reminders)",
   # modified_field == "condition_no_contact_flag" & modified_value == "1" ~ "Matches (NO CONTACT|136)",
   # modified_field == "pretrial_violation_flag" & modified_value == "1" ~ "IF pretrial_violation_date EXISTS",
@@ -3444,8 +3488,8 @@ flag_df <- flag_df %>%
  
 
  
-termination_df <- assess_df %>%
-  count(pretrial_termination_outcome_original, pretrial_violation_type_original, pretrial_termination_reason) %>%
+termination_df <- assess_df_new %>%
+  count(pretrial_termination_outcome_original, pretrial_termination_reason) %>%
   arrange(desc(n))  
 
 
@@ -3467,7 +3511,7 @@ date_df <- lapply(ls()[!grepl("original|^df|hier|names|factor|date|flag", ls())]
   select(table_name, field, min_date, max_date)
   
 ##saved this as version 2 of San Mateo to fix the Other_Unknowns
-write.xlsx(list(factor_df, flag_df, termination_df, date_df), file = "G:/CrimJustice/PretrialAssessmentPilot/Code Books/Assessment Code Book/San Mateo Assessment Code Book v2 9-20.xlsx", asTable = T, tableStyle = "TableStyleMedium1", colWidths = "auto", sheetName = c("Factors", "Flags", "Terminations", "Dates"))
+write.xlsx(list(factor_df, flag_df, termination_df, date_df), file = "G:/CrimJustice/PretrialAssessmentPilot/Code Books/Assessment Code Book/San Mateo Assessment Code Book v2 10-20.xlsx", asTable = T, tableStyle = "TableStyleMedium1", colWidths = "auto", sheetName = c("Factors", "Flags", "Terminations", "Dates"))
 ```
 
 
