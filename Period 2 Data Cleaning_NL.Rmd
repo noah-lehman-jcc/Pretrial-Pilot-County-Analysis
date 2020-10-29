@@ -1408,6 +1408,9 @@ assess_df <- assess_df %>%
 #          condition_drug_alc_flag = if_else(),
 #          condition_other_flag = if_else(),
 #          pretrial_violation_flag= if_else(!is.na(pretrial_violation_date)))
+
+assess_df %>%
+  count(pretrial_ineligible_reason)
 ```
 
 
@@ -2059,8 +2062,8 @@ Court Data
 ```{r}
 # Court cases
   ## court_cases contains one row per court case and includes some basic information about the court case
-court_df <- fread("Historical Data Submissions/Los Angeles/JCC-historical-court-cases2.csv",
-                  sep = "|")
+court_df <- fread("Historical Data Submissions/Los Angeles/P2 Submission-June 30/ISAB_CourtCaseExtract_20201021.csv",
+                  sep = "|")[,1:30]
 
 # Variable name standardization--See pg. xxx for more details. 
 names(court_df) <- c("row_num", "court_case_id", "court_docket_id", "local_id", "cii", "first_name", "last_name", "dob", "sex_original", "race_original", "file_date", "charge_id", "count", "court_charge_code_original", "court_charge_original", "court_charge_level_original", "disposition_id", "disposition_type_original", "disposition_code", "disposition_date", "sentence_time", "fine_amt", "sentence_time_code", "sentence_location", "fine_or_jail_code", "probation_code", "probation_length", "probation_length_code", "probation_andor_code", "book_num")
@@ -2118,8 +2121,8 @@ court_df <- court_df %>%
 
 
 # Court FTA Data Historical and Q1
-court_fta <- fread("Historical Data Submissions/Los Angeles/JCC-historical-bench-warrants2.csv", 
-                   sep = "|")
+court_fta <- fread("Historical Data Submissions/Los Angeles/P2 Submission-June 30/ISAB_BenchWarrantExtract_20201021.csv",
+                  sep = "|")
 
 # Variable name standardization--See pg. xxx for more details. 
 names(court_fta) <- c("row_num", "court_case_id", "court_docket_id", "fta_warrant_id", "fta_warrant_date", "fta_warrant_disposition_date")
@@ -2130,9 +2133,11 @@ court_fta <- court_fta %>%
   mutate_at(vars(contains("date")), as_date) %>%
   mutate(fta_flag = 1)
 
-court_df %>%
-  add_count(court_case_id, count) %>%
-  filter(n > 1)
+assess_df <- fread("Historical Data Submissions/Los Angeles/P2 Submission-June 30/ISAB_PsaHistoricalExtract_20201021.csv",
+                  sep = "|")
+
+assess_df %>%
+  count(psaReleaseDecision)
 ```
  
 
@@ -2250,18 +2255,18 @@ Assessment Data (Probation)
 
 # Assessments Data Import
   ## assess_df contains one row per risk assessment event/risk assessment question/pretrial terms and conditions. The questions are widened into columns.
-assess_df <- fread("C:/Work/PretrialAssessmentPilot/Historical Data Submissions/Los Angeles/JCC-PSA-reviews-2020Q1.csv",
-                  sep = "|")
+assess_df <- fread("C:/Work/PretrialAssessmentPilot/Historical Data Submissions/Los Angeles/P2 Submission-June 30/ISAB_PsaHistoricalExtract_20201021.csv",
+                  sep = "|", colClasses = "text")
 
 
 # Variable name standardization--See pg. xxx for more details.
-names(assess_df) <- c("row_num", "pretrial_id", "tool_name", "local_id", "cii", "first_name", "last_name", "dob", "sex_original", "race_original", "assessment_date", "psa_fta_risk_score", "psa_nca_risk_score", "psa_nvca_risk_score", "release_decision_original", "release_authorization_original", "release_decision_date", "release_conditions_original", "pretrial_violation_original", "pretrial_violation_date", "court_date_reminder_original", "other_pretrial_service_original", "pretrial_termination_outcome_original", "pretrial_termination_date")
+names(assess_df) <- c("pretrial_id", "tool_name", "local_id", "cii", "first_name", "last_name", "dob", "sex_original", "race_original", "assessment_date", "psa_fta_risk_score", "psa_nca_risk_score", "psa_nvca_risk_score", "release_decision_original", "release_authorization_original", "release_decision_date", "release_conditions_original", "pretrial_violation_original", "pretrial_violation_date", "court_date_reminder_original", "other_pretrial_service_original", "pretrial_termination_outcome_original", "pretrial_termination_date", "tool_question", "tool_response", "extract_date")
 
 
 # Date Reformatting--See pg. xxx for more details.
 assess_df <- assess_df %>%
-  mutate_at(vars(contains("date"), -court_date_reminder_original), ymd) %>%
-  mutate(dob = as_date(as_datetime(dob)))
+  mutate_at(vars(contains("date"), dob, -court_date_reminder_original), as_date)
+  
 
 # Risk Score Standardization--Tool Response values are changed to their numeric point value.
 assess_df <- assess_df %>%
@@ -2328,7 +2333,6 @@ assess_df <- assess_df %>%
 #          condition_drug_alc_flag = if_else(),
 #          condition_other_flag = if_else(),
 #          pretrial_violation_flag= if_else(!is.na(pretrial_violation_date)))
-
 ```
 
 Assessment Data (Old)
@@ -2973,6 +2977,7 @@ write.xlsx(list(doj_cii, doj_book, doj_court, doj_assess), file = "CIIs for DOJ/
 Assessment Tables
 ```{r}
 assess_table <- assess_df %>%
+  distinct(pretrial_id, .keep_all = T) %>%
   # Already Collapsed to each assessment.
   # Create county name.
   mutate(county = "Los Angeles") %>%
@@ -2984,7 +2989,7 @@ assess_table <- assess_df %>%
 
 
 # Save file  
-fwrite(assess_table, file = "C:/Work/PretrialAssessmentPilot/Assessment Output Tables/Los Angeles Assessment Output 10-2020.csv")
+fwrite(assess_table, file = "C:/Work/PretrialAssessmentPilot/Assessment Output Tables/Los Angeles Assessment Output 10-2020-v2.csv")
 
 # assess_df %>%
 #   # Collapse to each assessment
@@ -3414,7 +3419,6 @@ court_status <- court_status %>%
 # Standardize Factors--See pg. xxx for more details.
 court_status <- court_status %>%
          mutate(case_status = if_else(case_status_original == "Active", "Active", "Inactive"))
-
 ```
 
   Court Collapse
@@ -3749,7 +3753,10 @@ assess_df <- assess_df %>%
          
          risk_level = case_when(vprair_risk_score %in% 0:4 ~ "Low",
                                 vprair_risk_score %in% 5:8 ~ "Medium",
-                                vprair_risk_score %in% 9:14 ~ "High"),
+                                vprair_risk_score %in% 9:14 ~ "High",
+                                vprai_risk_score %in% 0:4 ~ "Low",
+                                vprai_risk_score %in% 5:8 ~ "Medium",
+                                vprai_risk_score %in% 9:14 ~ "High"),
          
          monitor_level = case_when(vprair_risk_score %in% 0:4 ~ "Low",
                                    vprair_risk_score %in% 5:8 ~ "Medium",
@@ -3858,7 +3865,6 @@ assess_df <- assess_df %>%
 # PTS-Intensive 2 = Probation
 # 
 # PTS-Intensive 3 = Probation
-
 ```
 
   Assessment Collapse
@@ -4616,7 +4622,7 @@ assess_table <- assess_df %>%
   # Create county name.
   mutate(county = "Santa Barbara") %>%
   # Select relevants variables.
-  select(county, risk_level, monitor_level, release_recommendation, release_decision, assessment_date, vprai_risk_score, vprair_risk_score, tool_name, assessment_date, dob, sex, race, pretrial_termination_reason)
+  select(county, risk_level, monitor_level, release_recommendation, release_decision, assessment_date, vprai_risk_score, vprair_risk_score, tool_name, assessment_date, dob, sex, race, pretrial_termination_reason, pretrial_ineligible_reason)
 
 # Save file  
 fwrite(assess_table, file = "C:/Work/PretrialAssessmentPilot/Assessment Output Tables/Santa Barbara Assessment Output 10-2020.csv")
@@ -4632,6 +4638,9 @@ fwrite(assess_table, file = "C:/Work/PretrialAssessmentPilot/Assessment Output T
 #   spread(risk_level, n)
 # 
 # rowsu
+
+assess_table %>%
+  count(pretrial_ineligible_reason)
 ```
 
 
