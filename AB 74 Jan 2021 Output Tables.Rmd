@@ -1,0 +1,444 @@
+---
+title: "AB 74 Jan 2021 Output Tables"
+author: "Noah Lehman and Sal Lempert"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+
+```{r include=FALSE}
+library(janitor)
+library(tidyverse)
+library(lubridate)
+library(scales)
+library(pROC)
+library(kableExtra)
+library(stargazer)
+library(data.table)
+library(ggthemes)
+
+```
+
+
+```{r include=FALSE}
+my_kable <- function(x){
+  kable(x, booktabs = T, format.args = list(big.mark = ","), 
+        # table.attr = "style = \"color: black;\"",
+        format = "latex") %>%
+    kable_styling(position = "center", full_width = F, 
+                  bootstrap_options = c("striped", "hover"), stripe_color = "gray", font_size = 14) %>%
+    row_spec(nrow(x), bold = T)
+    # column_spec(2, bold = T)
+  # footnote(general_title = "", general = "Source: Judicial Council of California, Recidivism Reduction Fund Quarterly Reports (July 1, 2015-March 31, 2018).")  %>%
+    
+}
+
+# Age Creator
+  # mutate(dob = as_date(dob),
+  #        assessment_date = as_date(assessment_date)) %>%
+  # mutate(age = year(assessment_date) - year(dob),
+  #        age = if_else(month(assessment_date) < month(dob), age - 1L, age),
+  #        age = if_else(month(assessment_date) == month(dob) & day(assessment_date) < day(dob), age - 1L, age))
+
+
+```
+
+
+```{r}
+load("C:/Work/PretrialAssessmentPilot/Pretrial-Pilot-County-Analysis/Assessment Output Data Frame.RData")
+```
+\newpage
+
+# AB 74: Tables
+16. (a) The number of assessed individuals by age, gender, and race or ethnicity.
+\newpage
+
+## The Number of Assessed Individuals by Gender
+```{r}
+gender_df <- df %>%
+  count(County, sex) %>%
+  group_by(County) %>%
+  mutate(Total = sum(n)) %>%
+  pivot_wider(names_from =  sex, values_from =  n, values_fill = 0) %>%
+  select(County, Male, Female, Other, Total) %>%
+  bind_rows(df %>%
+              count(sex) %>%
+              mutate(Total = sum(n)) %>%
+              pivot_wider(names_from =  sex, values_from =  n, values_fill = 0) %>%
+              mutate(County = "Total") %>%
+              select(County, Male, Female, Other, Total))
+
+my_kable(gender_df)
+```
+
+## The Number of Assessed Individuals by Race
+```{r}
+race_df <- df %>%
+  count(County, race) %>%
+  group_by(County) %>%
+  mutate(Total = sum(n)) %>%
+  pivot_wider(names_from =  race, values_from =  n, values_fill = 0) %>%
+  select(County, Black, White, Hispanic, Other, Total) %>%
+  bind_rows(df %>%
+              count(race) %>%
+              mutate(Total = sum(n)) %>%
+              pivot_wider(names_from =  race, values_from =  n, values_fill = 0) %>%
+              mutate(County = "Total") %>%
+              select(County, Black, White, Hispanic, Other, Total))
+
+my_kable(race_df)
+```
+
+## The Number of Assessed Individuals by Age
+```{r}
+age_df <- df %>%
+  count(County, age) %>%
+  group_by(County) %>%
+  mutate(Total = sum(n)) %>%
+  pivot_wider(names_from =  age, values_from =  n, values_fill = 0) %>%
+  select(County, `18-25`, `26-35`, `36-45`, `46-55`, `56+`,  Other, Total) %>%
+  bind_rows(df %>%
+              count(age) %>%
+              mutate(Total = sum(n)) %>%
+              pivot_wider(names_from =  age, values_from =  n, values_fill = 0) %>%
+              mutate(County = "Total") %>%
+              select(County, `18-25`, `26-35`, `36-45`, `46-55`, `56+`,  Other, Total))
+
+my_kable(age_df)
+```
+\newpage
+
+# AB 74: Tables
+
+16. (b) The number of assessed individuals by risk level, booking charge levels, and release decision
+\newpage
+
+## The Number of Assessed Individuals by Risk Level (PSA in "Other")
+```{r}
+risk_df_complete <- df %>%
+  count(County, risk_level, tool_name) %>%
+  group_by(County, tool_name) %>%
+  mutate(Total = sum(n)) %>%
+  pivot_wider(names_from =  risk_level, values_from =  n, values_fill = 0) %>%
+  select(County, tool_name, Low, Medium, High,  Other, Total) %>%
+  bind_rows(df %>%
+              count(risk_level) %>%
+              mutate(Total = sum(n)) %>%
+              pivot_wider(names_from =  risk_level, values_from =  n, values_fill = 0) %>%
+              mutate(County = "Total", tool_name = "All") %>%
+              select(County, tool_name, Low, Medium, High,  Other, Total))
+
+my_kable(risk_df_complete)
+```
+\newpage
+
+## The Number of Assessed Individuals by Risk Level (PSA mapped to 3 levels)
+```{r}
+risk_df_three_levels <- df %>%
+  mutate(risk_level = case_when(
+    psa_nvca_risk_score == 1 ~"High",
+    psa_nca_risk_score %in% 5:6|psa_fta_risk_score %in% 5:6 ~ "High",
+    psa_nca_risk_score %in% 3:4|psa_fta_risk_score %in% 3:4 ~ "Medium",
+    psa_nca_risk_score %in% 1:2|psa_fta_risk_score %in% 1:2 ~ "Low",
+    T ~ risk_level)) %>%
+  mutate(risk_level = case_when(
+    risk_level == "Medium" & psa_nvca_risk_score == 1 ~ "High",
+    risk_level == "Low" & psa_nvca_risk_score == 1 ~ "Medium",
+    T ~ risk_level)) %>%
+  count(County, risk_level, tool_name) %>%
+  group_by(County, tool_name) %>%
+  mutate(Total = sum(n)) %>%
+  pivot_wider(names_from =  risk_level, values_from =  n, values_fill = 0) %>%
+  select(County, tool_name, Low, Medium, High,  Other, Total) %>%
+  bind_rows(df %>%
+              mutate(risk_level = case_when(
+                psa_nca_risk_score %in% 5:6|psa_fta_risk_score %in% 5:6 ~ "High",
+                psa_nca_risk_score %in% 3:4|psa_fta_risk_score %in% 3:4 ~ "Medium",
+                psa_nca_risk_score %in% 1:2|psa_fta_risk_score %in% 1:2 ~ "Low",
+                T ~ risk_level),
+                ) %>%
+              mutate(risk_level = case_when(
+                risk_level == "Medium" & psa_nvca_risk_score == 1 ~ "High",
+                risk_level == "Low" & psa_nvca_risk_score == 1 ~ "Medium",
+                T ~ risk_level),
+                ) %>%
+              count(risk_level) %>%
+              mutate(Total = sum(n)) %>%
+              pivot_wider(names_from =  risk_level, values_from =  n, values_fill = 0) %>%
+              mutate(County = "Total", tool_name = "All") %>%
+              select(County, tool_name, Low, Medium, High,  Other, Total))
+
+
+my_kable(risk_df_three_levels)
+```
+\newpage
+
+## The Number of Assessed Individuals by Risk Level (without PSA)
+```{r}
+risk_df_no_psa <- df %>%
+  filter(tool_name != "psa") %>%
+  count(County, risk_level, tool_name) %>%
+  group_by(County, tool_name) %>%
+  mutate(Total = sum(n)) %>%
+  pivot_wider(names_from =  risk_level, values_from =  n, values_fill = 0) %>%
+  select(County, tool_name, Low, Medium, High,  Other, Total) %>%
+  bind_rows(df %>%
+              count(risk_level) %>%
+              mutate(Total = sum(n)) %>%
+              pivot_wider(names_from =  risk_level, values_from =  n, values_fill = 0) %>%
+              mutate(County = "Total", tool_name = "All") %>%
+              select(County, tool_name, Low, Medium, High,  Other, Total))
+
+
+my_kable(risk_df_no_psa)
+```
+\newpage
+
+## The Number of Assessed Individuals by Risk Level (PSA FTA)
+```{r}
+risk_df_psa_fta <- df %>%
+  filter(tool_name == "psa") %>%
+  count(County, psa_fta_risk_score) %>%
+  group_by(County) %>%
+  mutate(Total = sum(n)) %>%
+  pivot_wider(names_from =  psa_fta_risk_score, values_from =  n, values_fill = 0) %>%
+  bind_rows(df %>%
+              filter(tool_name == "psa") %>%
+              count(psa_fta_risk_score) %>%
+              mutate(Total = sum(n)) %>%
+              pivot_wider(names_from =  psa_fta_risk_score, values_from =  n, values_fill = 0) %>%
+              mutate(County = "Total"))
+
+my_kable(risk_df_psa_fta)
+```
+\newpage
+
+## The Number of Assessed Individuals by Risk Level (PSA New Criminal Activity)
+```{r}
+risk_df_psa_nca <- df %>%
+  filter(tool_name == "psa",
+         psa_nca_risk_score != 9) %>%
+  count(County, psa_nca_risk_score) %>%
+  group_by(County) %>%
+  mutate(Total = sum(n)) %>%
+  pivot_wider(names_from =  psa_nca_risk_score, values_from =  n, values_fill = 0) %>%
+  bind_rows(df %>%
+              filter(tool_name == "psa",
+                     psa_nca_risk_score != 9) %>%
+              count(psa_nca_risk_score) %>%
+              mutate(Total = sum(n)) %>%
+              pivot_wider(names_from =  psa_nca_risk_score, values_from =  n, values_fill = 0) %>%
+              mutate(County = "Total"))
+
+
+my_kable(risk_df_psa_nca)
+```
+\newpage
+
+## The Number of Assessed Individuals by Risk Level (PSA New Violent Criminal Activity)
+```{r}
+risk_df_psa_nvca <- df %>%
+  filter(tool_name == "psa") %>%
+  count(County, psa_nvca_risk_score) %>%
+  group_by(County) %>%
+  mutate(Total = sum(n)) %>%
+  pivot_wider(names_from =  psa_nvca_risk_score, values_from =  n, values_fill = 0) %>%
+  bind_rows(df %>%
+              filter(tool_name == "psa") %>%
+              count(psa_nvca_risk_score) %>%
+              mutate(Total = sum(n)) %>%
+              pivot_wider(names_from =  psa_nvca_risk_score, values_from =  n, values_fill = 0) %>%
+              mutate(County = "Total"))
+
+
+my_kable(risk_df_psa_nvca)
+```
+\newpage
+
+## The Number of Assessed Individuals by Risk Level (PSA FTA X NCA)
+```{r}
+risk_df_psa_cross <- df %>%
+  filter(tool_name == "psa",
+         psa_nca_risk_score != 9) %>%
+  count(psa_nca_risk_score, psa_fta_risk_score) %>%
+  mutate_all(as.character) %>%
+  pivot_wider(names_from = psa_fta_risk_score, values_from = n, values_fill = "-") %>%
+  rename("PSA NCA Risk Score" = psa_nca_risk_score)
+
+
+kable(risk_df_psa_cross, booktabs = T, format.args = list(big.mark = ","), 
+        # table.attr = "style = \"color: black;\"",
+        format = "latex") %>%
+    kable_styling(position = "center", full_width = F, 
+                  bootstrap_options = c("striped", "hover"), stripe_color = "gray", font_size = 14) %>% 
+  add_header_above(c(" ", "PSA FTA Risk Score" = 6))
+```
+\newpage
+
+## The Number of Assessed Individuals by Booking Charge Level
+```{r}
+charge_level_df <- df %>%
+  count(County, charge_level) %>%
+  group_by(County) %>%
+  mutate(Total = sum(n)) %>%
+  pivot_wider(names_from =  charge_level, values_from =  n, values_fill = 0) %>%
+  select(County, Felony, Misdemeanor, Other, Total) %>%
+  bind_rows(df %>%
+              count(charge_level) %>%
+              mutate(Total = sum(n)) %>%
+              pivot_wider(names_from =  charge_level, values_from =  n, values_fill = 0) %>%
+              mutate(County = "Total") %>%
+              select(County, Felony, Misdemeanor, Other, Total))
+
+my_kable(charge_level_df)
+```
+\newpage
+
+## The Number of Assessed Individuals by Release Decision
+```{r}
+release_df <- df %>%
+  count(County, release_decision) %>%
+  group_by(County) %>%
+  mutate(Total = sum(n)) %>%
+  pivot_wider(names_from =  release_decision, values_from =  n, values_fill = 0) %>%
+  select(County, Detain, Monitor, OR, Other, Total) %>%
+  bind_rows(df %>%
+              count(release_decision) %>%
+              mutate(Total = sum(n)) %>%
+              pivot_wider(names_from =  release_decision, values_from =  n, values_fill = 0) %>%
+              mutate(County = "Total") %>%
+              select(County, Detain, Monitor, OR, Other, Total))
+
+my_kable(release_df)
+```
+\newpage
+
+# AB 74: Tables
+
+16. (c) The number and percentage of assessed individuals who receive pretrial supervision by level of supervision
+\newpage
+
+
+## The Number and Percentage of Assessed and Supervised Individuals by Supervision Level
+```{r warning=FALSE}
+monitor_df <- df %>%
+  filter(release_decision == "Monitor") %>%
+  count(County, monitor_level) %>%
+  group_by(County) %>%
+  mutate(Total = sum(n), n = paste0(round(n = n/Total*100), "%", " ", n)) %>%
+  pivot_wider(names_from =  monitor_level, values_from =  n, values_fill = "-") %>%
+  select(County, Low, Medium, High, Other, Total) %>%
+  bind_rows(df %>%
+              filter(release_decision == "Monitor") %>%
+              count(monitor_level) %>%
+              mutate(Total = sum(n), n = paste0(round(n = n/Total*100), "%", " ", n)) %>%
+              pivot_wider(names_from =  monitor_level, values_from =  n, values_fill = "-")) %>%
+  ungroup() %>%
+  mutate(County = if_else(is.na(County), "Total", County)) %>%
+  # mutate(tool_name=toupper(tool_name),
+         # tool_name= gsub("CO_", "", tool_name)) %>%
+  select("County" = County, Total, Low, Medium, High, Other) %>%
+  separate(Low, c("Percent_low", "Count_low"), sep = " ") %>%
+  separate(Medium, c("Percent_med", "Count_med"), sep = " ") %>%
+  separate(High, c("Percent_high", "Count_high"), sep = " ") %>%
+  separate(Other, c("Percent_other", "Count_other"), sep = " ") %>%
+  ungroup() %>%
+  mutate_if(is.character, funs(if_else(is.na(.), "-", .)))
+
+names(monitor_df) <- gsub("_.*", "", names(monitor_df))
+  
+
+kable(monitor_df, booktabs = T, format.args = list(big.mark = ","),
+        # table.attr = "style = \"color: black;\"",
+        format = "latex") %>%
+    kable_styling(position = "center", full_width = T,
+                  bootstrap_options = c("striped", "hover"), stripe_color = "gray") %>%
+  add_header_above(c(" " = 2, "Low" = 2, "Medium" = 2, "High" = 2, "Other" = 2)) %>%
+  row_spec(15, bold = T)
+  
+```
+\newpage
+
+# AB 74: Tables
+
+16. (d) The number and percentage of assessed individuals by supervision level who fail to appear in court as required, are arrested for a new offense during the pretrial period, or have pretrial release revoked.
+\newpage
+
+
+## Failures by Monitor Level 
+```{r warning=FALSE}
+outcome_df <- df %>%
+  filter(release_decision == "Monitor") %>%
+  mutate(monitor_level = factor(monitor_level, levels = c("Low", "Medium", "High", "Other"))) %>%
+  count(County, pretrial_termination_reason, monitor_level) %>%
+  group_by(County, monitor_level) %>%
+  mutate(Total = sum(n), n = paste0(round(n = n/Total*100), "%", " ", n)) %>%
+  filter(pretrial_termination_reason != "Other") %>%
+  # unite(pretrial_termination_reason, c(monitor_level, pretrial_termination_reason)) %>%
+  arrange(pretrial_termination_reason) %>%
+  pivot_wider(names_from =  pretrial_termination_reason, values_from =  n, values_fill = "-") %>%
+  arrange(County, monitor_level) %>%
+  bind_rows(df %>%
+              filter(release_decision == "Monitor") %>%
+              mutate(monitor_level = factor(monitor_level, levels = c("Low", "Medium", "High", "Other"))) %>%
+              count(pretrial_termination_reason, monitor_level) %>%
+              group_by(monitor_level) %>%
+              mutate(Total = sum(n), n = paste0(round(n = n/Total*100), "%", " ", n)) %>%
+              pivot_wider(names_from =  pretrial_termination_reason, values_from =  n, values_fill = "-") %>%
+              arrange(monitor_level)) %>%
+  ungroup() %>%
+  mutate(County = if_else(is.na(County), "Total", County)) %>%
+  rename("Monitor Level" = monitor_level) %>%
+  separate(FTA, c("Percent_low", "Count_low"), sep = " ") %>%
+  separate(New_Crime, c("Percent_med", "Count_med"), sep = " ") %>%
+  separate(Revoked, c("Percent_high", "Count_high"), sep = " ") %>%
+  ungroup() %>%
+  mutate_if(is.character, funs(if_else(is.na(.), "-", .))) %>%
+  select(-"Other")
+
+names(outcome_df) <- gsub("_.*", "", names(outcome_df))
+
+
+outcome2_df <- df %>%
+  filter(release_decision == "Monitor") %>%
+  mutate(monitor_level = factor(monitor_level, levels = c("Low", "Medium", "High", "Other"))) %>%
+  count(pretrial_termination_reason, monitor_level) %>%
+  group_by(monitor_level) %>%
+  mutate(Total = sum(n), n = paste0(round(n = n/Total*100), "%", " ", n)) %>%
+  filter(pretrial_termination_reason != "Other") %>%
+  # unite(pretrial_termination_reason, c(monitor_level, pretrial_termination_reason)) %>%
+  arrange(pretrial_termination_reason) %>%
+  pivot_wider(names_from =  pretrial_termination_reason, values_from =  n, values_fill = "-") %>%
+  arrange(monitor_level) %>%
+  bind_rows(df %>%
+              filter(release_decision == "Monitor") %>%
+              count(pretrial_termination_reason) %>%
+              mutate(Total = sum(n), n = paste0(round(n = n/Total*100), "%", " ", n)) %>%
+              filter(pretrial_termination_reason != "Other") %>%
+              arrange(pretrial_termination_reason) %>%
+              mutate(monitor_level = "All_Levels") %>%
+              pivot_wider(names_from =  pretrial_termination_reason, values_from =  n, values_fill = "-")) %>%
+    rename("Monitor Level" = monitor_level) %>%
+  separate(FTA, c("Percent_low", "Count_low"), sep = " ") %>%
+  separate(New_Crime, c("Percent_med", "Count_med"), sep = " ") %>%
+  separate(Revoked, c("Percent_high", "Count_high"), sep = " ") %>%
+  ungroup() %>%
+  mutate_if(is.character, funs(if_else(is.na(.), "-", .)))
+
+names(outcome2_df) <- gsub("_.*", "", names(outcome2_df))
+
+kable(outcome_df, booktabs = T, format.args = list(big.mark = ","),
+        # table.attr = "style = \"color: black;\"",
+        format = "latex") %>%
+    kable_styling(position = "center", full_width = T,
+                  bootstrap_options = c("striped", "hover"), stripe_color = "gray") %>%
+  add_header_above(c(" " = 3, "FTA" = 2, "New Crime" = 2, "Revoked" = 2)) %>%
+  row_spec(row = 24:27, bold = T)
+
+my_kable(outcome2_df) %>%
+  add_header_above(c(" " = 2, "FTA" = 2, "New Crime" = 2, "Revoked" = 2))
+```
+
