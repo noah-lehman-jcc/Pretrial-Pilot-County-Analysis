@@ -55,6 +55,16 @@ load("C:/Work/PretrialAssessmentPilot/Pretrial-Pilot-County-Analysis/Assessment 
 
 \newpage
 
+# Introduction
+
+All 16 pretrial pilot program sites have implemented their programs and complied with data reporting requirements. The data contained in the following tables includes all assessments conducted from October 2019 when funding began until October 2020 when data was collected for this report; however, many programs were not fully operational until later in this time frame, with all programs fully operational by ??date??. Also during this time period, the COVID-19 pandemic has caused many disruptions to normal court operations that impact the pretrial pilot program, including the implementation of Emergency Order #???? which changed bail to \$0 for most low-level offenses on a state-wide level from ?date? to ?date?, and local continuations of \$0 or reduced bail after ?date?. The participating pilot sites managed to meet the original target go-live date despite the challenges brought by the pandemic, but the population of assessed individuals may be different than would be seen in the absence of the pandemic. Crime and arrest patterns may have been affected by COVID-19 and local shelter-in-place orders, but also many low-level arrestees who would otherwise have been assessed may have been released with \$0 bail. 
+
+The data processing and analysis for the pretrial pilot project is still in progress. As of the date of this report, the data has not yet been joined across agencies within a county, so the data presented in this report relies on probation data only. The joining of probation data with court, jail, and DOJ data will eventually yield more reliable results for data elements that are primarily tracked outside of probation. Data concerning demographic information, release decisions, and risk levels are intended to be drawn from probation data and therefore can be consumed with greater confidence. Data on charge level, failures to appear in court, and new criminal activity, however, are primarily tracked by jails, courts, and the DOJ. Charge level data is not available at this time, since it is not tracked by probation. For failures to appear in court and new criminal activity, this report draws on the limited data on these outcomes available from probation, but it is likely these numbers will change when the data processing reaches the stage of cross-agency data linkage. 
+
+
+
+\newpage
+
 # Total Assessments by Tool 
 ```{r echo=FALSE}
 suppressMessages(
@@ -311,6 +321,11 @@ Notes: Booking charge level is reported in a seperate data source from assessmen
 \newpage
 
 ## The Number of Assessed Individuals by Pretrial Program Release Decision
+
+The release decisions reported in this table represent the release decisions made by judicial officers on individuals considered for release under the pretrial pilot program. Not everyone who is assessed progresses to consideration for release by a judicial officer, in most cases because they have already been released. Even after being assessed, many individuals may bail out (including \$0 bail in response to the pandemic during a large portion of the reporting period) or are released due to their charges being dropped or dismissed. Other individuals may have other circumstances that prevent their consideration for release or are missing release decision data. 
+
+This table excludes Los Angeles because at present data is only processed for pre-arraignment release decisions and not for subsequent release decisions made at arraignment. Los Angeles pre-arraignment decisions will be shown separately in the next table. Out of the 28,516 individuals assessed in counties other than Los Angeles, 17,858 individuals are not shown in this table because no pretrial program release decision was made because they were already released on bail, already had their charges dropped or dismissed, were ineligible for consideration for release, or were missing release decision data.
+
 ```{r}
 release_df <- df %>%
   filter(la_flag == 0) %>%
@@ -337,10 +352,19 @@ my_kable(release_df) %>%
   column_spec(2:3, width = "2in") 
   # column_spec(4, width = "2in")
 ```
-Notes: 'Release Denied' indicates individuals who judicial officers did not choose to release through the pretrial program. These individuals may still have gotten out on bail. 'Release Approved' includes individuals released on OR or monitoring. 'Bail/Zero Bail/Ineligible/Other' includes individuals who bailed out, who were released on zero bail, whose charges were dropped or dismissed, who were held for other reasons, and who are missing release decision data. Total Other = 17,858. Total = 28,516  
+Notes: 'Release Denied' indicates individuals who judicial officers did not choose to release through the pretrial program. These individuals may still have gotten out on bail. 'Release Approved' includes individuals released on OR or monitoring. 
+
 \newpage
 
 ## The Number of Assessed Individuals by Pre-Arraignment Program Release Decision
+
+This table shows only Los Angeles because at present data is only processed for pre-arraignment release decisions and not for subsequent release decisions made at arraignment. 
+
+The pre-arraignment release decisions reported in this table represent the pre-arraignment release decisions made by judicial officers on individuals considered for pre-arraignment release under the pretrial pilot program. All individuals denied pre-arraignment program release are also considered for program release at arraignment, but that data is not currently available. 
+
+Not everyone who is assessed progresses to consideration for pre-arraignment release by a judicial officer. Even after being assessed, many individuals may bail out (including \$0 bail in response to the pandemic during a large portion of the reporting period) or are released due to their charges being dropped or dismissed. Many individuals are prevented by statute (PC 1270.1, PC 1319.5) from release without a hearing held in open court. Since the pre-arraignment program release review is conducted remotely, these individuals are not considered at the pre-arraignment stage and will be considered for program release for the first time at arraignment.  Other individuals may have other circumstances that prevent their consideration for pre-arraignment release or are missing release decision data. 
+
+Out of the 24,388 individuals assessed in Los Angeles, 15,158 individuals are not shown in this table because no pre-arraignment program release decision was made because they were already released on bail, already had their charges dropped or dismissed, were ineligible for consideration for pre-arraignment release, or were missing pre-arraignment release decision data.
 ```{r}
 release_df <- df %>%
   filter(la_flag == 1) %>%
@@ -374,8 +398,8 @@ names(release_df) <- c("County", "Granted Prearraignment Program Release",
                   bootstrap_options = c("striped", "hover"), stripe_color = "gray", font_size = 14) %>% 
   column_spec(2:3, width = "2.2in") 
 ```
-Notes: 'Release Denied' indicates individuals who judicial officers did not choose to release through the pretrial program. These individuals may still have gotten out on bail. 'Release Approved' includes individuals released on OR or monitoring. 'Bail/Zero Bail/Ineligible/Other' includes individuals who bailed out, who were released on zero bail, whose charges were dropped or dismissed, who were held for other reasons, and who are missing release decision data.
-Total Other = 15,158. Total = 24,388
+Notes: 'Release Denied' indicates individuals who judicial officers did not choose to release through the pretrial program. These individuals may still have gotten out on bail. 'Release Approved' includes individuals released on OR or monitoring. 
+
 \newpage
 # AB 74: Tables
 
