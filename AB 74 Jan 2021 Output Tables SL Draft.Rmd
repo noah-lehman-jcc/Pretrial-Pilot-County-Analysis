@@ -1,0 +1,555 @@
+---
+title: "AB 74 Jan 2021 Output Tables"
+author: "Noah Lehman and Sal Lempert"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+
+```{r include=FALSE}
+library(janitor)
+library(tidyverse)
+library(lubridate)
+library(scales)
+library(pROC)
+library(kableExtra)
+library(stargazer)
+library(data.table)
+library(ggthemes)
+
+```
+
+
+```{r include=FALSE}
+my_kable <- function(x){
+  kable(x, booktabs = T, format.args = list(big.mark = ","), 
+        # table.attr = "style = \"color: black;\"",
+        format = "latex") %>%
+    kable_styling(position = "center", full_width = F, 
+                  bootstrap_options = c("striped", "hover"), stripe_color = "gray", font_size = 14) %>%
+    row_spec(nrow(x), bold = T)
+    # column_spec(2, bold = T)
+  # footnote(general_title = "", general = "Source: Judicial Council of California, Recidivism Reduction Fund Quarterly Reports (July 1, 2015-March 31, 2018).")  %>%
+    
+}
+
+# Age Creator
+  # mutate(dob = as_date(dob),
+  #        assessment_date = as_date(assessment_date)) %>%
+  # mutate(age = year(assessment_date) - year(dob),
+  #        age = if_else(month(assessment_date) < month(dob), age - 1L, age),
+  #        age = if_else(month(assessment_date) == month(dob) & day(assessment_date) < day(dob), age - 1L, age))
+
+
+```
+
+
+```{r include=FALSE}
+#Noah's load path
+#load("C:/Work/PretrialAssessmentPilot/Pretrial-Pilot-County-Analysis/Assessment Output Data Frame v2.RData")
+
+#Sal's load path
+load("C:/PretrialPilot/Pretrial-Pilot-County-Analysis/Assessment Output Data Frame v2.RData")
+
+
+# save(df, file = "C:/Work/PretrialAssessmentPilot/Pretrial-Pilot-County-Analysis/Assessment Output Data Frame v2.RData")
+```
+
+\newpage
+
+# Introduction
+
+All 16 pretrial pilot program sites have implemented their programs and complied with data reporting requirements. The data contained in the following tables includes all assessments conducted from October 2019 when funding began until October 2020 when data was collected for this report; however, many programs were not fully operational until later in this time frame, with all programs fully operational by June 30th 2020. Also during this time period, the COVID-19 pandemic caused many disruptions to normal court operations that impact the pretrial pilot program, including the implementation of Emergency Rule 4 which set presumptive bail to \$0 for most low-level offenses on a state-wide basis from April 6th to June 20th, and local continuations of \$0 or reduced emergency bail schedules. The participating pilot sites met the original target go-live date despite the challenges brought by the pandemic, but the population of assessed individuals may be different than would be seen in the absence of the pandemic both in terms of numbers and composition. Crime and arrest patterns may have been affected by COVID-19 and local shelter-in-place orders, but also many low-level arrestees who would otherwise have been assessed may have been released with \$0 bail. 
+
+The data processing and analysis for the pretrial pilot project is still in progress. As of the date of this report, the data has not yet been joined across agencies within a county, so the data presented in this report relies on probation data only. The joining of probation data with court, jail, and CA DOJ data will eventually yield more reliable results for data elements that are primarily tracked outside of probation. Data concerning demographic information, release decisions, and risk levels are intended to be drawn from probation data and therefore have a greater degree of reliability. Data on charge level, failures to appear in court, and new criminal activity, however, are primarily tracked by jails, courts, and the CA DOJ. Charge level data is not available at this time, since it is not tracked by probation. For failures to appear in court and new criminal activity, this report draws on the limited data on these outcomes available from probation, but it is likely these numbers will change when the data processing reaches the stage of cross-agency data linkage. 
+
+
+
+\newpage
+
+# Total Assessments by Tool 
+```{r echo=FALSE}
+suppressMessages(
+county_df <- df %>%
+  count(county, tool_name) %>%
+  group_by(tool_name) %>%
+  summarise(county = paste(county, collapse = ", "), Total = sum(n)) %>%
+  ungroup() %>%
+  mutate(tool_name = toupper(tool_name))
+)
+
+names(county_df) <- c("Tool Name", "County", "Assessments")
+
+kable(county_df, booktabs = T, format.args = list(big.mark = ","), 
+        # table.attr = "style = \"color: black;\"",
+        format = "latex") %>%
+    kable_styling(position = "center", full_width = F, 
+                  bootstrap_options = c("striped", "hover"), stripe_color = "gray", font_size = 14)
+```
+
+
+```{r include=FALSE}
+df <- df %>%
+  rename("County" = county) %>%
+  mutate_if(is.character, funs(if_else(. == "Other_Unknown", "Other", .))) %>%
+  mutate(la_flag = if_else(County == "Los Angeles", 1, 0)) %>%
+  mutate(County = case_when(
+    County %in% c("Sacramento", "Alameda", "Los Angeles") ~ "Large",
+    County %in% c("Sonoma", "San Joaquin", "San Mateo", "Tulare", "Santa Barbara", "Ventura") ~ "Medium",
+    County %in% c("Yuba", "Nevada", "Napa", "Kings") ~ "Small/Medium",
+    County %in% c("Sierra", "Modoc", "Calaveras", "Tuolumne") ~ "Small",
+    T ~ County))%>% 
+  mutate(County = ordered(County, levels = c("Small", "Small/Medium", "Medium", "Large"))) %>%
+  arrange(County)
+```
+
+See appendix for detailed information on each tool and differences in VPRAI versions.
+
+\newpage
+
+
+# AB 74: Tables
+16.
+(a) The number of assessed individuals by age, gender, and race or ethnicity.
+(b) The number of assessed individuals by risk level, booking charge levels, and release decision
+(c) The number and percentage of assessed individuals who receive pretrial supervision by level of supervision.
+(d) The number and percentage of assessed individuals by supervision level who fail to appear in court as required, are arrested for a new offense during the pretrial period, or have pretrial release revoked.
+
+\newpage
+
+# AB 74: Tables
+16. (a) The number of assessed individuals by age, gender, and race or ethnicity.
+\newpage
+
+## The Number of Assessed Individuals by Age
+```{r}
+age_df <- df %>%
+  count(County, age) %>%
+  group_by(County) %>%
+  mutate(Total = sum(n)) %>%
+  pivot_wider(names_from =  age, values_from =  n, values_fill = 0) %>%
+  select("County Size" = County, `18-25`, `26-35`, `36-45`, `46-55`, `56+`,  "Unknown" = Other, Total) %>%
+  bind_rows(df %>%
+              count(age) %>%
+              mutate(Total = sum(n)) %>%
+              pivot_wider(names_from =  age, values_from =  n, values_fill = 0) %>%
+              mutate(County = "Total") %>%
+              select("County Size" = County, `18-25`, `26-35`, `36-45`, `46-55`, `56+`, "Unknown" = Other, Total))
+
+my_kable(age_df)
+```
+\newpage
+
+## The Number of Assessed Individuals by Gender
+```{r}
+gender_df <- df %>%
+  count(County, sex) %>%
+  group_by(County) %>%
+  mutate(Total = sum(n)) %>%
+  pivot_wider(names_from =  sex, values_from =  n, values_fill = 0) %>%
+  select("County Size" = County, Male, Female, "Other/Unknown" = Other, Total) %>%
+  bind_rows(df %>%
+              count(sex) %>%
+              mutate(Total = sum(n)) %>%
+              pivot_wider(names_from =  sex, values_from =  n, values_fill = 0) %>%
+              mutate(County = "Total") %>%
+              select("County Size" = County, Male, Female, "Other/Unknown" = Other, Total))
+
+my_kable(gender_df)
+```
+\newpage
+
+## The Number of Assessed Individuals by Race
+```{r}
+race_df <- df %>%
+  count(County, race) %>%
+  group_by(County) %>%
+  mutate(Total = sum(n)) %>%
+  pivot_wider(names_from =  race, values_from =  n, values_fill = 0) %>%
+  select("County Size" = County, Black, White, Hispanic, "Other/Unknown" = Other, Total) %>%
+  bind_rows(df %>%
+              count(race) %>%
+              mutate(Total = sum(n)) %>%
+              pivot_wider(names_from =  race, values_from =  n, values_fill = 0) %>%
+              mutate(County = "Total") %>%
+              select("County Size" = County, Black, White, Hispanic, "Other/Unknown" = Other, Total))
+
+my_kable(race_df)
+```
+\newpage
+
+
+
+# AB 74: Tables
+
+16. (b) The number of assessed individuals by risk level, booking charge levels, and release decision
+\newpage
+
+## The Number of Assessed Individuals by Risk Score (ORAS)
+```{r}
+risk_df_oras <- df %>%
+  filter(tool_name == "oras") %>%
+  count(oras_risk_score) %>%
+  mutate(oras_risk_score = as.character(oras_risk_score)) %>%
+  bind_rows(df %>% filter(tool_name == "oras") %>% count() %>% mutate(oras_risk_score = "Total"))
+  
+names(risk_df_oras) <- c("ORAS Risk Score", "Count")
+  
+my_kable(risk_df_oras)
+```
+Notes: This table includes data from five counties (Modoc, Napa, Nevada, Ventura, Yuba).
+\newpage
+
+## The Number of Assessed Individuals by Risk Score (VPRAI)
+```{r}
+risk_df_vprai <- df %>%
+  filter(tool_name == "vprai") %>%
+  count(vprai_risk_score) %>%
+  mutate(vprai_risk_score = as.character(vprai_risk_score)) %>%
+  bind_rows(df %>% filter(tool_name == "vprai") %>% count() %>% mutate(vprai_risk_score = "Total"))
+  
+names(risk_df_vprai) <- c("VPRAI Risk Score", "Count")
+  
+my_kable(risk_df_vprai)
+```
+Notes: This table includes data from two counties (San Joaquin, Santa Barbara).
+\newpage
+
+## The Number of Assessed Individuals by Risk Score (VPRAI-R)
+```{r}
+risk_df_vprair <- df %>%
+  filter(tool_name == "vprair") %>%
+  count(vprair_risk_score) %>%
+  mutate(vprair_risk_score = as.character(vprair_risk_score)) %>%
+  bind_rows(df %>% filter(tool_name == "vprair") %>% count() %>% mutate(vprair_risk_score = "Total"))
+  
+names(risk_df_vprair) <- c("VPRAI-R Risk Score", "Count")
+  
+my_kable(risk_df_vprair)
+```
+Notes: This table includes data from three counties (Alameda, San Mateo, Santa Barbara).
+\newpage
+
+## The Number of Assessed Individuals by Risk Score (VPRAI-O)
+```{r}
+risk_df_vpraio <- df %>%
+  filter(tool_name == "vpraio") %>%
+  count(vpraio_risk_score) %>%
+  mutate(vpraio_risk_score = as.character(vpraio_risk_score)) %>%
+  bind_rows(df %>% filter(tool_name == "vpraio") %>% count() %>% mutate(vpraio_risk_score = "Total"))
+  
+names(risk_df_vpraio) <- c("VPRAI-O Risk Score", "Count")
+  
+my_kable(risk_df_vpraio)
+```
+Notes: This table includes data from one county (Kings).
+\newpage
+
+## The Number of Assessed Individuals by Risk Score (PSA FTA)
+```{r}
+risk_df_psa_fta <- df %>%
+  filter(tool_name == "psa") %>%
+  count(psa_fta_risk_score) %>%
+  mutate(psa_fta_risk_score = as.character(psa_fta_risk_score)) %>%
+  bind_rows(df %>% filter(tool_name == "psa") %>% count() %>% mutate(psa_fta_risk_score = "Total"))
+  
+names(risk_df_psa_fta) <- c("PSA FTA Risk Score", "Count")
+  
+my_kable(risk_df_psa_fta)
+```
+Notes: This table includes data from five counties (Calaveras, Los Angeles, Sacramento, Tulare, Tuolumne).
+\newpage
+
+## The Number of Assessed Individuals by Risk Score (PSA New Criminal Activity)
+```{r}
+risk_df_psa_nca <- df %>%
+  filter(tool_name == "psa", psa_nca_risk_score != 9) %>%
+  count(psa_nca_risk_score) %>%
+  mutate(psa_nca_risk_score = as.character(psa_nca_risk_score)) %>%
+  bind_rows(df %>% filter(tool_name == "psa") %>% count() %>% mutate(psa_nca_risk_score = "Total"))
+  
+names(risk_df_psa_nca) <- c("PSA NCA Risk Score", "Count")
+  
+my_kable(risk_df_psa_nca)
+```
+Notes: This table includes data from five counties (Calaveras, Los Angeles, Sacramento, Tulare, Tuolumne).
+\newpage
+
+## The Number of Assessed Individuals by Risk Score (PSA New Violent Criminal Activity)
+```{r}
+risk_df_psa_nvca <- df %>%
+  filter(tool_name == "psa", psa_nvca_risk_score != 9) %>%
+  count(psa_nvca_risk_score) %>%
+  mutate(psa_nvca_risk_score = as.character(psa_nvca_risk_score)) %>%
+  bind_rows(df %>% filter(tool_name == "psa") %>% count() %>% mutate(psa_nvca_risk_score = "Total"))
+  
+names(risk_df_psa_nvca) <- c("PSA NVCA Risk Score", "Count")
+  
+my_kable(risk_df_psa_nvca)
+```
+Notes: This table includes data from five counties (Calaveras, Los Angeles, Sacramento, Tulare, Tuolumne).
+\newpage
+
+## The Number of Assessed Individuals by Risk Score (SPRAT)
+```{r}
+risk_df_sprat <- df %>%
+  filter(tool_name == "sprat") %>%
+  count(sprat_risk_score) %>%
+  mutate(sprat_risk_score = as.character(sprat_risk_score)) %>%
+  bind_rows(df %>% filter(tool_name == "sprat") %>% count() %>% mutate(sprat_risk_score = "Total"))
+  
+names(risk_df_sprat) <- c("SPRAT Risk Score", "Count")
+  
+my_kable(risk_df_sprat)
+```
+Notes: This table includes data from one county (Sonoma).
+\newpage
+
+## The Number of Assessed Individuals by Booking Charge Level
+```{r}
+# charge_level_df <- df %>%
+#   count(County, charge_level) %>%
+#   group_by(County) %>%
+#   mutate(Total = sum(n)) %>%
+#   pivot_wider(names_from =  charge_level, values_from =  n, values_fill = 0) %>%
+#   select(County, Felony, Misdemeanor, Other, Total) %>%
+#   bind_rows(df %>%
+#               count(charge_level) %>%
+#               mutate(Total = sum(n)) %>%
+#               pivot_wider(names_from =  charge_level, values_from =  n, values_fill = 0) %>%
+#               mutate(County = "Total") %>%
+#               select(County, Felony, Misdemeanor, Other, Total))
+# 
+# my_kable(charge_level_df)
+```
+Notes: Booking charge level is reported in a separate data source from assessment data. Data on this measure is currently unavailable but will be provided in future reports. 
+\newpage
+
+## The Number of Assessed Individuals by Pretrial Program Release Decision
+
+The release decisions reported in this table represent the release decisions made by judicial officers on individuals considered for release under the pretrial pilot program. Not everyone who is assessed progresses to consideration for release by a judicial officer, in most cases because they have already been released. Even after being assessed, many individuals may bail out (including \$0 bail in response to the pandemic during a large portion of the reporting period) or are released due to their charges being dropped or dismissed. Other individuals may have other circumstances that prevent their consideration for release or are missing release decision data. 
+
+This table excludes Los Angeles because at present data is only processed for pre-arraignment release decisions and not for subsequent release decisions made at arraignment. Los Angeles pre-arraignment decisions will be shown separately in the next table. Out of the 28,516 individuals assessed in counties other than Los Angeles, 17,858 individuals are not shown in this table because no pretrial program release decision was made because they were already released on bail, already had their charges dropped or dismissed, were ineligible for consideration for release, or were missing release decision data.
+
+```{r}
+release_df <- df %>%
+  filter(la_flag == 0) %>%
+  mutate(release_decision = if_else(release_decision == "Monitor", "OR", release_decision)) %>%
+  count(County, release_decision) %>%
+  group_by(County) %>%
+  mutate(Total = sum(n)) %>%
+  pivot_wider(names_from =  release_decision, values_from =  n, values_fill = 0) %>%
+  select(County, Detain, OR, Other, Total) %>%
+  bind_rows(df %>%
+              filter(la_flag == 0) %>%
+              mutate(release_decision = if_else(release_decision == "Monitor", "OR", release_decision)) %>%
+              count(release_decision) %>%
+              mutate(Total = sum(n)) %>%
+              pivot_wider(names_from =  release_decision, values_from =  n, values_fill = 0) %>%
+              mutate(County = "Total") %>%
+              select(County, Detain, OR, Other, Total))
+
+release_df <- release_df[c(1,3,2)]
+
+names(release_df) <- c("County Size", "Granted Program Release", "Denied Program Release")
+
+my_kable(release_df) %>%
+  column_spec(2:3, width = "2in") 
+  # column_spec(4, width = "2in")
+```
+Notes: 'Denied Program Release' indicates individuals who judicial officers did not choose to release through the pretrial program. These individuals may still have gotten out on bail. 'Denied Program Release' includes individuals released on OR or monitoring. 
+
+\newpage
+
+## The Number of Assessed Individuals by Pre-Arraignment Program Release Decision
+
+This table shows only Los Angeles because at present data is only processed for pre-arraignment release decisions and not for subsequent release decisions made at arraignment. 
+
+The pre-arraignment release decisions reported in this table represent the pre-arraignment release decisions made by judicial officers on individuals considered for pre-arraignment release under the pretrial pilot program. All individuals denied pre-arraignment program release are also considered for program release at arraignment, but that data is not currently available. 
+
+Not everyone who is assessed progresses to consideration for pre-arraignment release by a judicial officer. Even after being assessed, many individuals may bail out (including \$0 bail in response to the pandemic during a large portion of the reporting period) or are released due to their charges being dropped or dismissed. Many individuals are prevented by statute (PC 1270.1, PC 1319.5) from release without a hearing held in open court. Since the pre-arraignment program release review is conducted remotely, these individuals are not considered at the pre-arraignment stage and will be considered for program release for the first time at arraignment.  Other individuals may have other circumstances that prevent their consideration for pre-arraignment release or are missing release decision data. 
+
+Out of the 24,388 individuals assessed in Los Angeles, 15,158 individuals are not shown in this table because no pre-arraignment program release decision was made because they were already released on bail, already had their charges dropped or dismissed, were ineligible for consideration for pre-arraignment release, or were missing pre-arraignment release decision data.
+```{r}
+release_df <- df %>%
+  filter(la_flag == 1) %>%
+  mutate(release_decision = if_else(release_decision == "Monitor", "OR", release_decision)) %>%
+  count(County, release_decision) %>%
+  group_by(County) %>%
+  mutate(Total = sum(n)) %>%
+  pivot_wider(names_from =  release_decision, values_from =  n, values_fill = 0) %>%
+  select(County, Detain, OR, Other, Total) %>%
+  bind_rows(df %>%
+              filter(la_flag == 1) %>%
+              mutate(release_decision = if_else(release_decision == "Monitor", "OR", release_decision)) %>%
+              count(release_decision) %>%
+              mutate(Total = sum(n)) %>%
+              pivot_wider(names_from =  release_decision, values_from =  n, values_fill = 0) %>%
+              mutate(County = "Total") %>%
+              select(County, Detain, OR, Other, Total))
+
+release_df <- release_df[1, c(1,3,2)] %>%
+  mutate(County = "Los Angeles")
+
+names(release_df) <- c("County", "Granted Prearraignment Program Release",
+                       "Denied Prearraignment Program Release")
+
+
+
+ kable(release_df, booktabs = T, format.args = list(big.mark = ","), 
+        # table.attr = "style = \"color: black;\"",
+        format = "latex") %>%
+    kable_styling(position = "center", full_width = F, 
+                  bootstrap_options = c("striped", "hover"), stripe_color = "gray", font_size = 14) %>% 
+  column_spec(2:3, width = "2.2in") 
+```
+Notes: 'Denied Prearraignment Program Release' indicates individuals who judicial officers did not choose to release at the prearraignment stage through the pretrial program. These individuals may still have gotten out on bail or through the pretrial program at arraignment. 'Granted Prearraignment Program Release' includes individuals released on OR or monitoring at the prearraignment stage. 
+
+\newpage
+# AB 74: Tables
+
+16. (c) The number and percentage of assessed individuals who receive pretrial supervision by level of supervision
+\newpage
+
+
+## The Number and Percentage of Assessed and Supervised Individuals by Supervision Level
+```{r warning=FALSE}
+monitor_df <- df %>%
+  filter(release_decision == "Monitor") %>%
+  count(County, monitor_level) %>%
+  group_by(County) %>%
+  mutate(Total = sum(n), n = paste0(round(n = n/Total*100), "%", " ", n)) %>%
+  pivot_wider(names_from =  monitor_level, values_from =  n, values_fill = "-") %>%
+  select(County, Low, Medium, High, Other, Total) %>%
+  bind_rows(df %>%
+              filter(release_decision == "Monitor") %>%
+              count(monitor_level) %>%
+              mutate(Total = sum(n), n = paste0(round(n = n/Total*100), "%", " ", n)) %>%
+              pivot_wider(names_from =  monitor_level, values_from =  n, values_fill = "-")) %>%
+  ungroup() %>%
+  mutate(County = if_else(is.na(County), "Total", as.character(County))) %>%
+  # mutate(tool_name=toupper(tool_name),
+         # tool_name= gsub("CO_", "", tool_name)) %>%
+  select("County" = County, Total, Low, Medium, High, Other) %>%
+  separate(Low, c("Percent_low", "Count_low"), sep = " ") %>%
+  separate(Medium, c("Percent_med", "Count_med"), sep = " ") %>%
+  separate(High, c("Percent_high", "Count_high"), sep = " ") %>%
+  separate(Other, c("Percent_other", "Count_other"), sep = " ") %>%
+  ungroup() %>%
+  mutate_if(is.character, funs(if_else(is.na(.), "-", .))) %>%
+  rename("County Size" = County)
+
+names(monitor_df) <- gsub("_.*", "", names(monitor_df))
+  
+
+kable(monitor_df, booktabs = T, format.args = list(big.mark = ","),
+        # table.attr = "style = \"color: black;\"",
+        format = "latex") %>%
+    kable_styling(position = "center", full_width = T,
+                  bootstrap_options = c("striped", "hover"), stripe_color = "gray") %>%
+  add_header_above(c(" " = 2, "Basic" = 2, "Moderate" = 2, "Enhanced" = 2, "Unspecified Supervision" = 2)) %>%
+  row_spec(5, bold = T)
+```
+Notes: 'Unspecified Supervision' includes individuals in counties which do not categorize supervision conditions into discrete levels. For counties which use discrete supervision levels, supervision levels were collapsed into 'Basic', 'Moderate', and 'Enhanced' supervision, though what each of these supervision levels mean varies widely across counties.
+\newpage
+
+# AB 74: Tables
+
+16. (d) The number and percentage of assessed individuals by supervision level who fail to appear in court as required, are arrested for a new offense during the pretrial period, or have pretrial release revoked.
+\newpage
+
+
+
+## Pretrial Revocations by Termination Reason and Monitor Level 
+```{r warning=FALSE}
+outcome_df <- df %>%
+  filter(release_decision == "Monitor") %>%
+  # mutate(total_revoked = if_else(pretrial_termination_reason != "Other", "Total Revoked", "Other")) %>%
+  mutate(monitor_level = factor(monitor_level, levels = c("Low", "Medium", "High", "Other"))) %>%
+  count(pretrial_termination_reason, monitor_level) %>%
+  group_by(monitor_level) %>%
+  mutate(Total = sum(n), n = paste0(round(n = n/Total*100), "%", " ", n)) %>%
+  filter(pretrial_termination_reason != "Other") %>%
+  # unite(pretrial_termination_reason, c(monitor_level, pretrial_termination_reason)) %>%
+  arrange(pretrial_termination_reason) %>%
+  pivot_wider(names_from =  pretrial_termination_reason, values_from =  n, values_fill = "-") %>%
+  arrange(monitor_level) %>%
+  bind_rows(df %>%
+              filter(release_decision == "Monitor") %>%
+              count(pretrial_termination_reason) %>%
+              mutate(Total = sum(n), n = paste0(round(n = n/Total*100), "%", " ", n)) %>%
+              filter(pretrial_termination_reason != "Other") %>%
+              arrange(pretrial_termination_reason) %>%
+              mutate(monitor_level = "All_Levels") %>%
+              pivot_wider(names_from =  pretrial_termination_reason, values_from =  n, values_fill = "-")) %>%
+  separate(FTA, c("Percent_low", "Count_low"), sep = " ") %>%
+  separate(New_Crime, c("Percent_med", "Count_med"), sep = " ") %>%
+  separate(Revoked, c("Percent_high", "Count_high"), sep = " ") %>%
+  ungroup() %>%
+  mutate_if(is.character, funs(if_else(is.na(.), "-", .))) %>%
+  mutate(monitor_level = case_when(monitor_level == "Low" ~ "Basic",
+                                   monitor_level == "Medium" ~ "Moderate",
+                                   monitor_level == "High" ~ "Enhanced",
+                                   monitor_level == "Other" ~ "Unspecified",
+                                   T ~ as.character(monitor_level))) %>%
+  rename("Monitor Level" = monitor_level) 
+
+names(outcome_df) <- gsub("_.*", "", names(outcome_df))
+
+outcome_df2 <- df %>%
+  filter(release_decision == "Monitor") %>%
+  mutate(pretrial_termination_reason = if_else(pretrial_termination_reason != "Other", "Total Revoked", "Other")) %>%
+  mutate(monitor_level = factor(monitor_level, levels = c("Low", "Medium", "High", "Other"))) %>%
+  count(pretrial_termination_reason, monitor_level) %>%
+  group_by(monitor_level) %>%
+  mutate(Total = sum(n), n = paste0(round(n = n/Total*100), "%", " ", n)) %>%
+  filter(pretrial_termination_reason != "Other") %>%
+  # unite(pretrial_termination_reason, c(monitor_level, pretrial_termination_reason)) %>%
+  arrange(pretrial_termination_reason) %>%
+  pivot_wider(names_from =  pretrial_termination_reason, values_from =  n, values_fill = "-") %>%
+  arrange(monitor_level) %>%
+  bind_rows(df %>%
+              filter(release_decision == "Monitor") %>%
+              mutate(pretrial_termination_reason = if_else(pretrial_termination_reason != "Other", 
+                                                            "Total Revoked", "Other")) %>%
+              count(pretrial_termination_reason) %>%
+              mutate(Total = sum(n), n = paste0(round(n = n/Total*100), "%", " ", n)) %>%
+              filter(pretrial_termination_reason != "Other") %>%
+              arrange(pretrial_termination_reason) %>%
+              mutate(monitor_level = "All_Levels") %>%
+              pivot_wider(names_from =  pretrial_termination_reason, values_from =  n, values_fill = "-")) %>%
+  separate(`Total Revoked`, c("Percent_low", "Count_low"), sep = " ") %>%
+  ungroup() %>%
+  mutate_if(is.character, funs(if_else(is.na(.), "-", .))) %>%
+  mutate(monitor_level = case_when(monitor_level == "Low" ~ "Basic",
+                                   monitor_level == "Medium" ~ "Moderate",
+                                   monitor_level == "High" ~ "Enhanced",
+                                   monitor_level == "Other" ~ "Unspecified",
+                                   T ~ as.character(monitor_level))) %>%
+  rename("Monitor Level" = monitor_level) 
+
+outcome_df2 <- outcome_df2[3:4]
+
+names(outcome_df2) <- gsub("_.*", "", names(outcome_df2))
+
+outcome_df <- cbind(outcome_df, outcome_df2)
+
+kable(outcome_df, booktabs = T, format.args = list(big.mark = ","),
+        # table.attr = "style = \"color: black;\"",
+        format = "latex") %>%
+    kable_styling(position = "center", full_width = T,
+                  bootstrap_options = c("striped", "hover"), stripe_color = "gray") %>%
+  add_header_above(c(" " = 2, "FTA" = 2, "New Crime" = 2, "Technical Violation/\n Unknown" = 2,
+                     "Total\n Revoked" = 2)) %>%
+  column_spec(2:10, width = ".5in") %>%
+  column_spec(1, width = "1in") %>%
+  row_spec(5, bold = T)
+```
+Notes: 'Unspecified Supervision' includes individuals in counties which do not categorize supervision conditions into discrete levels. For counties which use discrete supervision levels, supervision levels were collapsed into 'Basic', 'Moderate', and 'Enhanced' supervision, though what each of these supervision levels mean varies widely across counties.
+\linebreak
+
+Data quality is low for failures to appear, new offenses during the pretrial period, and revocations of pretrial release. For future reports, FTA and new offense data will come from different data sources which are not currently available; probation departments keep limited records of FTA and new criminal offenses. The data in this table includes individuals whose pretrial period is not yet complete, and may accrue adverse outcomes before completion of the pretrial period. The short time frame for this first reporting period means that that many programs have not been operational long enough to accurately measure outcomes.
+
