@@ -705,6 +705,7 @@ court_df_s <- court_df_s %>%
                           T ~ "Other_Unknown"))
 
 
+
  ####
 
 court_warrant_s <- read_csv("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Sierra/P2 Submission-June 30/Pretrial_2_ScheduledEvents_Warrant-VH(SierraProd-2020-07-28).csv") 
@@ -720,9 +721,9 @@ names(court_warrant_s) <- c("case_id", "case_name", "hearing_type", "hearing_res
 ####
 
 
-#Import Court Charges and Dispostions
+#Import Court Charges and Dispositions
   ## Date range for filing date is 9/16/2019 to 6/23/2020
- ## Dispostion Date range 10/23/2007 to 7/21/2020
+ ## Disposition Date range 10/23/2007 to 7/21/2020
  ##sentence date 5/11/2018 to 7/23/2020
 court_dispos_s <- read_csv("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Sierra/P2 Submission-June 30/Pretrial_3_Charges-VH(SierraProd-2020-07-28).csv") 
 
@@ -1926,7 +1927,7 @@ San Mateo Jail Data
  
 ####
 
-#Keeping the commented out data read in only for original names, this is the old Booking Data but it had column headers. 
+#Keeping the commented out lines below only for original names, this is the old Booking Data but it has column headers. 
 # initally San Mateo did not  filter on both bookings and releases in their historical data extract. Extract dates fixed in 8/7/2020        extract Jan 2015-June 30, 2020
 # book_df <- fread("Historical Data Submissions/San Mateo/41-SO-01OF01-JAN2015-JUN2019.csv")
 
@@ -1947,7 +1948,7 @@ names(book_df) <- c("cii", "name", "dob", "fbi", "cdl_id_2", "cdl_id", "sex_orig
 
 
 
-# Date Reformatting (also name and CII reformat)--See pg. xxx for more details.
+# Date Reformatting (also name reformat)--See pg. xxx for more details.
   ## 8 rows arrest dates 1900-01-01 00:00
   ## 4 rows arrest dates 1919 when probably should be 2019
 book_df <- book_df %>%
@@ -2173,10 +2174,10 @@ San Mateo Court Data
 ```{r eval=FALSE, include=FALSE}
 
 
-# Court Case Data Import--- San Mateo, 1/4/2016  to 12/31/19
-  ## court_df contains multiple rows per court case, one for a complaint/indictment and another if there is an information. It includes information on the person.
+# Court Case Data Import--- San Mateo, 1/4/2016  to 9/30/2020
+  ## court_df contains multiple rows per court case, 1 for a complaint/indictment and another if there is an information. It also includes demographics on the person.
   ## the letters at the end of the case number indicate co-defendants (eg -A and -B for co-defendants)
-  ## Only felonies have an HTA associated with them.  If at the prelim or before the defendant admits or pleads NOLO the disposition            will show certified up but no HTA case is created.  The case starts out like 16-NF-000086-A  when the matter is held to answer that        original case gets the –HTA added and a new case is created when the information is filed with the same number as it started out minus      the HTA. (st...I think this means we strip off HTA and sort by  date, casaes start with complaints or indictments)
+  ## Only felonies have an associated HTA suffix. If at the prelim or before defendant admits or pleads NOLO the disposition            will show certified up but no HTA case is created.  The case num starts out in the form of 16-NF-000086-A. When the matter is held to answer the original case gets the –HTA added and a new case is created when the information is filed with the same number as it started out minus the HTA. (st...I think this means we strip off HTA and sort by  date, cases start with complaints or indictments)
   ## court_sentence data  contains case type, case case status, charges, pleas and sentence information. 
   ## court_hearing data contains files date, case_type, hearing dates and types, hearing results and fta, and fta warrants
     
@@ -2186,7 +2187,7 @@ San Mateo Court Data
 # Court Cases
 court_df <- lapply(c("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/San Mateo/41-COURT-01OF03-JAN2016-SEP2019.csv", 
                     "G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/San Mateo/41-COURT-01OF03-OCT2019-DEC2019.csv",
-                    "G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/San Mateo/P2 Submission-June 30/41-COURT-01OF03-JAN2020-JUN2020.csv",
+                    "G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/San Mateo/P2 Submission-June30/41-COURT-01OF03-JAN2020-JUN2020.csv",
                     "G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/San Mateo/P2 Submission-June 30/41-COURT-01OF03-JUL2020-SEP2020.csv"), 
                                      function(x) {
                     fread(x, na.strings=c("NULL",""), colClasses = "character")
@@ -2196,8 +2197,8 @@ court_df <- lapply(c("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Sub
 
 
 # Variable name standardization--See pg. xxx for more details. 
-names(court_df) <- c("court_docket_id", "court_case_id_original", "file_date", "court_case_type", "court_party_id", "cii", "fbi", "local_id", 
-                     "cdl_id", "name", "dob", "sex_original", "race_original")
+names(court_df) <- c("court_docket_id", "court_case_id_original", "file_date", "court_case_type", "court_party_id", 
+                     "cii", "fbi","local_id", "cdl_id", "name", "dob", "sex_original", "race_original")
 
 # Date Reformatting--See pg. xxx for more details.
 court_df <- court_df %>%
@@ -2205,9 +2206,7 @@ court_df <- court_df %>%
      mutate(file_date = ymd(file_date))
 
 
-
-
-# Standardize Factors, also standardize CII and name formatting--See pg. xxx for more details.
+# Standardize Factors, also standardize name formatting--See pg. xxx for more details.
 court_df <- court_df %>%
      ## remove -HTA from court_case_id_original so that information and complaint will have the same court_case_id since they are the same case at different stages
    mutate(court_case_id = gsub("-HTA", "", court_case_id_original)) %>%
@@ -2224,15 +2223,14 @@ court_df <- court_df %>%
         mutate_at(vars(first_name, last_name, suffix), trimws) %>%
         separate(first_name, c("first_name", "middle_name"), sep = " ") 
        
-
-
-
+ 
+ 
 ####
 
 # Court Sentences and Court Filing Charges 
  ## court sentence contains all of the court charge data
- ## court_sentence contains one row per charge (charge_id) (with about 400 repeats, assumedly from when separate_rows was used to divide combined charges, for example PC484-490.1)
- ## dropping sentence location, it was in the first extract, but not in second extract, we dont need that variable for analysis
+ ## court_sentence contains one row per charge (charge_id) (with about 400 repeats, likely from when separate_rows was used to divide combined charges, for example PC484-490.1)
+ ## dropping sentence location, it was in the first extract, but not in second extract, we don't need that variable for analysis
  ## historical data submitted had to be stripped of new line characters in the middle of lines that interfered with reading the data in
  ##all f the dates in the merged file need to be checked.
 
@@ -2259,7 +2257,7 @@ rm(court_charge_1, court_charge_2, court_charge_3)
 
 
 # Variable name standardization--See pg. xxx for more details.
-names(court_charge) <- c("court_docket_id", "court_case_id_original", "file_date", "court_case_type", "court_case_status_original", "court_case_status_date", "book_num", "arrest_date", "arrest_control", "arrest_agency", "offense_id", "charge_id", "charge_num", "offense_date", "court_charge_original", "court_charge_level_original", "court_charge_description", "plea type_original", "plea_date", "disposition_type_original", "disposition_date", "final_date", "sentence_type_original", "sentence_date",  "probation_type", "term_years_probation", "term_months_probation", "term_days_probation", "jail_type", "term_years_jail", "term_months_jail", "term_days_jail")
+names(court_charge) <- c("court_docket_id", "court_case_id_original", "file_date", "court_case_type", "court_case_status_original", "court_case_status_date", "book_num", "arrest_date", "arrest_control", "arrest_agency", "offense_id", "charge_id", "charge_num", "offense_date", "court_charge_original", "court_charge_level_original", "court_charge_description", "plea_type_original", "plea_date", "disposition_type_original", "disposition_date", "final_date", "sentence_type_original", "sentence_date",  "probation_type", "term_years_probation", "term_months_probation", "term_days_probation", "jail_type", "term_years_jail", "term_months_jail", "term_days_jail")
 
 
 # Date Reformatting--See pg. xxx for more details.
@@ -2369,8 +2367,7 @@ court_charge <- court_charge %>%
         "DIVERSION",
         "na_missing",
         "Sentence Modified",
-        "Drug Court Sentence"
-        ,
+        "Drug Court Sentence",
         "DUI Court Sentence"
       ) ~ "Other"
     ),
@@ -2382,7 +2379,8 @@ court_charge <- court_charge %>%
   )
 
 
-# Charge Standardization can't add Flag her becasue flags are in court hearing table below--See pg. xxx for more details.
+
+# Charge Standardization can't add Flag her because flags are in court hearing table below--See pg. xxx for more details.
 court_charge <- court_charge %>%
   mutate(court_charge_code = str_extract(court_charge_original, "^([A-Z]{2})"),
          court_charge_code = if_else(!court_charge_code %in% c("PC", "VC", "HS", "BP", "WI", "US"), "Other", court_charge_code),
@@ -2394,7 +2392,6 @@ court_charge <- court_charge %>%
          separate_rows(court_charge, sep = "-") %>%
          mutate(court_charge = toupper(gsub("\\/|\\(|\\)| |\\.|\\.*|^[A-Z]*|\\\\.*|\\{|\\-.*","", court_charge)))%>%
   unite(join_var, court_charge_level, court_charge_code, court_charge, remove = F) 
-
 
 
          
@@ -2967,8 +2964,11 @@ names_df <- tibble(original_field = names(assess_df_new))
 
 # Variable name standardization--See pg. xxx for more details.
 names(assess_df_new) <- c("local_id", "book_num", "arrest_date", "book_date_time", "last_name", "first_name", "middle_name", "dob", "sex_original", "cii", "fbi", "ipid", "cdl_id", "hispanic_original", "race_original", "zip_code", "assessment_date_time",  "tool_name",  "vprair_tool_response_1", "vprair_tool_response_2", "vprair_tool_response_3", "vprair_tool_response_4", "vprair_tool_response_5", "vprair_tool_response_6", "vprair_tool_response_7", "vprair_tool_response_8",   "vprair_risk_score", "pretrial_release_type_original",  "release_recommendation_original", "release_type_at_arraign", "condition_drug_test_original", "conditions_cam_monitoring_original", "condition_gps_original", "condition_home_detention_original", "condition_curfew_original", "condition_search_original", "condition_stay_away_original", "condition_other_original", "pretrial_signature_date_time", "num_fta" , "num_new_arrests", "office_ftas", "scram_vio", "gps_vio", "total_tc_violations", "num_court_reminders", "pretrial_termination_date",  "pretrial_termination_outcome_original")
-                    
 
+
+assess_df_new %>%
+  count(total_tc_violations)
+```
 names_df$field <- names(assess_df_new)
 
 # Date Reformatting--See pg. xxx for more details.
