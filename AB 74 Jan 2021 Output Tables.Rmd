@@ -52,8 +52,19 @@ load("C:/Work/PretrialAssessmentPilot/Pretrial-Pilot-County-Analysis/Assessment 
 ```
 \newpage
 
+
+# AB 74: Tables
+16.
+(a) The number of assessed individuals by age, gender, and race or ethnicity.
+(b) The number of assessed individuals by risk level, booking charge levels, and release decision
+(c) The number and percentage of assessed individuals who receive pretrial supervision by level of supervision.
+(d) The number and percentage of assessed individuals by supervision level who fail to appear in court as required, are arrested for a new offense during the pretrial period, or have pretrial release revoked.
+
+\newpage
+
 # AB 74: Tables
 16. (a) The number of assessed individuals by age, gender, and race or ethnicity.
+
 \newpage
 
 ## The Number of Assessed Individuals by Gender

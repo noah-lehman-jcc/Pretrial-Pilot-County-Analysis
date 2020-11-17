@@ -46,11 +46,19 @@ my_kable <- function(x){
 
 ```
 
-
+# Return Here. 
+ End dates are not consistent. See if Shelley wants us to cut of the dates or explain variety of end dates. 
 ```{r include=FALSE}
 load("C:/Work/PretrialAssessmentPilot/Pretrial-Pilot-County-Analysis/Assessment Output Data Frame v2.RData")
 
 # save(df, file = "C:/Work/PretrialAssessmentPilot/Pretrial-Pilot-County-Analysis/Assessment Output Data Frame v2.RData")
+
+# df %>%
+#   group_by(county) %>%
+#   summarise(min_assessment_date = min(assessment_date),
+#             max_assessment_date = max(assessment_date)) %>%
+#   View()
+  
 ```
 
 \newpage
