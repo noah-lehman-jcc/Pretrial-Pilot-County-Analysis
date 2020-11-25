@@ -712,8 +712,7 @@ court_df_s <- court_df_s %>%
                           T ~ "Other_Unknown"))
 
 
-
- ####
+####
 
 court_warrant_s <- read_csv("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Sierra/P2 Submission-June 30/Pretrial_2_ScheduledEvents_Warrant-VH(SierraProd-2020-07-28).csv") 
 
@@ -722,13 +721,15 @@ court_warrant_s <- court_warrant_s%>%
   mutate_at(vars(contains("date")), mdy) 
 
 
+
 # Name Standardization--See pg. xxx for more details. 
-names(court_warrant_s) <- c("case_id", "case_name", "hearing_type", "hearing_result_date", "hearing_result_type", "fta_warrant_date", "fta_warrant_type")
+names(court_warrant_s) <- c("court_case_id", "case_name", "hearing_type", "hearing_result_date", "hearing_result_type", "fta_warrant_date", "fta_warrant_type")
 
-
+#Make FTA flag
+court_warrant_s <- court_warrant_s%>%  
+  mutate(fta_flag = ifelse(hearing_result_type == "Fail to Appear: Bench Warrant Issued", 1, 0))
 
 ####
-
 
 #Import Court Charges and Dispositions
   ## Date range for filing date is 9/16/2019 to 6/23/2020
@@ -743,6 +744,7 @@ names(court_dispos_s) <- c("court_case_id", "case_name", "file_date", "charge_nu
 # Date Reformatting--See pg. xxx for more details.  
 court_dispos_s <- court_dispos_s%>%  
   mutate_at(vars(contains("date")), mdy) 
+
 
 
 # Standardize Factors--See pg. xxx for more details.
@@ -790,26 +792,49 @@ court_dispos_s <- court_dispos_s %>%
          court_charge_level = if_else(!court_charge_level %in% c("F", "I", "M"), "Other", court_charge_level)) %>%
   unite(join_var, court_charge_level, court_charge_code, court_charge, remove = F) 
 
-####
 
+# Code for Charge Hierarchy and
+#Make flags
+load("G:/CrimJustice/PretrialAssessmentPilot/Complete Charge Code Hierarchy.RData")
+
+
+court_dispos_s <- left_join(court_dispos_s, charge_hier, by = "join_var") %>%
+  mutate(felony_flag = if_else(court_charge_level == "F", 1, 0),
+         misd_flag = if_else(court_charge_level == "M", 1, 0)) %>%
+  mutate_at(vars(contains("flag")), funs(if_else(is.na(.), 0, as.numeric(.)))) %>%
+  mutate_at(vars(contains("flag")), funs("conviction" = if_else(. == 1 & disposition_type %in% c("Guilty", "Nolo_Contendere"), 1, 0))) %>%
+  rename_at(vars(contains("flag"), -contains("conviction")), funs(paste0("court_", .))) %>%
+  rename_at(vars(contains("conviction")), funs(paste0("conviction_", gsub("_conviction", "", .)))) 
+
+
+####
 
 
 ```
 Court Collapse Sierra
 ```{r}
-court_dispo_s <- court_dispo_s %>%   
-  mutate(disposition_type = ordered(disposition_type, levels = c("Other", "Dismissed", "Not_Guilty", "Nolo_Contendere", "Guilty"))) %>%
-  group_by(court_case_id) %>%
+
+
+
+
+court_dispo_s <- court_dispos_s %>%   
+  mutate(disposition_type = ordered(disposition_type, levels = c("Other", "Dismissed", "Not_Guilty", "Nolo_Contendere",
+                                                                 "Guilty"))) %>%
+  mutate(sentence_type = ordered(sentence_type, levels = c("Other", "Probation", "Jail", "Prison"))) %>%
   mutate(hierarchy = if_else(is.na(hierarchy), 1e6, as.numeric(hierarchy))) %>%
   group_by(court_case_id) %>%
-  # mutate(disposition_date = max(disposition_date), disposition_type = max(disposition_type)) %>%
-  select (-disposition_date) %>%
-  # mutate(sentence_date=min(sentence_date, na.rm=TRUE)) %>%
+  mutate(disposition_date = max(disposition_date), disposition_type = max(disposition_type),
+         sentence_type = max(sentence_type), 
+         sentence_date=min(sentence_date, na.rm=TRUE),
+         disposition_date = if_else(sentence_date < disposition_date, sentence_date, disposition_date)) %>%
+
+  
   # mutate(max_court_charge_level = court_charge_level[hierarchy == min(hierarchy)][1],
   #        max_court_charge_code = court_charge_code[hierarchy == min(hierarchy)][1],
   #        max_court_charge = court_charge[hierarchy == min(hierarchy)][1],
   #        max_charge_description = master_charge_description[hierarchy == min(hierarchy)][1],
   #        max_hier = min(hierarchy)) %>%
+  
   mutate_at(vars(contains("flag")), funs(if_else(is.na(.), 0, .))) %>%
   mutate_at(vars(contains("flag")), funs("count" = sum(.))) %>%
   mutate_at(vars(contains("flag")), max) %>%
@@ -820,36 +845,41 @@ court_dispo_s <- court_dispo_s %>%
 
 #This code adds flags for FTAs this comes from court hearing data 
   ## court_warrants only contains lines with FTA flags no need to make fta_date or fta_flag 
-court_fta_war <- court_warrants %>%
-  arrange(fta_warrant_date) %>%
+  ## hearing result date works  because all hearing result in an FTA being issued and FTA warrant date is not always populated
+  ## we need to ask Sierra what fta_warrant_date means becaue all of the hearing results indicate that an FTA warrant was issued.
+court_fta_war <- court_warrant_s %>%
+  arrange(hearing_result_date) %>%
   group_by(court_case_id) %>%
   mutate(fta_flag_count = sum(fta_flag))%>%
   distinct(court_case_id, .keep_all = T) %>%  
- select(court_case_id,  fta_warrant_date, fta_flag, fta_flag_count)
+ select(court_case_id,  fta_warrant_date, hearing_result_date, fta_flag, fta_flag_count)
 
 
 #This code makes arraignment date
-court_arraign <- court_hearing %>%
-  filter(hearing_type == "Arraignment") %>%
-  rename(arraignment_date = hearing_date) %>%
-  arrange(arraignment_date) %>%
-  distinct(court_case_id, .keep_all = T) %>%
-  select(court_case_id, arraignment_date)
-
+# We do not yet have a hearing table, we need to have Sierra make it based on what Tulane did
+# court_arraign <- court_hearing %>%
+#   filter(hearing_type == "Arraignment") %>%
+#   rename(arraignment_date = hearing_date) %>%
+#   arrange(arraignment_date) %>%
+#   distinct(court_case_id, .keep_all = T) %>%
+#   select(court_case_id, arraignment_date)
 
 #This code makes a plea date
-court_plea <- court_charge %>%
-  arrange(disposition_date) %>%
-  mutate(guilty_flag = if_else(disposition_type == "Guilty", 1, 0)) %>%
-  group_by(court_case_id) %>%
-  filter(guilty_flag == 1|sum(guilty_flag) == 0) %>%
-  ungroup() %>%
-  distinct(court_case_id, .keep_all = T) %>%
-  select(court_case_id, plea_date , plea_type)
+
+# court_plea <- court_dispos_s %>%
+#   arrange(disposition_date) %>%
+#   mutate(guilty_flag = if_else(disposition_type == "Guilty", 1, 0)) %>%
+#   group_by(court_case_id) %>%
+ 
+#   filter(guilty_flag == 1|sum(guilty_flag) == 0) %>%
+#   ungroup() %>%
+#   distinct(court_case_id, .keep_all = T) %>%
+#   select(court_case_id, plea_date , plea_type)
 
 
 
-#this creates court sentence dates (I dont have a sentence date in Nevada it was created above so I dont think I need this code)
+
+#this creates court sentence dates (this was taken care of in creation of court_dispo_s)
   ##not including this because it is making up fake data
 #court_sent <- court_hearing %>%
   #arrange(sentence_date) %>%
@@ -859,15 +889,14 @@ court_plea <- court_charge %>%
 #this part does something not sure what
  ## leaving out mutate f final dispo date because we dont have sentence date in this dataset
  ## court_df  already came to us collapsed at level of case
-court_df <- reduce(list(court_df, court_dispo, court_fta_war, court_arraign, court_plea), left_join, by = "court_case_id") %>%
+court_df <- reduce(list(court_df_s, court_dispo_s, court_fta_war ), left_join, by = "court_case_id") %>%
   select(-contains(".y")) %>%
   rename_at(vars(contains(".x")), funs(gsub("\\.x", "", .))) %>%
   #mutate(final_disposition_date = if_else(disposition_date <= sentence_date|is.na(sentence_date), disposition_date, sentence_date),
   mutate(conviction_flag = if_else(disposition_type %in% c("Guilty","Nolo_Contendere"), 1, 0))
+
+
 ```
-
-
-
 
 Probation Data New
 ```{r eval=FALSE, include=FALSE}
