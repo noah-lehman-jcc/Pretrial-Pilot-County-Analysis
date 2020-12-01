@@ -172,6 +172,8 @@ book_df <- book_df %>%
   ungroup() %>%
   distinct(book_num, court_case_id, .keep_all = T) 
 
+fwrite(book_df, "G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Nevada Booking Collapse.csv")
+
 
 ```
 
@@ -579,6 +581,9 @@ court_df <- reduce(list(court_df, court_dispo, court_fta_war, court_arraign, cou
   rename_at(vars(contains(".x")), funs(gsub("\\.x", "", .))) %>%
   #mutate(final_disposition_date = if_else(disposition_date <= sentence_date|is.na(sentence_date), disposition_date, sentence_date),
   mutate(conviction_flag = if_else(disposition_type %in% c("Guilty","Nolo_Contendere"), 1, 0))
+
+fwrite(court_df, "G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Nevada Court Collapse.csv")
+
 ```
 
 
@@ -815,8 +820,6 @@ Court Collapse Sierra
 ```{r}
 
 
-
-
 court_dispo_s <- court_dispos_s %>%   
   mutate(disposition_type = ordered(disposition_type, levels = c("Other", "Dismissed", "Not_Guilty", "Nolo_Contendere",
                                                                  "Guilty"))) %>%
@@ -895,7 +898,7 @@ court_df <- reduce(list(court_df_s, court_dispo_s, court_fta_war ), left_join, b
   #mutate(final_disposition_date = if_else(disposition_date <= sentence_date|is.na(sentence_date), disposition_date, sentence_date),
   mutate(conviction_flag = if_else(disposition_type %in% c("Guilty","Nolo_Contendere"), 1, 0))
 
-
+fwrite(court_df, "G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Sierra Court Collapse.csv")
 ```
 
 Probation Data New
@@ -1128,10 +1131,10 @@ assess_df_terms <- assess_df_terms %>%
          # rec_other_flag = if_else(),
   
   #this extract has no one on EM, but they do have it as a condition so we should make the flag.  Are we calling SCRM both EM and drug_test.
-         condition_em_flag = if_else(grepl("ELECTRONIC MONITOR|GPS|SCRAM", toupper(release_conditions_original))|
-                                             grepl("SCRAM", toupper(pretrial_release_type_original)), 1, 0),
+         mutate(condition_em_flag = if_else(grepl("ELECTRONIC MONITOR|GPS|SCRAM", toupper(release_conditions_original))|
+                                             grepl("SCRAM", toupper(release_conditions_original)), 1, 0)) %>%
          
-         mutate (condition_drug_test_flag = if_else(grepl("SCRAM|TEST|CONTROLLED SUBSTANCES|DRUG|ALCOHOL|CHEMICAL",
+         mutate(condition_drug_test_flag = if_else(grepl("SCRAM|TEST|CONTROLLED SUBSTANCES|DRUG|ALCOHOL|CHEMICAL",
                                                   toupper(release_conditions_original)), 1, 0),
          condition_no_contact_flag = if_else(grepl("NO CONTACT|136|HARASS|CONTACT|STAY AWAY|STAY.*AWAY FROM|THREATEN|ANNOY",
                                                    toupper(release_conditions_original)), 1, 0))
@@ -1140,7 +1143,6 @@ assess_df_terms <- assess_df_terms %>%
          # Transit is not captured in their data system,but they do give bus passes.  
          #transit_service_flag = if_else(court_date_reminder_original == "TRANSIT", 1, 0),
         
-       
 
 
 assess_df_viol <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Nevada/P2 Submission-June 30/pretrial_data.xlsx", sheet = 5)
@@ -1162,7 +1164,6 @@ assess_df_viol <- assess_df_viol %>%
 
 
 ####
-
 
 
 ```
@@ -1196,9 +1197,8 @@ assess_df_test <- assess_df_test %>%
   mutate(monitor_level = ifelse(release_decision == "Monitor", monitor_level, NA  ))
 
 
-assess_df_test %>%
-  count( pretrial_termination_outcome_original, release_recommendation_original, release_recommendation, pretrial_release_type_original, release_decision)%>%
-  view()
+assess_df_test 
+ 
 
 
 
@@ -2222,7 +2222,7 @@ book_df <- book_df %>%
   ungroup() %>%
   distinct(book_num, court_case_id, .keep_all = T)
 
-
+fwrite(book_df, "G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/San Mateo Booking Collapse.csv")
 ```
 
 San Mateo Jail Diagnostics
@@ -2946,7 +2946,7 @@ court_arraign <- court_hearing %>%
 
 
 # All data is joined.
-court_df3 <- reduce(list(court_df2, court_dispo, court_fta_war, court_arraign), left_join, by = "court_case_id") %>%
+court_df <- reduce(list(court_df2, court_dispo, court_fta_war, court_arraign), left_join, by = "court_case_id") %>%
   select(-contains(".y")) %>%
   select(-c(file_date)) %>%
   rename_at(vars(contains(".x")), funs(gsub("\\.x", "", .))) %>%
@@ -2956,6 +2956,9 @@ court_df3 <- reduce(list(court_df2, court_dispo, court_fta_war, court_arraign), 
 
 # assumes that if all charges dismissed then its over
 
+
+
+fwrite(court_df, "G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/San Mateo Court Collapse.csv")
 
 
 
@@ -3278,7 +3281,7 @@ assess_df_new <- assess_df_new%>%
   ## under release type what does N/A mean? does it mean bail set? 
   ## all pretrial termination dates are missing
  
- assess_df_new <- assess_df_new %>%
+ assess_df <- assess_df_new %>%
     mutate(assess_flag = if_else(is.na(assessment_date), 0, 1),
          rec_release_flag = if_else(release_recommendation %in% c("OR", "Monitor"), 1, 0),
          decision_release_flag = if_else(release_decision %in% c("OR", "Monitor"), 1, 0),
@@ -3346,7 +3349,7 @@ assess_df_new <- assess_df_new%>%
 
 ```
 
-Assessment Collapse
+San Mateo Assessment Collapse
 ```{r}
 # Each row is a person/book number, assessment date combo some people have two assessments for the same booking
 # this is already collapsed to the right level
@@ -3363,6 +3366,10 @@ Assessment Collapse
 # assess_df_new %>%
 #   add_count(book_num, local_id) %>%
 #   filter(n>1)
+
+fwrite(assess_df, "G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/San Mateo Assessment Collapse.csv")
+
+
   
 ```
 
