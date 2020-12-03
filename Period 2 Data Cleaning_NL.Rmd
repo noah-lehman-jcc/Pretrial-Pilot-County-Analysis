@@ -1295,8 +1295,6 @@ court_charge %>%
 
 Assessment Data
 ```{r}
-
-
 # Alameda Assessment Data Import
   ## assess_df contains one row per risk assessment event/risk assessment question/pretrial terms and conditions. The tool questions are widened into columns.
 
@@ -1313,118 +1311,161 @@ Assessment Data
 #Renamind assess_status assess_df for now. Using Vprai-R
     ## Contains summarised information from assess_rec, assess_decision, and assess_monitor. 
 
-#### START HERE ####
-assess_df <- fread("Historical Data Submissions/Alameda/P2 Submission-June 30//11_05_2020/3_Assessment And Recommendation.csv", colClasses = "character")
-
-court_plea <- fread("Historical Data Submissions/Alameda/P2 Submission-June 30/11_05_2020/8_Pleas.csv")
 ####
 
 # Pretrial Assessments and Recommendations
-  ## Everything is contained in assess_df except for recommended pretrial conditions, most serious charge, and demographic information. 
-assess_rec <- read_excel("Historical Data Submissions/Alameda/P2 Submission-June 30/4_Assessment-and-Recommendation.xls", col_types = "text")
+assess_rec <- fread("Historical Data Submissions/Alameda/P2 Submission-June 30/11_05_2020/3_Assessment And Recommendation.csv", colClasses = "character")
+
+# Variable name standardization--See pg. xxx for more details.
+  ## This table includes tool and pretrial service recommendations. These values are often seperate. 
+names(assess_rec) <- c("event_id", "local_id", "tool_name", "assessment_date", "sup_approval_date", "sup_approval_time", "pc_dec_avail", "non_participant", "non_par_reason", "vprair_tool_response_1", "vprair_tool_response_2", "vprair_tool_response_3", "vprair_tool_response_4", "vprair_tool_response_5", "vprair_tool_response_6", "vprair_tool_response_7", "vprair_tool_response_8", "vprair_release_recommendation_original", "vprair_release_recommendation_original_level", "vprair_release_recommendation_condition_original", "release_recommendation_original", "release_recommendation_level_original")
+
+
+ 
+# Date Reformatting--See pg. xxx for more details.
+assess_rec <- assess_rec %>%
+  select(-sup_approval_time) %>%
+  mutate_at(vars(contains("date")), as_date) 
+
+# Risk Score Standardization--Tool Response values are changed to their numeric point value.
+assess_rec <- assess_rec %>%
+  mutate_if(is.character, funs(if_else(. == "NULL"|. == ""|. == "N/A", NA_character_, .))) %>%
+  mutate_at(vars(contains("vprair_tool_response")), funs(if_else(. == "No Data", NA_character_, .))) %>%
+  mutate(vprair_tool_response_1 = if_else(vprair_tool_response_1 == "Y", 2, 0),
+         vprair_tool_response_2 = if_else(vprair_tool_response_2 == "Y", 3, 0),
+         vprair_tool_response_3 = if_else(vprair_tool_response_3 == "Y", 2, 0),
+         vprair_tool_response_4 = if_else(vprair_tool_response_4 == "Y", 2, 0),
+         vprair_tool_response_5 = if_else(vprair_tool_response_5 == "Y", 1, 0),
+         vprair_tool_response_6 = if_else(vprair_tool_response_6 == "Y", 1, 0),
+         vprair_tool_response_7 = if_else(vprair_tool_response_7 == "Y", 1, 0),
+         vprair_tool_response_8 = if_else(vprair_tool_response_8 == "Y", 2, 0))
+
+# Standardize Factors--See pg. xxx for more details.
+assess_rec <- assess_rec %>%
+  mutate(tool_name = "vprair",
+     release_recommendation = if_else(release_recommendation_original == "Release", release_recommendation_level_original,
+                                      release_recommendation_original),
+     release_recommendation = case_when(
+       release_recommendation %in% c("Own Recognizance", "Pretrial Monitoring (Reminder Only)") ~ "OR",
+       release_recommendation %in% c("Pretrial Supervision Level I", "Pretrial Supervision Level II",
+                                             "Pretrial Supervision Level III") ~ "Monitor",
+       release_recommendation %in% c("Detain") ~ "Detain",
+       T ~ "Other_Unknown")) 
 
 ####
 
 # Pretrial judicial orders Pre-araignment
-  ## Everything is contained in assess_df except for Pretrial Conditions and order date. 
-assess_decision <- read_excel("Historical Data Submissions/Alameda/P2 Submission-June 30/5_Judicial-Order-Prearraignment.xls", col_types = "text")
+assess_prearraignment <- fread("Historical Data Submissions/Alameda/P2 Submission-June 30/11_05_2020/4_Prearraignment Order.csv", colClasses = "character")
 
-
-####
-
-# Pretrial Releases 
-  ## Everything is contained in assess_monitor except for release time. 
-assess_monitor <- read_excel("Historical Data Submissions/Alameda/P2 Submission-June 30/8_Pretrial-Status.xls", col_types = "text")
-
-
-####
-
-# Pretrial Service Referals
-  ## Not in assess_df
-assess_service <- read_excel("Historical Data Submissions/Alameda/P2 Submission-June 30/9_Service-Referrals.xlsx", col_types = "text")
-
-####
-
-# Pretrial Condition Violations
-  ## Not in assess_df
-assess_violation <- read_excel("Historical Data Submissions/Alameda/P2 Submission-June 30/10_Pretrial-Violations.xls", col_types = "text")
-
-
-####
-
-# Pretrial Judicical Orders Pre-arraignment Duplicate (Identical to assess decision. Not used.) 
-  ## For now this just has court_case_id. We are waiting to get further linking variables.
-# assess_decision2 <- read_excel("Historical Data Submissions/Alameda/P2 Submission-June 30/6_Judicial-Order-Hearing.xls", col_types = "text")
-
-# Variable name standardization--See pg. xxx for more details.
-names(assess_df) <- c("local_id", "zip_code", "assessment_date", "vprair_risk_score", "release_score_recommendation_original", "release_recommendation_original", "release_decision_original", "pretrial_status_original", "pretrial_release_type_original", "vprair_tool_response_1", "vprair_tool_response_2", "vprair_tool_response_3", "vprair_tool_response_4", "vprair_tool_response_5", "vprair_tool_response_6", "vprair_tool_response_7", "vprair_tool_response_8", "risk_level_original")
-
-
-# Date Reformatting--See pg. xxx for more details.
-assess_df <- assess_df %>%
-  mutate_at(vars(contains("date")), convertToDate) 
-  
-# Risk Score Standardization--Tool Response values are changed to their numeric point value.
-assess_df <- assess_df %>%
-  mutate_at(vars(contains("vprair_tool_response")), funs(if_else(. == "No Data", NA_character_, .))) %>%
-  mutate(vprair_tool_response_1 = if_else(vprair_tool_response_1 == "Yes", 2, 0),
-         vprair_tool_response_2 = if_else(vprair_tool_response_2 == "Yes", 3, 0),
-         vprair_tool_response_3 = if_else(vprair_tool_response_3 == "Yes", 2, 0),
-         vprair_tool_response_4 = if_else(vprair_tool_response_4 == "Yes", 2, 0),
-         vprair_tool_response_5 = if_else(vprair_tool_response_5 == "Yes", 1, 0),
-         vprair_tool_response_6 = if_else(vprair_tool_response_6 == "Yes", 1, 0),
-         vprair_tool_response_7 = if_else(vprair_tool_response_7 == "Yes", 1, 0),
-         vprair_tool_response_8 = if_else(vprair_tool_response_8 == "Yes", 2, 0))
+names(assess_prearraignment) <- c("event_id", "local_id", "release_authorization", "prearraignment_flag", "release_decision_date", "release_decision_original", "release_decision_level_original")
 
 # Standardize Factors--See pg. xxx for more details.
-assess_df <- assess_df %>%
+assess_prearraignment <- assess_prearraignment %>%
+   mutate_if(is.character, funs(if_else(. == "NULL"|. == ""|. == "N/A", NA_character_, .))) %>%
   mutate(tool_name = "vprair",
-    # sex = case_when(sex_original %in% c("Male") ~ "Male",
-    #                      sex_original %in% c("Female") ~ "Female",
-    #                      T ~ "Other_Unknown"),
-    #      
-    #      #Trimming white space on original race first
-    #      race_original = trimws(race_original),
-    #      race = case_when(hispanic_flag == 1 ~ "Hispanic",
-    #                       race_original %in% c("Black") ~ "Black",
-    #                       race_original %in% c("Hispanic") ~ "Hispanic",
-    #                       race_original %in% c("White") ~ "White",
-    #                       #All Other races/ethnicities collapsed into other
-    #                       T ~ "Other_Unknown"),
-     release_recommendation = case_when(
-       release_recommendation_original %in% c("Release") ~ "Release_Unspecified",
-       release_recommendation_original %in% c("Detain") ~ "Detain",
-       T ~ "Other_Unknown"),
-     release_decision = if_else(is.na(release_decision_original), pretrial_release_type_original, release_decision_original),
+     release_decision = if_else(release_decision_original == "release", release_decision_level_original,
+                                      release_decision_original),
      release_decision = case_when(
-       release_decision %in% c("Release (Own Recognizance)") ~ "OR",
-       release_decision %in% c("Release (Supervision Level I)", "Release (Supervision Level II)",
-                                             "Release (Supervision Level II)", "Release (Monitoring)", 
-                                             "Supervised (Pending R&S)") ~ "Monitor",
-       release_decision %in% c("Detain") ~ "Detain",
-       release_decision %in% c("Charges Dismissed", "Bail", "Ineligible - Other", "Sentenced",  
-                                             "Cite", "Ineligible - Probation/Parole", "Diversion Program",
-                                             "Ineligible - Warrant") ~ "Ineligible",
-       T ~ "Other_Unknown"),
-     pretrial_ineligible_reason = case_when(
-       pretrial_release_type_original %in% c("Bail") ~ "Bail_Bond",
-       pretrial_release_type_original %in% c("Charges Dismissed", "Sentenced") ~ "Case_Disposed",
-       T ~ "Other_Unknown"),
-     risk_level = case_when(
-       risk_level_original %in% c("Level 1", "Level 2") ~ "Low",
-       risk_level_original %in% c("Level 3", "Level 4") ~ "Medium",
-       risk_level_original %in% c("Level 5", "Level 6") ~ "High",
-       T ~ "Other_Unknown"
-     ),
-    #What about when Release = Monitoring?
-    monitor_level = case_when(release_decision_original == "Release (Supervision Level I)" ~ "Low",
-                              release_decision_original == "Release (Supervision Level II)" ~ "Medium",
-                              release_decision_original == "Release (Supervision Level III)" ~ "High",
+       release_decision%in% c("Own Recognizance", "Pretrial Monitoring (Reminder Only)") ~ "OR",
+       release_decision %in% c("Pretrial Supervision Level I", "Pretrial Supervision Level II",
+                                             "Pretrial Supervision Level III") ~ "Monitor",
+     release_decision %in% c("detain") ~ "Detain",
+       T ~ "Other_Unknown")) 
+
+####
+
+# Pretrial judicial orders Araignment
+  ## Release decision at arraignment only includes release decisions 
+assess_arraignment <- fread("Historical Data Submissions/Alameda/P2 Submission-June 30/11_05_2020/5_Arraignment Order.csv", colClasses = "character")
+
+# Ask about hearing types that aren't at arraignment. Also ask about bond_setting_history_id.
+names(assess_arraignment) <- c("event_id", "local_id", "court_docket_id", "court_case_number", "release_authorization_original", "bond_id", "release_decision_original", "release_decision_date", "hearing_type_original")
+
+# Standardize Factors--See pg. xxx for more details.
+assess_arraignment <- assess_arraignment %>%
+   mutate_if(is.character, funs(if_else(. == "NULL"|. == ""|. == "N/A", NA_character_, .))) %>%
+  mutate(tool_name = "vprair",
+     release_decision = case_when(
+       release_decision_original %in% c("OR Release", "Pretrial Release") ~ "OR",
+       release_decision_original %in% c("Level I - Pretrial Release Supervision	", "Level II - Pretrial Release Supervision",
+                                             "Level III - Pretrial Release Supervision",
+                                        "Monitoring - Pretrial Release") ~ "Monitor",
+       #They do not include detention/no release decisions
+     # release_decision_original %in% c("detain") ~ "Detain",
+       T ~ "Other_Unknown"))
+
+assess_decision <- bind_rows(assess_prearraignment, assess_arraignment)
+
+assess_decision <- assess_decision %>%
+  mutate(release_authorization = "Judge")
+
+
+
+####
+
+# Pretrial Assessments and Recommendations Conditions
+assess_rec_conditions <- fread("Historical Data Submissions/Alameda/P2 Submission-June 30/11_05_2020/3a_Assessment and Recommendation - DPO Conditions.csv", colClasses = "character", fill = T)
+
+names(assess_rec_conditions) <- c("event_id", "local_id", "assessment_date", "sup_approval_date", "sup_approval_time", "drug_edu_flag", "rec_drug_test_flag", "mh_flag", "no_alcohol_flag", "no_drugs_flag", "no_guns_flag", "search_residence_flag", "protective_order_flag", "no_threaten_flag", "no_threaten_detail", "stay_away_flag", "stay_away_detail", "stay_away_location_flag", "stay_away_location_detail", "rec_drug_test_flag2", "search_person_flag", "search_electronics_flag", "other_condition_flag", "other_condition_more_flag", "mitigatting_factors", "rec_em_flag", "rec_no_contact_flag", "no_contact_detail")
+
+
+####
+
+# Pretrial judicial orders Pre-araignment Conditions
+assess_prearraignment_conditions <- fread("Historical Data Submissions/Alameda/P2 Submission-June 30/11_05_2020/4a_Prearraignment Order - Judge Conditions.csv", colClasses = "character")
+
+  #What is the PCReviewed field?
+  #Should we use Stay Away, No Contact, protective order, or all of them for no_contact_flag?
+names(assess_prearraignment_conditions) <- c("event_id", "local_id", "release_authorization_original", "release_decision_original", "detain_flag", "concurrence_flag", "monitor_level_original", "PC_reviewed_flag", "drug_edu_flag", "condition_drug_test_flag", "mh_flag", "no_alcohol_flag", "no_drugs_flag", "no_guns_flag", "search_residence_flag", "protective_order_flag", "no_threaten_flag", "no_threaten_detail", "stay_away_flag", "stay_away_detail", "stay_away_location_flag", "stay_away_location_detail", "condition_drug_test_flag2", "search_person_flag", "search_electronics_flag", "other_condition_flag", "other_condition_more_flag", "condition_em_flag", "condition_no_contact_flag", "no_contact_detail")
+
+####
+
+# Pretrial judicial orders Araignment Conditions
+  #Confirm that differenlty named fields are the same
+assess_arraignment_conditions <- fread("Historical Data Submissions/Alameda/P2 Submission-June 30/11_05_2020/5a_Arraignment Order - Judge Conditions.csv", colClasses = "character")
+
+names(assess_arraignment_conditions) <- c("event_id", "local_id", "court_docket_id", "court_case_number", "release_authorization_original", "bond_id", "release_decision_original", "release_decision_date", "monitor_level_original", "drug_edu_flag", "condition_drug_test_flag", "mh_flag", "no_alcohol_flag", "no_drugs_flag", "no_guns_flag", "search_flag", "protective_order_flag", "no_threaten_flag", "stay_away_flag", "stay_away_location_flag",  "condition_drug_test_flag2", "other_condition_flag")
+
+assess_conditions <- bind_rows(assess_rec_conditions, assess_prearraignment_conditions, assess_arraignment_conditions)
+
+# Standardize Factors--See pg. xxx for more details.
+assess_conditions <- assess_conditions %>%
+  mutate(monitor_level = case_when(
+    monitor_level_original %in% c("Level I - Pretrial Release Supervision",
+                                     "Pretrial Supervision Level I") ~ "Low",
+    monitor_level_original %in% c("Level II - Pretrial Release Supervision",
+                                     "Pretrial Supervision Level II") ~ "Medium",
+    monitor_level_original %in% c("Level III - Pretrial Release Supervision",
+                                     "Pretrial Supervision Level III") ~ "High",
                               T ~ "Other_Unknown"),
-    pretrial_termination_reason = case_when(pretrial_status_original %in% c("PTS - Closed Successful") ~ "Case_Disposed",
-                                            pretrial_status_original %in% c("PTS - Revoked") ~ "Violation",
-                                            T ~ "Other_Unknown")
-    ) 
+    monitor_level = ordered(monitor_level, levels = c("Other_Unknown", "Low", "Medium", "High")))
+
+# Flag Standardization---See pg. xxx for more details.
+
+assess_conditions <- assess_conditions %>%
+  mutate_at(vars(contains("flag")), funs(if_else(. == "N"|is.na(.), 0, 1))) %>%
+  mutate_if(is.character, funs(if_else(. == "NULL"|. == ""|. == "N/A", NA_character_, .)))
+  
+
+  
+
+
+# Follow up about newly missing elements that were in previous extracts
+    #  pretrial_ineligible_reason = case_when(
+    #    pretrial_release_type_original %in% c("Bail") ~ "Bail_Bond",
+    #    pretrial_release_type_original %in% c("Charges Dismissed", "Sentenced") ~ "Case_Disposed",
+    #    T ~ "Other_Unknown"),
+    # 
+    #  risk_level = case_when(
+    #    risk_level_original %in% c("Level 1", "Level 2") ~ "Low",
+    #    risk_level_original %in% c("Level 3", "Level 4") ~ "Medium",
+    #    risk_level_original %in% c("Level 5", "Level 6") ~ "High",
+    #    T ~ "Other_Unknown"
+    #  ),
+    # #What about when Release = Monitoring?
+    # pretrial_termination_reason = case_when(pretrial_status_original %in% c("PTS - Closed Successful") ~ "Case_Disposed",
+    #                                         pretrial_status_original %in% c("PTS - Revoked") ~ "Violation",
+    #                                         T ~ "Other_Unknown")
 
 # Flag Standardization---See pg. xxx for more details.
   ## Need to follow up with Santa Barbara on the definitions of release recommendation, release type, release authorization, pretrial_violation_flag, and pretrial_termination_outcome. What does pretrial ID uniquely identify? Also need to figure out if we can determine Judge overrides. When do people have mulitple assessments. 
@@ -1446,10 +1487,33 @@ assess_df <- assess_df %>%
 #          condition_other_flag = if_else(),
 #          pretrial_violation_flag= if_else(!is.na(pretrial_violation_date)))
 
-assess_df %>%
-  count(pretrial_ineligible_reason)
 ```
 
+Assess Collapse
+```{r}
+# Recommendations are already collapsed to distinct event_id
+# assess_rec %>%
+#   distinct(event_id)
+
+# Taking the earliest release decision associated with each event
+assess_decision <- assess_decision %>%
+  select(-court_docket_id, -bond_id, -court_case_number, -hearing_type_original) %>%
+  arrange(release_decision_date) %>%
+  distinct(event_id, .keep_all = T)
+  
+
+#Conditions Collapse
+assess_conditions <- assess_conditions %>%
+  mutate_at(vars(contains("flag")), funs(if_else(. == "N"|is.na(.), 0, 1))) %>%
+  mutate_if(is.character, funs(if_else(. == "NULL"|. == ""|. == "N/A", NA_character_, .))) %>%
+  group_by(event_id) %>%
+  summarise_at(vars(matches("cond|rec"), monitor_level_original, monitor_level), max)
+
+assess_df <- assess_rec %>%
+  select(-tool_name) %>%
+  left_join(assess_decision) %>%
+  left_join(assess_conditions)
+```
 
 
 Join
@@ -5317,12 +5381,125 @@ Jail Data
 
 # fwrite(jail_df, file = "C:/Work/PretrialAssessmentPilot/Historical Data Submissions/Tulare/Tulare Jail xml to csv.csv")
 
+####
+
+# Jail Bookings Data Import--- Tulare, 2015-01-01 to 2019-12-30
+  ## book_df contains one row per booking/charge/courtcase combination and includes information on the person, the charge, as well as the time of booking and release. It contains some duplicates based around release information. Additional, it is ambiguous whether identical charges attached to some bookings are a separate count or dupliation error. Follow up with SB.    
+
+
 book_df <- fread("Historical Data Submissions/Tulare/Tulare Jail xml to csv.csv", colClasses = "character")
 
-names(book_df) <- c("book_id", "book_date", "book_time", "book_num", "charge_level", "local_id", "last_name", "first_name", "middle_name", "dob", "sex_original", "ht", "wt", "hair", "eye", "race_original", "veteran", "cld_id", "fbi", "ssn", "cii", "employed", "address", "city", "phone_num", "arrest_date", "arrest_time", "officer_id", "arrest_agency", "arrest_location", "charge", "charge_level", "division", "department", "court_date", "bail_type", "bail_amt", "release_date", "release_type")
+names(book_df) <- c("book_id", "book_date", "book_time", "book_num", "arrest_charge_level_original", "local_id", "last_name", "first_name", "middle_name", "dob", "sex_original", "ht", "wt", "hair", "eye", "race_original", "veteran", "cld_id", "fbi", "ssn", "cii", "employed", "address", "city", "phone_num", "arrest_date", "arrest_time", "officer_id", "arrest_agency", "arrest_location", "arrest_charge_original", "book_charge_level_original_drop", "division", "department", "court_date", "bail_type", "bail_amt", "release_date", "release_type_original") 
 
-#Start Here--Mising all jail standardization. Also need court collapse. 
-book_df
+# Removing unnecessary variables
+book_df <- book_df %>%
+  #Time variables are empty
+  select(book_id, book_num, local_id, cii, fbi, cld_id, zip_code = address, dob,
+         matches("name|date|original|bail"), -book_charge_level_original_drop)
+
+
+# Date Reformatting--See pg. xxx for more details.
+book_df <- book_df %>%
+  mutate_at(vars(contains("date"), dob), as_date)
+
+# Deduplicating 1 entry.
+book_df <- book_df %>%
+  arrange(book_date, release_date) %>%
+  distinct(book_num, .keep_all = T)
+
+# Standardize Factors--See pg. xxx for more details.
+
+book_df <- book_df %>%
+  mutate(sex = case_when(sex_original %in% c("M") ~ "Male",
+                         sex_original %in% c("F") ~ "Female",
+                         T ~ "Other_Unknown"),
+
+         #Trimming white space on original race first
+         race_original = trimws(race_original),
+         race = case_when(race_original %in% c("B") ~ "Black",
+                          race_original %in% c("H") ~ "Hispanic",
+                          race_original %in% c("W") ~ "White",
+                          #All Other races/ethnicities collapsed into other
+                          T ~ "Other_Unknown"),
+         zip_code = gsub(" .*", "", zip_code))
+
+         # release_type_original = trimws(release_type_original),
+         # release_type = case_when(release_type_original %in% c("TIME SERVED") ~ "Time_Served",
+         #                          release_type_original %in% c("RELEASE TO OTHER COUNTY", "TO OTHER AGENCY", "RELEASE TO OTHER STATE") ~ "Hold_Release",
+         #                          release_type_original %in% c("CITE RELEASED") ~ "Cite_Release",
+         #                          release_type_original %in% c("BAIL BOND", "CASH BAIL") ~ "Bail_Bond",
+         #                          release_type_original %in% c("ORDERED DISCHARGED", "NO COMPLAINT/849PC", "WARRANT RECALLED") ~ "Dismissed_Dropped",
+         #                          release_type_original %in% c("RELEASED O.R.") ~ "OR",
+         #                          release_type_original %in% c("COURT ORDERED/PHF 1370PC") ~ "Court_Order",
+         #                          release_type_original %in% c("STATE INSTITUTE/PRIS", "RELEASE TO C.D.C.R.") ~ "Prison",
+         #                          release_type_original %in% c("CAP/TIME SERVED") ~ "Sent_Cap",
+         #                          book_type_original %in% c("EX PARTE", "825PC ADMIN REL") ~ "Administrative",
+         #                          T ~ "Other")) 
+
+
+# Charge Standardization and Flag Adds--See pg. xxx for more details.
+book_df <- book_df %>%
+  separate_rows(arrest_charge_original, sep = ";") %>%
+  mutate(attempt = if_else(grepl("664", arrest_charge_original), 1, 0)) %>%
+  mutate(arrest_charge_code_original = str_extract(trimws(arrest_charge_original), "^.."),
+         arrest_charge_code = if_else(!arrest_charge_code_original %in% c("PC", "VC", "HS", "BP", "WI", "US"), "Other",
+                                      arrest_charge_code_original),
+         arrest_charge_level = toupper(arrest_charge_level_original),
+         arrest_charge_level = if_else(!arrest_charge_level %in% c("F", "M"), "Other", arrest_charge_level),
+         arrest_charge = toupper(gsub("\\/|\\(|\\)| |\\.|\\.*|^[A-Z]*|\\\\.*|\\{|\\}|EX|\\+|\\-","", arrest_charge_original))) %>%
+  # mutate(hierarchy = if_else(grepl("12032", join_var) & is.na(hierarchy), 178400, hierarchy))
+  unite(join_var, arrest_charge_level, arrest_charge_code, arrest_charge, remove = F)
+
+load("Complete Charge Code Hierarchy.RData")
+
+#Seperate out data with missing charge levels and joing seperately without charge level for ones missing it.
+book_df_missing <- book_df %>%
+  filter(arrest_charge_level == "Other")
+
+book_df_notmissing <- book_df %>%
+  filter(arrest_charge_level != "Other")
+
+book_df_notmissing <- book_df_notmissing %>%
+  left_join(charge_hier, by = "join_var") %>%
+  mutate(felony_flag = if_else(arrest_charge_level == "F", 1, 0),
+         misd_flag = if_else(arrest_charge_level == "M", 1, 0)) %>%
+  rename_at(vars(contains("flag")), funs(paste0("arrest_", .))) 
+
+
+book_df_missing <- book_df_missing %>%
+  #Assuming misd for all charges with missing levels. This is obviously incorrect.
+  select(-join_var) %>%
+  mutate(row = row_number()) %>%
+  left_join(charge_hier, by = c("arrest_charge" = "charge", "arrest_charge_code" = "charge_code")) %>%
+  group_by(row) %>%
+  arrange(row, desc(charge_level)) %>%
+  distinct(row, .keep_all = T) %>%
+  ungroup() %>%
+  select(-row)
+  
+book_df <- bind_rows(book_df_notmissing, book_df_missing)  
+
+
+```
+
+  Jail Collapse
+```{r}
+# Booking Collapse--See pg. xxx for more details about this process.
+book_df <- book_df %>%
+  mutate(time_first_release = release_date - book_date) %>%
+  mutate(hierarchy = if_else(is.na(hierarchy), 1e6, as.numeric(hierarchy))) %>%
+  group_by(book_num, book_date) %>%
+  # mutate(max_booktype = book_type[hierarchy == min(hierarchy)][1],
+  #        max_arrest_charge = arrest_charge[hierarchy == min(hierarchy)][1],
+  #        max_charge_description = master_charge_description[hierarchy == min(hierarchy)][1],
+  #        max_hier = min(hierarchy)) %>%
+  mutate_at(vars(contains("flag")), funs(if_else(is.na(.), 0, .))) %>%
+  mutate_at(vars(contains("flag")), funs("count" = sum(.))) %>%
+  mutate_at(vars(contains("flag")), max) %>%
+  group_by(book_num, book_date, court_docket_id) %>%
+  filter(hierarchy == min(hierarchy)) %>%
+  ungroup() %>%
+  distinct(book_num, book_date, court_docket_id, .keep_all = T) 
 ```
 
   Jail Diagnostics
@@ -5437,6 +5614,7 @@ court_df <- court_df %>%
 
 Court Collapse
 ```{r}
+#Start Here
 
 ```
 
