@@ -1171,14 +1171,19 @@ Probation Join Tables
 ```{r}
 
 ## The id that these files should be joined on is pretrial_id2 according to Brendon Brown email 10/6/2020
+## why are people getting multiple assessments in short period of time?
 
 assess_df_score <- assess_df_score %>%
-  distinct(pretrial_id2, .keep_all = TRUE)
+  arrange(assessment_date) %>%
+  distinct(pretrial_id2, assessment_date, .keep_all = TRUE)
   
 assess_df_case <- assess_df_case%>%
+  group_by(pretrial_id2) %>%
+  mutate_at(vars(contains("flag")), funs(if_else(is.na(.), 0, .))) %>%
+  mutate_at(vars(contains("flag")), max) %>%
   distinct(pretrial_id2, .keep_all = TRUE)
 
-
+# dont use for now until we figure out event ID
 assess_df_viol <- assess_df_viol%>%
   distinct(pretrial_id2, .keep_all = TRUE)
 
@@ -1186,21 +1191,33 @@ assess_df_demo <- assess_df_demo%>%
   distinct(pretrial_id2 , .keep_all = TRUE) %>%
   mutate (pretrial_id2 = as.numeric(pretrial_id2))
 
-assess_df_test <- assess_df_score %>%
+assess_df_terms <- assess_df_terms%>%
+  group_by(pretrial_id2) %>%
+  mutate_at(vars(contains("flag")), funs(if_else(is.na(.), 0, .))) %>%
+  mutate_at(vars(contains("flag")), max) %>%
+  distinct(pretrial_id2, .keep_all = TRUE)
+
+assess_df <- assess_df_score %>%
   left_join(assess_df_demo, by = "pretrial_id2") %>%
   left_join(assess_df_case, by = "pretrial_id2") %>%
-  left_join(assess_df_viol, by = "pretrial_id2")
-  
+  left_join(assess_df_terms, by = "pretrial_id2") 
+  #left_join(assess_df_viol, by = "pretrial_id2")
+ 
+ 
 
 # now that all the assessment tables are joined I can apply the monitor level to only those who were released.
-assess_df_test <- assess_df_test %>%
+assess_df <- assess_df %>%
   mutate(monitor_level = ifelse(release_decision == "Monitor", monitor_level, NA  ))
 
 
-assess_df_test 
+fwrite(assess_df, "G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Nevada Assessment Collapse.csv")
  
 
-
+# assess_df_terms %>%
+#   group_by(pretrial_id2) %>%
+#   add_count() %>%
+#   filter(n>1) %>%
+#   arrange(pretrial_id2)
 
 ```
 Assessment Tables for Noah 9-2020
