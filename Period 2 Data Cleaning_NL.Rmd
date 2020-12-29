@@ -26,6 +26,7 @@ library(gsubfn)
 library(fuzzyjoin)
 library(dplyr)
 library(openxlsx)
+# library(multidplyr)
 ```
 
 # Function Creation
@@ -2280,6 +2281,8 @@ court_fta <- court_fta %>%
 
   Court Collapse
 ```{r}
+
+# Partitioning court df collapse process because I have too little RAM.
 suppressWarnings(court_df <- court_df %>%
   arrange(file_date) %>%
   mutate(hierarchy = if_else(is.na(hierarchy), 1e6, as.numeric(hierarchy)),
@@ -2288,18 +2291,42 @@ suppressWarnings(court_df <- court_df %>%
   mutate(disposition_date = max(disposition_date, na.rm = T),
          sentence_date = min(sentence_date, na.rm = T)))
 
-suppressWarnings(court_df <- court_df %>%
+case_sample <- court_df$court_case_id %in% sample(court_df$court_case_id, length(unique(court_df$court_case_id))/2)
+
+court_df_part1 <- court_df[case_sample,]
+  
+court_df_part2 <- court_df[!case_sample,]
+
+rm(court_df)
+
+court_df_part1 <- court_df_part1 %>%
   group_by(court_case_id) %>%
   mutate_at(vars(contains("flag")), funs(if_else(is.na(.), 0, .))) %>%
     ## Add this back in later. It's now working right now due to computational issues.
-  # mutate_at(vars(contains("flag")), funs("count" = sum(.))) %>%
-  mutate_at(vars(contains("flag")), max)) 
+  mutate_at(vars(contains("flag")), funs("count" = sum(.))) %>%
+  mutate_at(vars(contains("flag")), max)
+
+court_df_part2 <- court_df_part2 %>%
+  group_by(court_case_id) %>%
+  mutate_at(vars(contains("flag")), funs(if_else(is.na(.), 0, .))) %>%
+    ## Add this back in later. It's now working right now due to computational issues.
+  mutate_at(vars(contains("flag")), funs("count" = sum(.))) %>%
+  mutate_at(vars(contains("flag")), max)
   
-suppressWarnings(court_df <- court_df %>%
+suppressWarnings(court_df_part1 <- court_df_part1 %>%
   group_by(court_case_id, book_num) %>%  
   filter(hierarchy == min(hierarchy)) %>%
   ungroup() %>%
   distinct(court_case_id, book_num, .keep_all = T)) 
+
+suppressWarnings(court_df_part2 <- court_df_part2 %>%
+  group_by(court_case_id, book_num) %>%  
+  filter(hierarchy == min(hierarchy)) %>%
+  ungroup() %>%
+  distinct(court_case_id, book_num, .keep_all = T)) 
+
+court_df <- bind_rows(court_df_part1, court_df_part2)
+rm(court_df_part1, court_df_part2)
   
 court_df <- court_df %>%
   mutate(final_disposition_date = if_else(disposition_date < sentence_date|is.na(sentence_date), disposition_date, sentence_date),
@@ -2315,17 +2342,17 @@ court_df <- court_df %>%
 
 fwrite(court_df, "C:/Work/PretrialAssessmentPilot/Agency Collapse CSV Files/Los Angeles Court Collapse.csv")
 
-court_df %>%
-  filter(court_case_id == 9999889) %>%
-  group_by(court_case_id) %>%
-  mutate_at(vars(contains("flag")), funs(if_else(is.na(.), 0, .))) %>%
-    ## Add this back in later. It's now working right now due to computational issues.
-  # mutate_at(vars(contains("flag")), funs("count" = sum(.))) %>%
-  mutate_at(vars(contains("flag")), max) %>%
-  group_by(court_case_id, book_num) %>%  
-  filter(hierarchy == min(hierarchy)) %>%
-  ungroup() %>%
-  distinct(court_case_id, book_num, .keep_all = T)
+# court_df %>%
+#   filter(court_case_id == 9999889) %>%
+#   group_by(court_case_id) %>%
+#   mutate_at(vars(contains("flag")), funs(if_else(is.na(.), 0, .))) %>%
+#     ## Add this back in later. It's now working right now due to computational issues.
+#   # mutate_at(vars(contains("flag")), funs("count" = sum(.))) %>%
+#   mutate_at(vars(contains("flag")), max) %>%
+#   group_by(court_case_id, book_num) %>%  
+#   filter(hierarchy == min(hierarchy)) %>%
+#   ungroup() %>%
+#   distinct(court_case_id, book_num, .keep_all = T)
 ```
   
   Court Diagnostics
@@ -3961,7 +3988,6 @@ court_hearing <- court_hearing %>%
   mutate(hearing_type = case_when(grepl("Arraignment", hearing_type_original) ~ "Arraignment",
                                   T ~ "Other"))
 
-summary(court_hearing$hearing_date)
 
 ####
 
@@ -4534,9 +4560,9 @@ assess_df <- assess_df %>%
 assess_df <- assess_df %>%
   group_by(pretrial_id, assessment_date) %>%
   mutate_at(vars(contains("flag")), funs(max(., na.rm = T))) %>%
-  distinct(pretrial_id, assessment_date, court_docket_id)
+  distinct(pretrial_id, assessment_date, court_docket_id, .keep_all = T)
 
-fwrite(court_df, "C:/Work/PretrialAssessmentPilot/Agency Collapse CSV Files/Santa Barbara Assessment Collapse.csv")
+fwrite(assess_df, "C:/Work/PretrialAssessmentPilot/Agency Collapse CSV Files/Santa Barbara Assessment Collapse.csv")
 ```
 
   Assessment Diagnostics
@@ -4742,6 +4768,111 @@ assess_df <- assess_tracking %>%
 Join
   Jail Court Join
 ```{r}
+book_df <- fread("C:/Work/PretrialAssessmentPilot/Agency Collapse CSV Files/Santa Barbara Booking Collapse.csv") %>%
+  mutate_at(vars(contains("date"), dob), as_date)
+
+court_df <- fread("C:/Work/PretrialAssessmentPilot/Agency Collapse CSV Files/Santa Barbara Court Collapse.csv") %>%
+  mutate_at(vars(contains("date"), dob), as_date)
+
+assess_df <- fread("C:/Work/PretrialAssessmentPilot/Agency Collapse CSV Files/Santa Barbara Assessment Collapse.csv") %>%
+  mutate_at(vars(contains("date"), dob), as_date)
+
+date_df <- fread("C:/Work/PretrialAssessmentPilot/County Join Dates/SANTA BARBARA Join Dates.csv") %>%
+  rename(file_date = filing_date) %>%
+  mutate_at(vars(contains("date")), as_date)
+
+#Changing dates to DOJ format
+book_df <- book_df %>%
+  mutate(cii = parse_number(cii),
+         cii = case_when(nchar(cii) == 6 ~ paste0("0000", cii),
+                         nchar(cii) == 7 ~ paste0("000", cii),
+                         nchar(cii) == 8 ~ paste0("00", cii),
+                         nchar(cii) == 9 ~ paste0("0", cii),
+                         T ~ as.character(cii)),
+         cii = if_else(nchar(cii) != 10, NA_character_, cii)) 
+  
+court_df <- court_df %>%
+  mutate(cii = parse_number(cii),
+         cii = case_when(nchar(cii) == 6 ~ paste0("0000", cii),
+                         nchar(cii) == 7 ~ paste0("000", cii),
+                         nchar(cii) == 8 ~ paste0("00", cii),
+                         nchar(cii) == 9 ~ paste0("0", cii),
+                         T ~ as.character(cii)),
+         cii = if_else(nchar(cii) != 10, NA_character_, cii)) 
+
+court_df %>%
+  semi_join(date_df, by = c("cii", "file_date"))
+  arrange(desc(n))
+
+court_df %>%
+  select(contains("date"))
+
+court_join <- court_df %>%
+  left_join(court_hearing) %>%
+  arrange(hearing_date) %>%
+  filter(!is.na(hearing_date)) %>%
+  distinct(court_case_id, hearing_date, .keep_all = T) %>%
+  # distinct(cii, court_case_id, hearing_date, hearing_type_original) %>%
+  semi_join(date_df, by = c("cii", "hearing_date" = "file_date")) 
+  # count(hearing_type_original) %>%
+  # arrange(desc(n))
+
+court_hearing %>%
+  arrange(hearing_date) %>%
+  distinct(court_case_id, .keep_all = T)
+
+court_df %>%
+  filter(!is.na(disposition_date)) %>%
+  semi_join(date_df, by = c("cii", "disposition_date"))
+
+court_df %>%
+  filter(!is.na(disposition_date))
+
+book_df %>%
+  semi_join(court_df, by = "court_docket_id")
+
+court_join %>%
+  distinct(court_case_id, court_docket_id, .keep_all = T) 
+
+court_df %>%
+  semi_join(book_df, by = "court_docket_id")
+
+date_df %>%
+  filter(!is.na(arrest_date), !is.na(file_date))
+
+summary(court_df$file_date)
+
+summary(book_df$arrest_date)
+
+book_df %>%
+  arrange(arrest_date)
+
+date_df %>%
+  filter(!is.na(disposition_date), !is.na(file_date)) %>%
+  filter(disposition_date >= "")
+
+court_df %>%
+  semi_join(date_df, by = c("cii", "file_date"))
+
+court_df %>% 
+  left_join(date_df, by = c("cii")) %>%
+  filter(file_date.x - file_date.y <= 100, file_date.x - file_date.y >= -100) %>%
+  distinct(cii, file_date.x)
+  select(file_date.x, file_date.y)
+
+date_df %>%
+  distinct(cii, file_date)
+
+court_join_2 <- court_df %>%
+  semi_join(book_df, by = "court_docket_id")
+
+doj_case_match <- unique(court_join$court_docket_id)
+
+docket_case_match <- unique(court_join_2$court_docket_id)
+
+length(intersect(doj_case_match, docket_case_match))
+
+
 # Remove extraneous objects in the environment
 rm(list = ls()[!ls() %in% ls(pattern = "df")])
 
@@ -5581,6 +5712,12 @@ court_df <- lapply(c("15-16", "16-17", "17-18", "18-19", "18-19End"), function(i
   bind_rows()
 
 court_df2 <- fread("Historical Data Submissions/Tulare/P2 Submission-June 30/PretrialStats_Jan 2020 to Jun 2020.csv", colClasses = "character")
+
+court_df3 <- fread("Historical Data Submissions/Tulare/P2 Submission-June 30/Pretrial2019.csv", colClasses = "character")
+
+court_df3 %>%
+  
+  distinct()
 
 court_df <- bind_rows(court_df, court_df2)
 rm(court_df2)
@@ -6465,7 +6602,8 @@ book_df <- book_df %>%
 book_df <- book_df %>%
   mutate(attempt = if_else(grepl("664", arrest_charge_original), 1, 0)) %>%
   separate_rows(arrest_charge_original, sep = "\\\\|\\-|\\/") %>%
-  mutate(arrest_charge_code = if_else(!arrest_charge_code_original %in% c("PC", "VC", "HS", "BP", "WI", "US"), "Other", arrest_charge_code_original),
+  mutate(arrest_charge_code = if_else(!arrest_charge_code_original %in% c("PC", "VC", "HS", "BP", "WI", "US"), "Other",
+                                      arrest_charge_code_original),
          arrest_charge_level = if_else(!arrest_charge_level_original %in% c("F", "M", "I"), "Other", arrest_charge_level_original),
          arrest_charge = toupper(gsub("\\/|\\(|\\)| |\\.|\\.*|^[A-Z]*|\\\\.*|\\{|\\}|EX|\\+|\\-","", arrest_charge_original)),
          arrest_charge = if_else(arrest_charge %in% c("23152", "23152AB") & arrest_charge_level == "M", "23152A", arrest_charge),
@@ -7278,6 +7416,55 @@ assess_df %>%
 Join
   Jail Court Join
 ```{r}
+book_df <- fread("C:/Work/PretrialAssessmentPilot/Agency Collapse CSV Files/Tuolumne Booking Collapse.csv") %>%
+  mutate_at(vars(contains("date"), dob), as_date)
+
+court_df <- fread("C:/Work/PretrialAssessmentPilot/Agency Collapse CSV Files/Tuolumne Court Collapse.csv") %>%
+  mutate_at(vars(contains("date"), dob), as_date)
+
+assess_df <- fread("C:/Work/PretrialAssessmentPilot/Agency Collapse CSV Files/Tuolumne Assessment Collapse.csv") %>%
+  mutate_at(vars(contains("date"), dob), as_date)
+
+date_df <- fread("C:/Work/PretrialAssessmentPilot/County Join Dates/TUOLUMNE Join Dates.csv", colClasses = "character") %>%
+  # rename(file_date = filing_date) %>%
+  mutate_at(vars(contains("date")), as_date)
+
+#Changing dates to DOJ format
+book_df <- book_df %>%
+  mutate(cii = parse_number(cii),
+         cii = case_when(nchar(cii) == 6 ~ paste0("0000", cii),
+                         nchar(cii) == 7 ~ paste0("000", cii),
+                         nchar(cii) == 8 ~ paste0("00", cii),
+                         nchar(cii) == 9 ~ paste0("0", cii),
+                         T ~ as.character(cii)),
+         cii = if_else(nchar(cii) != 10, NA_character_, cii)) 
+  
+court_df <- court_df %>%
+  mutate(cii = parse_number(cii),
+         cii = case_when(nchar(cii) == 6 ~ paste0("0000", cii),
+                         nchar(cii) == 7 ~ paste0("000", cii),
+                         nchar(cii) == 8 ~ paste0("00", cii),
+                         nchar(cii) == 9 ~ paste0("0", cii),
+                         T ~ as.character(cii)),
+         cii = if_else(nchar(cii) != 10, NA_character_, cii)) 
+
+
+court_df %>%
+  # filter(court_docket_id != "DA NOT FILING", 
+  #        court_docket_id != "") %>%
+  semi_join(book_df, by = c("court_case_id" = "court_docket_id"))
+
+book_df %>%
+  semi_join(date_df)
+
+court_df %>%
+  left_join(court_hearing) %>%
+  # select(contains("date"))
+  semi_join(date_df, by = c("cii", "hearing_date" = "filing_date"))
+
+date_df %>%
+  filter(!is.na(filing_date))
+
 # Remove extraneous objects in the environment
 rm(list = ls()[!ls() %in% ls(pattern = "df")])
 
@@ -7859,4 +8046,148 @@ write.xlsx(list(doj_cii, doj_book, doj_court, doj_assess), file = "CIIs for DOJ/
 #   View()
 ```
 
+
+
+# Ventura (Join Check)
+
+Jail Court Join
+```{r}
+ 
+book_df <- fread("C:/Work/PretrialAssessmentPilot/Agency Collapse CSV Files/Ventura Booking Collapse.csv") %>%
+  mutate_at(vars(contains("date"), dob), as_date)
+
+court_df <- fread("C:/Work/PretrialAssessmentPilot/Agency Collapse CSV Files/Ventura Court Collapse.csv") %>%
+  mutate_at(vars(contains("date"), dob), as_date)
+
+assess_df <- fread("C:/Work/PretrialAssessmentPilot/Agency Collapse CSV Files/Ventura Assessment Collapse.csv") %>%
+  mutate_at(vars(contains("date"), dob), as_date)
+
+date_df <- fread("C:/Work/PretrialAssessmentPilot/County Join Dates/VENTURA Join Dates.csv", colClasses = "character") %>%
+  # rename(file_date = filing_date) %>%
+  mutate_at(vars(contains("date")), as_date)
+
+#Changing dates to DOJ format
+book_df <- book_df %>%
+  mutate(cii = parse_number(cii),
+         cii = case_when(nchar(cii) == 6 ~ paste0("0000", cii),
+                         nchar(cii) == 7 ~ paste0("000", cii),
+                         nchar(cii) == 8 ~ paste0("00", cii),
+                         nchar(cii) == 9 ~ paste0("0", cii),
+                         T ~ as.character(cii)),
+         cii = if_else(nchar(cii) != 10, NA_character_, cii)) 
+  
+court_df <- court_df %>%
+  mutate(cii = parse_number(cii),
+         cii = case_when(nchar(cii) == 6 ~ paste0("0000", cii),
+                         nchar(cii) == 7 ~ paste0("000", cii),
+                         nchar(cii) == 8 ~ paste0("00", cii),
+                         nchar(cii) == 9 ~ paste0("0", cii),
+                         T ~ as.character(cii)),
+         cii = if_else(nchar(cii) != 10, NA_character_, cii)) 
+
+
+
+book_df %>%
+  semi_join(date_df)
+
+summary(book_df$arrest_date)
+
+summary(date_df$arrest_date)
+
+
+court_df %>%
+  semi_join(date_df, by = c("cii", "disposition_date"))
+
+#Jail Court ID is duplicated when split between cases
+book_df <- book_df %>% distinct(court_case_id, .keep_all = T)
+
+
+
+#Jail Court ID is duplicated when split between cases
+court_df <- court_df %>% distinct(court_case_id, .keep_all = T)
+
+
+
+book_no_court <- semi_join(court_df, book_df, by = c("court_case_id"))
+nrow(book_df)
+nrow(book_no_court)
+nrow(book_no_court)/nrow(book_df)
+
+book_df %>%
+  semi_join(date_df)
+
+court_df %>%
+  left_join(court_hearing) %>%
+  # select(contains("date"))
+  semi_join(date_df, by = c("cii", "hearing_date" = "filing_date"))
+
+date_df %>%
+  filter(!is.na(filing_date))
+
+# Remove extraneous objects in the environment
+rm(list = ls()[!ls() %in% ls(pattern = "df")])
+```
+
+
+# Modoc (Join Check)
+
+  Jail Court Join
+```{r}
+ 
+book_df <- fread("C:/Work/PretrialAssessmentPilot/Agency Collapse CSV Files/Modoc Booking Collapse.csv") %>%
+  mutate_at(vars(contains("date"), dob), as_date)
+
+court_df <- fread("C:/Work/PretrialAssessmentPilot/Agency Collapse CSV Files/Modoc Court Collapse.csv") %>%
+  mutate_at(vars(contains("date"), dob), as_date)
+
+assess_df <- fread("C:/Work/PretrialAssessmentPilot/Agency Collapse CSV Files/Modoc Assessment Collapse.csv") %>%
+  mutate_at(vars(contains("date"), dob), as_date)
+
+date_df <- fread("C:/Work/PretrialAssessmentPilot/County Join Dates/MODOC Join Dates.csv", colClasses = "character") %>%
+  # rename(file_date = filing_date) %>%
+  mutate_at(vars(contains("date")), as_date)
+
+#Changing dates to DOJ format
+book_df <- book_df %>%
+  mutate(cii = parse_number(cii),
+         cii = case_when(nchar(cii) == 6 ~ paste0("0000", cii),
+                         nchar(cii) == 7 ~ paste0("000", cii),
+                         nchar(cii) == 8 ~ paste0("00", cii),
+                         nchar(cii) == 9 ~ paste0("0", cii),
+                         T ~ as.character(cii)),
+         cii = if_else(nchar(cii) != 10, NA_character_, cii)) 
+  
+court_df <- court_df %>%
+  mutate(cii = parse_number(cii),
+         cii = case_when(nchar(cii) == 6 ~ paste0("0000", cii),
+                         nchar(cii) == 7 ~ paste0("000", cii),
+                         nchar(cii) == 8 ~ paste0("00", cii),
+                         nchar(cii) == 9 ~ paste0("0", cii),
+                         T ~ as.character(cii)),
+         cii = if_else(nchar(cii) != 10, NA_character_, cii)) 
+
+
+
+book_df %>%
+  semi_join(date_df)
+
+summary(book_df$arrest_date)
+
+summary(date_df$arrest_date)
+
+
+court_df %>%
+  semi_join(date_df, by = c("cii", "disposition_date"))
+```
+# Example
+```{r}
+join_df <- tibble(person_id = rep(3, 20), book_date = as_date(sample(c(18262, 18272, 18362), 20)), final_disposition_date = as_date(sample(c(18262, 18272, 18362), 20)))
+
+as.numeric(as_date("2020-01-01"))
+```
+
+
+```{r}
+
+```
 
