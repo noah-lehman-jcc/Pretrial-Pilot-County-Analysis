@@ -16,6 +16,7 @@ library(openxlsx)
 library(readxl)
 library(lubridate)
 library(tidyverse)
+library(fuzzyjoin)
 ```
 
 # Function Creation
@@ -176,7 +177,6 @@ fwrite(book_df, "G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV File
 
 
 ```
-
 
 Jail Diagnostics
 ```{r eval=FALSE, include=FALSE}
@@ -505,7 +505,6 @@ court_warrants <- court_warrants %>%
 
 ```
 
-
 Nevada Court Collapse Nevada
 ```{r eval=FALSE, include=FALSE}
 ##disposition date in court charge is a charge disposition date rather than a case disposition date, It includes violations of probation, which means the latest date for each disposition_date is not correct when there is a VOP.
@@ -585,7 +584,6 @@ court_df <- reduce(list(court_df, court_dispo, court_fta_war, court_arraign, cou
 fwrite(court_df, "G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Nevada Court Collapse.csv")
 
 ```
-
 
 Court Diagnostics
 ```{r eval=FALSE, include=FALSE}
@@ -686,7 +684,6 @@ charge_hier%>%
 
 Import Court Data Sierra
 ```{r eval=FALSE, include=FALSE}
-
 
 #These 3 tables were submitted 7/28/2020 : contain historical data through P2 data  
   ##Court Demographics: contain court case id, first name, last name, DOB, race, sex
@@ -816,9 +813,9 @@ court_dispos_s <- left_join(court_dispos_s, charge_hier, by = "join_var") %>%
 
 
 ```
+
 Court Collapse Sierra
 ```{r}
-
 
 court_dispo_s <- court_dispos_s %>%   
   mutate(disposition_type = ordered(disposition_type, levels = c("Other", "Dismissed", "Not_Guilty", "Nolo_Contendere",
@@ -1027,7 +1024,9 @@ assess_df_demo <- assess_df_demo %>%
   mutate_at(vars(first_name, last_name, suffix), trimws) %>%
   separate(first_name, c("first_name", "middle_name"), sep = " ")
 
- 
+assess_df_demo <- assess_df_demo %>%
+  mutate(dob = as_date(dob))
+
 names_df2 <- tibble(original_field = names(assess_df_demo))
 
 # Standardize Names
@@ -1167,6 +1166,7 @@ assess_df_viol <- assess_df_viol %>%
 
 
 ```
+
 Probation Join Tables
 ```{r}
 
@@ -1199,11 +1199,20 @@ assess_df_terms <- assess_df_terms%>%
 
 assess_df <- assess_df_score %>%
   left_join(assess_df_demo, by = "pretrial_id2") %>%
+  select(-contains(".y")) %>%
+  rename_at(vars(contains(".x")), funs(gsub("\\.x", "", .))) %>%
+
   left_join(assess_df_case, by = "pretrial_id2") %>%
-  left_join(assess_df_terms, by = "pretrial_id2") 
+  select(-contains(".y")) %>%
+  rename_at(vars(contains(".x")), funs(gsub("\\.x", "", .))) %>%
+
+  left_join(assess_df_terms, by = "pretrial_id2") %>%
+  select(-contains(".y")) %>%
+  rename_at(vars(contains(".x")), funs(gsub("\\.x", "", .)))  
+
   #left_join(assess_df_viol, by = "pretrial_id2")
  
- 
+
 
 # now that all the assessment tables are joined I can apply the monitor level to only those who were released.
 assess_df <- assess_df %>%
@@ -1220,6 +1229,7 @@ fwrite(assess_df, "G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Fi
 #   arrange(pretrial_id2)
 
 ```
+
 Assessment Tables for Noah 9-2020
 ```{r}
 ##Assessment Table 
@@ -1239,6 +1249,7 @@ Assessment Tables for Noah 9-2020
 # Save file  
 fwrite(assess_table, file = "G:/CrimJustice/PretrialAssessmentPilot/Assessment Output Tables/Nevada Assessment Output 09-2020.csv")
 ```
+
 Assessment Tables for Noah 10-2020
 ```{r}
 assess_table <- assess_df %>%
@@ -1644,8 +1655,6 @@ Probation data Old dont use
 # all assessment IDs have at least one "Other Areas of Concern", mostly "Other" (251)
 ```
 
-
-
 Code Book
 ```{r eval=FALSE, include=FALSE}
 rm(original_field)
@@ -1687,7 +1696,7 @@ Nevada_df <- lapply(ls()[!grepl("original", ls())], function(i){
 write.xlsx(Nevada_df, file = "Code Books/Nevada Code Book.xlsx")
 
 
-
+```
 DOJ CII/Linking Extraction
 ```{r}
 # Grab Tables with CII
@@ -2077,6 +2086,80 @@ tibble(
 )
 
 join_df <- bind_rows(join1, join2, join3)
+
+
+```
+Jail Court Join Post-Collapse
+```{r}
+# Pull in Agency Collapsed Data made for Noah in December
+
+assess_df <- fread("G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Nevada Assessment Collapse.csv") %>%
+  mutate(across(contains("time"), as_datetime)) %>%
+  mutate(across(c(contains("date"),"dob") & is.character, as_date))
+
+book_df <- fread("G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Nevada Booking Collapse.csv")%>%
+  mutate(across(contains("time"), as_datetime)) %>%
+  mutate(across(c(contains("date"),"dob") & is.character, as_date)) %>%
+  mutate(across(where(is.character), ~if_else(.x == "", NA_character_, .x)))
+
+court_df <- fread("G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Nevada Court Collapse.csv")%>%
+  mutate(across(contains("time"), as_datetime)) %>%
+  mutate(across(c(contains("date"),"dob") & is.character, as_date)) %>%
+  mutate(across(where(is.character), ~if_else(.x == "", NA_character_, .x)))
+  
+
+names(book_df)[names(book_df) %in% names(court_df)]
+
+
+# look for share cases in book cases that match a court case (26.2%)
+nrow(book_df %>%
+    semi_join(court_df, by = c("court_case_id"), na_matches = "never"))/nrow(book_df) 
+
+# Look share cases in court_df that match book_df (33.8%)
+nrow(court_df %>%
+    semi_join(book_df, by = c("court_case_id"), na_matches = "never"))/nrow(court_df) 
+
+
+# Join by court_case_id
+join_df <- book_df %>%
+  #mutate(book_num= as.character(book_num)) %>%
+  left_join(court_df, by = c("court_case_id"), na_matches = "never") %>%
+  select(-contains(".y")) %>%
+  rename_at(vars(contains(".x")), funs(gsub("\\.x", "", .)))
+
+```
+Post-collapse join of Assessment and joined Court/Jail
+```{r}
+#Join Assessment data to court/jail joined data match rate = 48.7
+# 
+
+names(join_df)[names(join_df) %in% names(assess_df)]
+
+nrow(assess_df %>%
+  left_join(join_df, by = c("first_name", "last_name", "dob"), na_matches = "never") %>%
+  select(-contains(".y")) %>%
+  rename_at(vars(contains(".x")), funs(gsub("\\.x", "", .))) %>%
+  filter(assessment_date >= book_date) %>%
+  filter(assessment_date <= book_date + 2) %>%
+  distinct(pretrial_id2, .keep_all = T) )/nrow(assess_df %>% distinct(pretrial_id2, .keep_all = T))
+
+
+
+join_df2 <- join_df %>%
+  mutate(bookplus_date = book_date + 2) %>%
+  fuzzy_left_join(assess_df, 
+                by=c("first_name", "last_name", "dob", "book_date"="assessment_date",
+                     "bookplus_date"="assessment_date"),
+                match_fun=list(`==`, `==`, `==`, `<=`, `>=`))%>%
+  select(-contains(".y")) %>%
+  rename_at(vars(contains(".x")), funs(gsub("\\.x", "", .)))
+
+
+
+
+
+
+  
 ```
 
 
@@ -4193,7 +4276,7 @@ write.xlsx(factor_df, file = "G:/CrimJustice/PretrialAssessmentPilot/Code Books/
 
 ```
  
- Jail Court Join with Jail
+Court Join with Jail
 ```{r}
 # Pull in Agency Collapsed Data made for Noah in December
 
@@ -4319,7 +4402,7 @@ join_collapse <- join_df2 %>%
 
 fwrite(join_collapse, "G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/San Mateo Join Collapse.csv")
 
-#we are currently having trouble with the number of assessments that drop out of the final dataset, why are they assessinbg so many people who are in on probation violations, and  why are their crrespoknding book_type not sup vio instead it is bench warrants.
+#we are currently having trouble with the number of assessments that drop out of the final dataset, why are they assessinbg so many people who are in on probation violations, and  why are their crrespoknding book_type not sup vio instead of bench warrants.
 
 join_collapse %>%
   count(assess_flag)
