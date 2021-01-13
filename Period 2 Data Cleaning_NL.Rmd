@@ -329,7 +329,7 @@ serious_violent_charges <- read_excel("C:/Work/PretrialAssessmentPilot/Charge De
   # filter(Serious == T | Violent == T)
   select(charge, charge_level, serious_felony_flag = Serious, violent_felony_flag = Violent) %>%
   filter(serious_felony_flag == 1 | violent_felony_flag == 1, charge_level == "F") %>%
-  mutate(charge = toupper(gsub("\\/|\\(|\\)| |\\.|\\.*|\\\\.*|\\{|\\}","", charge))) %>%
+  mutate(charge = toupper(gsub("\\/|\\(|\\)| |\\.|\\.*|\\\\.*|\\{o|\\}","", charge))) %>%
   mutate(charge = gsub("HSC", "HS_", charge),
          charge = gsub("PEN", "PC_", charge),
          charge = gsub("VEH", "VC_", charge)) %>%
@@ -389,7 +389,7 @@ charge_hier <- charge_hier %>%
                                                                              "24383", "2439", "24310", "24315", "2445", "245", "2456", "2463", "247",
                                                                              "2475","248", "120215", "12022A", "12022B", "12022C", "120222A",
                                                                              "120223B", "120225", "653M"), 1, 0),
-         property_flag = if_else(jbsis_code %in% c("220", "70"), 1, 0),
+         property_flag = if_else(oo_code %in% c("220", "70"), 1, 0),
          drug_flag = if_else(jbsis_code %in% c("230", "80"), 1, 0),
          minor_flag = if_else(charge %in% c("fix this"), 1, 0),
          pre_arr_inel_flag = if_else(charge %in% c("fix this"), 1, 0)) %>%
@@ -505,9 +505,6 @@ serious_violent <- serious_violent %>%
 
 missing_df <- anti_join(serious_violent, charge_hier, by = "join_var") 
 
-charge_hier %>%
-  filter(grepl("F_PC_2095", join_var))
-
 write.xlsx(missing_df, file = "C:/Work/PretrialAssessmentPilot/Charge Definitions and Hierarchy/Missing Serious and Violent Charges.xlsx")
 ```
 
@@ -595,6 +592,45 @@ charge_df <- charge_df %>%
   
 load("Complete Charge Code Hierarchy Base.RData")
 
+#Fixing missing JBSIS Codes
+doj_hierarchy_2020_jbsis <- read_excel("C:/Work/PretrialAssessmentPilot/Charge Definitions and Hierarchy/2020_March04_DOJ_Offense_Table_JBSIS.xlsx")
+
+names(doj_hierarchy_2020_jbsis) <- c("offense_id", "cjis_code", "hierarchy", "charge_level", "charge", "charge_code", "master_charge_description", "sentence", "jbsis_code")
+
+doj_hierarchy_2020_jbsis <- doj_hierarchy_2020_jbsis %>%
+  mutate(charge_level = toupper(charge_level),
+         charge_level = if_else(!charge_level %in% c("F", "I", "M"), "Other", charge_level),
+         charge = toupper(gsub("\\/|\\(|\\)| |\\.|\\.*|^[A-Z]*|\\\\.*|\\{|\\}|EX|\\+|","", charge)),
+         charge_code = if_else(!charge_code %in% c("PC", "VC", "HS", "BP", "WI", "US"), "Other", charge_code)) %>%
+  distinct(charge, charge_code, charge_level, .keep_all = T) %>%
+  unite(join_var, charge_level, charge_code, charge, remove = F) %>%
+  select(join_var, jbsis_code)
+
+
+charge_hier <- charge_hier %>%
+  select(-jbsis_code) %>%
+  #Fixing a few codes manually that didn't match on to the DOJ data. We selected the top 7 codes which were not matched.
+  left_join(doj_hierarchy_2020_jbsis, by = "join_var") %>%
+  mutate(jbsis_code = if_else(join_var == "M_HS_113641A", 230, jbsis_code),
+         jbsis_code = if_else(join_var == "M_PC_484488", 220, jbsis_code),
+         jbsis_code = if_else(join_var == "M_BP_4140", 230, jbsis_code),
+         jbsis_code = if_else(join_var == "F_PC_12020A", 90, jbsis_code),
+         jbsis_code = if_else(join_var == "F_PC_45736", 90, jbsis_code))
+
+# Updated 1/7/2021 to match jbsis codes to charges with missing jbsis codes determined by the base charge, when there is no conflict of jbsis codes.
+# SB 10 flags are also removed due to its failure. 
+charge_hier <- charge_hier %>%
+  mutate(charge_start = as.integer(parse_number(charge)),
+         jbsis_code = if_else(is.na(jbsis_code)|jbsis_code == 0, 1000, jbsis_code)) %>%
+  group_by(charge_level, charge_code, charge_start) %>%
+  mutate(n = sum(!(unique(jbsis_code) %in% c(1000, 90, 250, 270)))) %>%
+  mutate(jbsis_code = if_else(jbsis_code == 1000 & n %in% 0:1, min(jbsis_code), jbsis_code)) %>%
+  ungroup() %>%
+  mutate(#Fixing property and drug jbsis flagsdd
+         property_flag = if_else(jbsis_code %in% c("220", "70"), 1, 0),
+         drug_flag = if_else(jbsis_code %in% c("230", "80"), 1, 0))
+
+
 match_df <- charge_hier %>%
   select(join_var) %>%
   inner_join(charge_df, by = "join_var")
@@ -606,12 +642,77 @@ match_df2 <- charge_hier %>%
 match_df3 <- charge_df %>%
   anti_join(charge_hier, by = "join_var") 
 
-
+ 
 charge_hier <- bind_rows(match_df, match_df3, match_df2) %>%
   distinct(join_var, .keep_all = T) %>%
-  mutate_at(vars(contains("flag")), funs(if_else(is.na(.), 0, .)))
+  mutate_at(vars(contains("flag")), funs(if_else(is.na(.), 0, .))) %>%
+  select(-contains("sb10")) 
 
-save(charge_hier, file = "Complete Charge Code Hierarchy")
+save(charge_hier, file = "Complete Charge Code Hierarchy.RData")
+
+# load("Complete Charge Code Hierarchy.RData")
+# 
+# charge_hier %>%
+#   filter(property_flag == 1)
+# 
+# charge_hier %>%
+#   filter(property_flag == 1, grepl("GRAND THEFT", master_charge_description))
+# 
+# 
+# charge_hier %>%
+#   filter(property_flag == 1, grepl("487", charge))
+# 
+# charge_hier %>%
+#   filter(property_flag == 0, grepl("GRAND THEFT", master_charge_description))
+# 
+# charge_hier %>%
+#   mutate(property_flag = if_else())
+
+
+  
+# 
+# charge_hier %>%
+#   ungroup() %>%
+#   filter(charge_start == 487) %>%
+#   count(jbsis_code, charge_level)
+#   filter(jbsis_code == 270)
+#   count(jbsis_code)
+#   filter(charge_level == "M", jbsis_code < 100)
+# 
+#   group_by(charge_level, charge_code, charge_start) %>%
+#   add_count() %>%
+#   arrange(desc(nn))
+#   filter(n > 1)
+# 
+# charge_hier %>%
+#   filter(as.integer(parse_number(charge)) == 4324)
+# 
+# charge_hier %>%
+#   filter(grepl("^647[A-Z]", charge))
+# 
+# sum(unique(c("A", "B", "0")) != 0)
+# 
+# charge_hier %>%
+#   filter(jbsis_code == 1000, special_flag == 0)
+# 
+# charge_hier <- charge_hier %>%
+#   mutate(charge_start = as.integer(parse_number(charge)),
+#          jbsis_code = if_else(is.na(jbsis_code)|jbsis_code == 0, 1000, jbsis_code)) %>%
+#   group_by(charge_level, charge_code, charge_start) %>%
+#   # mutate(n = sum(!(unique(jbsis_code) %in% c(1000, 90, 250, 270)))) %>%
+#   mutate(jbsis_code = if_else(jbsis_code == 1000, min(jbsis_code), jbsis_code)) %>%
+#   ungroup()
+
+# charge_hier_jbsis %>%
+#   filter(charge == "11377A")
+# 
+# shell.exec(getwd())
+
+# charge_hier %>%
+#   filter(grepl("45736", charge))
+# 
+# doj_hierarchy_2020_jbsis %>%
+#   filter(grepl("12020", join_var))
 ```
 
 
@@ -673,12 +774,14 @@ book_df <- book_df %>%
 book_df <- book_df %>%
   mutate(book_type_original = trimws(book_type_original),
          book_type = case_when(book_type_original %in% c("ONVIEW") ~ "On_View",
-                               book_type_original %in% c("DA WARRANT") ~ "New_warrant",
+                               book_type_original %in% c("DA WARRANT") ~ "New_Warrant",
                                book_type_original %in% c("WARRANT") ~ "Other_Warrant",
                                book_type_original %in% c("ENROUTE") ~ "Hold",
                                book_type_original %in% c("DA CITATION", "CITATION") ~ "Cite_Release",
                                book_type_original %in% c("COURT") ~ "Court_Order",
-                               book_type_original %in% c("DRUNK") ~ "Detain_Only"),
+                               book_type_original %in% c("DRUNK") ~ "Detain_Only",
+                               book_type_original %in% c("NULL") ~ "Unknown",
+                               T ~ "Other"),
          
          release_type_original = trimws(release_type_original),
          release_type = case_when(release_type_original %in% c("GROSS TIME SERVED", "PROBATION (FORMAL)", 
@@ -748,6 +851,10 @@ book_charge <- book_charge %>%
   
   Jail Collapse
 ```{r}
+# Getting rid of one duplicate
+person_df <- person_df %>%
+  distinct(event_id, .keep_all = T)
+
 # Booking Join--All booking data frames are combined.
 book_df <- left_join(book_df, book_charge %>% mutate(booking_seq = as.integer(booking_seq)))
 
@@ -1536,70 +1643,120 @@ fwrite(assess_df, "C:/Work/PretrialAssessmentPilot/Agency Collapse CSV Files/Ala
 
 
 Join
-  Jail Court Join
 ```{r}
-#Joining--Please see page xxx for more detials.
-  ## In Alameda's case they have an itegrated data system so it is only combined on court_case_id. This acts as a completely sufficient join identifier. 
+# Person Data--Integrated County
+  ## person_df contains one row per event/person combination.
+person_df <- fread("Historical Data Submissions/Alameda/P2 Submission-June 30/11_05_2020/1_Identifiers And Demographics.csv")
 
-# Remove extraneous objects in the environment
-rm(list = ls()[!ls() %in% ls(pattern = "df")])
+# Variable name standardization--See pg. xxx for more details. 
+  ## Variable race_code is redundant and will be dropped. 
+names(person_df) <- c("event_id", "local_id", "first_name", "last_name", "dob", "cii", "fbi", "race_original", "sex_original", "cdl_id", "cdl_state",  "zip_code", "arrest_date", "book_date", "assessment_flag") 
 
-#Check for common variables between Jail, Court, and Assessment if Assessment data exists. 
-  ## Alameda has no assessment data. 
-names(book_df)[names(book_df) %in% names(court_df)]
-
-
-#Turning NULL to NA to ensure non matching and removing generic charge info from data frames
-book_df <- book_df %>%
-  mutate_if(is.character, list(~na_if(., "NULL"))) %>%
-  select(-c(charge, charge_level, charge_code)) %>%
-  mutate_at(vars(first_name, last_name), toupper) %>%
-  mutate(court_case_id = as.character(court_case_id))
-
-court_df <- court_df %>%
-  mutate_if(is.character, list(~na_if(., "NULL"))) %>%
-  select(-c(charge, charge_level, charge_code)) %>%
-  mutate_at(vars(first_name, last_name), toupper) 
-
-# Court Matching
+#Removing Dates because they are found on the booking table.
+person_df <- person_df %>%
+  select(-book_date, -arrest_date)
 
 
-#Joining on CII and Court ID
-join1 <- inner_join(book_df, court_df, by = c("court_case_id"), na_matches = "never") %>%
-  rename_at(vars(contains(".x")), funs(paste0("arrest_", gsub("\\.x$", "", .)))) %>%
-  rename_at(vars(contains(".y")), funs(paste0("court_", gsub("\\.y$", "", .)))) %>%
-  # 8 Duplicates with missing dispositions which will be dropped later. 
-  distinct()
+# Standardize Factors--See pg. xxx for more details.
+person_df <- person_df %>%
+  mutate(sex = case_when(sex_original %in% c("M") ~ "Male",
+                         sex_original %in% c("F") ~ "Female"),
+         
+  ## Trimming white space on original race first
+         race_original = trimws(race_original),
+         race = case_when(race_original %in% c("BLACK") ~ "Black",
+                          race_original %in% c("HISPANIC") ~ "Hispanic",
+                          race_original %in% c("WHITE") ~ "White",
+                          T ~ "Other_Unknown"))
+ 
+book_df <- fread("C:/Work/PretrialAssessmentPilot/Agency Collapse CSV Files/Alameda Booking Collapse.csv") %>%
+  mutate_at(vars(contains("date")), as_date)
 
-j1 <- anti_join(book_df, court_df, by = c("court_case_id"), na_matches = "never")
-c1 <- anti_join(court_df, book_df, by = c("court_case_id"), na_matches = "never")
+court_df <- fread("C:/Work/PretrialAssessmentPilot/Agency Collapse CSV Files/Alameda Court Collapse.csv") %>%
+  mutate_at(vars(contains("date")), as_date)
 
-  #Examine if set of common variables is distinct--yes, court_case_id is distinct for court cases. 
-  join1 %>%
-    add_count(court_case_id) %>%
-    filter(n > 1) %>%
-    arrange(desc(n))
-  
-#Diagnostics
-  #Jail and Court Matches by category--80% Jail and 93% Court. 
-tibble(
-  stage = 1,
-  match = c(
-    'c("court_case_id")'
-  ),
-  jail_match_rate = sapply(1, function(i) {
-    (nrow(book_df) - nrow(get(paste0("j", i)))) / nrow(book_df) * 100
-  }),
-  court_match_rate = sapply(1, function(i) {
-    (nrow(court_df) - nrow(get(paste0("c", i)))) / nrow(court_df) * 100
-  })
-)
+assess_df <- fread("C:/Work/PretrialAssessmentPilot/Agency Collapse CSV Files/Alameda Assessment Collapse.csv") %>%
+  mutate_at(vars(contains("date")), as_date)
 
-#Combing all joined data frames together.
-  ## In Alameda's case they have an itegrated data system so it is only combined on court_case_id. This acts as a completely sufficient join identifier. 
-join_df <- join1
+# date_df <- fread("C:/Work/PretrialAssessmentPilot/County Join Dates/VENTURA Join Dates.csv", colClasses = "character") %>%
+#   # rename(file_date = filing_date) %>%
+#   mutate_at(vars(contains("date")), as_date)
+
+# #Changing dates to DOJ format
+# book_df <- book_df %>%
+#   mutate(cii = parse_number(cii),
+#          cii = case_when(nchar(cii) == 6 ~ paste0("0000", cii),
+#                          nchar(cii) == 7 ~ paste0("000", cii),
+#                          nchar(cii) == 8 ~ paste0("00", cii),
+#                          nchar(cii) == 9 ~ paste0("0", cii),
+#                          T ~ as.character(cii)),
+#          cii = if_else(nchar(cii) != 10, NA_character_, cii)) 
+# 
+# court_df <- court_df %>%
+#   mutate(cii = parse_number(cii),
+#          cii = case_when(nchar(cii) == 6 ~ paste0("0000", cii),
+#                          nchar(cii) == 7 ~ paste0("000", cii),
+#                          nchar(cii) == 8 ~ paste0("00", cii),
+#                          nchar(cii) == 9 ~ paste0("0", cii),
+#                          T ~ as.character(cii)),
+#          cii = if_else(nchar(cii) != 10, NA_character_, cii)) 
+
+
+
+# Match rate when matching on event_id from booking to court data ~ 58%
+# No other matching strategies needed
+nrow(book_df %>%
+  semi_join(court_df, by = c("event_id"), na_matches = "never")) / nrow(book_df) * 100
+
+# Match rate when matching on court_case_id and local_id from court to booking data ~ 100%
+# No other matching strategies needed
+nrow(court_df %>%
+  semi_join(book_df, by = c("event_id"), na_matches = "never")) / nrow(court_df) * 100
+
+# Joining jail and court data
+join_df <- book_df %>%
+  left_join(court_df, by = c("event_id"), na_matches = "never") %>%
+  select(-contains(".y")) %>%
+  rename_at(vars(contains(".x")), funs(gsub("\\.x", "", .)))
+
+
+# Match rate when matching on court_case_id and local_id from court to booking data ~ 100%
+# No other matching strategies needed
+nrow(assess_df %>%
+  semi_join(join_df, by = c("event_id"), na_matches = "never")) / nrow(assess_df) * 100
+
+
+# Joining jail and court data with assessment data
+join_df2 <- join_df %>%
+  left_join(assess_df, by = c("event_id"), na_matches = "never") %>%
+  select(-contains(".y")) %>%
+  rename_at(vars(contains(".x")), funs(gsub("\\.x", "", .)))
+
+# Adding Demographic Info
+join_df2 <- join_df2 %>%
+  left_join(person_df)
+
 ```
-  
+
+Collapse
+```{r}
+# Collapse
+join_collapse <- join_df2 %>%
+  mutate(across(contains("flag"), ~if_else(is.na(.x), as.integer(0), as.integer(.x)))) %>%
+  mutate(release_type = ordered(release_type, levels = c("Unknown", "Other", "Sentenced", "Time_Served", "Detain_Only", "Dismissed_Dropped", "OR",
+                                                         "Bail_Bond", "Cite_Release", "Hold_Release"))) %>%
+  group_by(event_id) %>%
+  mutate(release_type = max(release_type)) %>%
+  mutate(across(contains("sup_vio"), max)) %>%
+  ungroup() %>%
+  filter(pretrial_end_date >= book_date, book_type %in% c("On_View", "New_Warrant", "Other_Warrant")) %>%
+  group_by(event_id) %>%
+  mutate(across(contains("flag"), max)) %>%
+  ungroup() %>%
+  distinct(event_id, .keep_all = T)
+
+fwrite(join_collapse, "C:/Work/PretrialAssessmentPilot/Agency Collapse CSV Files/Alameda Join Collapse.csv")
+``` 
   Join Diagnostics
 ```{r}
 anti_join(assess_df, book_df)
@@ -1934,7 +2091,7 @@ Jail Data
 ```{r}
 # Jail Bookings Data Import--- Los Angeles, 2015-01-01 to 2020-06-30
   ## book_df contains one row per booking/charge/courtcase combination and includes information on the person as well as the time of booking and release. Currently the charges are incorrectly duplicated across each court case. This is split apart after the names are standardized and the court cases have been separated out. 
-  # book_charge is constructed from book_df and contains one row per booking/charge combination and contains other information on the booking. LA has no booking type information.  
+  # book_charge is constructed from book_df and contains one row per booking/charge combination and contains other information on the booking. LA has no booking type information.  o
   ## book_court is contrsucted from book_df contains one row per booking/courtcase combination. No other information is included.  
 
 
@@ -2329,7 +2486,7 @@ court_df <- bind_rows(court_df_part1, court_df_part2)
 rm(court_df_part1, court_df_part2)
   
 court_df <- court_df %>%
-  mutate(final_disposition_date = if_else(disposition_date < sentence_date|is.na(sentence_date), disposition_date, sentence_date),
+  mutate(pretrial_end_date = if_else(disposition_date < sentence_date|is.na(sentence_date), disposition_date, sentence_date),
          conviction_flag = if_else(!is.na(sentence_date), 1, 0))
 
 court_fta <- court_fta %>%
@@ -3001,248 +3158,158 @@ assess_df %>%
 ```
 
 Join
-  Jail Court Join
 ```{r}
-# Remove extraneous objects in the environment
-rm(list = ls()[!ls() %in% ls(pattern = "df")])
+ book_df <- fread("C:/Work/PretrialAssessmentPilot/Agency Collapse CSV Files/Los Angeles Booking Collapse.csv") %>%
+  mutate_at(vars(contains("date")), as_date) %>%
+  mutate(court_docket_id = court_case_id) %>%
+  select(-court_case_id)
 
-#Check for common variables
-names(book_df)[names(book_df) %in% names(court_df)]
+court_df <- fread("C:/Work/PretrialAssessmentPilot/Agency Collapse CSV Files/Los Angeles Court Collapse.csv") %>%
+  mutate_at(vars(contains("date")), as_date) %>%
+  mutate(court_docket_id = gsub("^...", "", court_docket_id),
+         court_docket_id = gsub(" ", "", court_docket_id)) 
 
-names(book_df)[names(book_df) %in% names(assess_df)]
+assess_df <- fread("C:/Work/PretrialAssessmentPilot/Agency Collapse CSV Files/Los Angeles Assessment Collapse.csv") %>%
+  mutate_at(vars(contains("date")), as_date)
 
-#Turning NULL to NA to ensure non matching and removing generic charge info from data frames
+date_df <- fread("C:/Work/PretrialAssessmentPilot/County Join Dates/Los Angeles Join Dates.csv", colClasses = "character") %>%
+  # rename(file_date = filing_date) %>%
+  mutate_at(vars(contains("date")), as_date)
+
+#Changing dates to DOJ format
 book_df <- book_df %>%
-  mutate_if(is.character, list(~na_if(., "NULL"))) %>%
-  select(-c(charge, charge_level, charge_code)) %>%
-  mutate_at(vars(first_name, last_name), toupper) %>%
-  mutate_at(vars(arrest_date, book_date, release_date), as_date) %>%
-  mutate(cii = parse_number(cii))
-
-assess_df <- assess_df %>%
-  mutate_if(is.character, list(~na_if(., "NULL"))) %>%
-  mutate(cii = parse_number(cii))
+  mutate(cii = parse_number(cii),
+         cii = case_when(nchar(cii) == 6 ~ paste0("0000", cii),
+                         nchar(cii) == 7 ~ paste0("000", cii),
+                         nchar(cii) == 8 ~ paste0("00", cii),
+                         nchar(cii) == 9 ~ paste0("0", cii),
+                         T ~ as.character(cii)),
+         cii = if_else(nchar(cii) != 10, NA_character_, cii))
 
 court_df <- court_df %>%
-  mutate_if(is.character, list(~na_if(., "NULL"))) %>%
-  select(-c(charge, charge_level, charge_code)) %>%
-  mutate_at(vars(first_name, last_name), toupper) %>%
-  mutate(book_num = parse_number(book_num))
+  mutate(cii = parse_number(cii),
+         cii = case_when(nchar(cii) == 6 ~ paste0("0000", cii),
+                         nchar(cii) == 7 ~ paste0("000", cii),
+                         nchar(cii) == 8 ~ paste0("00", cii),
+                         nchar(cii) == 9 ~ paste0("0", cii),
+                         T ~ as.character(cii)),
+         cii = if_else(nchar(cii) != 10, NA_character_, cii))
 
-#Joining Assessment to Jail Data
-join1 <- inner_join(book_df, assess_df, by = c("first_name", "last_name", "book_date" = "assessment_date"), na_matches = "never") %>%
-  rename_at(vars(contains(".x")), funs(gsub("\\.x$", "", .))) %>%
+assess_df <- assess_df %>%
+  mutate(cii = parse_number(cii),
+         cii = case_when(nchar(cii) == 6 ~ paste0("0000", cii),
+                         nchar(cii) == 7 ~ paste0("000", cii),
+                         nchar(cii) == 8 ~ paste0("00", cii),
+                         nchar(cii) == 9 ~ paste0("0", cii),
+                         T ~ as.character(cii)),
+         cii = if_else(nchar(cii) != 10, NA_character_, cii))
+
+
+# Match rate when matching on court_docket_id from booking to court data ~ 63%
+nrow(book_df %>%
+  semi_join(court_df, by = c("court_docket_id"), na_matches = "never")) / nrow(book_df) * 100
+
+# Match rate when matching on court_docket_id from booking to court data ~ 47%
+nrow(court_df %>%
+  semi_join(book_df, by = c("court_docket_id"), na_matches = "never")) / nrow(court_df) * 100
+
+
+# Joining jail and court data
+join_df <- book_df %>%
+  left_join(court_df, by = c("court_docket_id"), na_matches = "never") %>%
   select(-contains(".y")) %>%
-  #1 Duplicate with missing dispositions which will be dropped later. 
-  distinct()
-
-j1 <- anti_join(book_df, assess_df, by = c("first_name", "last_name", "book_date" = "interview_date"), na_matches = "never")
-a1 <- anti_join(assess_df, book_df, by = c("first_name", "last_name", "book_date" = "interview_date"), na_matches = "never")
+  rename_at(vars(contains(".x")), funs(gsub("\\.x", "", .)))
 
 
-  #Examine if set of common variables is distinct--yes
-  semi_join(book_df, assess_df, by = "book_num", na_matches = "never")
+# Match rate when matching on cii from assessment to joined data ~ 61%
+nrow(assess_df %>%
+  semi_join(join_df, by = c("cii"), na_matches = "never")) / nrow(assess_df) * 100
 
-#Joining on Name and Court ID
-join2 <- inner_join(j1, a1, by = c("first_name", "last_name", "book_date" = "interview_date"), na_matches = "never") %>%
-  rename_at(vars(contains(".x")), funs(gsub("\\.x$", "", .))) %>%
+
+#joining assess_df to joined booking and court data on local id and assessment date within 2 days of booking, match rate = 43.4%
+nrow(assess_df %>%
+  # select(-book_date) %>%
+  inner_join(join_df, by = c("cii"), na_matches = "never") %>%
   select(-contains(".y")) %>%
-  #1 Duplicate with missing dispositions which will be dropped later. 
-  distinct()
+  rename_at(vars(contains(".x")), funs(gsub("\\.x", "", .))) %>%
+  filter(assessment_date >= book_date) %>%
+  filter(assessment_date <= book_date + 10) %>%
+  distinct(pretrial_id, .keep_all = T) )/nrow(assess_df %>% distinct(pretrial_id, .keep_all = T))
 
-j2 <- anti_join(j1, a1, by = c("first_name", "last_name", "book_date" = "interview_date"), na_matches = "never")
-a2 <- anti_join(a1, j1, by = c("first_name", "last_name", "interview_date" = "book_date"), na_matches = "never")
 
-  #Examine if set of common variables is distinct--yes
-  semi_join(j1, a1, by = c("first_name", "last_name", "book_date" = "interview_date"), na_matches = "never")
-  
-#Diagnostics
-  #Jail and Assessment Matches by category
-tibble(
-  stage = 1:2,
-  match = c(
-    'c("book_num")',
-    'c("first_name", "last_name", "book_date" = "interview_date")'
-  ),
-  # jail_match_rate = sapply(1:2, function(i) {
-  #   (nrow(book_df) - nrow(get(paste0("j", i)))) / nrow(book_df) * 100
-  # }),
-  assess_match_rate = sapply(1:2, function(i) {
-    (nrow(assess_df) - nrow(get(paste0("a", i)))) / nrow(assess_df) * 100
-  })
-)
-#Recreating Booking
-book_df <- bind_rows(join1, join2, j2)  
+#Joining
+  # Only match on assessment done within two days of booking. This will result in many dropped instances of ccat assessments. 
+  # This needs to be addressed later. 
+  ## Drop CCAT from full county combined analysis--Talk to LA about this. 
+join_df <- join_df %>%
+  mutate(start = as.numeric(book_date),
+         end = start + 2) %>%
+  as_tibble()
 
-rm(list = ls()[!ls() %in% ls(pattern = "df")])
+assess_df <- assess_df %>%
+  filter(!is.na(assessment_date)) %>%
+  mutate(start = as.numeric(assessment_date),
+         end = start) %>%
+  as_tibble()
 
-#####Jump back here!
+join_df2 <- genome_left_join(join_df, assess_df, by = c("cii", "start", "end")) %>%
+  select(-contains(".y")) %>%
+  rename_at(vars(contains(".x")), funs(gsub("\\.x", "", .)))
 
-# Court Matching
+# Match rate when matching on court_case_id and local_id from court to booking data ~ 100%
+# No other matching strategies needed
+nrow(assess_df %>%
+  semi_join(join_df, by = c("cii"), na_matches = "never")) / nrow(assess_df) * 100
 
-#Joining on CII and Court ID
-join1 <- inner_join(book_df, court_df, by = c("book_num"), na_matches = "never") %>%
-  rename_at(vars(contains(".x")), funs(paste0("arrest_", gsub("\\.x$", "", .)))) %>%
-  rename_at(vars(contains(".y")), funs(paste0("court_", gsub("\\.y$", "", .)))) %>%
-  # 8 Duplicates with missing dispositions which will be dropped later. 
-  distinct()
-
-semi_join(book_df, court_df, by = c("book_num", "court_case_id" = "court_docket_id"))
-
-j1 <- anti_join(book_df, court_df, by = c("court_docket_id", "cii", "dob"), na_matches = "never")
-c1 <- anti_join(court_df, book_df, by = c("court_docket_id", "cii", "dob"), na_matches = "never")
-
-  #Examine if set of common variables is distinct--yes except 8 spurious cases.
-  join1 %>%
-    add_count(cii, court_docket_id, book_num, dob) %>%
-    filter(n > 1) %>%
-    arrange(desc(n))
-
-#Joining on Name and Court ID
-join2 <- inner_join(j1, c1, by = c("court_docket_id", "first_name", "dob"), na_matches = "never") %>%
-  rename_at(vars(contains(".x")), funs(paste0("arrest_", gsub("\\.x$", "", .)))) %>%
-  rename_at(vars(contains(".y")), funs(paste0("court_", gsub("\\.y$", "", .)))) %>%
-  #1 Duplicate with missing dispositions which will be dropped later. 
-  distinct()
-
-j2 <- anti_join(j1, c1, by = c("court_docket_id", "first_name", "dob"), na_matches = "never")
-c2 <- anti_join(c1, j1, by = c("court_docket_id", "first_name", "dob"), na_matches = "never")
-
-  #Examine if set of common variables is distinct--yes except 8 spurious cases.
-  join2 %>%
-    add_count(first_name, court_docket_id, book_num) %>%
-    filter(n > 1) %>%
-    arrange(desc(n))
-
-#Joining on Court ID
-join3 <- inner_join(j2, c2, by = c("court_docket_id", "first_name"), na_matches = "never") %>%
-  rename_at(vars(contains(".x")), funs(paste0("arrest_", gsub("\\.x$", "", .)))) %>%
-  rename_at(vars(contains(".y")), funs(paste0("court_", gsub("\\.y$", "", .)))) %>%
-  #1 Duplicate with missing dispositions which will be dropped later. 
-  distinct()
-
-j3 <- anti_join(j2, c2, by = c("court_docket_id"), na_matches = "never")
-c3 <- anti_join(c2, j2, by = c("court_docket_id"), na_matches = "never")
-
-  #Examine if set of common variables is distinct--yes except 8 spurious cases.
-  join3 %>%
-    add_count(court_docket_id, book_num) %>%
-    filter(n > 1) %>%
-    arrange(desc(n))
-  
-#Diagnostics
-  #Jail and Court Matches by category
-tibble(
-  stage = 1:3,
-  match = c(
-    'c("court_docket_id", "cii", "dob")',
-    'c("court_docket_id", "first_name", "dob")',
-    'c("court_docket_id", "dob")'
-  ),
-  jail_match_rate = sapply(1:3, function(i) {
-    (nrow(book_df) - nrow(get(paste0("j", i)))) / nrow(book_df) * 100
-  }),
-  court_match_rate = sapply(1:3, function(i) {
-    (nrow(court_df) - nrow(get(paste0("c", i)))) / nrow(court_df) * 100
-  })
-)
-
-join_df <- bind_rows(join1, join2, join3)
+join_df2 %>%
+  mutate(dif = as.numeric(assessment_date) - as.numeric(book_date)) %>%
+  count(tool_name, dif) %>%
+  spread(tool_name, n)
 ```
-  
-  Join Diagnostics
+
+Collapse
 ```{r}
-anti_join(assess_df, book_df)
+# Los Angeles Final Collapse
+  ## LA does not have booking type. Additionally, 98% of bookings match to arrest cycles in the doj data. This means that they are either providing us only with new arrest type bookings (e.g. not including commitment bookings) OR they are giving DOJ "fake" arrests cycles.
+  # Talk with LA.
 
+## 98% of bookings match to new arrest cycles in the doj data.
+nrow(book_df %>%
+  semi_join(date_df))/nrow(book_df)
+
+# Collapse
+join_collapse <- join_df2 %>%
+  mutate(across(contains("flag"), ~if_else(is.na(.x), as.integer(0), as.integer(.x)))) %>%
+  mutate(release_type = ordered(release_type, levels = c("Unknown", "Other", "Sentenced", "Time_Served", "Detain_Only", "Dismissed_Dropped", "OR",
+                                                         "Bail_Bond", "Cite_Release", "Hold_Release"))) %>%
+  group_by(book_num) %>%
+  ## LA does not have mulitple release types per booking.
+  # mutate(release_type = max(release_type)) %>%
+  mutate(across(contains("sup_vio"), max)) %>%
+  ungroup() %>%
+  filter(final_disposition_date >= book_date) %>%
+  group_by(book_num) %>%
+  mutate(across(contains("flag"), max)) %>%
+  ungroup() %>%
+  distinct(book_num, .keep_all = T)
+
+fwrite(join_collapse, "C:/Work/PretrialAssessmentPilot/Agency Collapse CSV Files/Los Angeles Join Collapse.csv")
+``` 
+
+ 
+
+Diagnostics
+```{r}
 assess_df %>%
-  mutate_if(is.character, list(~na_if(., "(Missing)"))) %>%
-  filter(is.na(book_num))
-
-tibble(Type = c("Jail", "Court"), c(nrow()))  
-  
-
-#Joining on Name--Don't use
-join4 <- inner_join(j3, c3, by = c("first_name", "last_name", "dob"), na_matches = "never") %>%
-  rename_at(vars(contains(".x")), funs(paste0("arrest_", gsub("\\.x$", "", .)))) %>%
-  rename_at(vars(contains(".y")), funs(paste0("court_", gsub("\\.y$", "", .)))) %>%
-  #1 Duplicate with missing dispositions which will be dropped later. 
-  distinct()
-
-j4 <- anti_join(j3, c3, by = c("first_name", "last_name", "dob"), na_matches = "never")
-c4 <- anti_join(c3, j3, by = c("first_name", "last_name", "dob"), na_matches = "never")
-
-  #Examine if set of common variables is distinct--yes except 8 spurious cases.
-  join4 %>%
-    add_count(book_num) %>%
-    filter(n > 1) %>%
-    arrange(desc(n))
-  
-
-#Diagnostics
-join1 %>%
-  distinct(.keep_all = T) %>%
-  add_count(court_docket_id, cii, book_num, .keep_all = T) %>%
-  filter(n > 1)
-  distinct(court_docket_id, book_num, .keep_all = T)
-
-nest %>%
-  select(court_df) %>%
-  filter(!is.null(court_df)) %>%
-  select(num)
-
-df <- tibble(a = c())
-
-df %>%
-  na_if("NULL")
-
-nrow(NULL)
-
-court_df %>%
-  filter(!is.na(cii), !is.na(court_docket_id)) %>%
-  filter(!is.na(court_charge)) %>%
-  add_count(court_docket_id, cii) %>%
-  filter(n > 1) %>%
-  arrange(court_docket_id)
-
-court_df %>%
-  filter(is.na(court_charge))
-emi_join(court_df, book_df, by = c("court_docket_id", "cii"))
-
-court_df %>%
-  filter(cii != "NULL")
-
-court_df %>%
-  arrange(court_case_id)
-
-book_df %>%
-  arrange(court_case_id)
-
-book_df %>%
-  filter(cii != "NULL")
-
-book_df %>%
-  sample_n(size = 100)
-
-court_charge %>%
-  distinct(court_case_id)
-
-court_person %>%
-  distinct(court_case_id, court_docket_id, .keep_all = T) %>%
-  add_count(court_docket_id) %>%
-  filter(n > 1) %>%
-  arrange(desc(n))
-c4 <- anti_join(c3, j3, by = c("court_id"), na_matches = "never")  
-
-fresno_court_nm <- c4
-save(fresno_court_nm, file = "Unmatched Fresno Court Data.RData")
-
-# join <- bind_rows(join1, join2, join3, join4)
-join <- bind_rows(join1, join2, join3, join4, .id = "join_group")
-
-rm(list = ls()[!ls() %in% c("assess_df", "charge_hier", "release_df")])
-# save(j9, file = "Jail Data Unmatched")
-# save(c9, file = "Court Data Unmatched")
+  # select(-book_date) %>%
+  inner_join(join_df, by = c("cii"), na_matches = "never") %>%
+  select(-contains(".y")) %>%
+  rename_at(vars(contains(".x")), funs(gsub("\\.x", "", .))) %>%
+  mutate(dif = as.numeric(assessment_date) - as.numeric(book_date)) %>%
+  count(tool_name, dif) %>%
+  spread(tool_name, n)
 ```
+
 
 Code Book
   Creation
@@ -3719,7 +3786,7 @@ Jail Data
 
 ####
 
-# Jail Bookings--Historical and Q1
+# Jail Bookings--Historical and Q1oo
   ## book_df contains one row per booking/charge/courtcase combination and includes information on the person, the charge, as well as the time of booking and release. It contains some duplicates based around release information. Additional, it is ambiguous whether identical charges attached to some bookings are a separate count or dupliation error. Follow up with SB.    
 book_df <- read_excel("Historical Data Submissions/Santa Barbara/Jail.Data.12.5.xlsx", col_types = "text")
 
@@ -4766,7 +4833,6 @@ assess_df <- assess_tracking %>%
 ```
 
 Join
-  Jail Court Join
 ```{r}
 book_df <- fread("C:/Work/PretrialAssessmentPilot/Agency Collapse CSV Files/Santa Barbara Booking Collapse.csv") %>%
   mutate_at(vars(contains("date"), dob), as_date)
@@ -4777,9 +4843,9 @@ court_df <- fread("C:/Work/PretrialAssessmentPilot/Agency Collapse CSV Files/San
 assess_df <- fread("C:/Work/PretrialAssessmentPilot/Agency Collapse CSV Files/Santa Barbara Assessment Collapse.csv") %>%
   mutate_at(vars(contains("date"), dob), as_date)
 
-date_df <- fread("C:/Work/PretrialAssessmentPilot/County Join Dates/SANTA BARBARA Join Dates.csv") %>%
-  rename(file_date = filing_date) %>%
-  mutate_at(vars(contains("date")), as_date)
+# date_df <- fread("C:/Work/PretrialAssessmentPilot/County Join Dates/SANTA BARBARA Join Dates.csv") %>%
+#   rename(file_date = filing_date) %>%
+#   mutate_at(vars(contains("date")), as_date)
 
 #Changing dates to DOJ format
 book_df <- book_df %>%
@@ -4800,219 +4866,92 @@ court_df <- court_df %>%
                          T ~ as.character(cii)),
          cii = if_else(nchar(cii) != 10, NA_character_, cii)) 
 
-court_df %>%
-  semi_join(date_df, by = c("cii", "file_date"))
-  arrange(desc(n))
+# Match rate when matching on court_docket_id from booking to court data ~ 30%
+nrow(book_df %>%
+  semi_join(court_df, by = c("court_docket_id"), na_matches = "never")) / nrow(book_df) * 100
 
-court_df %>%
-  select(contains("date"))
-
-court_join <- court_df %>%
-  left_join(court_hearing) %>%
-  arrange(hearing_date) %>%
-  filter(!is.na(hearing_date)) %>%
-  distinct(court_case_id, hearing_date, .keep_all = T) %>%
-  # distinct(cii, court_case_id, hearing_date, hearing_type_original) %>%
-  semi_join(date_df, by = c("cii", "hearing_date" = "file_date")) 
-  # count(hearing_type_original) %>%
-  # arrange(desc(n))
-
-court_hearing %>%
-  arrange(hearing_date) %>%
-  distinct(court_case_id, .keep_all = T)
-
-court_df %>%
-  filter(!is.na(disposition_date)) %>%
-  semi_join(date_df, by = c("cii", "disposition_date"))
-
-court_df %>%
-  filter(!is.na(disposition_date))
-
-book_df %>%
-  semi_join(court_df, by = "court_docket_id")
-
-court_join %>%
-  distinct(court_case_id, court_docket_id, .keep_all = T) 
-
-court_df %>%
-  semi_join(book_df, by = "court_docket_id")
-
-date_df %>%
-  filter(!is.na(arrest_date), !is.na(file_date))
-
-summary(court_df$file_date)
-
-summary(book_df$arrest_date)
-
-book_df %>%
-  arrange(arrest_date)
-
-date_df %>%
-  filter(!is.na(disposition_date), !is.na(file_date)) %>%
-  filter(disposition_date >= "")
-
-court_df %>%
-  semi_join(date_df, by = c("cii", "file_date"))
-
-court_df %>% 
-  left_join(date_df, by = c("cii")) %>%
-  filter(file_date.x - file_date.y <= 100, file_date.x - file_date.y >= -100) %>%
-  distinct(cii, file_date.x)
-  select(file_date.x, file_date.y)
-
-date_df %>%
-  distinct(cii, file_date)
-
-court_join_2 <- court_df %>%
-  semi_join(book_df, by = "court_docket_id")
-
-doj_case_match <- unique(court_join$court_docket_id)
-
-docket_case_match <- unique(court_join_2$court_docket_id)
-
-length(intersect(doj_case_match, docket_case_match))
+# Match rate when matching on court_docket_id from booking to court data ~ 54%
+nrow(court_df %>%
+  semi_join(book_df, by = c("court_docket_id"), na_matches = "never")) / nrow(court_df) * 100
 
 
-# Remove extraneous objects in the environment
-rm(list = ls()[!ls() %in% ls(pattern = "df")])
+# Joining jail and court data
+join_df <- book_df %>%
+  left_join(court_df, by = c("court_docket_id"), na_matches = "never") %>%
+  select(-contains(".y")) %>%
+  rename_at(vars(contains(".x")), funs(gsub("\\.x", "", .)))
 
-#Check for common variables
-names(book_df)[names(book_df) %in% names(court_df)]
 
-names(book_df)[names(book_df) %in% names(assess_df)]
 
-#Turning NULL to NA to ensure non matching and removing generic charge info from data frames
-book_df <- book_df %>%
-  mutate_if(is.character, list(~na_if(., "NULL"))) %>%
-  select(-c(charge, charge_level, charge_code)) %>%
-  mutate_at(vars(first_name, last_name), toupper)
+#joining assess_df to joined booking and court data on local id and assessment date within 2 days of booking, match rate = 43.4%
+nrow(assess_df %>%
+  # select(-book_date) %>%
+  inner_join(join_df, by = c("first_name", "last_name", "dob"), na_matches = "never") %>%
+  select(-contains(".y")) %>%
+  rename_at(vars(contains(".x")), funs(gsub("\\.x", "", .))) %>%
+  filter(assessment_date >= book_date) %>%
+  filter(assessment_date <= book_date + 5) %>%
+  distinct(pretrial_id, .keep_all = T) )/nrow(assess_df %>% distinct(pretrial_id, .keep_all = T))
+
+#Joining
+join_df <- join_df %>%
+  mutate(start = as.numeric(book_date),
+         end = start + 2,
+         person_id = paste(first_name, last_name, dob)) %>%
+  as_tibble()
 
 assess_df <- assess_df %>%
-  mutate_if(is.character, list(~na_if(., "(Missing)"))) %>%
-  select(-c(id, court))
+  filter(!is.na(assessment_date)) %>%
+  mutate(start = as.numeric(assessment_date),
+         end = start,
+         person_id = paste(first_name, last_name, dob)) %>%
+  as_tibble()
 
-court_df <- court_df %>%
-  mutate_if(is.character, list(~na_if(., "NULL"))) %>%
-  select(-c(charge, charge_level, charge_code)) %>%
-  mutate_at(vars(first_name, last_name), toupper) %>%
-  mutate(court_case_id = as.character(court_case_id))
-
-#Joining Assessment to Jail Data
-join1 <- inner_join(book_df, assess_df, by = "book_num", na_matches = "never") %>%
-  rename_at(vars(contains(".x")), funs(gsub("\\.x$", "", .))) %>%
+join_df2 <- genome_left_join(join_df, assess_df, by = c("person_id", "start", "end")) %>%
   select(-contains(".y")) %>%
-  #1 Duplicate with missing dispositions which will be dropped later. 
-  distinct()
+  rename_at(vars(contains(".x")), funs(gsub("\\.x", "", .)))
 
-j1 <- anti_join(book_df, assess_df, by = "book_num", na_matches = "never")
-a1 <- anti_join(assess_df, book_df, by = "book_num", na_matches = "never")
+# Match rate when matching on court_case_id and local_id from court to booking data ~ 100%
+# No other matching strategies needed
 
 
-  #Examine if set of common variables is distinct--yes
-  semi_join(book_df, assess_df, by = "book_num", na_matches = "never")
-
-#Joining on Name and Court ID
-join2 <- inner_join(j1, a1, by = c("first_name", "last_name", "book_date" = "interview_date"), na_matches = "never") %>%
-  rename_at(vars(contains(".x")), funs(gsub("\\.x$", "", .))) %>%
-  select(-contains(".y")) %>%
-  #1 Duplicate with missing dispositions which will be dropped later. 
-  distinct()
-
-j2 <- anti_join(j1, a1, by = c("first_name", "last_name", "book_date" = "interview_date"), na_matches = "never")
-a2 <- anti_join(a1, j1, by = c("first_name", "last_name", "interview_date" = "book_date"), na_matches = "never")
-
-  #Examine if set of common variables is distinct--yes
-  semi_join(j1, a1, by = c("first_name", "last_name", "book_date" = "interview_date"), na_matches = "never")
-  
-#Diagnostics
-  #Jail and Assessment Matches by category
-tibble(
-  stage = 1:2,
-  match = c(
-    'c("book_num")',
-    'c("first_name", "last_name", "book_date" = "interview_date")'
-  ),
-  # jail_match_rate = sapply(1:2, function(i) {
-  #   (nrow(book_df) - nrow(get(paste0("j", i)))) / nrow(book_df) * 100
-  # }),
-  assess_match_rate = sapply(1:2, function(i) {
-    (nrow(assess_df) - nrow(get(paste0("a", i)))) / nrow(assess_df) * 100
-  })
-)
-#Recreating Booking
-book_df <- bind_rows(join1, join2, j2)  
-
-rm(list = ls()[!ls() %in% ls(pattern = "df")])
-
-# Court Matching
-
-#Joining on CII and Court ID
-join1 <- inner_join(book_df, court_df, by = c("court_docket_id", "cii", "dob"), na_matches = "never") %>%
-  rename_at(vars(contains(".x")), funs(paste0("arrest_", gsub("\\.x$", "", .)))) %>%
-  rename_at(vars(contains(".y")), funs(paste0("court_", gsub("\\.y$", "", .)))) %>%
-  # 8 Duplicates with missing dispositions which will be dropped later. 
-  distinct()
-
-j1 <- anti_join(book_df, court_df, by = c("court_docket_id", "cii", "dob"), na_matches = "never")
-c1 <- anti_join(court_df, book_df, by = c("court_docket_id", "cii", "dob"), na_matches = "never")
-
-  #Examine if set of common variables is distinct--yes except 8 spurious cases.
-  join1 %>%
-    add_count(cii, court_docket_id, book_num, dob) %>%
-    filter(n > 1) %>%
-    arrange(desc(n))
-
-#Joining on Name and Court ID
-join2 <- inner_join(j1, c1, by = c("court_docket_id", "first_name", "dob"), na_matches = "never") %>%
-  rename_at(vars(contains(".x")), funs(paste0("arrest_", gsub("\\.x$", "", .)))) %>%
-  rename_at(vars(contains(".y")), funs(paste0("court_", gsub("\\.y$", "", .)))) %>%
-  #1 Duplicate with missing dispositions which will be dropped later. 
-  distinct()
-
-j2 <- anti_join(j1, c1, by = c("court_docket_id", "first_name", "dob"), na_matches = "never")
-c2 <- anti_join(c1, j1, by = c("court_docket_id", "first_name", "dob"), na_matches = "never")
-
-  #Examine if set of common variables is distinct--yes except 8 spurious cases.
-  join2 %>%
-    add_count(first_name, court_docket_id, book_num) %>%
-    filter(n > 1) %>%
-    arrange(desc(n))
-
-#Joining on Court ID
-join3 <- inner_join(j2, c2, by = c("court_docket_id", "first_name"), na_matches = "never") %>%
-  rename_at(vars(contains(".x")), funs(paste0("arrest_", gsub("\\.x$", "", .)))) %>%
-  rename_at(vars(contains(".y")), funs(paste0("court_", gsub("\\.y$", "", .)))) %>%
-  #1 Duplicate with missing dispositions which will be dropped later. 
-  distinct()
-
-j3 <- anti_join(j2, c2, by = c("court_docket_id"), na_matches = "never")
-c3 <- anti_join(c2, j2, by = c("court_docket_id"), na_matches = "never")
-
-  #Examine if set of common variables is distinct--yes except 8 spurious cases.
-  join3 %>%
-    add_count(court_docket_id, book_num) %>%
-    filter(n > 1) %>%
-    arrange(desc(n))
-  
-#Diagnostics
-  #Jail and Court Matches by category
-tibble(
-  stage = 1:3,
-  match = c(
-    'c("court_docket_id", "cii", "dob")',
-    'c("court_docket_id", "first_name", "dob")',
-    'c("court_docket_id", "dob")'
-  ),
-  jail_match_rate = sapply(1:3, function(i) {
-    (nrow(book_df) - nrow(get(paste0("j", i)))) / nrow(book_df) * 100
-  }),
-  court_match_rate = sapply(1:3, function(i) {
-    (nrow(court_df) - nrow(get(paste0("c", i)))) / nrow(court_df) * 100
-  })
-)
-
-join_df <- bind_rows(join1, join2, join3)
 ```
+
+Collapse
+```{r}
+# Alameda Final Collapse
+  ## Re-run Jail Collapse
+
+# Collapse
+join_collapse <- join_df2 %>%
+  mutate(across(contains("flag"), ~if_else(is.na(.x), as.integer(0), as.integer(.x)))) %>%
+  mutate(release_type = ordered(release_type, levels = c("Unknown", "Other", "Sentenced", "Time_Served", "Detain_Only", "Dismissed_Dropped", "OR",
+                                                         "Bail_Bond", "Cite_Release", "Hold_Release"))) %>%
+  group_by(book_num) %>%
+  mutate(release_type = max(release_type)) %>%
+  mutate(across(contains("sup_vio"), max)) %>%
+  ungroup() %>%
+  filter(pretrial_end_date >= book_date, book_type %in% c("On_View", "New_warrant", "Other_Warrant")) %>%
+  group_by(book_num) %>%
+  mutate(across(contains("flag"), max)) %>%oo
+  ungroup() %>%
+  distinct(book_num, .keep_all = T)
+
+fwrite(join_collapse, "C:/Work/PretrialAssessmentPilot/Agency Collapse CSV Files/Santa Barbara Join Collapse.csv")
+
+# Diagnostics
+join_df2 %>%
+  group_by(book_num) %>%
+  add_count() %>%
+  filter(n > 1) %>%o
+  mutate(n = length(unique(release_type))) %>%
+  filter(n > 1)
+  
+book_df %>%
+  count(book_type)
+```
+
+
   Join Diagnostics
 ```{r}
 anti_join(assess_df, book_df)
@@ -5416,7 +5355,7 @@ assess_table <- assess_df %>%
   mutate(county = "Santa Barbara") %>%
   # Select relevants variables.
   select(county, risk_level, monitor_level, release_recommendation, release_decision, assessment_date, vprai_risk_score, vprair_risk_score, tool_name, assessment_date, dob, sex, race, pretrial_termination_reason, pretrial_ineligible_reason)
-
+o
 # Save file  
 fwrite(assess_table, file = "C:/Work/PretrialAssessmentPilot/Assessment Output Tables/Santa Barbara Assessment Output 10-2020.csv")
 
@@ -5797,6 +5736,7 @@ court_df <- court_df %>%
 ```
 
 Court Collapse
+
 ```{r}
 # Court Charge Collapse--See pg. xxx for more details about this process.
 
@@ -6065,6 +6005,7 @@ assess_response <- assess_response %>%
 
 # write.xlsx(assess_df2, file = "People who have assessment dates after release or termination dates.xlsx")
 ```
+
 Assess Collapse
 ```{r}
 assess_df <- assess_df %>%
@@ -6683,6 +6624,7 @@ book_df <- book_df %>%
 fwrite(book_df, "C:/Work/PretrialAssessmentPilot/Agency Collapse CSV Files/Tuolumne Booking Collapse.csv")
 ```
   Jail Diagnostics
+
 ```{r}
 book_df %>%
   count(arrest_charge_original) %>%
@@ -6976,7 +6918,7 @@ rm(court_df, court_df_p1, court_sheets, court_sheets_p1)
 ```
 
 
-Court Collapse
+Court Collapseo
 ```{r}
 court_dispo <- court_charge %>%
   group_by(court_case_id) %>%
