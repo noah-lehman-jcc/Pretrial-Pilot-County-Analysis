@@ -203,8 +203,6 @@ lapply(book_df, function(i){
   })
 
 
-
-```
  ## some codes section occur in both PC and VC or (other combo), so we may be getting wring section, but only happends with about 30 code sections
 charge_hier %>%
   add_count(join_var2) %>%
@@ -718,6 +716,9 @@ Import Court Data Sierra
 ## Court Demographics
 court_df_s <- read.csv("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Sierra/P2 Submission-June 30/Pretrial_4_Demographics-VH(SierraProd-2020-07-28).csv", as.is=TRUE) 
 
+# Readin updated data this data has 11 variables instead of 6, it looks like fields were added erroneously
+court_df_s2 <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Sierra/P3 Submission-Jan 15/Pretrial_4_Demographics-07-01-2020thru12-31-2020.xls")
+
 # Date Reformatting--See pg. xxx for more details.  
 court_df_s <- court_df_s %>%  
   mutate_at(vars(contains("Date")), mdy) 
@@ -742,6 +743,9 @@ court_df_s <- court_df_s %>%
 
 court_warrant_s <- read_csv("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Sierra/P2 Submission-June 30/Pretrial_2_ScheduledEvents_Warrant-VH(SierraProd-2020-07-28).csv") 
 
+# read in updated data 7/1/2020-Dec 2020
+court_warrant_s2 <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Sierra/P3 Submission-Jan 15/Pretrial_2_ScheduledEvents_Warrant-07-01-2020thru12-31-2020.xls")
+
 # Date Reformatting--See pg. xxx for more details.  
 court_warrant_s <- court_warrant_s%>%  
   mutate_at(vars(contains("date")), mdy) 
@@ -757,11 +761,48 @@ court_warrant_s <- court_warrant_s%>%
 
 ####
 
+#Import Events Table, this is the first time they have submitted it should have data from June 2020 to Dec 2020
+ court_hearings_s2<- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Sierra/P3 Submission-Jan 15/Pretrial_5_ScheduledEvents07-01-2020thru12-31-2020.xls") 
+ 
+# Variable name standardization--See pg. xxx for more details.
+names(court_hearings_s2) <-
+  c( "court_case_id", "case_name", "hearing_type_original", "hearing_result_date",  "hearing_result_original")
+
+# Date Reformatting--See pg. xxx for more details.
+court_hearings_s2 <- court_hearings_s2 %>%
+  mutate(hearing_result_date = mdy(hearing_result_date))
+ 
+
+
+# Standardize Factors--See pg. xxx for more details.
+ 
+court_hearings_s2 <- court_hearings_s2  %>%
+  mutate(
+    hearing_type = case_when(
+      hearing_type_original %in% c("Arraignment: Complaint","Arraignment: Complaint-Amended", 
+                                   "Arraignment: Information",
+                                   "Arraignment: Warrant", "Further Arraignment: Complaint") ~ "Arraignment",
+      hearing_type_original %in% c("Sentencing Hearing") ~ "Sentencing",  
+      T ~ "Other_Unknown"),
+     # Other_Unknown hearing types include (Change of Plea, Change of Plea or Setting, Hearing: Other, Modification Hearing, Motion Hearing, Pay or Appear, Pre-Trial Conference, Pre Prelim, Prelim Setting, Preliminary Examination, Proof or Appear, Review Hearing, Warrant Surrender	)
+    
+# test to see if this yield same as warrants data    
+    court_fta_flag = if_else(grepl("FTA|FAILURE TO APPEAR", hearing_result), 1, 0))
+ 
+ 
+ 
+
+	
+
 #Import Court Charges and Dispositions
   ## Date range for filing date is 9/16/2019 to 6/23/2020
  ## Disposition Date range 10/23/2007 to 7/21/2020
  ##sentence date 5/11/2018 to 7/23/2020
 court_dispos_s <- read_csv("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Sierra/P2 Submission-June 30/Pretrial_3_Charges-VH(SierraProd-2020-07-28).csv") 
+
+# read in updated data 7/1/2020-Dec 2020
+
+court_dispos_s2 <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Sierra/P3 Submission-Jan 15/Pretrial_3_Charges-07-01-2020thru12-31-2020.xls")
 
 # Name Standardization--See pg. xxx for more details. 
 names(court_dispos_s) <- c("court_case_id", "case_name", "file_date", "charge_number", "court_charge_level_original", "charge_original", "disposition_date", "disposition_type_original", "disposition_manner", "sentence_date", "sentence_type_original", "sentence_amount", "sentence_length", "sentence_length_unit")
@@ -817,6 +858,7 @@ court_dispos_s <- court_dispos_s %>%
          #court_charge_level = if_else(court_charge_level  %in% c("F1"), "F" , court_charge_level),
          court_charge_level = if_else(!court_charge_level %in% c("F", "I", "M"), "Other", court_charge_level)) %>%
   unite(join_var, court_charge_level, court_charge_code, court_charge, remove = F) 
+
 
 
 # Code for Charge Hierarchy and
