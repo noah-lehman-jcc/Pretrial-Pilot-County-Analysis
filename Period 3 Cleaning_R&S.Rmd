@@ -203,8 +203,6 @@ lapply(book_df, function(i){
   })
 
 
-
-```
  ## some codes section occur in both PC and VC or (other combo), so we may be getting wring section, but only happends with about 30 code sections
 charge_hier %>%
   add_count(join_var2) %>%
@@ -718,18 +716,21 @@ Import Court Data Sierra
 ## Court Demographics
 court_df_s <- read.csv("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Sierra/P2 Submission-June 30/Pretrial_4_Demographics-VH(SierraProd-2020-07-28).csv", as.is=TRUE) 
 
+# Readin P3 data this data has 11 variables instead of 6, some fields were added erroneously read in only necessary columns
+court_df_s3 <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Sierra/P3 Submission-Jan 15/Pretrial_4_Demographics-07-01-2020thru12-31-2020.xls", range = cell_cols("A:F"))
+
 # Date Reformatting--See pg. xxx for more details.  
-court_df_s <- court_df_s %>%  
+court_df_s3 <- court_df_s3 %>%  
   mutate_at(vars(contains("Date")), mdy) 
 
 
 # Name Standardization--See pg. xxx for more details. 
-names(court_df_s) <- c("court_case_id", "first_name", "last_name","dob",  "race_original","sex_original")
+names(court_df_s3) <- c("court_case_id", "first_name", "last_name","dob",  "race_original","sex_original")
 
 
 
 # Standardize Factors--See pg. xxx for more details.
-court_df_s <- court_df_s %>%
+court_df_s3 <- court_df_s3 %>%
   mutate(sex = case_when(sex_original %in% c("Male") ~ "Male",
                          sex_original %in% c("Female") ~ "Female", T ~ "Other_Unknown"),
          race = case_when(race_original %in% c("Black") ~ "Black",
@@ -738,22 +739,58 @@ court_df_s <- court_df_s %>%
                           T ~ "Other_Unknown"))
 
 
+
 ####
 
 court_warrant_s <- read_csv("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Sierra/P2 Submission-June 30/Pretrial_2_ScheduledEvents_Warrant-VH(SierraProd-2020-07-28).csv") 
 
+# read in updated data 7/1/2020-Dec 2020
+# data contain erroneous data columns at the end read in only necessary columns
+# warrant dates range from 9/22/2020 to 1/5/2021
+court_warrant_s3 <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Sierra/P3 Submission-Jan 15/Pretrial_2_ScheduledEvents_Warrant-07-01-2020thru12-31-2020.xls" , range = cell_cols("A:G"))
+
 # Date Reformatting--See pg. xxx for more details.  
-court_warrant_s <- court_warrant_s%>%  
+court_warrant_s3 <- court_warrant_s3%>%  
   mutate_at(vars(contains("date")), mdy) 
 
 
 
 # Name Standardization--See pg. xxx for more details. 
-names(court_warrant_s) <- c("court_case_id", "case_name", "hearing_type", "hearing_result_date", "hearing_result_type", "fta_warrant_date", "fta_warrant_type")
+names(court_warrant_s3) <- c("court_case_id", "case_name", "hearing_type", "hearing_result_date", "hearing_result_type", "fta_warrant_date", "fta_warrant_type")
 
 #Make FTA flag
-court_warrant_s <- court_warrant_s%>%  
-  mutate(fta_flag = ifelse(hearing_result_type == "Fail to Appear: Bench Warrant Issued", 1, 0))
+court_warrant_s3 <- court_warrant_s3%>%  
+  mutate(court_fta_flag = ifelse(hearing_result_type == "Fail to Appear: Bench Warrant Issued", 1, 0))
+  # the data on event also have a code "Fail to Appear: Bench Warrant Held" these are not flagged
+
+
+####
+
+#Import Events Table, the P3 period is the first time they have submitted full events data should have data from June 2020 to Dec 2020.  File has 143 obs and hearing result date ranges from 7/21/2020 to 1/5/2021
+court_hearings_s3<- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Sierra/P3 Submission-Jan 15/Pretrial_5_ScheduledEvents07-01-2020thru12-31-2020.xls", range = cell_cols("A:E")) 
+ 
+# Variable name standardization--See pg. xxx for more details.
+names(court_hearings_s3) <-
+  c( "court_case_id", "case_name", "hearing_type_original", "hearing_result_date",  "hearing_result_original")
+
+# Date Reformatting--See pg. xxx for more details.
+court_hearings_s3 <- court_hearings_s3 %>%
+  mutate(hearing_result_date = mdy(hearing_result_date))
+ 
+
+# Standardize Factors--See pg. xxx for more details.
+ 
+court_hearings_s3 <- court_hearings_s3  %>%
+  mutate(
+    hearing_type = case_when(
+      hearing_type_original %in% c("Arraignment: Complaint","Arraignment: Complaint-Amended", 
+                                   "Arraignment: Information",
+                                   "Arraignment: Warrant", "Further Arraignment: Complaint") ~ "Arraignment",
+      hearing_type_original %in% c("Sentencing Hearing") ~ "Sentencing",  
+      T ~ "Other_Unknown")) 
+     # Other_Unknown hearing types include (Change of Plea, Change of Plea or Setting, Hearing: Other, Modification Hearing, Motion Hearing, Pay or Appear, Pre-Trial Conference, Pre Prelim, Prelim Setting, Preliminary Examination, Proof or Appear, Review Hearing, Warrant Surrender	)
+ 
+
 
 ####
 
@@ -762,19 +799,35 @@ court_warrant_s <- court_warrant_s%>%
  ## Disposition Date range 10/23/2007 to 7/21/2020
  ##sentence date 5/11/2018 to 7/23/2020
 court_dispos_s <- read_csv("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Sierra/P2 Submission-June 30/Pretrial_3_Charges-VH(SierraProd-2020-07-28).csv") 
-
 # Name Standardization--See pg. xxx for more details. 
-names(court_dispos_s) <- c("court_case_id", "case_name", "file_date", "charge_number", "court_charge_level_original", "charge_original", "disposition_date", "disposition_type_original", "disposition_manner", "sentence_date", "sentence_type_original", "sentence_amount", "sentence_length", "sentence_length_unit")
+names(court_dispos_s) <- c("court_case_id", "case_name", "file_date", "charge_number", "court_charge_level_original", "court_charge_original", "disposition_date", "disposition_type_original", "disposition_manner", "sentence_date", "sentence_type_original", "sentence_amount", "sentence_length", "sentence_length_unit")
 
 
 # Date Reformatting--See pg. xxx for more details.  
 court_dispos_s <- court_dispos_s%>%  
+  mutate_at(vars(contains("date")), mdy)
+
+
+summary(court_dispos_s$disposition_date)
+
+
+# read in updated data Obs 248 file date range 7/6/2020-12/29/2020
+# sentence date range 7/27/2020 to 12/14/2020 NA's 216
+
+court_dispos_s3 <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Sierra/P3 Submission-Jan 15/Pretrial_3_Charges-07-01-2020thru12-31-2020.xls", range = cell_cols("A:N"))
+
+# Name Standardization--See pg. xxx for more details. 
+names(court_dispos_s3) <- c("court_case_id", "case_name", "file_date", "charge_number", "court_charge_level_original", "court_charge_original", "disposition_date", "disposition_type_original", "disposition_manner", "sentence_date", "sentence_type_original", "sentence_amount", "sentence_length", "sentence_length_unit")
+
+
+# Date Reformatting--See pg. xxx for more details.  
+court_dispos_s3 <- court_dispos_s3%>%  
   mutate_at(vars(contains("date")), mdy) 
 
 
 
 # Standardize Factors--See pg. xxx for more details.
-court_dispos_s <- court_dispos_s %>%
+court_dispos_s3 <- court_dispos_s3 %>%
   mutate(disposition_type = case_when(disposition_type_original %in% c("Dismissal", "Dismissal: Diversion Successful",
                                                                        "Dismissed with a Harvey Waiver") ~ 
                                         "Dismissed",
@@ -794,10 +847,10 @@ court_dispos_s <- court_dispos_s %>%
          sentence_type = case_when(sentence_type_original %in% c("County Jail", "Fine-Converted to Jail/CS") ~ "Jail",
                                    T ~ "Other" )) %>%
   
-  mutate(court_charge_code_original = str_extract(charge_original, "^[A-Z]*"),
-         charge_original = gsub("^[A-Z]*", "", charge_original),
-         court_charge = gsub("\\s.*", "", charge_original),
-         charge_description = str_extract(charge_original, "\\s.*")) %>%
+  mutate(court_charge_code_original = str_extract(court_charge_original, "^[A-Z]*"),
+         court_charge_original = gsub("^[A-Z]*", "", court_charge_original),
+         court_charge = gsub("\\s.*", "", court_charge_original),
+         charge_description = str_extract(court_charge_original, "\\s.*")) %>%
            
 
   mutate(attempt = if_else(grepl("\\(664\\)$|\\/664$|^664\\/", court_charge_code_original), 1, 0)) %>%
@@ -819,12 +872,13 @@ court_dispos_s <- court_dispos_s %>%
   unite(join_var, court_charge_level, court_charge_code, court_charge, remove = F) 
 
 
+
 # Code for Charge Hierarchy and
 #Make flags
 load("G:/CrimJustice/PretrialAssessmentPilot/Complete Charge Code Hierarchy.RData")
 
 
-court_dispos_s <- left_join(court_dispos_s, charge_hier, by = "join_var") %>%
+court_dispos_s3 <- left_join(court_dispos_s3, charge_hier, by = "join_var") %>%
   mutate(felony_flag = if_else(court_charge_level == "F", 1, 0),
          misd_flag = if_else(court_charge_level == "M", 1, 0)) %>%
   mutate_at(vars(contains("flag")), funs(if_else(is.na(.), 0, as.numeric(.)))) %>%
@@ -832,10 +886,8 @@ court_dispos_s <- left_join(court_dispos_s, charge_hier, by = "join_var") %>%
   rename_at(vars(contains("flag"), -contains("conviction")), funs(paste0("court_", .))) %>%
   rename_at(vars(contains("conviction")), funs(paste0("conviction_", gsub("_conviction", "", .)))) 
 
-
+summary(court_dispos_s3$file_date)
 ####
-
-
 ```
 
 Court Collapse Sierra
@@ -880,13 +932,14 @@ court_fta_war <- court_warrant_s %>%
 
 
 #This code makes arraignment date
-# We do not yet have a hearing table, we need to have Sierra make it based on what Tulane did
-# court_arraign <- court_hearing %>%
-#   filter(hearing_type == "Arraignment") %>%
-#   rename(arraignment_date = hearing_date) %>%
-#   arrange(arraignment_date) %>%
-#   distinct(court_case_id, .keep_all = T) %>%
-#   select(court_case_id, arraignment_date)
+# We ot the first hearings table in the P# submission
+court_arraign <- court_hearings_s3 %>%
+  filter(hearing_type == "Arraignment") %>%
+  #sierra data contains hearing_result_date dont know if this is the same as hearing date in other counties
+  rename(arraignment_date = hearing_result_date) %>%
+  arrange(arraignment_date) %>%
+  distinct(court_case_id, .keep_all = T) %>%
+  select(court_case_id, arraignment_date)
 
 #This code makes a plea date
 
