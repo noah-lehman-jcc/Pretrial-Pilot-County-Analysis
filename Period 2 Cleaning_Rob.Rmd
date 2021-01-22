@@ -7,6 +7,8 @@ output: html_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+
+knitr::opts_knit$set(root.dir = "G:/CrimJustice/PretrialAssessmentPilot")
 ```
 
 # Libraries
@@ -3095,21 +3097,9 @@ Jail Data
 
 setwd("G:/CrimJustice/PretrialAssessmentPilot")
 
+# June 30 2020 submission is cumulative, will use only that one
+book_df <- fread("Historical Data Submissions/Yuba/P2 Submission-June 30/pretrial.csv", colClasses = "character")
 
-book_df <- lapply(c("Historical Data Submissions/Yuba/JailExtract.csv", 
-                    "Historical Data Submissions/Yuba/JailExtractQ2.csv",
-                    "Historical Data Submissions/Yuba/P2 Submission-June 30/pretrial.csv"), 
-                  function(x) {
-                    cbind(fread(x, colClasses = "character"),
-                          data.frame(file = x))
-                  }) %>%
-  bind_rows() %>%
-  arrange(desc(file)) %>%
-  distinct(BOOKNX, .keep_all = TRUE) %>%
-  select(-file)
-
-
-  
 # Variable name standardization--See pg. xxx for more details.  
 names(book_df) <- c("cii", "fbi", "last_name", "first_name", "middle_name", "dob", "arrest_date_time", "book_num", "book_date_time", "court_case_id", "arrest_charge_code_original", "arrest_charge_original", "arrest_charge_level_original", "release_date", "release_type_original", "local_id", "cdl_id", "cdl_state", "sex_original", "race_original", "nationality", "bail_amt", "no_bail", "cash_bail", "bail_reduction", "employment", "status")
 
@@ -3120,7 +3110,9 @@ book_df <- book_df %>%
   mutate(book_date = as_date(book_date_time),
          arrest_date = as_date(arrest_date_time)) 
 
-
+# remove duplicated booking numbers (three rows)
+book_df <- book_df %>%
+  distinct(book_num, .keep_all = T) 
 
 # Standardize Charges and join charge hierarchy--See pg. xxx for more details about this process. 
   ## F_PC_3454 this is a flash incar
@@ -3445,14 +3437,14 @@ setwd("G:/CrimJustice/PretrialAssessmentPilot")
 # Court Filing Charges this is old code they sent a new cummulative data set
   ## court_charge contains one row per disposition including VOPs stemming from original case
   ## VOPs and juvenile charges filtered out removing about 2,800 rows
-court_charge <- lapply(c("Yuba/Yuba.xlsx", "Yuba SQL Results 1-30-2020.xlsx"),
-                       function(x) {
-                         read_excel(paste0("Historical Data Submissions/Yuba/",
-                                           x),
-                                    sheet = 2, na="NULL", col_types="text")
-                       }) %>%
-bind_rows() %>%
-distinct()
+# court_charge <- lapply(c("Yuba/Yuba.xlsx", "Yuba SQL Results 1-30-2020.xlsx"),
+#                        function(x) {
+#                          read_excel(paste0("Historical Data Submissions/Yuba/",
+#                                            x),
+#                                     sheet = 2, na="NULL", col_types="text")
+#                        }) %>%
+# bind_rows() %>%
+# distinct()
 
 
 # Court Filing Charges --New cummulative data submitted 7/29/2020 
@@ -3468,7 +3460,7 @@ names(court_charge) <- c("court_docket_id", "court_case_id", "court_charge_numbe
 # Date Reformatting--See pg. xxx for more details.
   ## Filter out observations where dispo date is after final date
 court_charge <- court_charge %>%
-  mutate_at(vars(plea_date, disposition_date, final_date), ymd_hms)
+  mutate_at(vars(plea_date, disposition_date, final_date), ymd)
 
 # Standardize Factors--See pg. xxx for more details.
   ## juvenile charges filtered out
@@ -3568,14 +3560,14 @@ court_charge <- left_join(court_charge, charge_hier, by = "join_var")
   ## court_hearing contains one row per hearing event (check this) on each court case and includes information about each hearing. 
   ## hearing_outcome contains FTA information ("Failure to Appear")
 
-court_hearing <- lapply(c("Yuba/Yuba.xlsx", "Yuba SQL Results 1-30-2020.xlsx"),
-                       function(x) {
-                         read_excel(paste0("Historical Data Submissions/Yuba/",
-                                           x),
-                                    sheet = 3, na="NULL", col_types="text")
-                       }) %>%
-  bind_rows() %>%
-  distinct()
+# court_hearing <- lapply(c("Yuba/Yuba.xlsx", "Yuba SQL Results 1-30-2020.xlsx"),
+#                        function(x) {
+#                          read_excel(paste0("Historical Data Submissions/Yuba/",
+#                                            x),
+#                                     sheet = 3, na="NULL", col_types="text")
+#                        }) %>%
+#   bind_rows() %>%
+#   distinct()
 
 
  ##hearing dates range from 12/18/1996 to 9/17/2021 (these dont have hearing outcme but are probably calendared events)
@@ -3730,26 +3722,25 @@ court_hearing <- court_hearing %>%
   ## "NULL"s changed to NA  
   ## all have value 1 for fta_hearing and fta_warrant
   ## fta_hearing renamed fta_flag
-court_fta_war <- lapply(c("Yuba/Yuba.xlsx", "Yuba SQL Results 1-30-2020.xlsx"),
-                        function(x) {
-                          read_excel(paste0("Historical Data Submissions/Yuba/", x),
-                                     sheet = 4, na="NULL", col_types="text")
-                        }) %>%
-  bind_rows()
+# court_fta_war <- lapply(c("Yuba/Yuba.xlsx", "Yuba SQL Results 1-30-2020.xlsx"),
+#                         function(x) {
+#                           read_excel(paste0("Historical Data Submissions/Yuba/", x),
+#                                      sheet = 4, na="NULL", col_types="text")
+#                         }) %>%
+#   bind_rows()
 
 
 # Court FTA
   ## this file has zero observations needs to be resent
 court_fta <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Yuba/P2 Submission-June 30/Yuba_PTSWarrant.xlsx")
 
-
+# replace above with cumulative data rec'd June 2020
 court_fta_war <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Yuba/P2 Submission-June 30/ODY-330218 CAYUBAPROD - JCC Pretrial Data Extract Script Request.xlsx", sheet = 1, na="NULL", col_types="text")
 
 # Variable name standardization--See pg. xxx for more details.
 names(court_fta_war) <- c("court_docket_id", "court_case_id", "fta_flag", "fta_date", "fta_warrant", "fta_warrant_date", "fta_warrant_type")
 
-court_person %>%
-  semi_join(court_fta_war, by = "court_docket_id")
+
 
 
 # Date Reformatting--See pg. xxx for more details.
@@ -3765,18 +3756,19 @@ court_fta_war <- court_fta_war %>%
 # Court Sentences to Confinement 
   ## court_sentence contains one row per sentence event component in which the sentence event is confinement
   ## type of confinement sentence taken from sentence_location column, perhaps imperfectly
-court_sentence <- lapply(c("Yuba/Yuba.xlsx", "Yuba SQL Results 1-30-2020.xlsx"),
-                       function(x) {
-                         read_excel(paste0("Historical Data Submissions/Yuba/",
-                                           x),
-                                    sheet = 5, na="NULL", col_types="text")
-                       }) %>%
-  bind_rows()
+# court_sentence <- lapply(c("Yuba/Yuba.xlsx", "Yuba SQL Results 1-30-2020.xlsx"),
+#                        function(x) {
+#                          read_excel(paste0("Historical Data Submissions/Yuba/",
+#                                            x),
+#                                     sheet = 5, na="NULL", col_types="text")
+#                        }) %>%
+#   bind_rows()
 
 
 ## this file is missing all observation but has the same variables as the older file above 
-court_sentence <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Yuba/P2 Submission-June 30/Yuba_SentConf.xlsx")
+# court_sentence <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Yuba/P2 Submission-June 30/Yuba_SentConf.xlsx")
 
+# cumulative table rec'd June 2020:
 court_sentence <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Yuba/P2 Submission-June 30/ODY-330218 CAYUBAPROD - JCC Pretrial Data Extract Script Request.xlsx", sheet = 2, na="NULL", col_types="text")
 
 
@@ -3801,19 +3793,20 @@ court_sentence <- court_sentence %>%
   ## court_sent_prob contains one row per sentence event component in which the sentence event is supervision (e.g. probation) 
   ## all given sentence_type "Probation", some are Court Summary Probation (Unsupervised) and some are Formal Probation
 
-court_sent_prob <- lapply(c("Yuba/Yuba.xlsx", "Yuba SQL Results 1-30-2020.xlsx"),
-                       function(x) {
-                         read_excel(paste0("Historical Data Submissions/Yuba/",
-                                           x),
-                                    sheet = 8, na="NULL", col_types="text")
-                       }) %>%
-  bind_rows()
+# court_sent_prob <- lapply(c("Yuba/Yuba.xlsx", "Yuba SQL Results 1-30-2020.xlsx"),
+#                        function(x) {
+#                          read_excel(paste0("Historical Data Submissions/Yuba/",
+#                                            x),
+#                                     sheet = 8, na="NULL", col_types="text")
+#                        }) %>%
+#   bind_rows()
 
 
 ####for some reason this new data set is totally empty####
-court_sent_prob <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Yuba/P2 Submission-June 30/Yuba_SentProb.xlsx")
+# court_sent_prob <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Yuba/P2 Submission-June 30/Yuba_SentProb.xlsx")
 ######################################################
 
+# below is cumulative file rec'd June 2020:
 court_sent_prob <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Yuba/P2 Submission-June 30/ODY-330218 CAYUBAPROD - JCC Pretrial Data Extract Script Request.xlsx", sheet = 3, na="NULL", col_types="text")
                        
 
@@ -3833,8 +3826,6 @@ court_sent_prob <- court_sent_prob %>%
                                                                  "Formal (Supervised)") ~
                                      "Probation"))
 
-
-summary(court_sent_prob$sentence_date)
 
 
 
@@ -3941,11 +3932,11 @@ court_dispo <- court_charge %>%
   mutate(hierarchy = if_else(is.na(hierarchy), 1e6, as.numeric(hierarchy))) %>%
   group_by(court_case_id) %>%
   mutate(disposition_date = max(disposition_date), disposition_type = max(disposition_type)) %>%
-  mutate(max_court_charge_level = court_charge_level[hierarchy == min(hierarchy)][1],
-         max_court_charge_code = court_charge_code[hierarchy == min(hierarchy)][1],
-         max_court_charge = court_charge[hierarchy == min(hierarchy)][1],
-         max_charge_description = master_charge_description[hierarchy == min(hierarchy)][1],
-         max_hier = min(hierarchy)) %>%
+  # mutate(max_court_charge_level = court_charge_level[hierarchy == min(hierarchy)][1],
+  #        max_court_charge_code = court_charge_code[hierarchy == min(hierarchy)][1],
+  #        max_court_charge = court_charge[hierarchy == min(hierarchy)][1],
+  #        max_charge_description = master_charge_description[hierarchy == min(hierarchy)][1],
+  #        max_hier = min(hierarchy)) %>%
   mutate_at(vars(contains("flag")), funs(if_else(is.na(.), 0, .))) %>%
   mutate_at(vars(contains("flag")), funs("count" = sum(.))) %>%
   mutate_at(vars(contains("flag")), max) %>%
@@ -4203,7 +4194,7 @@ assess_df <- assess_df %>%
   filter(pretrial_id != "Total") %>%
   mutate(pretrial_termination_outcome = case_when(!is.na(`ref_status_reason_Pretrial - Closed Successful`) ~ "Successful",
                                                   !is.na(`ref_status_reason_Pretrial - Closed Unsuccessful`) ~ "Unsuccessful",
-                                                  !is.na(`ref_status_reason_Pretrial - Closed Neutral`) ~ "Other_Unknown")) %>%
+                                                  !is.na(`ref_status_reason_Pretrial - Closed Neutral`) ~ "Ineligible")) %>%
   unite(col = "pretrial_termination_reason_original",
         c("ref_status_reason_Pretrial - Closed Neutral",
           "ref_status_reason_Pretrial - Closed Successful",
@@ -4238,8 +4229,10 @@ assess_df <- assess_df %>%
   select(-c(court_case_id_duplicate, ref_type_useless, rn, `ref_status_reason_Pretrial - Supervision`, ref_status_reason_NA, ref_status_date_NA))
 
 assess_df <- assess_df %>%
-    mutate_at(vars("pretrial_termination_date", "assessment_date"), ymd) %>%
-    mutate_at(vars(contains("date")), as_date)
+    mutate(pretrial_termination_date = na_if(pretrial_termination_date, ""),
+           assessment_date = na_if(assessment_date, "")) %>%
+    mutate_at(vars(pretrial_termination_date, assessment_date), ymd) %>%
+    mutate_at(vars(release_decision_date, supervision_start_date), as_date)
 
 # New reasons for termination/unsuccessful will need to be added to below code for later data
 
@@ -4271,12 +4264,7 @@ assess_df <- assess_df %>%
          zip_code = as.character(zip_code))
 
 
-# collapse rows so that recommendations and terminations appear on the same one for same probation_id/court_case_id
-suppressWarnings(assess_df <- assess_df %>%
-  group_by(court_case_id) %>% 
-  mutate_all(~ max(., na.rm = T)) %>%
-  distinct(court_case_id, .keep_all = T) %>%
-  ungroup())
+
 
 
 #### 
@@ -4302,13 +4290,12 @@ rm(names_df2)
 # Make ORAS responses, total scores, and offense severity modifiers numeric
 assess_df2 <- assess_df2 %>%
   mutate_at(vars(contains("oras_tool_response"), oras_risk_score, contains("offense_severity")),
-            ~ as.numeric(.))
+            ~ as.numeric(.)) %>%
+  mutate(risk_level = case_when(oras_risk_score %in% c(0,1,2) ~"Low",
+                                oras_risk_score %in% c(3, 4,5) ~ "Medium",
+                                oras_risk_score %in% c(6, 7, 8, 9) ~ "High"))
 
-# To do next time: semi_join to figure out how to combine assess_df2 (99 rows) with assess_df (411 rows)
-assess_df <- assess_df %>%
-  left_join(assess_df2, by = "court_case_id") %>%
-  select(-contains(".y")) %>%
-  rename_at(vars(contains(".x")), funs(gsub("\\.x", "", .)))
+
 
 # there are 6 people who appear in both tables but do not have matching court_case_ids
 # assess_df2 %>%
@@ -4330,9 +4317,7 @@ assess_df <- assess_df %>%
 ## no detail on em monitoring recommended release condition or drug test release condition
 
 assess_df <- assess_df %>% 
-  mutate(assess_flag = if_else(!is.na(as.character(assessment_date)) &
-                                 !is.na(oras_risk_score), 1, 0),
-         rec_release_flag = if_else(release_recommendation %in% c("OR", "Monitor"), 1, 0),
+  mutate(rec_release_flag = if_else(release_recommendation %in% c("OR", "Monitor"), 1, 0),
          decision_release_flag = if_else(release_decision %in% c("OR", "Monitor"), 1, 0),
          #This field needs to come from the jail data.
          # pretrial_release_flag = if_else(),
@@ -4358,8 +4343,35 @@ assess_df <- assess_df %>%
          pretrial_violation_flag = if_else(pretrial_termination_outcome == "Unsuccessful", 1, 0))
 
 
+
 ```
 
+
+  Assessment Collapse
+```{r}
+
+# collapse rows so that recommendations and terminations appear on the same one for same probation_id/court_case_id
+# need a way to make the NANANANA values actually show up as NA
+suppressWarnings(assess_df <- assess_df %>%
+  group_by(pretrial_id) %>% 
+  mutate_all(~ max(., na.rm = T)) %>%
+  distinct(court_case_id, .keep_all = T) %>%
+  ungroup())
+
+# 
+# To do next time: semi_join to figure out how to combine assess_df2 (99 rows) with assess_df (411 rows)
+assess_df <- assess_df %>%
+  left_join(assess_df2, by = "pretrial_id") %>%
+  select(-contains(".y")) %>%
+  rename_at(vars(contains(".x")), funs(gsub("\\.x", "", .)))
+
+assess_df <- assess_df %>%
+  mutate(assess_flag = if_else(!is.na(as.character(assessment_date)) &
+                                 !is.na(oras_risk_score), 1, 0))
+
+
+  
+```
 
 Assessment Tables 
 ```{r}
@@ -4368,27 +4380,22 @@ assess_table <- assess_df %>%
   distinct(pretrial_id, .keep_all = T) %>%
   # Filter for only those actually assessed
   filter(!is.na(assessment_date)) %>%
-  # Create county name.
+  # Create county, tool-name, dob, charge_level.
   mutate(county = "Yuba",
-         tool_name = "ORAS") %>%
+         tool_name = "oras",
+         dob = NA,
+         charge_level = NA,
+         monitor_level = NA) %>%
   # Select relevants variables.
-  select(county, release_recommendation, release_decision, assessment_date, oras_risk_score, tool_name)
+  select(county, release_recommendation, release_decision, assessment_date, oras_risk_score, tool_name, assessment_date, dob, sex, race,  charge_level, risk_level, monitor_level, pretrial_termination_reason)
 
 # Save file  
-fwrite(assess_table, file = "G:/CrimJustice/PretrialAssessmentPilot/Assessment Output Tables/Yuba Assessment Output 08-2020.csv")
+fwrite(assess_table, file = "G:/CrimJustice/PretrialAssessmentPilot/Assessment Output Tables/Yuba Assessment Output 10-2020.csv")
+
+
 ```
 
 
-  Assessment Collapse
-```{r}
-# Assessment data is duplicated across terms and conditions. These are collapsed. 
-  ## data are already collapsed, so this step is optional 
-assess_df <- assess_df %>%
-  group_by(pretrial_id, assessment_date) %>%
-  mutate_at(vars(contains("flag")), funs(max(., na.rm = T))) %>%
-  distinct(pretrial_id, assessment_date, court_case_id, .keep_all = T) 
-  
-```
 
 
 Assessment Codebook (9/2020) 
@@ -4754,99 +4761,47 @@ write.xlsx(Yuba_df, file = "Code Books/Yuba Code Book.xlsx")
 
 ```
 
-DOJ CII/Linking Extraction
+DOJ CII/Linking Extraction 
 ```{r}
 # Grab Tables with CII
-df <- sapply(ls()[which(sapply(ls(), function(i){
-  sum(names(get(i)) %in% "cii")
-}) == 1)], get)
-
-# Pull CII and other identifiers
-doj_book <- df[[1]] %>%
-  select(cii, fbi, first_name, middle_name, last_name, dob, cdl_id, cdl_state, race_original, sex_original, local_id) %>%
-  mutate(cii = parse_number(cii),
+df_list <- sapply(
+  ls()[which(sapply(ls(), function(i){
+    sum(names(get(i)) %in% "cii")
+    }) == 1)],
+  function(j){
+    df <- get(j)
+    df <- df %>%
+      select(any_of(c("cii", "cdl_id", "fbi", "last_name", "first_name", "middle_name", "dob", "sex_original", "race_original"))) %>%
+       mutate(
+         cii = parse_number(cii),
          cii = case_when(nchar(cii) == 6 ~ paste0("0000", cii),
                          nchar(cii) == 7 ~ paste0("000", cii),
                          nchar(cii) == 8 ~ paste0("00", cii),
                          nchar(cii) == 9 ~ paste0("0", cii),
                          T ~ as.character(cii)),
-         cii = if_else(nchar(cii) != 10, NA_character_, cii)) 
+         cii = if_else(nchar(cii) != 10, NA_character_, cii)) %>%
+  distinct()
+  
+})
 
-doj_court <- df[[2]] %>%
-  select(cii, fbi, cdl_id, cdl_state, dob, race_original, sex_original, first_name, middle_name, last_name) %>%
-  mutate(cii = parse_number(cii),
-         cii = case_when(nchar(cii) == 6 ~ paste0("0000", cii),
-                         nchar(cii) == 7 ~ paste0("000", cii),
-                         nchar(cii) == 8 ~ paste0("00", cii),
-                         nchar(cii) == 9 ~ paste0("0", cii),
-                         T ~ as.character(cii)),
-         cii = if_else(nchar(cii) != 10, NA_character_, cii)) 
+# CIIs from assessment tables
+doj_assess <- bind_rows(df_list[[1]])
 
+# CIIs from booking tables
+doj_book <- bind_rows(df_list[[2]])
 
-# Examine missing ciis and duplicates on cii. 
-# doj_book %>% #Off by about 55,000
-#   distinct()
-# 
-# doj_book %>% 
-#   distinct(cii)
-# 
-# doj_book %>% 
-#   distinct() %>%
-#   add_count(cii) %>%
-#   filter(n > 1) %>%
-#   arrange(desc(n)) %>% 
-#   View()
-# 
-# doj_court %>% #Off by about 45,000
-#   distinct()
-# 
-# doj_court %>% 
-#   distinct(cii)
-# 
-# doj_court %>% 
-#   distinct() %>%
-#   add_count(cii) %>%
-#   filter(n > 1) %>%
-#   arrange(desc(n)) %>% 
-#   View()
-# 
-# #In this case, it is clear that the local ID is not a true person identifier but rather an event identifier and so should be removed.
-# 
-# doj_book <- doj_book %>% select(-local_id)
-# doj_court <- doj_court %>% select(-local_id)
-# 
-# doj_book %>% # Off by about 7,000
-#   distinct()
-# 
-# doj_book %>% 
-#   distinct(cii)
-# 
-# doj_book %>% 
-#   distinct() %>%
-#   add_count(cii) %>%
-#   filter(n > 1) %>%
-#   arrange(desc(n)) %>% 
-#   View()
-# 
-# doj_court %>% #Off by about 9,000
-#   distinct()
-# 
-# doj_court %>% 
-#   distinct(cii)
-# 
-# doj_court %>% 
-#   distinct() %>%
-#   add_count(cii) %>%
-#   filter(n > 1) %>%
-#   arrange(desc(n)) %>% 
-#   View()
+# CIIs from court tables
+doj_court <- bind_rows(df_list[[3]]) 
+
 
 #CIIs for DOJ
-doj_cii <- bind_rows(doj_book %>% select(cii), doj_court %>% select(cii)) %>% distinct()
+doj_cii <- bind_rows(doj_book %>% select(cii), doj_court %>% select(cii), doj_assess %>% select(cii)) %>% distinct()
+
 
 #Create an excel workbook with all data table. Make sure to include the cii table first. 
-write.xlsx(list(doj_cii, doj_book, doj_court), file = "CIIs for DOJ/Yuba CIIs and Demographics for DOJ.xlsx", sheetName = c("ciis", "booking", "court"))
+write.xlsx(list(doj_cii, doj_book, doj_court, doj_assess), file = "G:/CrimJustice/PretrialAssessmentPilot/CIIs for DOJ/October 2020/Yuba P2 CIIs and Demographics for DOJ.xlsx", sheetName = c("ciis", "booking", "court", "assessment"))
 ```
+
 
 Factors Codebook
 ```{r}
@@ -5031,5 +4986,12 @@ tibble(
 join_df <- bind_rows(join1, join2, join3)
 ```
 
+write collapsed tables
+```{r}
+fwrite(book_df, "G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Yuba Booking Collapse.csv")
+fwrite(court_df, "G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Yuba Court Collapse.csv")
+fwrite(assess_df, "G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Yuba Assessment Collapse.csv")
+
+```
 
 

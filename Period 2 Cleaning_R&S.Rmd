@@ -43,6 +43,12 @@ Jail Data
   ##Sierra does not have a jail so this includes Sierra bookings
 
 
+#reading in new P3 data
+#min book_date 1/1/2015 max 1/3/2021
+#this can replace the last data set because it is cumulative
+book_df_p3 <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Nevada/P3 Submission-Jan 15/Pretrial Data Through December 2020.xlsx")
+
+
 book_df<- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Nevada/P2 Submission-June 30/Jail Data Extract2.xlsx", col_types = c("text", rep("guess", 10), "date", rep("guess", 8)), , na = "NULL") %>%
   distinct () 
   
@@ -1904,8 +1910,7 @@ factor_df <- lapply(ls()[!grepl("original|^df|hier", ls())], function(i){
 
 write.xlsx(factor_df, file = "G:/CrimJustice/PretrialAssessmentPilot/Code Books/Factor Code Book/Nevada Factor Code Book.xlsx", asTable = T, tableStyle = "TableStyleMedium1", colWidths = "auto")
 ```
- Joining All Data Post-Collapse
- Jail Court Join
+ Old Jail Court Join
 ```{r}
 # Remove extraneous objects in the environment
 rm(list = ls()[!ls() %in% ls(pattern = "df")])
@@ -2154,13 +2159,42 @@ join_df2 <- join_df %>%
   select(-contains(".y")) %>%
   rename_at(vars(contains(".x")), funs(gsub("\\.x", "", .)))
 
-
-
-
-
-
   
 ```
+Final Collapse
+```{r}
+
+# look into keeping the highest charge description
+join_collapse <- join_df2 %>%
+  mutate(across (c(contains("flag"), contains("_count")), ~if_else(is.na(.x), as.integer(0), as.integer(.x)))) %>%
+  mutate(release_type = ordered(release_type, levels = c("Unknown", "Other", "Sentenced", "Time_Served",
+                                                         "Detain_Only", "Dismissed_Dropped", "OR",
+                                                         "Bail_Bond", "Cite_Release", "Hold_Release"))) %>%
+ group_by(book_num) %>%
+  mutate(release_type = max(release_type)) %>%
+  mutate(across(c(contains("sup_vio"), -contains("_count")), max)) %>%
+  mutate(across(c(contains("sup_vio_flag_count")), sum)) %>%
+  ungroup() %>%
+  # Nevada has no sentence dates, so final dispo date is just dispo date
+  filter(disposition_date >= book_date, book_type %in% c("On_View", "Bench_Warrant", "Other_Warrant")) %>%
+  group_by(book_num) %>%
+  mutate(across(c(contains("flag"), -contains("_count")), max)) %>%
+  mutate(across(c(contains("_count"), -contains("sup_vio_flag_count")), sum)) %>%
+  ungroup() %>%
+  distinct(book_num, .keep_all = T)
+  
+
+fwrite(join_collapse, "G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Nevada Join Collapse.csv")
+
+join_df2 %>%
+  select(contains("sup_vio"))
+
+court_df %>%
+  select(contains("sentence"))
+
+summary(join_collapse$hierarchy)
+```
+
 
 
 

@@ -707,17 +707,18 @@ charge_hier%>%
 Import Court Data Sierra
 ```{r eval=FALSE, include=FALSE}
 
-#These 3 tables were submitted 7/28/2020 : contain historical data through P2 data  
+#These files are cumulative from historical period to 1/1/2021
   ##Court Demographics: contain court case id, first name, last name, DOB, race, sex
-  ##FTA, 
-  ##charges_dispositions
+  ##court warrants: has FTA info and dates
+  ##Court hearings: has arraignment dates 
+  ##charges_dispositions; has dispos and dispo dates also has sentence type.  Sentence type didn't have any CDCR or Probation cases.  Will ask Diane Holman about that.
 
 
 ## Court Demographics
-court_df_s <- read.csv("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Sierra/P2 Submission-June 30/Pretrial_4_Demographics-VH(SierraProd-2020-07-28).csv", as.is=TRUE) 
+
 
 # Readin P3 data this data has 11 variables instead of 6, some fields were added erroneously read in only necessary columns
-court_df_s3 <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Sierra/P3 Submission-Jan 15/Pretrial_4_Demographics-07-01-2020thru12-31-2020.xls", range = cell_cols("A:F"))
+court_df_s3 <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Sierra/P3 Submission-Jan 15/Pretrial_4_Demographics-9-16-2019 thru 1-1-2021.xls", range = cell_cols("A:F"))
 
 # Date Reformatting--See pg. xxx for more details.  
 court_df_s3 <- court_df_s3 %>%  
@@ -742,12 +743,12 @@ court_df_s3 <- court_df_s3 %>%
 
 ####
 
-court_warrant_s <- read_csv("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Sierra/P2 Submission-June 30/Pretrial_2_ScheduledEvents_Warrant-VH(SierraProd-2020-07-28).csv") 
+## Court Warrants 
 
-# read in updated data 7/1/2020-Dec 2020
+# read in updated data 9/16/2019-Dec 2020
 # data contain erroneous data columns at the end read in only necessary columns
-# warrant dates range from 9/22/2020 to 1/5/2021
-court_warrant_s3 <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Sierra/P3 Submission-Jan 15/Pretrial_2_ScheduledEvents_Warrant-07-01-2020thru12-31-2020.xls" , range = cell_cols("A:G"))
+# warrant dates range from 12/10/2019 to 1/19/2021
+court_warrant_s3 <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Sierra/P3 Submission-Jan 15/Pretrial_2_ScheduledEvents_Warrant 9-16-2019 thru 1-1-2021.xls" , range = cell_cols("A:G"))
 
 # Date Reformatting--See pg. xxx for more details.  
 court_warrant_s3 <- court_warrant_s3%>%  
@@ -766,8 +767,8 @@ court_warrant_s3 <- court_warrant_s3%>%
 
 ####
 
-#Import Events Table, the P3 period is the first time they have submitted full events data should have data from June 2020 to Dec 2020.  File has 143 obs and hearing result date ranges from 7/21/2020 to 1/5/2021
-court_hearings_s3<- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Sierra/P3 Submission-Jan 15/Pretrial_5_ScheduledEvents07-01-2020thru12-31-2020.xls", range = cell_cols("A:E")) 
+#Import Events Table, the P3 period file is cumulative from historical period hearing result date ranges from 9/24/2019 to 1/19/2021
+court_hearings_s3<- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Sierra/P3 Submission-Jan 15/Pretrial_5_ScheduledEvents 9-16-2019 thru 1-1-2021.xls", range = cell_cols("A:E")) 
  
 # Variable name standardization--See pg. xxx for more details.
 names(court_hearings_s3) <-
@@ -783,38 +784,24 @@ court_hearings_s3 <- court_hearings_s3 %>%
 court_hearings_s3 <- court_hearings_s3  %>%
   mutate(
     hearing_type = case_when(
-      hearing_type_original %in% c("Arraignment: Complaint","Arraignment: Complaint-Amended", 
+      hearing_type_original %in% c("Arraignment: Citation", "Arraignment: Complaint","Arraignment: Complaint-Amended", 
                                    "Arraignment: Information",
-                                   "Arraignment: Warrant", "Further Arraignment: Complaint") ~ "Arraignment",
+                                   "Arraignment: Warrant", "Further Arraignment: Complaint", "VOP: Arraignment") ~ "Arraignment",
       hearing_type_original %in% c("Sentencing Hearing") ~ "Sentencing",  
       T ~ "Other_Unknown")) 
-     # Other_Unknown hearing types include (Change of Plea, Change of Plea or Setting, Hearing: Other, Modification Hearing, Motion Hearing, Pay or Appear, Pre-Trial Conference, Pre Prelim, Prelim Setting, Preliminary Examination, Proof or Appear, Review Hearing, Warrant Surrender	)
+     # Other_Unknown hearing types include (Agreement to Appear, change of Plea, Change of Plea or Setting, court trial, diversion hearing,Hearing: Doctor Report,Hearing: Other, Jury Trial, Jury Trial-Ongoing, Modification Hearing, Modification Hearing:Supervision, Motion Hearing, OSC Hearing, Pay or Appear, Plea Hearing, Pre-Plea Report, Pre-Trial & Setting of Jury Trial, Pre-Trial Conference, Pre Prelim, Prelim Setting, Preliminary Examination, Preliminary Hearing Confirmation, Proof or Appear, Readiness Conference, Review Hearing, Revocation Hearing, Trial Confirmation, Trail Management Conference,  Warrant Surrender	)
  
 
 
 ####
 
 #Import Court Charges and Dispositions
-  ## Date range for filing date is 9/16/2019 to 6/23/2020
- ## Disposition Date range 10/23/2007 to 7/21/2020
- ##sentence date 5/11/2018 to 7/23/2020
-court_dispos_s <- read_csv("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Sierra/P2 Submission-June 30/Pretrial_3_Charges-VH(SierraProd-2020-07-28).csv") 
-# Name Standardization--See pg. xxx for more details. 
-names(court_dispos_s) <- c("court_case_id", "case_name", "file_date", "charge_number", "court_charge_level_original", "court_charge_original", "disposition_date", "disposition_type_original", "disposition_manner", "sentence_date", "sentence_type_original", "sentence_amount", "sentence_length", "sentence_length_unit")
+  ## Date range for filing date is 9/16/2019 to 1/1/2021
+# read in updated data Obs 248 file date range 9/16/2019-1/1/2021
+# file dates range from 9/16/2019 to 12/29/2020
+# sentence date range 5/11/2018 to 1/20/2021
 
-
-# Date Reformatting--See pg. xxx for more details.  
-court_dispos_s <- court_dispos_s%>%  
-  mutate_at(vars(contains("date")), mdy)
-
-
-summary(court_dispos_s$disposition_date)
-
-
-# read in updated data Obs 248 file date range 7/6/2020-12/29/2020
-# sentence date range 7/27/2020 to 12/14/2020 NA's 216
-
-court_dispos_s3 <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Sierra/P3 Submission-Jan 15/Pretrial_3_Charges-07-01-2020thru12-31-2020.xls", range = cell_cols("A:N"))
+court_dispos_s3 <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Sierra/P3 Submission-Jan 15/Pretrial_3_Charges-9-16-2019 thru 1-1-2021.xls", range = cell_cols("A:N"))
 
 # Name Standardization--See pg. xxx for more details. 
 names(court_dispos_s3) <- c("court_case_id", "case_name", "file_date", "charge_number", "court_charge_level_original", "court_charge_original", "disposition_date", "disposition_type_original", "disposition_manner", "sentence_date", "sentence_type_original", "sentence_amount", "sentence_length", "sentence_length_unit")
@@ -886,14 +873,60 @@ court_dispos_s3 <- left_join(court_dispos_s3, charge_hier, by = "join_var") %>%
   rename_at(vars(contains("flag"), -contains("conviction")), funs(paste0("court_", .))) %>%
   rename_at(vars(contains("conviction")), funs(paste0("conviction_", gsub("_conviction", "", .)))) 
 
-summary(court_dispos_s3$file_date)
+
 ####
+
+court_dispos_s3 %>%
+  count(sentence_type_original) %>%
+  arrange(desc(n))
+
+```
+Sierra Court Diagnostics
+```{r eval=FALSE, include=FALSE}
+
+
+# Diagnostics
+##are any essential data elements missing
+
+str(court_df_s3)
+str(court_dispos_s3)
+str(court_hearings_s3)
+str(court_warrant_s3)
+
+
+## how well do tables match: court_df_s3 has 168 distinct case_ids, 
+##165 matches found in court_dispos_s3 98% match
+##150 matches found in court_hearings_s3 89% match
+
+test <- court_df_s3 %>%
+  distinct(court_case_id) %>%
+  semi_join(court_hearings_s3, by = "court_case_id")
+
+
+
+
+#Are the contents mostly complete? 
+
+lapply(court_df_s3, function(i){
+  if (is.character(i)==T){
+    sum(is.na(i)|i=="NULL")
+  }
+  else{
+    sum(is.na(i))
+  }
+})
+
+lapply(court_df_s3, function(i){
+  if(length (unique(i)) <=50)
+    table(i, useNA="always")})
+
+
 ```
 
 Court Collapse Sierra
 ```{r}
 
-court_dispo_s <- court_dispos_s %>%   
+court_dispo_s <- court_dispos_s3 %>%   
   mutate(disposition_type = ordered(disposition_type, levels = c("Other", "Dismissed", "Not_Guilty", "Nolo_Contendere",
                                                                  "Guilty"))) %>%
   mutate(sentence_type = ordered(sentence_type, levels = c("Other", "Probation", "Jail", "Prison"))) %>%
@@ -923,12 +956,12 @@ court_dispo_s <- court_dispos_s %>%
   ## court_warrants only contains lines with FTA flags no need to make fta_date or fta_flag 
   ## hearing result date works  because all hearing result in an FTA being issued and FTA warrant date is not always populated
   ## we need to ask Sierra what fta_warrant_date means becaue all of the hearing results indicate that an FTA warrant was issued.
-court_fta_war <- court_warrant_s %>%
+court_fta_war <- court_warrant_s3 %>%
   arrange(hearing_result_date) %>%
   group_by(court_case_id) %>%
-  mutate(fta_flag_count = sum(fta_flag))%>%
+  mutate(fta_flag_count = sum(court_fta_flag))%>%
   distinct(court_case_id, .keep_all = T) %>%  
- select(court_case_id,  fta_warrant_date, hearing_result_date, fta_flag, fta_flag_count)
+ select(court_case_id,  fta_warrant_date, hearing_result_date, court_fta_flag, fta_flag_count)
 
 
 #This code makes arraignment date
@@ -964,12 +997,11 @@ court_arraign <- court_hearings_s3 %>%
   #select(court_case_id, sentence_date)
 
 #this part does something not sure what
- ## leaving out mutate f final dispo date because we dont have sentence date in this dataset
- ## court_df  already came to us collapsed at level of case
-court_df <- reduce(list(court_df_s, court_dispo_s, court_fta_war ), left_join, by = "court_case_id") %>%
+  ## court_df  already came to us collapsed at level of case
+court_df <- reduce(list(court_df_s3, court_dispo_s, court_fta_war, court_arraign ), left_join, by = "court_case_id") %>%
   select(-contains(".y")) %>%
   rename_at(vars(contains(".x")), funs(gsub("\\.x", "", .))) %>%
-  #mutate(final_disposition_date = if_else(disposition_date <= sentence_date|is.na(sentence_date), disposition_date, sentence_date),
+  mutate(final_disposition_date = if_else(disposition_date <= sentence_date|is.na(sentence_date), disposition_date, sentence_date)) %>%
   mutate(conviction_flag = if_else(disposition_type %in% c("Guilty","Nolo_Contendere"), 1, 0))
 
 fwrite(court_df, "G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Sierra Court Collapse.csv")
@@ -2277,27 +2309,34 @@ summary(join_collapse$hierarchy)
 San Mateo Jail Data
 ```{r eval=FALSE, include=FALSE}
 
-# Jail Bookings Data Import--- San Mateo, 2015-01-01 to 09-30-2020
+# Jail Bookings Data Import--- San Mateo, P3 cummulative book dates 2015-01-01 to 12-31-2020
   ## book_df contains one row per booking/charge and includes information on the person, the time of booking and release,contains charge      information, bail amount.
   ## book_num has suffix (.1, .2,...)
  
  
 ####
 
-#Keeping the commented out lines below only for original names, this is the old Booking Data but it has column headers. 
+#Keeping the commented out lines below only for source file on original names of variables, this is old Booking Data but it has column headers. 
 # initially San Mateo did not  filter on both bookings and releases in their historical data extract. Extract dates fixed in 8/7/2020        extract Jan 2015-June 30, 2020
 # book_df <- fread("Historical Data Submissions/San Mateo/41-SO-01OF01-JAN2015-JUN2019.csv")
 
 ####
 
+ranfom test cahnge
+
 #San Mateo Jail Data Import
-  ## New data was submitted on 10/6/2020 and has IDs used by probation, they added local_id and added booking number 
+  ## New data was submitted on 1/11/2021 and has IDs used by probation, they added local_id and added booking number 
   ## file did not include column names, I used the same names statement from the old files to check if the order was the same and it is
   ##  cdl_id_2 is actually a partially empty, partial duplicate of cdl_id.  
-  ## book_date range Jan 1, 2015-June 30, 2020
-  ## release_date range Jan 1, 2015-June 30, 2020
+  ## book_date range 2015-01-01 to 12-31-2020
+  ## release_date range 1/1/2015 to 1/4/2021
+  ## arrest_date starts with 1/1/1900 but otherwise looks normal ends at 12/31/2021
+  ##missing court_case_ids 45K/230K may not be a problem about 20% dont have court case id
 
-book_df <- read_csv("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/San Mateo/P2 Submission-June 30/41-SO-01OF01-JAN2015-SEP2020.csv", col_names = F, col_types = cols( X1= "c", .default="?"))
+#files are cumultive keeping P2 for reference only
+# book_df_old <- read_csv("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/San Mateo/P2 Submission-June 30/41-SO-01OF01-JAN2015-SEP2020.csv", col_names = F, col_types = cols( X1= "c", .default="?"))
+
+book_df <- read_csv("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/San Mateo/P3 Submission-Jan 15/41-SO-01OF01-JAN2015-DEC2020.csv", col_names = F, col_types = cols( X1= "c", .default="?"))
 
 # Variable name standardization--See pg. xxx for more details. 
   
@@ -2428,13 +2467,39 @@ book_df <- book_df %>%
   distinct(book_num, court_case_id, .keep_all = T)
 
 fwrite(book_df, "G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/San Mateo Booking Collapse.csv")
-```
+
 
 San Mateo Jail Diagnostics
 ```{r eval=FALSE, include=FALSE}
 
 
 # Jail Diagnostics
+
+##Period 3 jail diagnostics
+ # check dates (recorded at top of input code)
+summary(book_df$book_date) 
+summary(book_df$arrest_date)
+summary(book_df$release_date)
+
+ #completeness of data elements
+str(book_df)
+
+
+#Are the contents mostly complete? 
+
+lapply(book_df, function(i){
+  if (is.character(i)==T){
+    sum(is.na(i)|i=="NULL")
+  }
+  else{
+    sum(is.na(i))
+  }
+})
+
+lapply(book_df, function(i){
+  if(length (unique(i)) <=50)
+    table(i, useNA="always")})
+
 
 ##Period 2 jail diagnostics
 summary(book_df$book_date)     
@@ -2524,7 +2589,7 @@ book_df%>%
   filter(grepl("0771037", book_num))%>%
   group_by(book_type_original)%>%
   count()
-```
+
 
 
 San Mateo Court Data
