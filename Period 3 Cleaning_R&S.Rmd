@@ -884,6 +884,7 @@ court_dispos_s3 %>%
 Sierra Court Diagnostics
 ```{r eval=FALSE, include=FALSE}
 
+```{r}
 
 # Diagnostics
 ##are any essential data elements missing
@@ -2322,7 +2323,7 @@ San Mateo Jail Data
 
 ####
 
-ranfom test cahnge
+#ranfom test cahnge
 
 #San Mateo Jail Data Import
   ## New data was submitted on 1/11/2021 and has IDs used by probation, they added local_id and added booking number 
@@ -2591,7 +2592,7 @@ book_df%>%
   count()
 
 
-
+```
 San Mateo Court Data
 ```{r eval=FALSE, include=FALSE}
 
@@ -2606,7 +2607,7 @@ San Mateo Court Data
 
 ####
 
-# Court Cases
+# Readin Earlier Periods for Court Cases
 court_df1 <- fread("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/San Mateo/41-COURT-01OF03-JAN2016-SEP2019.csv", na.strings=c("NULL",""), colClasses = "character") 
 
 court_df2<- fread("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/San Mateo/41-COURT-01OF03-OCT2019-DEC2019.csv", na.strings=c("NULL",""), colClasses = "character")
@@ -2615,29 +2616,42 @@ court_df3<- fread("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submis
                     
 court_df4<- fread("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/San Mateo/P2 Submission-June 30/41-COURT-01OF03-JUL2020-SEP2020.csv", na.strings=c("NULL",""), colClasses = "character")
  
+# Readin P3 Court Cases
+court_df5 <- fread("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/San Mateo/P3 Submission-Jan 15/41-COURT-01OF03-OCT2020-DEC2020.csv", na.strings=c("NULL",""), colClasses = "character") 
 
-                 
-#Removing duplicates between submission 1 2, 3, 4
+
+#Removing duplicates between submission 1 2, 3, 4, 5
 court_df1 <- court_df1 %>% 
   anti_join(court_df2, by = "CaseNbr") %>%
   anti_join(court_df3, by = "CaseNbr") %>%
-  anti_join(court_df4, by = "CaseNbr")  
-
+  anti_join(court_df4, by = "CaseNbr") %>%
+  anti_join(court_df5, by = "CaseNbr") 
+  
 court_df2 <- court_df2 %>% 
   anti_join(court_df3, by = "CaseNbr") %>%
-  anti_join(court_df4, by = "CaseNbr")  
+  anti_join(court_df4, by = "CaseNbr") %>%
+  anti_join(court_df5, by = "CaseNbr") 
+ 
 
 court_df3 <- court_df3 %>% 
-   anti_join(court_df4, by = "CaseNbr") 
+  anti_join(court_df4, by = "CaseNbr") %>%
+  anti_join(court_df5, by = "CaseNbr") 
+ 
 
-court_df <- bind_rows(court_df1, court_df2, court_df3, court_df4) %>%
+court_df4 <- court_df4 %>% 
+  anti_join(court_df5, by = "CaseNbr") 
+ 
+
+court_df <- bind_rows(court_df1, court_df2, court_df3, court_df4, court_df5) %>%
   distinct()
 
-rm(court_df1, court_df2, court_df3, court_df4)
+rm(court_df1, court_df2, court_df3, court_df4, court_df5)
+
 
 # Variable name standardization--See pg. xxx for more details. 
-names(court_df) <- c("court_docket_id", "court_case_id_original", "file_date", "court_case_type", "court_party_id", 
-                     "cii", "fbi","local_id", "cdl_id", "name", "dob", "sex_original", "race_original")
+names(court_df) <- c("court_docket_id", "court_case_id_original", "file_date", "court_case_type",
+                     "court_party_id", "cii", "fbi","local_id", "cdl_id", "name", "dob",
+                     "sex_original", "race_original")
 
 # Date Reformatting--See pg. xxx for more details.
 court_df <- court_df %>%
@@ -2662,8 +2676,9 @@ court_df <- court_df %>%
         mutate_at(vars(first_name, last_name, suffix), trimws) %>%
         separate(first_name, c("first_name", "middle_name"), sep = " ") 
        
- 
- 
+
+
+
 ####
 
 # Court Sentences and Court Filing Charges 
@@ -2690,25 +2705,37 @@ court_charge_3 <- fread("G:/CrimJustice/PretrialAssessmentPilot/Historical Data 
 court_charge_3 <- court_charge_3 %>%
   mutate(BookingNumber = as.character(BookingNumber))
 
+court_charge_4<- fread("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/San Mateo/P3 Submission-Jan 15/41-COURT-02OF03-OCT2020-DEC2020.csv", na.strings=c("NULL",""))   
 
+court_charge_4 <- court_charge_4 %>%
+  mutate(BookingNumber = as.character(BookingNumber)) %>%
+ 
+ 
 
 #Removing duplicates between submission 1 2, 3, 4
 court_charge <- court_charge %>% 
   anti_join(court_charge_1, by = "CaseNbr") %>%
   anti_join(court_charge_2, by = "CaseNbr") %>%
-  anti_join(court_charge_3, by = "CaseNbr")  
+  anti_join(court_charge_3, by = "CaseNbr") %>%
+  anti_join(court_charge_4, by = "CaseNbr")
 
 court_charge_1 <- court_charge_1 %>% 
   anti_join(court_charge_2, by = "CaseNbr") %>%
-  anti_join(court_charge_3, by = "CaseNbr")  
+  anti_join(court_charge_3, by = "CaseNbr") %>%
+  anti_join(court_charge_4, by = "CaseNbr")
 
 court_charge_2 <- court_charge_2 %>% 
-   anti_join(court_charge_3, by = "CaseNbr") 
+  anti_join(court_charge_3, by = "CaseNbr") %>%
+  anti_join(court_charge_4, by = "CaseNbr")
 
-court_charge <- bind_rows(court_charge, court_charge_1, court_charge_2, court_charge_3) %>%
+court_charge_3 <- court_charge_3 %>% 
+  anti_join(court_charge_4, by = "CaseNbr")
+
+court_charge <- bind_rows(court_charge, court_charge_1, court_charge_2, court_charge_3,
+                          court_charge_4) %>%
   distinct()
 
-rm(court_charge_1, court_charge_2, court_charge_3)
+rm(court_charge_1, court_charge_2, court_charge_3, court_charge_4)
                            
 
 
@@ -2889,25 +2916,34 @@ court_hearing <- fread("G:/CrimJustice/PretrialAssessmentPilot/Historical Data S
    fread("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/San Mateo/P2 Submission-June 30/41-COURT-03OF03-JUL2020-SEP2020.csv",  na.strings = c("NULL","")) %>%
         mutate_at(vars(contains("date"), DtFile), mdy)
   
+court_hearing_4<- fread("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/San Mateo/P3 Submission-Jan 15/41-COURT-03OF03-OCT2020-DEC2020.csv", na.strings=c("NULL","")) %>%
+  mutate_at(vars(contains("date"), DtFile), mdy)
 
- 
  #Removing duplicates between submission 1 2, 3, 4
 court_hearing <- court_hearing %>% 
   anti_join(court_hearing_1, by = "CaseNbr") %>%
   anti_join(court_hearing_2, by = "CaseNbr") %>%
-  anti_join(court_hearing_3, by = "CaseNbr")  
+  anti_join(court_hearing_3, by = "CaseNbr") %>%
+  anti_join(court_hearing_4, by = "CaseNbr")  
 
 court_hearing_1 <- court_hearing_1 %>% 
   anti_join(court_hearing_2, by = "CaseNbr") %>%
-  anti_join(court_hearing_3, by = "CaseNbr")  
+  anti_join(court_hearing_3, by = "CaseNbr") %>%
+  anti_join(court_hearing_4, by = "CaseNbr")  
 
-court_hearing_2 <- court_hearing_2 %>% 
-   anti_join(court_hearing_3, by = "CaseNbr") 
+court_hearing_2 <- court_hearing_2 %>%
+  anti_join(court_hearing_3, by = "CaseNbr") %>%
+  anti_join(court_hearing_4, by = "CaseNbr") 
 
-court_hearing <- bind_rows(court_hearing, court_hearing_1, court_hearing_2, court_hearing_3) %>%
+court_hearing_3 <- court_hearing_3 %>%
+  anti_join(court_hearing_4, by = "CaseNbr") %>%
+ 
+
+court_hearing <- bind_rows(court_hearing, court_hearing_1, court_hearing_2, court_hearing_3,
+                           court_hearing_4) %>%
   distinct()
 
-rm(court_hearing_1, court_hearing_2, court_hearing_3)
+rm(court_hearing_1, court_hearing_2, court_hearing_3, court_hearing_4)
 
  
  
@@ -3239,10 +3275,54 @@ fwrite(court_df, "G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Fil
 San Mateo Court Hearing Diagnostics
 ```{r eval=FALSE, include=FALSE}
 
+# Diagnostics Period 3
+##are any essential data elements missing
+
+str(court_df)
+str(court_charge)
+str(court_hearing)
+
+
+
+## how well do tables match: court_df has 72714 distinct case_ids, 
+##72,714 matches found in court_charge 100% match
+##64,271 matches found in court_hearings_s3 88% match
+
+court_df %>%
+  distinct(court_case_id) %>%
+  semi_join(court_hearing, by = "court_case_id")
+
+
+#Are the contents mostly complete? 
+ ##court_df hardly any CIIs or FBIs but they do have a local_id that is complete. Race misssing
+ ## in about 14% of observations. All else looks good
+
+
+lapply(court_charge, function(i){
+  if (is.character(i)==T){
+    sum(is.na(i)|i=="NULL")
+  }
+  else{
+    sum(is.na(i))
+  }
+})
+
+lapply(court_charge, function(i){
+  if(length (unique(i)) <=50)
+    table(i, useNA="always")})
+
+
+summary(court_df$file_date)
+
+##no arrest dates past 9/29/2019 are coming through
+summary(court_charge$plea_date)
+summary(court_hearing$)
+
+
+
 ls(court_charge)
 
-court_dispo %>%
-  filter(grepl("0771037", book_num))
+
 
 charge_hier %>%
   filter(grepl("30800", hierarchy))
