@@ -2436,17 +2436,16 @@ Assessment Data
 #Probation data on assessments performed from 
   ##prob_df contains one row per assessment question, and has information on risk score, risk level, assessment date, and zip code
 #prob_df <- read_excel("Historical Data Submissions/Napa/P2 Submission-June 30/Historical_7-1-2020_2.xlsx", sheet = 12)
-prob_df <- read_excel("Historical Data Submissions/Napa/P3 Submission-Jan 15/Historical_12-31-2020_ProbData_1.xlsx", sheet = 5, col_types = "text")
+prob_df <- read_excel("Historical Data Submissions/Napa/P3 Submission-Jan 15/Historical_12-31-2020_ProbData_3.xlsx", sheet = 5, col_types = "text")
 
 
 # Variable name standardization--See pg. xxx for more details. 
-names(prob_df) <- c("local_id", "zip_code", "assessment_id", "assessment_date", "item_label", "assessment_item", "assessment_response", "risk_score", "risk_level_original")
+names(prob_df) <- c("pretrial_id", "local_id", "zip_code", "assessment_id", "assessment_date", "item_label", "assessment_item", "assessment_response", "risk_score", "risk_level_original")
 
 
 # Date Reformatting--See pg. xxx for more details.
 prob_df <- prob_df %>%
   mutate(assessment_date = convertToDate(assessment_date))
-
 
 
 # Standardize Factors--See pg. xxx for more details.
@@ -2486,11 +2485,11 @@ prob_df <- prob_df %>%
 ## prob_bookings has date range 2020-02-05 to 2020-06-30
 # prob_bookings <- read_excel("Historical Data Submissions/Napa/P2 Submission-June 30/Historical_7-1-2020_ProbData_4.xlsx", sheet = 1) %>%
 #   distinct()
-prob_bookings <- read_excel("Historical Data Submissions/Napa/P3 Submission-Jan 15/Historical_12-31-2020_ProbData_1.xlsx", sheet = 1, col_types = "text") %>%
+prob_bookings <- read_excel("Historical Data Submissions/Napa/P3 Submission-Jan 15/Historical_12-31-2020_ProbData_3.xlsx", sheet = 1, col_types = "text") %>%
   distinct()
 
 # Variable name standardization--See pg. xxx for more details. 
-names(prob_bookings) <- c("local_id", "book_num", "assessment_id", "no_assessment_reason", "book_date_time", "excluded")
+names(prob_bookings) <- c("pretrial_id", "local_id", "book_num", "assessment_id", "no_assessment_reason", "book_date_time", "excluded")
 
 ## as per Dan Glascott on call 7.16.20, "excluded" indicates whether defendant is excluded from pre-arraignment release
 
@@ -2503,14 +2502,12 @@ prob_bookings <- prob_bookings %>%
 
 ##prob_reports contains one row per book_num and report_type combination (aka a single book_num will have multiple rows if it has both a pre-arraignment report and an arraignment report). There are two book_num instances that have more rows than this (one with two different release decisions, and the other with multiple report times over the same date and different release decisions). Not sure what is happening in those special cases. 
 ## prob_reports has date range 2020-03-16 to 2020-06-30
-prob_reports <- read_excel("Historical Data Submissions/Napa/P2 Submission-June 30/Historical_7-1-2020_ProbData_4.xlsx", sheet = 2)
+prob_reports <- read_excel("Historical Data Submissions/Napa/P3 Submission-Jan 15/Historical_12-31-2020_ProbData_3.xlsx", sheet = 2)
 
-names_df3 <- tibble(original_field = names(prob_reports)) 
 
 # Variable name standardization--See pg. xxx for more details. 
 names(prob_reports) <- c("pretrial_id", "local_id", "book_num", "report_date_time", "report_type", "release_recommendation_original", "release_decision_original")
 
-names_df3$field <- names(prob_reports)
 
 # Date Reformatting--See pg. xxx for more details.
 prob_reports <- prob_reports %>%
@@ -2546,14 +2543,12 @@ prob_reports <- prob_reports %>%
 ####
 
 
-prob_case <- read_excel("Historical Data Submissions/Napa/P2 Submission-June 30/Historical_7-1-2020_ProbData_4.xlsx", sheet = 3)
+prob_case <- read_excel("Historical Data Submissions/Napa/P3 Submission-Jan 15/Historical_12-31-2020_ProbData_3.xlsx", sheet = 3)
 
-names_df4 <- tibble(original_field = names(prob_case)) 
 
 # Variable name standardization--See pg. xxx for more details. 
 names(prob_case) <- c("pretrial_id", "local_id", "court_case_id", "case_type", "case_status", "case_status_date_time")
 
-names_df4$field <- names(prob_case)
 
 prob_case <- prob_case %>%
   mutate(case_status_date = as_date(case_status_date_time))
@@ -2571,14 +2566,12 @@ prob_case %>%
 ## make a separate code book for this table with counts of case_type and case_status
 
 
-prob_cond <- read_excel("Historical Data Submissions/Napa/P2 Submission-June 30/Historical_7-1-2020_ProbData_4.xlsx", sheet = 4)
+prob_cond <- read_excel("Historical Data Submissions/Napa/P3 Submission-Jan 15/Historical_12-31-2020_ProbData_3.xlsx", sheet = 4)
 
-names_df5 <- tibble(original_field = names(prob_cond)) 
 
 # Variable name standardization--See pg. xxx for more details. 
 names(prob_cond) <- c("pretrial_id", "local_id", "court_case_id", "condition_status", "release_conditions_original")
 
-names_df5$field <- names(prob_cond)
 
 
 #Flags
@@ -2619,25 +2612,6 @@ prob_cond <- prob_cond %>%
   ## person_df contains one row per person (local_id) with demographic information on the person
   ## Napa has an integrated criminal justice system, so this is just a person table, without any booking or event information
   ## Historical_7-1-2020 was missing sex, so Historical_7_1_2020_2 was submitted with sex included
-person_df <- read_excel("Historical Data Submissions/Napa/P2 Submission-June 30/Historical_7-1-2020_2.xlsx", sheet = 1)
-
-names_df6 <- tibble(original_field = names(person_df)) 
-
-# Variable name standardization--See pg. xxx for more details. 
-names(person_df) <- c("fbi", "cii", "local_id", "cdl_id", "cdl_id_state", "name", "dob", "race_original", "sex_original") 
-
-names_df6$field <- names(person_df)
-
-# Standardize Factors--See pg. xxx for more details.
-person_df <- person_df %>%
-  mutate(race = case_when(race_original %in% c("Black") ~ "Black",
-                          race_original %in% c("Hispanic") ~ "Hispanic",
-                          race_original %in% c("White") ~ "White",
-                          T ~ "Other_Unknown"),
-         sex = case_when(sex_original %in% c("M") ~ "Male",
-                         sex_original %in% c("F") ~ "Female",
-                         T ~ "Other_Unknown")
-  )
 
 
 ```
@@ -3674,6 +3648,11 @@ court_df <- court_df %>%
 #Court Hearing Data
 court_hearing <- fread("Historical Data Submissions/Sacramento/P3 Submission-Jan 15/SacAppear.csv")
 
+# court_hearing_mult <- lapply(1:4, function(i){
+#   fread(paste0("Historical Data Submissions/Sacramento/P3 Submission-Jan 15/SacAppear0", i, ".csv"))
+# }) %>% bind_rows() 
+#they also gave us the same file but broken into 4 parts, but we checked and combined they are identical to the one large file
+
 # Variable name standardization--See pg. xxx for more details. 
 names(court_hearing) <- c("jail_court_id", "court_combined_id", "court_id", "court_case_id", "hearing_date", "hearing_type_original", "hearing_strange", "hearing_comment", "hearing_result_code", "hearing_result", "hearing_result_comment")
 
@@ -4212,11 +4191,9 @@ Probation data
 #Updated data re-submission, 10.15.2020
 prob_df <- fread("Historical Data Submissions/Sacramento/P3 Submission-Jan 15/SacProbationPSA.csv")
 
-names_df <- tibble(original_field = names(prob_df)) 
 
 names(prob_df) <- c("cii", "fbi", "local_id", "cdl", "name", "dob","sex_original", "race_original", "tool_name", "assessment_date_time", "case_processing_date_time", "zipcode", "psa_fta_risk_score", "psa_nca_risk_score", "psa_nvca_risk_score", "psa_tool_response_1", "psa_tool_response_2", "psa_tool_response_3", "psa_tool_response_4", "psa_tool_response_5", "psa_tool_response_6", "psa_tool_response_7", "psa_tool_response_8", "psa_tool_response_9", "psa_score", "monitor_level_original", "release_recommendation_original", "release_decision_original",  "release_authorization_original", "release_date_time", "comments",  "release_conditions_original", "court_date_reminder_original", "pretrial_termination_outcome_original", "pretrial_termination_date", "active_at_some_point", "book_num")
 
-names_df$field <- names(prob_df)
 
 ## variables missing: pretrial_violation
 
@@ -4955,6 +4932,8 @@ Jail Data
 # Jail Bookings
   ## book_df contains one row per charge per case associated with a booking into the Sonoma County Jail between xxx and xxx. One booking will have as many rows as there are related booked and pending filed charges. 
 book_df <- fread("Historical Data Submissions/Sonoma/P2 Submission-June 30/Jail Data Set - File 1 of 3 - 20200713.csv") 
+book_df <- fread("Historical Data Submissions/Sonoma/P3 Submission-Jan 15/Jail Data Set - File 1 of 3 - 20200713.csv") 
+
 
 
 # Variable name standardization--See pg. xxx for more details. 
@@ -5196,17 +5175,24 @@ Court Data
 
 # Court cases
   ## court_cases contains one row per court case and includes some basic information about the court case
-court_cases <- read.csv("Historical Data Submissions/Sonoma/P2 Submission-June 30/PTR_Cases.csv", stringsAsFactors = FALSE) 
+## all of the court cases in "Cases" are also found in "NonPTR_Cases", but the fields "ra_referal" and "ra_report" are almost universally assigned "Yes" in "NonPTR_Cases", potentially erroneously. Since that will likely be taken care of by the probation data, we are ignoring that for now and just bringing in "NonPTR_Cases" since it appears to be inclusive of all court case ids. 
+#court_cases <- fread("Historical Data Submissions/Sonoma/P3 Submission-Jan 15/Cases.csv") 
+court_cases <- fread("Historical Data Submissions/Sonoma/P3 Submission-Jan 15/NonPTR_Cases.csv") 
 
 
 # Variable name standardization--See pg. xxx for more details. 
-names(court_cases) <- c("court_case_id", "court_docket_id", "party_id", "name", "file_date", "ra_referal", "ra_report")
+names(court_cases) <- c("court_case_id", "court_docket_id", "party_id", "name", "file_date", "ra_referal", "ra_report", "trash")
+#names(court_cases2) <- c("court_case_id", "court_docket_id", "party_id", "name", "file_date", "ra_referal", "ra_report", "trash")
+
+
+#remove blank trash field
+court_cases <- court_cases %>%
+  select(-trash)
 
 
 # Date Reformatting--See pg. xxx for more details.
 court_cases <- court_cases %>%
-  mutate_at(vars(file_date), ymd_hms)%>%
-  mutate_at(vars(file_date), as_date)
+  mutate(file_date = mdy(file_date))
 
 
 

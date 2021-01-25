@@ -3067,13 +3067,13 @@ Collapse of joined dataset
 ## ask Napa what does "Local Warrant" mean as a book type?
 ## few of the assessments remain after collapse, but this might be to be expected because there are only 6 months of data and we are filtering out cases that are not yet disposed of, so many of these cases that had assessments associated might not yet be disposed of.
 
-join_df2 %>%
-  count(book_type, book_type_original)
-
-book_df %>%
-  arrange(local_id) %>%
-  add_count(local_id) %>%
-  filter(n >1)
+# join_df2 %>%
+#   count(book_type, book_type_original)
+# 
+# book_df %>%
+#   arrange(local_id) %>%
+#   add_count(local_id) %>%
+#   filter(n >1)
 
 ### need to fix the flag_count variables, they are being maxed instead of summed
 
@@ -3088,6 +3088,11 @@ join_collapse <- join_df2 %>%
   ungroup() %>%
   distinct(local_id, book_date, .keep_all = T)
   
+#fwrite(join_collapse, "G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Napa Join Collapse.csv")
+```
+
+Old and diagnostic code
+```{r}
 
 #old code for cycle stuff
   #mutate(cycle = if_else(book_type %in% c("New_Warrant", "On_View"), 1, 0)) %>%
@@ -4624,7 +4629,7 @@ join_df2 <- join_df %>%
 
 
 ```
-o
+
 Collapse of joined dataset
 ```{r}
 
@@ -5544,7 +5549,7 @@ court_status <- court_status %>%
 # Court disposition
   ## court_final_disposition contains one row per case, with the date of the final disposition and some information about the disposition of the overall case. 
   ## This table is not needed because we have the diposition information for each charge in the case as well as the dates in other tables.
-court_final_disposition <- read.csv("Historical Data Submissions/Sonoma/P2 Submission-June 30/SonomaCourt_Final_Case_Disposition_20200110_1.csv", stringsAsFactors = FALSE) 
+court_final_disposition <- read.csv("Historical Data Submissions/Sonoma/P2 Submission-June 30/PTR_Final_Disp_Date.csv", stringsAsFactors = FALSE) 
 
 
 names(court_final_disposition) <- c("court_case_id", "court_docket_id", "final_dispo_date", "closure_code", "closure_desc")
@@ -5558,7 +5563,17 @@ court_final_disposition <- court_final_disposition %>%
 
 #### NOT USED
 # this table is not needed
-court_ptr_final_disp <- read.csv("Historical Data Submissions/Sonoma/P2 Submission-June 30/PTR_Final_Disp_Date.csv", stringsAsFactors = FALSE) 
+#court_ptr_final_disp <- read.csv("Historical Data Submissions/Sonoma/P2 Submission-June 30/PTR_Final_Disp_Date.csv", stringsAsFactors = FALSE) 
+
+# court_final_disposition %>%
+#   filter(!is.na(final_dispo_date))
+# 
+# court_df %>%
+#   select(court_case_id = court_docket_id, disposition_date, sentence_date) %>%
+#   left_join(court_final_disposition) %>%
+#   #mutate(final_disposition_date = if_else(disposition_date <= sentence_date|is.na(sentence_date), disposition_date, sentence_date)) %>%
+#   filter(sentence_date != disposition_date) %>%
+#   filter(sentence_date < disposition_date)
 ```
 
 
@@ -5582,7 +5597,7 @@ suppressWarnings(court_dispo <- court_charge_disp %>%
   mutate_at(vars(contains("flag")), max) %>%
   filter(hierarchy == min(hierarchy)) %>%
   ungroup() %>%
-  distinct(court_case_id, .keep_all = T) )
+  distinct(court_case_id, .keep_all = T) ) 
 
 
 
@@ -6453,8 +6468,87 @@ doj_cii <- bind_rows(doj_assess %>% select(cii), doj_book %>% select(cii), doj_c
 ```
 
 
-Join
-  Jail Court Join
+Join across agencies
+```{r}
+
+assess_df <- fread("G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Sonoma Assessment Collapse.csv") %>%
+  mutate(across(contains("time"), as_datetime)) %>%
+  mutate(across(contains("date") & where(is.character), as_date))%>%
+  as_tibble()
+
+book_df <- fread("G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Sonoma Booking Collapse.csv")%>%
+  mutate(across(c(contains("time"), -contains("time_first_release")), as_datetime)) %>%
+  mutate(across(contains("date") & where(is.character), as_date)) %>%
+  as_tibble() %>%
+  rename("court_num" = "court_case_id",
+         "court_case_id" = "court_docket_id") %>%
+  rename("court_docket_id" = "court_num")
+
+court_df <- fread("G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Sonoma Court Collapse.csv")%>%
+  mutate(across(c(contains("time"), -contains("local")), as_datetime)) %>%
+  mutate(across(contains("date") & where(is.character), as_date))%>%
+  as_tibble() %>%
+  rename("court_num" = "court_case_id",
+         "court_case_id" = "court_docket_id") %>%
+  rename("court_docket_id" = "court_num")
+  #rename("local_id" = "jail_court_id")
+
+## ASK SONOMA: why are there so few court cases?
+
+
+#joining court df to book df on jail_court_id, match rate = 20.6% of bookings, 96.2% of court cases
+
+nrow(book_df %>%
+ semi_join(court_df, by = c("court_docket_id"), na_matches = "never"))/nrow(book_df)
+
+nrow(court_df %>%
+ semi_join(book_df, by = c("court_docket_id"), na_matches = "never"))/nrow(court_df)
+
+join_df <- book_df %>%
+ left_join(court_df, by = c("court_docket_id"), na_matches = "never") %>%
+  select(-contains(".y")) %>%
+  rename_at(vars(contains(".x")), funs(gsub("\\.x", "", .))) 
+
+
+
+#joining assess_df to joined booking and court data on book num, court docket id, and lent key (person identifier), match rate = 91%
+## assessment data has longer date range than booking data by a few months
+
+nrow(assess_df %>%
+ semi_join(join_df, by = c("book_num", "lent_key", "court_docket_id"), na_matches = "never"))/nrow(assess_df)
+
+join_df2 <- join_df %>%
+ left_join(assess_df, by = c("book_num", "lent_key", "court_docket_id"), na_matches = "never") %>%
+  select(-contains(".y")) %>%
+  rename_at(vars(contains(".x")), funs(gsub("\\.x", "", .))) 
+
+
+```
+
+Collapse of joined dataset
+```{r}
+
+join_collapse <- join_df2 %>%
+  mutate(across(contains("flag"), ~if_else(is.na(.x), as.integer(0), .x))) %>%
+  mutate(release_type = ordered(release_type, levels = c("Unknown", "Other", "Sentenced", "Time_Served", "Detain_Only", "Dismissed_Dropped", "OR",
+                                                         "Bail_Bond", "Cite_Release", "Hold_Release"))) %>%
+  group_by(book_num) %>%
+  mutate(release_type = max(release_type)) %>%
+  mutate(across(contains("sup_vio"), max)) %>%
+  ungroup() %>%
+  filter(pretrial_end_date >= book_date, book_type %in% c("On_View", "Warrant")) %>%
+  group_by(book_num) %>%
+  mutate(across(contains("flag"), max)) %>%
+  ungroup() %>%
+  distinct(book_num, .keep_all = T)
+  
+#fwrite(join_collapse, "G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Sonoma Join Collapse.csv")
+
+
+```
+
+
+  OLD Jail Court Join
 ```{r}
 # Remove extraneous objects in the environment
 #rm(list = ls()[!ls() %in% ls(pattern = "df")])

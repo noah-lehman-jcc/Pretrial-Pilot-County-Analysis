@@ -1,0 +1,703 @@
+---
+title: "Charge hierarchy creation"
+output: html_notebook
+---
+
+# Libraries
+```{r}
+library(data.table)
+library(openxlsx)
+library(readxl)
+library(lubridate)
+library(tidyverse)
+library(XML)
+library(xml2)
+library(xmltools)
+library(fuzzyjoin)
+
+```
+
+
+# Charge Hierarchy Creation
+
+2020 DOJ Hieararchies
+```{r, eval=FALSE, include=FALSE}
+#DOJ Crime Severity Ratings 2008
+doj_hierarchy_2020 <- fread("C:/Work/PretrialAssessmentPilot/Charge Definitions and Hierarchy/Master Charge Code Table 2020.csv")
+doj_hierarchy_2020_jbsis <- read_excel("C:/Work/PretrialAssessmentPilot/Charge Definitions and Hierarchy/2020_March04_DOJ_Offense_Table_JBSIS.xlsx")
+
+
+names(doj_hierarchy_2020) <- c("offense_id", "cjis_code", "hierarchy", "charge_level", "charge", "charge_code", "master_charge_description", "sentence")
+names(doj_hierarchy_2020_jbsis) <- c("offense_id", "cjis_code", "hierarchy", "charge_level", "charge", "charge_code", "master_charge_description", "sentence", "jbsis_code")
+
+doj_hierarchy_2020 <- left_join(doj_hierarchy_2020, doj_hierarchy_2020_jbsis)
+
+doj_hierarchy_2020 <- doj_hierarchy_2020 %>%
+  mutate(charge_level = toupper(charge_level),
+         charge_level = if_else(!charge_level %in% c("F", "I", "M"), "Other", charge_level),
+         charge = toupper(gsub("\\/|\\(|\\)| |\\.|\\.*|^[A-Z]*|\\\\.*|\\{|\\}|EX|\\+|","", charge)),
+         charge_code = if_else(!charge_code %in% c("PC", "VC", "HS", "BP", "WI", "US"), "Other", charge_code)) %>%
+  distinct(charge, charge_code, charge_level, .keep_all = T) %>%
+  unite(join_var, charge_level, charge_code, charge, remove = F) %>%
+  select(join_var, master_charge_description, hierarchy, charge_level, charge_code, charge, jbsis_code)
+```
+
+
+2017 DOJ Hieararchies
+```{r, eval=FALSE, include=FALSE}
+#DOJ Crime Severity Ratings 2008
+doj_hierarchy_2017 <- read_excel("C:/Work/PretrialAssessmentPilot/Charge Definitions and Hierarchy/dojoffenses.xls")
+
+doj_hierarchy_2017 <- doj_hierarchy_2017 %>%
+  mutate(STATUTE2 = gsub("\\/|\\(|\\)| |\\.|\\.*","", STATUTE2)) %>%
+  unite("charge",STATUTE1,STATUTE2, sep = "") %>%
+  mutate(charge = gsub("NA", "", charge)) %>%
+  select(charge, master_charge_description = DESCRIPTION, hierarchy = HIERARCHY, charge_code = CODE_TYPE, charge_level = CHARGE_TYPE) %>%
+  filter(!is.na(hierarchy)) %>%
+  # mutate(charge = toupper(gsub("\\/|\\(|\\)| |\\.|\\.*|^[A-Z]*|\\\\.*|\\{|\\}","", charge))) %>%
+  mutate(charge_level = if_else(!charge_level %in% c("F", "I", "M"), "Other", charge_level),
+         charge = toupper(gsub("\\/|\\(|\\)| |\\.|\\.*|^[A-Z]*|\\\\.*|\\{|\\}|EX|\\+|","", charge)),
+         charge_code = if_else(!charge_code %in% c("PC", "VC", "HS", "BP", "WI", "US"), "Other", charge_code)) %>%
+  # mutate(charge_level = fct_collapse(charge_level, O = c("S", "X"))) %>% #Incorretly labeled, juvenile, and miscelanious 
+  distinct(charge, charge_code, charge_level, .keep_all = T) %>%
+  unite(join_var, charge_level, charge_code, charge, remove = F) %>%
+  select(join_var, master_charge_description, hierarchy, charge_level, charge_code, charge)
+
+```
+
+ -Visualizes above chunk
+```{r, eval=FALSE, include=FALSE} 
+#--This visualizes the above chunk
+table(doj_hierarchy_2017$charge_code, doj_hierarchy_2017$charge_level)
+
+doj_hierarchy_2017 %>%
+  # filter(HIERARCHY < 1.7e5) %>%
+  ggplot() +
+  aes(x = hierarchy, color = charge_level) +
+  geom_density() +
+  theme_few()
+```
+
+
+2008 DOJ Hierarchies
+```{r}
+#DOJ Crime Severity Ratings 2008
+doj_hierarchy_2008 <- read_excel("C:/Work/PretrialAssessmentPilot/Charge Definitions and Hierarchy/DOJ Crime Severity Ratings May 2008.xls", col_names = FALSE, skip = 11)
+
+#Recreating Variables
+names(doj_hierarchy_2008) <- c("sum", "bcs", "hierarchy", "charge_level", "charge", "charge_code", "master_charge_description", "sentence")
+
+#collapsed codes for merger with Fresno
+doj_hierarchy_2008 <- doj_hierarchy_2008 %>% 
+  # mutate(charge = toupper(gsub("\\/|\\(|\\)| |\\.|\\.*|^[A-Z]*|\\\\.*|\\{|\\}","", charge))) %>%
+  mutate(charge_level = strapplyc(charge_level, "^(.).*", simplify = T)) %>%
+  mutate(charge_level = if_else(!charge_level %in% c("F", "I", "M"), "Other", charge_level),
+         charge = toupper(gsub("\\/|\\(|\\)| |\\.|\\.*|^[A-Z]*|\\\\.*|\\{|\\}|EX|\\+|","", charge)),
+         charge_code = if_else(!charge_code %in% c("PC", "VC", "HS", "BP", "WI", "US"), "Other", charge_code)) %>%
+  filter(!is.na(hierarchy)) %>%
+  # mutate(charge_level = fct_recode(charge_level, "Other" = "S")) %>%
+  distinct(charge_level, charge_code, charge, .keep_all = T)  %>%
+  select(-c(sum, bcs, sentence)) %>%
+  unite(join_var, charge_level, charge_code, charge, remove = F) %>%
+  select(join_var, master_charge_description, hierarchy, charge_level, charge_code, charge)
+ 
+```
+
+ -Visualizes above chunk
+```{r, eval=FALSE, include=FALSE} 
+#--This visualizes the above chunk
+table(doj_hierarchy_2008$charge_code, doj_hierarchy_2008$charge_level)
+
+doj_hierarchy_2008 %>%
+  filter(hierarchy < 1.7e5) %>%
+  ggplot() +
+  aes(x = hierarchy, color = charge_level) +
+  geom_density() +
+  theme_few()
+```
+
+
+ Charge Code Table 
+```{r}
+#--This chunk pulls the master charge code table and standardizes it. 
+mcct_2016 <- read_excel("C:/Work/PretrialAssessmentPilot/Charge Definitions and Hierarchy/Master Charge Code Table 2016.xlsx", guess_max = Inf)
+
+mcct_2016 <- mcct_2016 %>%
+  filter(!is.na(`CalDOJ HIERARCHY Code Informational only`))
+
+mcct_2016 <- mcct_2016 %>% 
+  select(charge_code = CODE, 
+         charge = `CODE SECTION (upper/lower case)`, 
+         hierarchy = `CalDOJ HIERARCHY Code Informational only`,
+         master_charge_description = `Offense Display (For AJIS and ISAB Departments)`,
+         charge_level = LEVEL) %>%
+  # mutate(charge = toupper(gsub("\\/|\\(|\\)| |\\.|\\.*|^[A-Z]*|\\\\.*|\\{|\\}","", charge))) %>%
+  mutate(charge_level = if_else(!charge_level %in% c("F", "I", "M"), "Other", charge_level),
+         charge = toupper(gsub("\\/|\\(|\\)| |\\.|\\.*|^[A-Z]*|\\\\.*|\\{|\\}|EX|\\+|","", charge)),
+         charge_code = if_else(!charge_code %in% c("PC", "VC", "HS", "BP", "WI", "US"), "Other", charge_code)) %>%
+  distinct(charge_level, charge_code, charge, .keep_all = T) %>%
+  mutate(hierarchy = as.numeric(hierarchy)) %>%
+  unite(join_var, charge_level, charge_code, charge, remove = F) %>%
+  select(join_var, master_charge_description, hierarchy, charge_level, charge_code, charge)
+```
+
+ -Visualizes above chunk
+```{r, eval=FALSE, include=FALSE} 
+#--This visualizes the above chunk
+table(mcct_2016$charge_code, mcct_2016$charge_level)
+
+mcct_2016 %>%
+  # filter(HIERARCHY < 3e5) %>%
+  ggplot() +
+  aes(x = hierarchy, color = charge_level) +
+  geom_density() +
+  theme_few()
+```
+
+
+JBSIS Hierarchies
+```{r, eval=FALSE, include=FALSE}
+#JBSIS matched Charges
+charge_hier_jbsis <- read_excel("C:/Work/PretrialAssessmentPilot/Charge Definitions and Hierarchy/Copy of 2016_Nov21_DOJ_Offense_Table_JBSIS.xlsx") 
+
+names(charge_hier_jbsis) <- toupper(names(charge_hier_jbsis))
+
+charge_hier_jbsis <- charge_hier_jbsis %>% 
+  select(charge = `CODE SECTION`,
+         charge_code = `CODE TYPE`,
+         master_charge_description = `OFFENSE DESCRIPTION`,
+         charge_level = `OFF LEVEL`,
+         hierarchy = HIERARCHY) %>%
+  # mutate(charge = toupper(gsub("\\/|\\(|\\)| |\\.|\\.*|^[A-Z]*|\\\\.*","", charge))) %>% 
+  mutate(charge_level = if_else(!charge_level %in% c("F", "I", "M"), "Other", charge_level),
+         charge = toupper(gsub("\\/|\\(|\\)| |\\.|\\.*|^[A-Z]*|\\\\.*|\\{|\\}|EX|\\+|","", charge)),
+         charge_code = if_else(!charge_code %in% c("PC", "VC", "HS", "BP", "WI", "US"), "Other", charge_code)) %>%
+  distinct(charge, charge_code, charge_level, .keep_all = T) %>%
+  unite(join_var, charge_level, charge_code, charge, remove = F) %>%
+  select(join_var, master_charge_description, hierarchy, charge_level, charge_code, charge)
+```
+
+ -Visualizes above chunk
+```{r, eval=FALSE, include=FALSE} 
+#--This visualizes the above chunk
+table(charge_hier_jbsis$charge_code, charge_hier_jbsis$charge_level)
+
+charge_hier_jbsis %>%
+ 
+   # filter(HIERARCHY < 1.7e5) %>%
+  ggplot() +
+  aes(x = as.numeric(hierarchy), color = charge_level) +
+  geom_density() +
+  theme_few()
+
+```
+
+Special Allegations--Hierarchies are Max
+```{r}
+charge_hier_special <- fread("C:/Work/PretrialAssessmentPilot/Charge Definitions and Hierarchy/San_Mateo_Qualifier_Flags_Court_charges.csv", header = T)
+charge_hier_special2 <- fread("C:/Work/PretrialAssessmentPilot/Charge Definitions and Hierarchy/Yuba_Qualifier_Flags_Court_charges.csv", header = T)
+charge_hier_special3 <- read_excel("C:/Work/PretrialAssessmentPilot/Charge Definitions and Hierarchy/qualifier_codes_for_Noah_Kings_Court.xlsx")
+charge_hier_special4 <- read_excel("C:/Work/PretrialAssessmentPilot/Charge Definitions and Hierarchy/qualifier_codes_for_Noah_Napa_Court.xlsx")
+charge_hier_special5 <- read_excel("C:/Work/PretrialAssessmentPilot/Charge Definitions and Hierarchy/qualifier_codes_for_Noah_Sonoma_Court.xlsx")
+
+charge_hier_special6 <- tibble(join_var = c("M_VC_23578", "M_VC_231035", "F_PC_117012C1", "F_PC_120225A", "F_PC_1170H3", "F_PC_1170H", 
+                                               "F_PC_120227A", "F_PC_120221", "F_PC_667A1", "F_PC_12022A1", "F_PC_12022B1", 
+                                               "F_VC_23577", "F_PC_1202253C", "F_PC_290018BZ", "F_PC_1202253B", 
+                                               "F_PC_6676D", "F_PC_1202253D", "F_PC_1203K", "F_HS_113702A", "F_PC_120307A11", 
+                                               "F_HS_11370A", "F_PC_6675C21", "F_PC_667E1", "F_PC_6676C", "F_PC_120306A1", "F_PC_969F", 
+                                               "F_PC_120306A1", "F_PC_1170H5B", "F_PC_1170H5A")) %>%
+  separate(join_var, c("court_charge_level", "court_charge_code", "court_charge"))
+
+
+charge_hier_special <- bind_rows(charge_hier_special, charge_hier_special2, charge_hier_special3, charge_hier_special4, charge_hier_special5, charge_hier_special6) 
+
+rm(charge_hier_special2, charge_hier_special3, charge_hier_special4, charge_hier_special5, charge_hier_special6)
+
+charge_hier_special <- charge_hier_special %>%
+  select(charge_code = court_charge_code, charge_level = court_charge_level, charge = court_charge, master_charge_description = court_charge_description) %>%
+  mutate(charge_level = if_else(!charge_level %in% c("F", "I", "M"), "Other", charge_level),
+         charge = toupper(gsub("\\/|\\(|\\)| |\\.|\\.*|^[A-Z]*|\\\\.*|\\{|\\}|EX|\\+|","", charge)),
+         charge_code = if_else(!charge_code %in% c("PC", "VC", "HS", "BP", "WI", "US"), "Other", charge_code)) %>%
+  mutate(master_charge_description = gsub("^.*-", "", toupper(master_charge_description))) %>%
+  group_by(charge_code, charge) %>% 
+  mutate(master_charge_description = if_else(is.na(master_charge_description), max(master_charge_description, na.rm = T), master_charge_description)) %>%
+  ungroup() %>%
+  distinct(charge, charge_code, charge_level, .keep_all = T) %>%
+  unite(join_var, charge_level, charge_code, charge, remove = F) %>%
+  mutate(hierarchy = 1e6) %>%
+  select(join_var, master_charge_description, hierarchy, charge_level, charge_code, charge) %>%
+  mutate(special_flag = 1) 
+
+# charge_hier_special %>%
+#   filter(grepl("23578", join_var)) %>%
+#   group_by(charge_code, charge) %>%
+#   mutate(master_charge_description = if_else(is.na(master_charge_description), max(master_charge_description, na.rm = T), master_charge_description))
+```
+
+  -New Special Allegations
+```{r}  
+  
+charge_hier_check <- tibble(join_var = c("M_VC_23578", "M_VC_231035", "F_PC_117012C1", "F_PC_120225A", "F_PC_1170H3", "F_PC_1170H", 
+                                               "F_PC_120227A", "F_PC_120221", "F_PC_667A1", "F_PC_667A1", "F_PC_12022A1", "F_PC_12022B1", 
+                                               "F_VC_23577", "F_PC_1202253C", "F_PC_290018BZ", "F_PC_290018BZ", "F_PC_1202253B", 
+                                               "F_PC_6676D", "F_PC_1202253D", "F_PC_1203K", "F_HS_113702A", "F_PC_120307A11", 
+                                               "F_HS_11370A", "F_PC_6675C21"))
+anti_join(charge_hier_check, charge_hier_special)
+```
+
+Missing Charges
+```{r}
+charge_hier_missing <- read_excel("C:/Work/PretrialAssessmentPilot/Charge Definitions and Hierarchy/Charges Missing from the Charge Code Tables original.xlsx", sheet = "Combined") 
+
+charge_hier_missing <- charge_hier_missing %>% 
+  mutate(charge_level = if_else(!charge_level %in% c("F", "I", "M"), "Other", charge_level),
+         charge = toupper(gsub("\\/|\\(|\\)| |\\.|\\.*|^[A-Z]*|\\\\.*|\\{|\\}|EX|\\+|","", charge)),
+         charge_code = if_else(!charge_code %in% c("PC", "VC", "HS", "BP", "WI", "US"), "Other", charge_code)) %>%
+  distinct(charge, charge_code, charge_level, .keep_all = T) %>%
+  unite(join_var, charge_level, charge_code, charge, remove = F) %>%
+  select(join_var, master_charge_description, hierarchy, charge_level, charge_code, charge) 
+```
+
+Merging hiearchies 
+```{r}
+charge_hier <- bind_rows(doj_hierarchy_2020, doj_hierarchy_2017, doj_hierarchy_2008, mcct_2016, charge_hier_jbsis, charge_hier_special, charge_hier_missing) %>%
+  mutate(special_flag = if_else(is.na(special_flag), 0, special_flag)) %>%
+  group_by(join_var) %>%
+  mutate(special_flag = max(special_flag)) %>%
+  ungroup() %>%
+  distinct(join_var, .keep_all = T) %>%
+  mutate(hierarchy = if_else(is.na(hierarchy|hierarchy >= 3e5|hierarchy < 1000), 1e6, hierarchy))
+
+save(charge_hier, file = "Complete Charge Code Hierarchy.RData")
+# shell.exec(getwd())
+```
+
+ -Visualizes above chunk
+```{r, eval=FALSE, include=FALSE} 
+#--This visualizes the above chunk
+table(charge_hier_jbsis$code_type, charge_hier_jbsis$charge_type)
+
+charge_hier %>%
+  filter(hierarchy < 1.7e5) %>%
+  ggplot() +
+  aes(x = as.numeric(hierarchy), color = charge_level) +
+  geom_density() +
+  theme_few()
+
+charge_hier %>%
+  count(charge_level)
+
+charge_hier %>%
+  count(charge_code) %>%
+  arrange(desc(n))
+
+charge_hier %>%
+  mutate(code_type = gsub(".* ", "", code_type))  %>%
+  count(code_type) %>%
+  arrange(desc(n))
+
+load("Complete Charge Code Hierarchy.RData")
+
+charge_hier %>%
+  count(charge_code)
+```
+
+
+# Charge Hierarchy Flag Adds
+```{r}
+load("Complete Charge Code Hierarchy.RData")
+
+#Serious and Violent Felonies
+serious_violent_charges <- read_excel("C:/Work/PretrialAssessmentPilot/Charge Definitions and Hierarchy/Serious and Violent Charges.xlsx", 
+    sheet = "Data") %>%
+  # filter(Serious == T | Violent == T)
+  select(charge, charge_level, serious_felony_flag = Serious, violent_felony_flag = Violent) %>%
+  filter(serious_felony_flag == 1 | violent_felony_flag == 1, charge_level == "F") %>%
+  mutate(charge = toupper(gsub("\\/|\\(|\\)| |\\.|\\.*|\\\\.*|\\{o|\\}","", charge))) %>%
+  mutate(charge = gsub("HSC", "HS_", charge),
+         charge = gsub("PEN", "PC_", charge),
+         charge = gsub("VEH", "VC_", charge)) %>%
+  unite(join_var, charge_level, charge) %>%
+  mutate(serious_violent_flag = if_else(serious_felony_flag == T|violent_felony_flag == T, 1, 0)) %>%
+  # mutate(serious_felony_flag = if_else(serious_felony_flag == T, 1, 0),
+  #        violent_felony_flag = if_else(violent_felony_flag == T, 1, 0)) %>%
+  mutate_all(funs(ifelse(is.na(.), 0, .))) %>%
+  distinct(join_var, .keep_all = T) %>%
+  ungroup()
+
+charge_hier <- charge_hier %>%
+  left_join(serious_violent_charges) %>%
+  mutate(serious_violent_flag = if_else(is.na(serious_violent_flag), 0, serious_violent_flag)) 
+  # mutate_at(vars(serious_felony_flag, violent_felony_flag), funs(if_else(is.na(.), 0, .)))
+
+rm(serious_violent_charges)
+
+#Pretrial Violent Charges
+pretrial_violent <- read_excel("C:/Work/PretrialAssessmentPilot/Charge Definitions and Hierarchy/Pretrial Pilot Consensus on Violent Offense List - FINAL 2-3-20.xlsx")
+
+names(pretrial_violent) <- c("charge", "violent_description", "violent_psa_flag")
+
+pretrial_violent <- pretrial_violent %>%
+  mutate(violent_psa_flag = 1,
+         charge_code = if_else(grepl("Veh Code", charge), "VC", "PC"),
+         charge = gsub("\\/|\\(|\\)| |\\.|\\.*|\\\\.*|\\{|\\}|^[A-Z]* [A-Z]* ","", toupper(charge))) %>%
+  select(-violent_description)
+
+charge_hier <- left_join(charge_hier, pretrial_violent) %>%
+  mutate(violent_psa_flag = if_else(is.na(violent_psa_flag), 0, violent_psa_flag))
+
+
+# Charge Flags Added--Needs fixing
+charge_hier <- charge_hier %>%
+  mutate(capital_flag = if_else(charge_code == "PC" & charge %in% c("37", "128", "206", "2095", "218", "2361C2", "273AB"), 1, 0),
+         dv_flag = if_else(grepl("DOMESTIC|SPOUSE|PARTNER|COHABITANT", master_charge_description) &
+                             !grepl("MARRY|CRT ORD|COURT ORDER|FOREIGN|LAND|FAIL|SHELTER", master_charge_description), 1, 0),
+         #Attach Flags DV and Sup Vio Flags #Sup Vio Based on Charge Descriptions--Including Flash Incarceration
+         sup_vio_flag = if_else((grepl("^SUP| SUP |SUPERVISION|PROBATION|PAROLE", master_charge_description) &
+                                  !grepl("^AGG ARSON|SUPV/ETC PROSTITUTION|MENTALY DISORDERD|^SEXUAL ACTIVITY|^SUPPLY|^ADL|SEX|TRANSFER|PROSTITUTION",
+                                         master_charge_description))| charge %in% c("3454", "3455", "12032", "12032A"), 1, 0),
+         fta_flag = if_else(grepl("APPEAR|FTA", master_charge_description) & !grepl("^DEMAND|WITNESS", master_charge_description), 1, 0),
+         marijuana_flag = if_else(grepl("MARIJ|CANNA", master_charge_description), 1, 0),
+         sex_flag = if_else(grepl("SEX|COPULATION|RAPE|ORAL|PENETRATION|MOLLEST|LASCIVIOUS|INCEST", 
+                                  master_charge_description)|(charge_code == "PC" & charge %in% c("2434", "2641", "266H", "266I", "266J", "269", "272", "285", "286", "288",
+                                                           "288a", "2882", "2884", "2885", "2887", "289", "3111", "31111", "314",
+                                                           "6476", "653FC")), 1, 0),
+         sb10_sex_flag = if_else(sex_flag == 1, 1, 0),
+         dui_flag = if_else((charge_code == "VC" & charge %in% c("23546", "23153", "23578"))|(charge_code == "PC" & charge == "1915B"), 1, 0),
+         sb10_dui_flag = if_else((charge_code == "VC" & charge %in% c("23546", "23153", "23578"))|(charge_code == "PC" & charge == "1915B"), 1, 0),
+         restrain_flag = if_else(charge_code == "PC" & charge %in% c("166C4", "166D1", "27365A", "6499B"), 1, 0),
+         sb10_witness_intim_flag = if_else(charge_code == "PC" & charge %in% c("1361", "1365"), 1, 0),
+         sb10_onduty_inel_flag = if_else(charge_code == "PC" & charge %in% c("166", "18626", "18628", "18633", "240", "241", "2411", "2412", "2413",
+                                                                             "2414", "2415", "2416", "2417", "2418", "242", "243", "2431", "2432",
+                                                                             "24325", "2433", "24335", "2435", "2436", "24365", "2437", "2438",
+                                                                             "24383", "2439", "24310", "24315", "2445", "245", "2456", "2463", "247",
+                                                                             "2475","248", "120215", "12022A", "12022B", "12022C", "120222A",
+                                                                             "120223B", "120225", "653M"), 1, 0),
+         property_flag = if_else(oo_code %in% c("220", "70"), 1, 0),
+         drug_flag = if_else(jbsis_code %in% c("230", "80"), 1, 0),
+         minor_flag = if_else(charge %in% c("fix this"), 1, 0),
+         pre_arr_inel_flag = if_else(charge %in% c("fix this"), 1, 0)) %>%
+  mutate_at(vars(contains("flag")), funs(if_else(is.na(.), 0, as.numeric(.))))
+
+save(charge_hier, file = "Complete Charge Code Hierarchy.RData")
+
+# write.xlsx(charge_hier, file = "C:/Work/PretrialAssessmentPilot/Charge Definitions and Hierarchy/Complete Charge Hieararchy with Flags.xlsx", asTable = T, tableStyle = "TableStyleMedium1")
+```
+
+  Flag Excel for Legal
+```{r}
+load("Complete Charge Code Hierarchy.RData")
+
+flag_list <- lapply(8:28, function(i) {
+  df <- charge_hier %>%
+    select(1:7, i) %>%
+    filter_at(8, all_vars(. == 1)) %>%
+    mutate(wrong_offense = 0, missing_offense = 0) %>%
+    select(1:2, 4:6, 8:10, 3, 7)
+}) 
+
+write.xlsx(
+  flag_list,
+  "Offense Flags for Kara and Eve Sex Offenses.xlsx",
+  asTable = T,
+  tableStyle = "TableStyleMedium1",
+  sheetName = c(
+    "Special Allegations",
+    "Serious Felonies",
+    "Violent Felonies",
+    "Serious and Violent Felonies",
+    "PSA Violent",
+    "Capital Offenses",
+    "Domestic Violence",
+    "Supervision Violations",
+    "Failures to Appear",
+    "Marijuana Offenses",
+    "Sex Offenses",
+    "SB 10 Sex Offenses",
+    "DUIs",
+    "SB10 DUIs",
+    "Restrain Order Vios",
+    "Witness Intimidation",
+    "SB 10 Onduty Ineligibile",
+    "JBSIS Property Offenses",
+    "JBSIS Drug Offenses",
+    "Minor Offenses",
+    "SB 10 Pre Arraign Ineligible"
+  ),
+  colWidths = "auto",
+  firstRow = T
+)
+
+flag_defs <- tibble(
+  `Excel Tab Name` = c(
+    "Special Allegations",
+    "Serious Felonies",
+    "Violent Felonies",
+    "Serious and Violent Felonies",
+    "PSA Violent",
+    "Capital Offenses",
+    "Domestic Violence",
+    "Supervision Violations",
+    "Failures to Appear",
+    "Marijuana Offenses",
+    "Sex Offenses",
+    "SB 10 Sex Offenses",
+    "DUIs",
+    "SB10 DUIs",
+    "Restrain Order Vios",
+    "Witness Intimidation",
+    "SB 10 Onduty Ineligibile",
+    "JBSIS Property Offenses",
+    "JBSIS Drug Offenses",
+    "Minor Offenses",
+    "SB 10 Pre Arraign Ineligible"
+  ),
+  `Flag Names` = names(charge_hier)[8:28],
+  Definition = NA
+)
+
+write.xlsx(
+  flag_defs,
+  "Offense Flag Definitions for Kara and Eve.xlsx",
+  asTable = T,
+  tableStyle = "TableStyleMedium1",
+  colWidths = "auto",
+  firstRow = T
+  )
+
+serious_violent <- fread("C:/Work/PretrialAssessmentPilot/Charge Definitions and Hierarchy/Bail Deviation Exclusion List_for review by Pretrial Pilots - updated for research team 4-24-20.csv", header = T)
+
+names(serious_violent) <- c("charge", "master_charge_description", "serious_flag", "violent_flag", "remove", "remove2", "remove3")
+
+serious_violent <- serious_violent %>%
+  filter(charge != "", !grepl("Conspiracy", master_charge_description)) %>%
+  select(1:4) %>%
+  separate_rows(charge, sep = "/") %>%
+  mutate_at(vars(contains("flag")), funs(if_else(. == "", 0, 1))) %>%
+  mutate(master_charge_description = gsub("\t", "", master_charge_description),
+         charge_level = "F",
+         charge_code = case_when(grepl("^Veh", charge) ~ "VC",
+                                 grepl("^Health", charge) ~ "HS",
+                                 grepl("^Military|^Election", charge) ~ "Other",
+                                 grepl("^Welf", charge) ~ "WI",
+                                 T ~ "PC"),
+         charge = gsub("&| |\\.", "", charge),
+         charge = gsub("\\/|\\(|\\)| |\\.|\\.*|\\\\.*|\\{|\\}|\\*|^[A-Z]*","", toupper(charge))) %>%
+  unite(join_var, charge_level, charge_code, charge, remove = F) %>%
+  mutate(master_charge_description = toupper(master_charge_description)) %>%
+  select(join_var, master_charge_description, charge_level, charge_code, charge, serious_flag, violent_flag)
+
+missing_df <- anti_join(serious_violent, charge_hier, by = "join_var") 
+
+write.xlsx(missing_df, file = "C:/Work/PretrialAssessmentPilot/Charge Definitions and Hierarchy/Missing Serious and Violent Charges.xlsx")
+```
+
+  
+Flag Add Diagnostics
+```{r eval=FALSE, include=FALSE}
+charge_hier %>%
+  summarise_at(vars(dv_flag:violent), sum)
+
+charge_hier %>%
+  filter(violent == 1)
+
+# lapply(names(charge_hier)[grepl("flag", names(charge_hier))], function(i){
+#   
+#   charge_hier %>%
+#     filter(get(i) == 1) %>%
+#     select(charge_level, charge_code, charge, master_charge_description, i)
+#     
+# })
+
+#PC 12032, 
+#6675 B
+
+charge_hier %>%
+  filter(grepl("300008", join_var))
+
+charge_hier %>%
+  filter(dv_flag == 1)
+
+charge_hier %>%
+  mutate(dv_fake = if_else(grepl("DOMESTIC|SPOUSE|PARTNER|COHABITANT", master_charge_description), 1, 0)) %>%
+  count(dv_flag, dv_fake)
+
+flag_list <- lapply(8:28, function(i) {
+  df <- charge_hier %>%
+    select(1:7, i) %>%
+    filter_at(8, all_vars(. == 1)) %>%
+    mutate(wrong_offense = 0, missing_offense = 0) %>%
+    select(1:2, 4:6, 8:10, 3, 7)
+}) 
+
+charge_hier %>%
+  select(1:7)
+
+charge_hier[charge_hier[,8] == 1,]
+
+charge_hier 
+```
+
+Lawyer Reviewed Flags
+```{r}
+file <- "G:/CrimJustice/PretrialAssessmentPilot/Charge Definitions and Hierarchy/Legal Review of Offense Flags.xlsx"
+
+# getSheetNames(file)
+
+
+df_list <- lapply(c(2:4, 6:22), function(i){
+  df <- read_excel(file, sheet = i) %>%
+    mutate_all(as.character)
+  
+  names(df) <- tolower(names(df))
+  
+  return(df)
+})
+
+
+charge_df <- bind_rows(df_list)
+
+charge_df <- charge_df %>%
+  mutate_all(funs(if_else(is.na(.), "0", .))) %>%
+  mutate(wrong_offense = if_else(wrong_offense == "1" & grepl("Already captured|repealed|extra numbers", notes), 
+                                 "0", 
+                                 wrong_offense),
+         dv_possible_flag = if_else(grepl("DV depending", notes), "1", "0"),
+         charge_level = if_else(charge_level == "0", "Other", charge_level),
+         join_var = if_else(!grepl("_.*_", join_var), paste(charge_level, charge_code, charge, sep = "_"), join_var)) %>% 
+  select(-c(charge_level, charge_code, charge)) %>%
+  separate(join_var, c("charge_level", "charge_code", "charge"), sep = "_", remove = F) %>% 
+  filter(wrong_offense != "1") %>%
+  select(-contains("notes"), -`sarah review`, -not_charge, -wrong_offense, -missing_offense) %>%
+  group_by(join_var) %>%
+  mutate_at(vars(hierarchy, jbsis_code, contains("flag")), parse_number) %>%
+  summarise_all(max) 
+  
+  
+load("G:/CrimJustice/PretrialAssessmentPilot/Complete Charge Code Hierarchy Base.RData")
+
+#Putting on lawyer reviewed flags
+match_df <- charge_hier %>%
+  select(join_var) %>%
+  inner_join(charge_df, by = "join_var")
+
+match_df2 <- charge_hier %>%
+  select(join_var:jbsis_code) %>%
+  anti_join(charge_df, by = "join_var") 
+  
+match_df3 <- charge_df %>%
+  anti_join(charge_hier, by = "join_var") 
+
+charge_hier <- bind_rows(match_df, match_df3, match_df2) %>%
+  distinct(join_var, .keep_all = T) %>%
+  mutate_at(vars(contains("flag")), funs(if_else(is.na(.), 0, .))) %>%
+  select(-contains("sb10")) 
+
+
+#Fixing missing JBSIS Codes
+doj_hierarchy_2020_jbsis <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Charge Definitions and Hierarchy/2020_March04_DOJ_Offense_Table_JBSIS.xlsx")
+
+names(doj_hierarchy_2020_jbsis) <- c("offense_id", "cjis_code", "hierarchy", "charge_level", "charge", "charge_code", "master_charge_description", "sentence", "jbsis_code")
+
+doj_hierarchy_2020_jbsis <- doj_hierarchy_2020_jbsis %>%
+  mutate(charge_level = toupper(charge_level),
+         charge_level = if_else(!charge_level %in% c("F", "I", "M"), "Other", charge_level),
+         charge = toupper(gsub("\\/|\\(|\\)| |\\.|\\.*|^[A-Z]*|\\\\.*|\\{|\\}|EX|\\+|","", charge)),
+         charge_code = if_else(!charge_code %in% c("PC", "VC", "HS", "BP", "WI", "US"), "Other", charge_code)) %>%
+  distinct(charge, charge_code, charge_level, .keep_all = T) %>%
+  unite(join_var, charge_level, charge_code, charge, remove = F) %>%
+  select(join_var, jbsis_code)
+
+
+charge_hier <- charge_hier %>%
+  select(-jbsis_code) %>%
+  #Fixing a few codes manually that didn't match on to the DOJ data. We selected the top 7 codes which were not matched.
+  left_join(doj_hierarchy_2020_jbsis, by = "join_var") %>%
+  mutate(jbsis_code = if_else(join_var == "M_HS_113641A", 230, jbsis_code),
+         jbsis_code = if_else(join_var == "M_PC_484488", 220, jbsis_code),
+         jbsis_code = if_else(join_var == "M_BP_4140", 230, jbsis_code),
+         jbsis_code = if_else(join_var == "F_PC_12020A", 90, jbsis_code),
+         jbsis_code = if_else(join_var == "F_PC_45736", 90, jbsis_code))
+
+
+# Updated 1/7/2021 to match jbsis codes to charges with missing jbsis codes determined by the base charge, when there is no conflict of jbsis codes.
+# SB 10 flags are also removed due to its failure. 
+charge_hier <- charge_hier %>%
+  mutate(charge_start = as.integer(parse_number(charge)),
+         jbsis_code = if_else(is.na(jbsis_code)|jbsis_code == 0, 1000, jbsis_code)) %>%
+  group_by(charge_level, charge_code, charge_start) %>%
+  mutate(n = sum(!(unique(jbsis_code) %in% c(1000, 90, 250, 270)))) %>%
+  mutate(jbsis_code = if_else(jbsis_code == 1000 & n %in% 0:1, min(jbsis_code), jbsis_code)) %>%
+  ungroup() %>%
+  mutate(#Fixing property and drug jbsis flagsdd
+         property_flag = if_else(jbsis_code %in% c("220", "70"), 1, 0),
+         drug_flag = if_else(jbsis_code %in% c("230", "80"), 1, 0))
+
+save(charge_hier, file = "Complete Charge Code Hierarchy.RData")
+
+# load("Complete Charge Code Hierarchy.RData")
+# 
+# charge_hier %>%
+#   filter(property_flag == 1)
+# 
+# charge_hier %>%
+#   filter(property_flag == 1, grepl("GRAND THEFT", master_charge_description))
+# 
+# 
+# charge_hier %>%
+#   filter(property_flag == 1, grepl("487", charge))
+# 
+# charge_hier %>%
+#   filter(property_flag == 0, grepl("GRAND THEFT", master_charge_description))
+# 
+# charge_hier %>%
+#   mutate(property_flag = if_else())
+
+
+  
+# 
+# charge_hier %>%
+#   ungroup() %>%
+#   filter(charge_start == 487) %>%
+#   count(jbsis_code, charge_level)
+#   filter(jbsis_code == 270)
+#   count(jbsis_code)
+#   filter(charge_level == "M", jbsis_code < 100)
+# 
+#   group_by(charge_level, charge_code, charge_start) %>%
+#   add_count() %>%
+#   arrange(desc(nn))
+#   filter(n > 1)
+# 
+# charge_hier %>%
+#   filter(as.integer(parse_number(charge)) == 4324)
+# 
+# charge_hier %>%
+#   filter(grepl("^647[A-Z]", charge))
+# 
+# sum(unique(c("A", "B", "0")) != 0)
+# 
+# charge_hier %>%
+#   filter(jbsis_code == 1000, special_flag == 0)
+# 
+# charge_hier <- charge_hier %>%
+#   mutate(charge_start = as.integer(parse_number(charge)),
+#          jbsis_code = if_else(is.na(jbsis_code)|jbsis_code == 0, 1000, jbsis_code)) %>%
+#   group_by(charge_level, charge_code, charge_start) %>%
+#   # mutate(n = sum(!(unique(jbsis_code) %in% c(1000, 90, 250, 270)))) %>%
+#   mutate(jbsis_code = if_else(jbsis_code == 1000, min(jbsis_code), jbsis_code)) %>%
+#   ungroup()
+
+# charge_hier_jbsis %>%
+#   filter(charge == "11377A")
+# 
+# shell.exec(getwd())
+
+# charge_hier %>%
+#   filter(grepl("45736", charge))
+# 
+# doj_hierarchy_2020_jbsis %>%
+#   filter(grepl("12020", join_var))
+
+```
+
