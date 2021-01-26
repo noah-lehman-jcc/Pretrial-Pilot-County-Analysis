@@ -2469,7 +2469,7 @@ book_df <- book_df %>%
 
 fwrite(book_df, "G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/San Mateo Booking Collapse.csv")
 
-
+```
 San Mateo Jail Diagnostics
 ```{r eval=FALSE, include=FALSE}
 
@@ -2656,7 +2656,7 @@ names(court_df) <- c("court_docket_id", "court_case_id_original", "file_date", "
 # Date Reformatting--See pg. xxx for more details.
 court_df <- court_df %>%
      mutate(dob = as_date(dob)) %>%
-     mutate(file_date = ymd(file_date))
+      mutate_at(vars(contains("date")), funs(if_else(grepl("/", .), mdy(.), as_date(.))))
 
 
 # Standardize Factors, also standardize name formatting--See pg. xxx for more details.
@@ -2678,7 +2678,6 @@ court_df <- court_df %>%
        
 
 
-
 ####
 
 # Court Sentences and Court Filing Charges 
@@ -2686,31 +2685,32 @@ court_df <- court_df %>%
  ## court_sentence contains one row per charge (charge_id) (with about 400 repeats, likely from when separate_rows was used to divide combined charges, for example PC484-490.1)
  ## dropping sentence location, it was in the first extract, but not in second extract, we don't need that variable for analysis
  ## historical data submitted had to be stripped of new line characters in the middle of lines that interfered with reading the data in
- ##all f the dates in the merged file need to be checked.
+ ##All dates are correct in court_charge they all end as expected at the end of P3 (Dec 31/2020) or in Jan of 2021, and all have a min date of 1/4/16 or earlier.
 
 court_charge <- read_file("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/San Mateo/41-COURT-02OF03-JAN2016-SEP2019.csv")
 
 court_charge <- gsub("\n,", ",", court_charge)
 
-court_charge <- read_csv(court_charge, col_types = "iccccccccciiiccccccccccc_ciiiciii", na = c("", "NULL")) 
+court_charge <- read_csv(court_charge, col_types = "cccccccccccccccccccccccc_cccccccc", na = c("", "NULL")) 
 
 
 # all arrest dates are missing from this file
-court_charge_1 <- fread("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/San Mateo/41-COURT-02OF03-OCT2019-DEC2019.csv", na.strings=c("NULL",""))
+court_charge_1 <- fread("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/San Mateo/41-COURT-02OF03-OCT2019-DEC2019.csv", na.strings=c("NULL",""), colClasses =
+                          c(rep("character", 32))) 
+  
 
-court_charge_2 <- fread("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/San Mateo/P2 Submission-June 30/41-COURT-02OF03-JAN2020-JUN2020.csv", na.strings=c("NULL",""))
+court_charge_2 <- fread("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/San Mateo/P2 Submission-June 30/41-COURT-02OF03-JAN2020-JUN2020.csv", na.strings=c("NULL",""), colClasses = c(rep("character", 32))) 
+  
 
-court_charge_3 <- fread("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/San Mateo/P2 Submission-June 30/41-COURT-02OF03-JUL2020-SEP2020.csv", na.strings=c("NULL",""))
-
-court_charge_3 <- court_charge_3 %>%
-  mutate(BookingNumber = as.character(BookingNumber))
-
-court_charge_4<- fread("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/San Mateo/P3 Submission-Jan 15/41-COURT-02OF03-OCT2020-DEC2020.csv", na.strings=c("NULL",""))   
-
-court_charge_4 <- court_charge_4 %>%
-  mutate(BookingNumber = as.character(BookingNumber)) %>%
+court_charge_3 <- fread("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/San Mateo/P2 Submission-June 30/41-COURT-02OF03-JUL2020-SEP2020.csv", na.strings=c("NULL",""), colClasses = c(rep("character", 32))) 
  
- 
+                        
+
+court_charge_4<- fread("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/San Mateo/P3 Submission-Jan 15/41-COURT-02OF03-OCT2020-DEC2020.csv", na.strings=c("NULL",""), colClasses = c(rep("character", 32)))  
+  
+
+
+
 
 #Removing duplicates between submission 1 2, 3, 4
 court_charge <- court_charge %>% 
@@ -2746,8 +2746,7 @@ names(court_charge) <- c("court_docket_id", "court_case_id_original", "file_date
 # Date Reformatting--See pg. xxx for more details.
 ##the dates in this file are acting strange, some dates return an NA when min and max requested
 court_charge   <- court_charge  %>%
-  mutate_at(vars(contains("date")), as_date)
-
+  mutate_at(vars(contains("date")), funs(if_else(grepl("/", .), mdy(.), as_date(.))))
 
 
 # Standardize Factors--See pg. xxx for more details.
@@ -2898,26 +2897,24 @@ load("G:/CrimJustice/PretrialAssessmentPilot/Complete Charge Code Hierarchy.RDat
   ## court_hearing contains one row per setting_id (a unique hearing event on each court case) and includes information about each hearing. 
   ## still organized by court case type (complaint, indictment, information), which are given a different suffix on the court_case_id which will need to be stripped in order to collapse to the court case
   ## NOTE: between tables court_case_id is formatted differently, fix this (aka remove dashes) across all the san mateo tables so that they will match later
-  ## historical data file has a variable called DtFile in a format that only reads with the as_date
- ## the next two date files have the date in a different format so needed to use mdy
-court_hearing <- fread("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/San Mateo/41-COURT-03OF03-JAN2016-SEP2019.csv") %>%
-     mutate_at(vars(contains("date"), DtFile), as_date)
-   
+  ##when all files combined the dates are correct they go from file date of Jan 2016 to  Dec 31 2020
+court_hearing <- fread("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/San Mateo/41-COURT-03OF03-JAN2016-SEP2019.csv", na.strings = c("NULL", ""),  colClasses =
+                         c(rep("character", 14)))  
+     
    
  court_hearing_1 <-
-   fread("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/San Mateo/41-COURT-03OF03-OCT2019-DEC2019.csv",  na.strings = c("NULL", "")) %>%
-       mutate_at(vars(contains("date"), DtFile), mdy)
+   fread("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/San Mateo/41-COURT-03OF03-OCT2019-DEC2019.csv",  na.strings = c("NULL", ""),  colClasses =
+           c(rep("character", 14)))  
+       
  
-  court_hearing_2 <-
-   fread("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/San Mateo/P2 Submission-June 30/41-COURT-03OF03-JAN2020-JUN2020.csv",  na.strings = c("NULL","")) %>%
-        mutate_at(vars(contains("date"), DtFile), mdy)
-  
-   court_hearing_3 <-
-   fread("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/San Mateo/P2 Submission-June 30/41-COURT-03OF03-JUL2020-SEP2020.csv",  na.strings = c("NULL","")) %>%
-        mutate_at(vars(contains("date"), DtFile), mdy)
-  
-court_hearing_4<- fread("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/San Mateo/P3 Submission-Jan 15/41-COURT-03OF03-OCT2020-DEC2020.csv", na.strings=c("NULL","")) %>%
-  mutate_at(vars(contains("date"), DtFile), mdy)
+court_hearing_2 <- 
+  fread("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/San Mateo/P2 Submission-June 30/41-COURT-03OF03-JAN2020-JUN2020.csv",  na.strings = c("NULL",""), colClasses = c(rep("character", 14)))   
+        
+court_hearing_3 <-
+   fread("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/San Mateo/P2 Submission-June 30/41-COURT-03OF03-JUL2020-SEP2020.csv",  na.strings = c("NULL",""), colClasses = c(rep("character", 14)))   
+        
+court_hearing_4<- fread("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/San Mateo/P3 Submission-Jan 15/41-COURT-03OF03-OCT2020-DEC2020.csv", na.strings=c("NULL",""), colClasses = c(rep("character", 14)))   
+   
 
  #Removing duplicates between submission 1 2, 3, 4
 court_hearing <- court_hearing %>% 
@@ -2936,11 +2933,10 @@ court_hearing_2 <- court_hearing_2 %>%
   anti_join(court_hearing_4, by = "CaseNbr") 
 
 court_hearing_3 <- court_hearing_3 %>%
-  anti_join(court_hearing_4, by = "CaseNbr") %>%
+  anti_join(court_hearing_4, by = "CaseNbr") 
  
 
-court_hearing <- bind_rows(court_hearing, court_hearing_1, court_hearing_2, court_hearing_3,
-                           court_hearing_4) %>%
+court_hearing <- bind_rows(court_hearing, court_hearing_1, court_hearing_2, court_hearing_3, court_hearing_4) %>%
   distinct()
 
 rm(court_hearing_1, court_hearing_2, court_hearing_3, court_hearing_4)
@@ -2952,6 +2948,12 @@ rm(court_hearing_1, court_hearing_2, court_hearing_3, court_hearing_4)
    c( "court_docket_id", "court_case_id_original", "file_date", "court_case_type", "setting_id",  "hearing_date", "hearing_type_loc", "court_loc", "hearing_type_code", "hearing_type_original",
      "hearing_result",  "hearing_date_next",  "fta", "fta_warrant" )
  
+ 
+ # Date Reformatting--See pg. xxx for more details.
+##the dates in this file are acting strange, some dates return an NA when min and max requested
+court_hearing   <- court_hearing  %>%
+  mutate_at(vars(contains("date")), funs(if_else(grepl("/", .), mdy(.), as_date(.))))
+
 
  court_hearing <- court_hearing %>%
    ## remove -HTA from court_case_id_original so that information and complaint will have the same court_case_id since they are the same case at different stages
@@ -3290,11 +3292,10 @@ str(court_hearing)
 
 court_df %>%
   distinct(court_case_id) %>%
-  semi_join(court_hearing, by = "court_case_id")
-
+  semi_join(court_charge, by = "court_case_id")
 
 #Are the contents mostly complete? 
- ##court_df hardly any CIIs or FBIs but they do have a local_id that is complete. Race misssing
+ ##court_df hardly any CIIs or FBIs but they do have a local_id that is complete. Race missing
  ## in about 14% of observations. All else looks good
 
 
@@ -3314,9 +3315,21 @@ lapply(court_charge, function(i){
 
 summary(court_df$file_date)
 
-##no arrest dates past 9/29/2019 are coming through
-summary(court_charge$plea_date)
-summary(court_hearing$)
+##Are all dates coming through
+summary(court_charge$plea_date)  
+summary(court_charge$file_date)
+summary(court_charge$arrest_date)
+summary(court_charge$court_case_status_date)
+summary(court_charge$offense_date)
+summary(court_charge$final_date)
+summary(court_charge$sentence_date)
+summary(court_charge$disposition_date)
+
+summary(court_hearing$file_date)
+summary(court_hearing$hearing_date)
+summary(court_hearing$hearing_date_next)
+
+summary(court_df$file_date)
 
 
 
@@ -3931,6 +3944,64 @@ fwrite(assess_table, file = "G:/CrimJustice/PretrialAssessmentPilot/Assessment O
 ```
 Assessment Diagnostics
 ```{r}
+
+# Diagnostics Period 3
+##are any essential data elements missing
+
+str(court_df)
+str(court_charge)
+str(court_hearing)
+
+
+
+## how well do tables match: court_df has 72714 distinct case_ids, 
+##72,714 matches found in court_charge 100% match
+##64,271 matches found in court_hearings_s3 88% match
+
+court_df %>%
+  distinct(court_case_id) %>%
+  semi_join(court_charge, by = "court_case_id")
+
+#Are the contents mostly complete? 
+ ##court_df hardly any CIIs or FBIs but they do have a local_id that is complete. Race missing
+ ## in about 14% of observations. All else looks good
+
+
+lapply(court_charge, function(i){
+  if (is.character(i)==T){
+    sum(is.na(i)|i=="NULL")
+  }
+  else{
+    sum(is.na(i))
+  }
+})
+
+lapply(court_charge, function(i){
+  if(length (unique(i)) <=50)
+    table(i, useNA="always")})
+
+
+summary(court_df$file_date)
+
+##Are all dates coming through
+summary(court_charge$plea_date)  
+summary(court_charge$file_date)
+summary(court_charge$arrest_date)
+summary(court_charge$court_case_status_date)
+summary(court_charge$offense_date)
+summary(court_charge$final_date)
+summary(court_charge$sentence_date)
+summary(court_charge$disposition_date)
+
+summary(court_hearing$file_date)
+summary(court_hearing$hearing_date)
+summary(court_hearing$hearing_date_next)
+
+summary(court_df$file_date)
+
+
+
+
 summary(assess_df$Assessment_Date_Time)     
 str(court_df)
 lapply(prob_df, function(i){if(length(unique(i)) <= 50) table (i, useNA="always")}) 
