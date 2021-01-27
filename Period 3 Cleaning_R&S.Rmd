@@ -29,7 +29,7 @@ rm(name_keeper)
 ```
 
 # Nevada-Sierra
-Jail Data
+Jail Data Nevada
 ```{r eval=FALSE, include=FALSE}
 #Jail Bookings Data Import--Nevada Jail Data
  ## book_df contains booking data that is arranged by booking number, there are multiple lines for each booking number one line for each charge
@@ -883,7 +883,7 @@ court_dispos_s3 %>%
 ```
 Sierra Court Diagnostics
 ```{r eval=FALSE, include=FALSE}
-
+Court Diagnostics Sierra
 ```{r}
 
 # Diagnostics
@@ -1539,7 +1539,7 @@ date_df <- lapply(ls()[!grepl("original|^df|hier|names|factor|date|flag|book|tes
 
 write.xlsx(list(factor_df, flag_df, date_df), file = "G:/CrimJustice/PretrialAssessmentPilot/Code Books/Assessment Code Book/Nevada Assessment Code Book 10-20v2.xlsx", asTable = T, tableStyle = "TableStyleMedium1", colWidths = "auto", sheetName = c("Factors", "Flags", "Dates"))
 ```
-Probation Data Old Dont Use
+Probation Data Nevada Old Dont Use
 ```{r eval=FALSE, include=FALSE}
 # Read in Probation Risk Assessment Data
  ## This is data that covers 7/7/2011 to 2/6/2020
@@ -3273,8 +3273,7 @@ fwrite(court_df, "G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Fil
  
 ```
 
-
-San Mateo Court Hearing Diagnostics
+San Mateo Court Diagnostics
 ```{r eval=FALSE, include=FALSE}
 
 # Diagnostics Period 3
@@ -3516,38 +3515,45 @@ court_charge %>%
 
 ```
 
-San Mateo Assessment Data Sent 10/14/2020 
+San Mateo Assessment Lastest submission on Data Sent 1/13/2021 
 ```{r}
 # San Mateo Assessment Data Import
-  ## this is their new data that I read in on 10 15 2020
-  ## it has data (1110 observations) it primarily has data from July-Sept 2020
+  ## this is their new data that I read in on 1/27/2021
+  ## it has data (2072 observations).
   ## The old data they sent us did not have a booking number, and there was no way of joining it with the  jail data.  The old data set has data from 1/23/2020 when they went live to 6/30/2020.  If we want to salvage the vprai score an come up with a new joining method we can incorporate the old data, but for now we are just going forward with the new data.  The new data has a different set of variables to describe monitoring that do not exist in the old data.
+
+#arrest dates range from 9/10/2002 to 12/31/2020
+#book_dates range from 1/27/2020 to 12/31/2020
+#assessment dates range from 8/26/2020 to 12/16/2021 but most assessmetn data is in the range of 8/26/2020 and 11/12/2020
  
 
-assess_df_new <- read_csv("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/San Mateo/P2 Submission-June 30/Pretrial Pilot eProb PROD data_10142020.csv", skip = 3)
+# assess_df_old <- read_csv("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/San Mateo/P2 Submission-June 30/Pretrial Pilot eProb PROD data_10142020.csv", skip = 3) i this is old data read in that goes up to 10/15/2020.  The newest file contains all of the same data plus 3 more months
 
-names_df <- tibble(original_field = names(assess_df_new))
+assess_df<-read_csv("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/San Mateo/P3 Submission-Jan 15/41-PROBATION-01OF01-JAN2020-DEC2020.csv")
+
+names_df <- tibble(original_field = names(assess_df))
 
 # Variable name standardization--See pg. xxx for more details.
-names(assess_df_new) <- c("local_id", "book_num", "arrest_date", "book_date_time", "last_name", "first_name", "middle_name", "dob", "sex_original", "cii", "fbi", "ipid", "cdl_id", "hispanic_original", "race_original", "zip_code", "assessment_date_time",  "tool_name",  "vprair_tool_response_1", "vprair_tool_response_2", "vprair_tool_response_3", "vprair_tool_response_4", "vprair_tool_response_5", "vprair_tool_response_6", "vprair_tool_response_7", "vprair_tool_response_8",   "vprair_risk_score", "pretrial_release_type_original",  "release_recommendation_original", "release_type_at_arraign", "condition_drug_test_original", "conditions_cam_monitoring_original", "condition_gps_original", "condition_home_detention_original", "condition_curfew_original", "condition_search_original", "condition_stay_away_original", "condition_other_original", "pretrial_signature_date_time", "num_fta" , "num_new_arrests", "office_ftas", "scram_vio", "gps_vio", "total_tc_violations", "num_court_reminders", "pretrial_termination_date",  "pretrial_termination_outcome_original")
+names(assess_df) <- c("client_id","local_id", "book_num", "arrest_date",  "last_name", "first_name", "middle_name", "dob", "sex_original", "cii", "fbi", "ipid", "cdl_id", "hispanic_original", "race_original",  "zip_code", "book_date_time","assessment_date_time",  "vprair_tool_response_1", "vprair_tool_response_2", "vprair_tool_response_3", "vprair_tool_response_4", "vprair_tool_response_5", "vprair_tool_response_6", "vprair_tool_response_7", "vprair_tool_response_8",   "vprair_risk_score", "pretrial_release_type_original",  "release_recommendation_original", "release_type_at_arraign", "condition_drug_test_original", "conditions_cam_monitoring_original", "condition_gps_original", "condition_home_detention_original", "condition_curfew_original", "condition_search_original", "condition_stay_away_original", "condition_other_original", "num_fta" , "num_new_arrests", "office_ftas", "scram_vio", "gps_vio", "total_tc_violations", "num_court_reminders", "pretrial_termination_date",  "pretrial_termination_outcome_original")
 
 
-assess_df_new %>%
-  count(total_tc_violations)
+# these vars in old extraction but not new one "pretrial_signature_date_time",  "tool_name"
 
-names_df$field <- names(assess_df_new)
+names_df$field <- names(assess_df)
 
 # Date Reformatting--See pg. xxx for more details.
-assess_df_new <- assess_df_new %>%
+assess_df <- assess_df %>%
+  # in this extract they forgot to put the tool name in so I am adding it here
+  mutate(tool_name = "VPRAI-R") %>%
   #mutate(assessment_date_time = parse_date_time(assessment_date_time, c('%m/%d/%Y %H:%M'))) %>%
-  mutate_at (vars(assessment_date_time,pretrial_signature_date_time, book_date_time),  mdy_hm) %>% 
+  mutate_at (vars(assessment_date_time, book_date_time),  mdy_hm) %>% 
   mutate_at(vars(dob, arrest_date, pretrial_termination_date), mdy) %>%
   mutate (assessment_date = as_date(assessment_date_time),
-          pretrial_signature_date = as_date(pretrial_signature_date_time),
+          # pretrial_signature_date = as_date(pretrial_signature_date_time), no longer in data set
           book_date = as_date(book_date_time))
 
 # Risk Score Standardization--Tool Response values are changed to their numeric point value.
-assess_df_new <- assess_df_new %>%
+assess_df <- assess_df %>%
   mutate(vprair_tool_response_1 = if_else(vprair_tool_response_1 == "Yes", 2, 0),
          vprair_tool_response_2 = if_else(vprair_tool_response_2 == "Yes", 3, 0),
          vprair_tool_response_3 = if_else(vprair_tool_response_3 == "Yes", 2, 0),
@@ -3562,7 +3568,7 @@ assess_df_new <- assess_df_new %>%
 
 
 
-assess_df_new <- assess_df_new%>%
+assess_df <- assess_df%>%
   mutate(sex = case_when(sex_original %in% c("Male") ~ "Male",
                          sex_original %in% c("Female") ~ "Female",
                          T ~ "Other_Unknown"),
@@ -3644,7 +3650,7 @@ assess_df_new <- assess_df_new%>%
   ## under release type what does N/A mean? does it mean bail set? 
   ## all pretrial termination dates are missing
  
- assess_df <- assess_df_new %>%
+ assess_df <- assess_df %>%
     mutate(assess_flag = if_else(is.na(assessment_date), 0, 1),
          rec_release_flag = if_else(release_recommendation %in% c("OR", "Monitor"), 1, 0),
          decision_release_flag = if_else(release_decision %in% c("OR", "Monitor"), 1, 0),
@@ -3708,7 +3714,6 @@ assess_df_new <- assess_df_new%>%
 #   count(pretrial_release_type_original, pretrial_ineligible_reason) %>%
 #   view()
  
-
 
 ```
 
@@ -3942,19 +3947,16 @@ fwrite(assess_table, file = "G:/CrimJustice/PretrialAssessmentPilot/Assessment O
 
 
 ```
-Assessment Diagnostics
+San Mateo Assessment Diagnostics
 ```{r}
 
 # Diagnostics Period 3
 ##are any essential data elements missing
 
-str(court_df)
-str(court_charge)
-str(court_hearing)
+str(assess_df)
 
 
-
-## how well do tables match: court_df has 72714 distinct case_ids, 
+## NA only 1 table how well do tables match: court_df has 72714 distinct case_ids, 
 ##72,714 matches found in court_charge 100% match
 ##64,271 matches found in court_hearings_s3 88% match
 
@@ -3967,7 +3969,7 @@ court_df %>%
  ## in about 14% of observations. All else looks good
 
 
-lapply(court_charge, function(i){
+lapply(assess_df, function(i){
   if (is.character(i)==T){
     sum(is.na(i)|i=="NULL")
   }
@@ -3976,28 +3978,17 @@ lapply(court_charge, function(i){
   }
 })
 
-lapply(court_charge, function(i){
+lapply(assess_df, function(i){
   if(length (unique(i)) <=50)
     table(i, useNA="always")})
 
 
-summary(court_df$file_date)
+
 
 ##Are all dates coming through
-summary(court_charge$plea_date)  
-summary(court_charge$file_date)
-summary(court_charge$arrest_date)
-summary(court_charge$court_case_status_date)
-summary(court_charge$offense_date)
-summary(court_charge$final_date)
-summary(court_charge$sentence_date)
-summary(court_charge$disposition_date)
-
-summary(court_hearing$file_date)
-summary(court_hearing$hearing_date)
-summary(court_hearing$hearing_date_next)
-
-summary(court_df$file_date)
+summary(assess_df$arrest_date)  
+summary(assess_df$book_date)  
+summary(assess_df$assessment_date)  
 
 
 
