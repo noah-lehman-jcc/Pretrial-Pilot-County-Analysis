@@ -270,9 +270,6 @@ save(charge_hier, file = "Complete Charge Code Hierarchy_SL.RData")
 # shell.exec(getwd())
 
 
-load("G:/CrimJustice/PretrialAssessmentPilot/Complete Charge Code Hierarchy.RData")
-charge_hier %>%
-  filter(grepl("286", charge))
 ```
 
 
@@ -360,7 +357,7 @@ save(charge_hier, file = "Complete Charge Code Hierarchy_SL.RData")
 
 Lawyer Reviewed Flags and fix JBSIS codes
 ```{r}
-file <- "G:/CrimJustice/PretrialAssessmentPilot/Charge Definitions and Hierarchy/Legal Review of Offense Flags.xlsx"
+file <- "G:/CrimJustice/PretrialAssessmentPilot/Charge Definitions and Hierarchy/Legal Review of Offense Flags_SL.xlsx"
 
 # getSheetNames(file)
 
@@ -444,24 +441,26 @@ charge_hier <- charge_hier %>%
 
 
 # Updated 1/7/2021 to match jbsis codes to charges with missing jbsis codes determined by the base charge, when there is no conflict of jbsis codes.
+# updated 1/27/2021 to also match summary codes to charges with missing summary codes in the same way
 # SB 10 flags are also removed due to its failure. 
 charge_hier <- charge_hier %>%
   mutate(charge_start = as.integer(parse_number(charge)),
-         jbsis_code = if_else(is.na(jbsis_code)|jbsis_code == 0, 1000, jbsis_code)) %>%
+         jbsis_code = if_else(is.na(jbsis_code)|jbsis_code == 0, 1000, jbsis_code),
+         summary_code = if_else(is.na(summary_code)|summary_code == 0, 1000, summary_code)) %>%
   group_by(charge_level, charge_code, charge_start) %>%
-  mutate(n = sum(!(unique(jbsis_code) %in% c(1000, 90, 250, 270)))) %>%
-  mutate(jbsis_code = if_else(jbsis_code == 1000 & n %in% 0:1, min(jbsis_code), jbsis_code)) %>%
+  mutate(n = sum(!(unique(jbsis_code) %in% c(1000, 90, 250, 270))),
+         ns = sum(!unique(summary_code) %in% c(1000))) %>%
+  mutate(jbsis_code = if_else(jbsis_code == 1000 & n %in% 0:1, min(jbsis_code), jbsis_code),
+         summary_code = if_else(summary_code == 1000 & ns %in% 0:1, min(summary_code), summary_code)) %>%
   ungroup() %>%
   mutate(#Fixing property and drug jbsis flagsdd
          property_flag = if_else(jbsis_code %in% c("220", "70"), 1, 0),
          drug_flag = if_else(jbsis_code %in% c("230", "80"), 1, 0)) %>%
-  select(-n) %>%
-  mutate(summary_code = if_else(is.na(summary_code), 1000, summary_code))
+  select(-n, -ns, -charge_start, -bcs_code)
 
 save(charge_hier, file = "Complete Charge Code Hierarchy_SL.RData")
 
-#save(charge_hier, file = "G:/CrimJustice/PretrialAssessmentPilot/Complete Charge Code Hierarchy_SL.RData")
-
+# save(charge_hier, file = "G:/CrimJustice/PretrialAssessmentPilot/Complete Charge Code Hierarchy_SL.RData")
 
 ```
 
