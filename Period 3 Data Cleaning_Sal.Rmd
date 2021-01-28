@@ -40,24 +40,10 @@ Jail Data (Maybe all data?, no FTA information)
 ###
 
 # Jail Bookings
-  ## book_df contains one row for each combination of book_num, arrest_charge_original, arrest_charge_count ,court_case_id, disposition_date, disposition_type_original. It had 377 duplicate lines which are removed. It contains information on the booking
-book_df <- lapply(2015:2018, function(i){
-  fread(paste0("Historical Data Submissions/Kings/Pretrial Pilot Program-", i, ".csv"))
-}) %>% bind_rows()
+  ## book_df contains one row for each combination of book_num, arrest_charge_original, arrest_charge_count ,court_case_id, disposition_date, disposition_type_original. It contains information on the booking
+# In P3 Kings provided cumulative booking data from 2015 through P3
 
-book_df2 <- 
-  fread("Historical Data Submissions/Kings/Pretrial Pilot Program-2019 updated to 123119.csv") 
-
-#2nd period submissions
-book_df3 <-
-  fread("Historical Data Submissions/Kings/P2 Submission-June 30/Pretrial Pilot Program Qtr 3-4 2020.csv")
-
-book_df <- book_df2 %>%
-  bind_rows(book_df, book_df3) %>%
-  distinct()
-
-rm(book_df2)
-rm(book_df3)
+book_df <- fread("Historical Data Submissions/Kings/P3 Submission-Jan 15/Pretrial Pilot Program 2015-2019.csv")
 
 
 # Variable name standardization--See pg. xxx for more details. 
@@ -89,6 +75,7 @@ book_df <- book_df %>%
          book_date = as_date(book_date_time),
          release_date = as_date(release_date_time),
          disposition_date = as_date(mdy_hms(disposition_date))) 
+
 
 
 # Standardize Charges and join charge hierarchy--See pg. xxx for more details about this process. 
@@ -953,19 +940,16 @@ a1 %>%
 
 Probation Data
 ```{r}
-assess_df <- read_excel("Historical Data Submissions/Kings/P2 Submission-June 30/Kings County Data Collection - 01.01.20 - 07.28.20.xlsx", skip = 1)
-
+assess_df <- read_excel("Historical Data Submissions/Kings/P3 Submission-Jan 15/KINGS COUNTY - PRETRIAL DATA - 01.01.19 - 12.31.20.xlsx", skip = 1)
 
 assess_df <- assess_df %>%
   separate(AssessmentAnswer, c("vpraio_tool_response_1", "vpraio_tool_response_2", "vpraio_tool_response_3", "vpraio_tool_response_4", "vpraio_tool_response_5", "vpraio_tool_response_6", "vpraio_tool_response_7", "vpraio_tool_response_8", "vpraio_tool_response_9"), sep = ",") %>%
   mutate(across(contains("vpraio_tool_response"), ~gsub("^.*:", "", .x)))
 
-names_df <- tibble(original_field = names(assess_df)) 
 
 # Variable name standardization--See pg. xxx for more details.
 names(assess_df) <- c("tool_name", "name", "dob", "sex_original", "race_original", "fbi", "cdl_id", "cii", "book_num", "zip_code", "referral_status", "court_date_reminder_original", "release_recommendation_original", "release_decision_original", "pretrial_decision_date", "assessment_date", "vpraio_risk_score", "vpraio_tool_response_1", "vpraio_tool_response_2", "vpraio_tool_response_3", "vpraio_tool_response_4", "vpraio_tool_response_5", "vpraio_tool_response_6", "vpraio_tool_response_7", "vpraio_tool_response_8", "vpraio_tool_response_9", "pretrial_release_type_original",  "release_date_time", "release_authorization_original", "release_conditions_original", "pretrial_violation_date", "pretrial_violation_original")
 
-names_df$field <- names(assess_df)
 
 # Date Reformatting--See pg. xxx for more details.
 assess_df <- assess_df %>%
@@ -4931,13 +4915,16 @@ Jail Data
 
 # Jail Bookings
   ## book_df contains one row per charge per case associated with a booking into the Sonoma County Jail between xxx and xxx. One booking will have as many rows as there are related booked and pending filed charges. 
-book_df <- fread("Historical Data Submissions/Sonoma/P2 Submission-June 30/Jail Data Set - File 1 of 3 - 20200713.csv") 
-book_df <- fread("Historical Data Submissions/Sonoma/P3 Submission-Jan 15/Jail Data Set - File 1 of 3 - 20200713.csv") 
+#book_df <- fread("Historical Data Submissions/Sonoma/P2 Submission-June 30/Jail Data Set - File 1 of 3 - 20200713.csv") 
+#book_df <- fread("Historical Data Submissions/Sonoma/P3 Submission-Jan 15/Jail Data Set - File 1 of 3 - 20200713.csv") 
+book_df <- fread("Historical Data Submissions/Sonoma/P3 Submission-Jan 15/Jail Dataset3-Bookings and Offenses-20210111.csv") 
 
+
+names(book_df) <- c("lent_key", "book_num", "book_date_time", "arrest_date_time",  "book_type_original", "booked_or_pending_charge", "ccas_key", "court_case_id", "court_docket_id", "arrest_charge_code_original", "arrest_charge_original", "arrest_charge_level_original", "arrest_charge_description", "arrest_charge_counts",  "bail_amt")
 
 
 # Variable name standardization--See pg. xxx for more details. 
-names(book_df) <- c("lent_key", "arrest_date_time", "book_num", "book_date_time", "book_type_rollup", "book_type_original", "booked_or_pending_charge", "ccas_key", "court_case_id", "court_docket_id", "arrest_charge_code_original", "arrest_charge_original", "arrest_charge_level_original", "arrest_charge_description", "arrest_charge_counts", "release_date_time", "release_type_original", "release_info", "bail_amt", "employment_status_employer", "employment_type")
+# names(book_df) <- c("lent_key", "arrest_date_time", "book_num", "book_date_time", "book_type_rollup", "book_type_original", "booked_or_pending_charge", "ccas_key", "court_case_id", "court_docket_id", "arrest_charge_code_original", "arrest_charge_original", "arrest_charge_level_original", "arrest_charge_description", "arrest_charge_counts", "release_date_time", "release_type_original", "release_info", "bail_amt", "employment_status_employer", "employment_type")
 
 
 # Date Reformatting --See pg. xxx for more details.
@@ -5008,16 +4995,25 @@ book_df <- book_df %>%
          warrant_flag = if_else(grepl("Warrant", book_type), 1, 0),
          onview_flag = if_else(grepl("On_View", book_type), 1, 0))
 
+####
+#Jail book more variables
+
+book_case <- fread("Historical Data Submissions/Sonoma/P3 Submission-Jan 15/Jail Dataset2-Bookings-20210107.csv") 
+
+names(book_case) <- c(  "book_num", "lent_key","book_date_time",  "book_type_original", "release_date_time", "release_type_original", "release_info", "bail_amt", "employment_status_employer", "employment_type")
+
+#need to standardize this
 
 ####
 
 #Jail demo
   ## book_demo contains the individual-level data elements used to identify each individual in the jail dataset.  
-book_demo <-fread("Historical Data Submissions/Sonoma/P2 Submission-June 30/Jail Data Set - File 2 of 3 - 20200713.csv")
+#book_demo <-fread("Historical Data Submissions/Sonoma/P2 Submission-June 30/Jail Data Set - File 2 of 3 - 20200713.csv")
+book_demo <- fread("Historical Data Submissions/Sonoma/P3 Submission-Jan 15/Jail Dataset1-Jail Individuals-20210107.csv") 
 
 
 # Variable name standardization--See pg. xxx for more details. 
-names(book_demo) <- c("lent_key", "cii", "fbi", "dl_state", "cdl_id", "name", "dob", "sex_original", "race_original")
+names(book_demo) <- c("lent_key", "cii", "fbi", "dl_state", "cdl_id", "first_name", "middle_name", "last_name", "dob", "sex_original", "race_original")
 
 
 # Date Reformatting --See pg. xxx for more details.
@@ -5045,7 +5041,8 @@ book_demo <- book_demo %>%
   ## book_charge contains all convicted charges for any booking or pending filed charges that were included in book_df
   ## this df will not be used because the conviction information will come from the court data
 
-book_conviction <- fread("Historical Data Submissions/Sonoma/P2 Submission-June 30/Jail Data Set - File 3 of 3 - 20200713.csv")
+# book_conviction <- fread("Historical Data Submissions/Sonoma/P2 Submission-June 30/Jail Data Set - File 3 of 3 - 20200713.csv")
+book_conviction <- fread("Historical Data Submissions/Sonoma/P3 Submission-Jan 15/Jail Dataset4-Convictions-20210111.csv") 
 
 
 # Variable name standardization--See pg. xxx for more details. 
@@ -5676,11 +5673,24 @@ Probation Data
 
 # Probation assessments
   ## prob_assess contains one row per pretrial risk assessment (SPRAT), with data for any pretrial release event pertaining to that SPRAT, and one row for any pretrial release event that was not associated to a SPRAT. The primary keys in this file are the sprat_id (unique identifier for each SPRAT assessment) and croa_key (unique identifier for each pretrial grant). 
-prob_assess <- read.csv("Historical Data Submissions/Sonoma/P2 Submission-June 30/Probation Data File - 1 of 6 - 20200713.csv", stringsAsFactors = FALSE) 
+#prob_assess <- read.csv("Historical Data Submissions/Sonoma/P2 Submission-June 30/Probation Data File - 1 of 6 - 20200713.csv", stringsAsFactors = FALSE) 
+prob_assess1 <- read.csv("Historical Data Submissions/Sonoma/P3 Submission-Jan 15/ProbationDataset1_AssessmentsAndGrants.csv", stringsAsFactors = FALSE)
+prob_assess2 <- read.csv("Historical Data Submissions/Sonoma/P3 Submission-Jan 15/ProbationDataset2_SPRATassessments.csv", stringsAsFactors = FALSE)
+prob_assess3 <- read.csv("Historical Data Submissions/Sonoma/P3 Submission-Jan 15/ProbationDataset3_PSAassessments.csv", stringsAsFactors = FALSE)
+prob_assess4 <- read.csv("Historical Data Submissions/Sonoma/P3 Submission-Jan 15/ProbationDataset4_Individuals.csv", stringsAsFactors = FALSE)
+prob_assess5 <- read.csv("Historical Data Submissions/Sonoma/P3 Submission-Jan 15/ProbationDataset5_PretrialViolations.csv", stringsAsFactors = FALSE)
+prob_assess6 <- read.csv("Historical Data Submissions/Sonoma/P3 Submission-Jan 15/ProbationDataset6_TermsandConditions.csv", stringsAsFactors = FALSE)
+prob_assess7 <- read.csv("Historical Data Submissions/Sonoma/P3 Submission-Jan 15/ProbationDataset7_CourtDateReminders.csv", stringsAsFactors = FALSE)
 
-names_df1 <- tibble(original_field = names(prob_assess)) 
-
-
+prob_assess1
+prob_assess2
+prob_assess3
+prob_assess4
+prob_assess5
+prob_assess6
+prob_assess7
+```
+```{r}
 # Variable name standardization--See pg. xxx for more details. 
 names(prob_assess) <- c("record_type", "sprat_id", "croa_key", "tool_name", "assessment_date_time", "booking_adr_street", "booking_adr_city", "zip_code_booking", 
                         "ptr_adr_line1", "ptr_adr_line2", "ptr_adr_street", "ptr_adr_city", "ptr_adr_state", "zip_code_ptr", "x1_dv_arrest", "x2_dui_arrest", 
