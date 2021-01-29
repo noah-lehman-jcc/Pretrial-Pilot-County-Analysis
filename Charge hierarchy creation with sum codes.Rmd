@@ -440,6 +440,16 @@ charge_hier <- charge_hier %>%
          jbsis_code = if_else(join_var == "F_PC_45736", 90, jbsis_code))
 
 
+#Add summary codes for the two most common offenses that are missing them
+#charges with >1000 rows that are missing summary codes:
+# F_PC_487 -- Grand theft . Should have summary code 09 for felony theft
+# M_PC_484A4905 -- 484(A)/490.5 Theft/petty theft merchandise. Should have summary code 31 for misdemeanor petty theft
+
+charge_hier <- charge_hier %>%
+  mutate(summary_code = if_else(join_var %in% c("F_PC_487"), 9, summary_code),
+         summary_code = if_else(join_var %in% c("M_PC_484A4905"), 31, summary_code))
+
+
 # Updated 1/7/2021 to match jbsis codes to charges with missing jbsis codes determined by the base charge, when there is no conflict of jbsis codes.
 # updated 1/27/2021 to also match summary codes to charges with missing summary codes in the same way
 # SB 10 flags are also removed due to its failure. 
@@ -453,14 +463,18 @@ charge_hier <- charge_hier %>%
   mutate(jbsis_code = if_else(jbsis_code == 1000 & n %in% 0:1, min(jbsis_code), jbsis_code),
          summary_code = if_else(summary_code == 1000 & ns %in% 0:1, min(summary_code), summary_code)) %>%
   ungroup() %>%
-  mutate(#Fixing property and drug jbsis flagsdd
-         property_flag = if_else(jbsis_code %in% c("220", "70"), 1, 0),
-         drug_flag = if_else(jbsis_code %in% c("230", "80"), 1, 0)) %>%
+  mutate(#Fixing property and drug flags to be off of summary codes
+         property_flag = if_else(summary_code %in% c(8:11, 24, 31:33, 64), 1, 0),
+         drug_flag = if_else(summary_code %in% c(12:15, 34:36), 1, 0)) %>%
   select(-n, -ns, -charge_start, -bcs_code)
+
+
+
 
 save(charge_hier, file = "Complete Charge Code Hierarchy_SL.RData")
 
-# save(charge_hier, file = "G:/CrimJustice/PretrialAssessmentPilot/Complete Charge Code Hierarchy_SL.RData")
+#save(charge_hier, file = "G:/CrimJustice/PretrialAssessmentPilot/Complete Charge Code Hierarchy_SL.RData")
+#save(charge_hier, file = "G:/CrimJustice/PretrialAssessmentPilot/Complete Charge Code Hierarchy.RData")
 
 ```
 
