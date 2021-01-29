@@ -273,8 +273,8 @@ book_df[!(book_df$ac_counts_match),
 Import Court Data Nevada
 ```{r eval=FALSE, include=FALSE}
 
-# Nevada Court Case Data Import 1/2/2015-6/30/2020
-  ##Court Status (renamed court_df contains dispostion type) file_date 1/2/2015-12/13/19
+# Nevada Court Case Data Import 1/2/2015-12/31/2020
+  ##Court Status (renamed court_df contains dispostion type) file_date 1/2/2015-12/30/2020, dispo_date 1/2/2015-9/2/2027 (2027 date looks like and error, but data are there up to 1/27/21)
   ##Court Charges (also has plea type and dispo type contains plea_date range 9/8/2014-12/24/2019  and disposition_date range 1/22/1949-12/23/2019)
   ##Court hearings (hearing dates range from 1/2/2015-5/31/2019)
   ##Court Warrants (warrant date range 1/5/2015-12/30/2019)
@@ -292,8 +292,7 @@ Import Court Data Nevada
 
 court_df <- lapply(c("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Nevada/PTRiskAss-Case+PtyData.csv",
                      "G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Nevada/Submitted 2-3/PTRiskAss-Case+PtyData.csv",
-                     "G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Nevada/P2 Submission-June 30/PTRiskAss-Case+PtyData.csv",
-                     "G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Nevada/P2 Submission-June 30/PTRiskAss-Case+PtyData.csv"),
+                     "G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Nevada/P2 Submission-June 30/PTRiskAss-Case+PtyData.csv", "G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Nevada/P3 Submission-Jan 15/PTRiskAss-Case+PtyData.csv"),
                    function(x) {
                      fread(x, colClasses = "character")
                    }) %>%
@@ -369,17 +368,17 @@ court_df <- court_df %>%
 
 
 
-
 ####
 
 
 # Court Filing Charges 
   ## court_charges contains one row per each charge associated with a court case and includes information on the charges and dispositions of each charge.
   ## court_charges contains a disposition_date, but there can be multiple disposition dates within a court case when VOP charges are dealt with after the main court case. It appears that the disposition_date in court_df would be a better source of disposition date
+ ## after Jan-Dec2020 data submitted obs=38,084 dispo_date range 1/22/1949 to 1/27/2021, plea_date 9/8/2014 to 1/26/2021
 
 court_charge <- lapply(c("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Nevada/PTRiskAss-Chg.csv",
                           "G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Nevada/Submitted 2-3/PTRiskAss-Chg.csv",
-                           "G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Nevada/P2 Submission-June 30/PTRiskAss-ChargeData.csv"),
+                           "G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Nevada/P2 Submission-June 30/PTRiskAss-ChargeData.csv", "G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Nevada/P3 Submission-Jan 15/PTRiskAss-ChargeData.csv"),
                         fread) %>%
   bind_rows() %>%
   distinct()
@@ -463,12 +462,12 @@ court_charge <- left_join(court_charge, charge_hier, by = "join_var") %>%
 
 # Court Hearings
   ## court_hearing contains one row per hearing event on each court case and includes information about each hearing. 
-    ## hearing dates range from 1/2/2015-6/30/2020
+    ## court_hearing obs=81,932 as of 12/31/2020 end date submission hearing dates range from 1/2/2015-12/31/2020
 
 
 
 court_hearing <-lapply(c("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Nevada/PTRiskAss-Evnt3.csv",
-                         "G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Nevada/P2 Submission-June 30/PTRiskAss-EventData.csv"), 
+                         "G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Nevada/P2 Submission-June 30/PTRiskAss-EventData.csv", "G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Nevada/P3 Submission-Jan 15/PTRiskAss-EventData.csv"), 
                        fread)%>%
   bind_rows() %>%
   distinct()
@@ -502,10 +501,11 @@ court_hearing <- court_hearing %>%
 
 ####
 
-# Court FTAs with Warrants date range 1/5/2015-7/6/2020
+# Court FTAs with Warrants date range 1/5/2015-12/31/2020
+ # obs for file with end date 12/31/2020 = 10268
 court_warrants <- lapply(c("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Nevada/PTRiskAss-BW.csv",
                            "G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Nevada/Submitted 2-3/PTRiskAss-BW.csv",
-                           "G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Nevada/P2 Submission-June 30/PTRiskAss-BenchWarrantData.csv"),
+                           "G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Nevada/P2 Submission-June 30/PTRiskAss-BenchWarrantData.csv", "G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Nevada/P3 Submission-Jan 15/PTRiskAss-BenchWarrantData.csv"),
                          fread) %>%
   bind_rows() %>%
   distinct()
@@ -607,17 +607,66 @@ fwrite(court_df, "G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Fil
 
 ```
 
-Court Diagnostics
+Nevada Court Diagnostics
 ```{r eval=FALSE, include=FALSE}
 
   # not seeing any qualifier charges here  arrest_qualifier_flag=if_else()
             #sup_vio_post_flag=if_else(book_type=="Sup_Vio", 1, 0),
 
-# Diagnostics
+# P3 Diagnostics
+##are any essential data elements missing
 
+str(court_df)
+str(court_charge)
+str(court_hearing)
+str(court_warrants)
+
+
+## how well do tables match: court_df has 15372 distinct case_ids, 
+## 15,371 matches found in court_charge 99.9 % match
+## 9,767 matches found in court_hearings 63.5 % match
+
+test <- court_df %>%
+  distinct(court_case_id) %>%
+  semi_join(court_hearing, by = "court_case_id")
+
+
+
+#Are the contents mostly complete? 
+
+lapply(court_warrants, function(i){
+  if (is.character(i)==T){
+    sum(is.na(i)|i=="NULL")
+  }
+  else{
+    sum(is.na(i))
+  }
+})
+
+lapply(court_warrants, function(i){
+  if(length (unique(i)) <=50)
+    table(i, useNA="always")})
+
+
+# Do the date ranges make sense?
+
+summary(court_df$file_date)
+summary(court_df$disposition_date)
 summary(court_df$dob)
 
+summary(court_charge$disposition_date)
+summary(court_charge$plea_date)
 
+summary(court_hearing$hearing_date)
+
+summary(court_warrants$hearing_date)
+
+
+court_charge %>%
+  arrange(desc(plea_date))
+
+
+```
 sort(table(court_charges$court_charge_code_original[court_charges$court_charge_code == "Other"]), decreasing = TRUE)
 unique(court_charges$court_charge[order(nchar(court_charges$court_charge), decreasing = TRUE)])
 court_charges[grep("\\(F\\)$|\\(I\\)$", court_charges$court_charge_code_original), ]   
