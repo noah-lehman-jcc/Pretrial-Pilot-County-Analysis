@@ -45,7 +45,7 @@ Jail Data Nevada
 
 #reading in new P3 data
 
-book_df <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Nevada/P3 Submission-Jan 15/Pretrial Data Through December 2020.xlsx") %>%
+book_df <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Nevada/P3 Submission-Jan 15/Pretrial Data Through December 2020.xlsx", col_types = "text") %>%
   distinct()
 
 
@@ -67,7 +67,8 @@ book_df <- book_df %>%
          arrest_date_time = as_datetime(arrest_date_time),
          book_date_time = as_datetime(book_date_time),
          release_date_time = as_datetime(release_date_time)) %>%
-  mutate(court_case_id = as.character(court_case_id))
+  mutate(court_case_id = as.character(court_case_id),
+         )
 
 
 # Standardize Factors
@@ -665,9 +666,7 @@ summary(court_warrants$hearing_date)
 court_charge %>%
   arrange(desc(plea_date))
 
-
-```
-sort(table(court_charges$court_charge_code_original[court_charges$court_charge_code == "Other"]), decreasing = TRUE)
+table(court_charges$court_charge_code_original[court_charges$court_charge_code == "Other"]), decreasing = TRUE)
 unique(court_charges$court_charge[order(nchar(court_charges$court_charge), decreasing = TRUE)])
 court_charges[grep("\\(F\\)$|\\(I\\)$", court_charges$court_charge_code_original), ]   
 
@@ -932,8 +931,6 @@ court_dispos_s3 %>%
 ```
 Sierra Court Diagnostics
 ```{r eval=FALSE, include=FALSE}
-Court Diagnostics Sierra
-```{r}
 
 # Diagnostics
 ##are any essential data elements missing
@@ -1057,9 +1054,25 @@ court_df <- reduce(list(court_df_s3, court_dispo_s, court_fta_war, court_arraign
 fwrite(court_df, "G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Sierra Court Collapse.csv")
 ```
 
-Probation Data New
+Probation Data New Nevada
 ```{r eval=FALSE, include=FALSE}
-assess_df_case <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Nevada/P2 Submission-June 30/pretrial_data.xlsx",  sheet = 1)
+
+# Nevada Assessment Data Import--data are organized in one excel files with multiple worksheets
+  ## Case Data: read in 2/10/2021 P3 data have 290 obs pretrial_release_dates range from 1/15/2019 to 12/19/2020, termination_dates from 5/5/2020 to 1/29/2021
+  ## Demographics: has 263 obs no dates 
+  ## Scores: has 1712 obs, assessment_date ranges from 5/1/2020 to 1/27/2021
+  ## Terms and Conditions: has 687 observations no dates
+  ## violations: obs 373 pretrial violation dates range from: 
+
+
+ 
+## read in case data
+# assess_df_old <- read_csv("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/San Mateo/P2 Submission-June 30/Pretrial Pilot eProb PROD data_10142020.csv", skip = 3) i this is old data read in that goes up to 10/15/2020.  The newest file contains all of the same data plus 3 more months
+
+# assess_df_case_p2 <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Nevada/P2 Submission-June 30/pretrial_data.xlsx",  sheet = 1)
+
+
+assess_df_case <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Nevada/P3 Submission-Jan 15/pretrial_data Jan 2021.xlsx",  sheet = 1)
 
 
 # Format Names
@@ -1073,11 +1086,13 @@ assess_df_case <- assess_df_case %>%
 names_df1 <- tibble(original_field = names(assess_df_case))
 
 # Standardize Names
-names(assess_df_case) <- c("pretrial_id", "pretrial_id1", "pretrial_id2", "arresting_agency", "name","zip_code",
-                            "release_recommendation_original", "pretrial_release_type_original",
+names(assess_df_case) <- c("pretrial_id", "name","zip_code",
+                            "release_recommendation_original", "release_authorization", "pretrial_release_type_original",
                            "pretrial_release_date_time",
                             "court_date_reminder_original", "pretrial_termination_outcome_original", "pretrial_termination_date_time",
                             "last_name","first_name", "middle_name","suffix")
+
+# these variables were in P2 but not P3 "pretrial_id1", "pretrial_id2", "arresting_agency",  and "release_authorization was added in P3
 
 names_df1$field <- names(assess_df_case)
 
@@ -1086,6 +1101,8 @@ names_df1$field <- names(assess_df_case)
 assess_df_case <- assess_df_case %>%
   mutate(pretrial_release_date = as_date(pretrial_release_date_time),
          pretrial_termination_date = as_date(pretrial_termination_date_time))  
+
+
 
 
 # Factor Standardization
@@ -1160,7 +1177,9 @@ assess_df_case <- assess_df_case %>%
 
 
    
-
+# add this to case data to make court date reminder flag 
+##court_date_reminder_flag = if_else(court_date_reminder_original == "CourtAppearance"|
+##pretrial_release_type_original %in% c("PTS with court reminders", "OR-with court reminders"), 1, 0),
          
 
 # assess_df_case %>%
@@ -1170,15 +1189,19 @@ assess_df_case <- assess_df_case %>%
 
 ##Readin Demographic data
 
-assess_df_demo <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Nevada/P2 Submission-June 30/pretrial_data.xlsx", col_types= c("text" , "text" , "text" , "text" ,  "text" , "text" ,
-                                                    "text" , "date" , "text" ,  "text" ) , sheet = 2)
+# old  assess_df_demo_p2 <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Nevada/P2 Submission-June 30/pretrial_data.xlsx", col_types= c("text" , "text" , "text" , "text" ,  "text" , "text" , "text" , "date" , "text" ,  "text" ) , sheet = 2)
 
-## add this to case data to make court date reminder flag 
-##court_date_reminder_flag = if_else(court_date_reminder_original == "CourtAppearance"|
-##pretrial_release_type_original %in% c("PTS with court reminders", "OR-with court reminders"), 1, 0),
+
+assess_df_demo <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Nevada/P3 Submission-Jan 15/pretrial_data Jan 2021.xlsx", col_types= c("text" , "text" , "text" , "text" ,  "text" , "date" ,
+                                                    "text" , "text" ) , sheet = 2)
+
+
+# Standardize Names
+names(assess_df_demo) <- c("pretrial_id",  "cii", "fbi", "cdl_id",
+                            "name", "dob", "sex_original", "race_original")
 
 assess_df_demo <- assess_df_demo %>%
-  mutate (name = toupper(Name)) %>% 
+  mutate (name = toupper(name)) %>% 
   separate(name, c("last_name", "first_name", "suffix"),  sep = ",") %>%
   mutate_at(vars(first_name, last_name, suffix), trimws) %>%
   separate(first_name, c("first_name", "middle_name"), sep = " ")
@@ -1188,11 +1211,11 @@ assess_df_demo <- assess_df_demo %>%
 
 names_df2 <- tibble(original_field = names(assess_df_demo))
 
-# Standardize Names
-names(assess_df_demo) <- c("pretrial_id1", "pretrial_id2", "arresting_agency", "cii", "fbi", "cdl_id",
-                            "name", "dob", "sex_original", "race_original",
-                            "last_name","first_name", "middle_name","suffix")
 
+                          
+
+
+# "pretrial_id2", "arresting_agency", these two variables were in P2 but not in P3
 
 names_df2$field <- names(assess_df_demo)
 
@@ -1208,7 +1231,10 @@ assess_df_demo <- assess_df_demo %>%
 
 #Readin Scores
 
-assess_df_score <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Nevada/P2 Submission-June 30/pretrial_data.xlsx", sheet = 3, na = "NULL")
+# old  assess_df_score_p2 <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Nevada/P2 Submission-June 30/pretrial_data.xlsx", sheet = 3, na = "NULL")
+
+
+assess_df_score <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Nevada/P3 Submission-Jan 15/pretrial_data Jan 2021.xlsx", sheet = 3, na = "NULL")
 
 # Standardize Names
 assess_df_score <- assess_df_score %>%
@@ -1221,22 +1247,21 @@ assess_df_score <- assess_df_score %>%
 
 # Rearrange Scores from Long to Wide
 assess_df_score <- assess_df_score %>%
-  group_by (IdNumber, Assessment_Date_Time, arrestingagency) %>%
+  group_by (Id, Assessment_Date_Time) %>%
   pivot_wider(names_from = Tool_Question,  values_from = Tool_Response) %>%
   ungroup() %>%
   select(-`NA`)
   
-  
 
 names_df3 <- tibble(original_field = names(assess_df_score))
 # Standardize Names
-names(assess_df_score) <- c("pretrial_id1", "pretrial_id2", "arresting_agency", "name","tool_name",
-                            "assessment_date_time", "oras_risk_score", "last_name", "first_name",
+names(assess_df_score) <- c("id", "pretrial_id",  "name","tool_name",
+                            "assessment_date_time", "questions_id", "oras_risk_score", "last_name", "first_name",
                             "middle_name","suffix","oras_tool_response_1", "oral_tool_response_2",
                             "oras_tool_response_3",	"oras_tool_response_4","oras_tool_response_5",
                             "oras_tool_response_6", "oras_tool_response_7")
 
- 
+ # "pretrial_id2", "arresting_agency", these variables were in P@ but not P# extract
 names_df3$field <- names(assess_df_score)
 
 # Date Reformatting--See pg. xxx for more details.
@@ -1269,16 +1294,19 @@ assess_df_score <- assess_df_score %>%
 # Readin Terms and Conditions
   ## it looks like they record conditions the person got, rather than recommended conditions we find multiple lines for the same pretrial Id with different release dates, or release types.
   
-assess_df_terms <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Nevada/P2 Submission-June 30/pretrial_data.xlsx", sheet = 4)
+# old assess_df_terms_p2 <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Nevada/P2 Submission-June 30/pretrial_data.xlsx", sheet = 4)
+
+assess_df_terms <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Nevada/P3 Submission-Jan 15/pretrial_data Jan 2021.xlsx", sheet = 4)
 
 #Standardize Names
 
 names_df4 <- tibble(original_field = names(assess_df_terms))
 
-names(assess_df_terms)<- c("pretrial_id", "pretrial_id1", "pretrial_id2", "arresting_agency", "name",
+names(assess_df_terms)<- c("pretrial_id",   "name",
                            "release_conditions_original")
 
  
+# "pretrial_id2" , "arresting_agency",  these variables were not submitted in P3
 names_df4$field <- names(assess_df_terms)
 
 assess_df_terms <- assess_df_terms %>%
@@ -1303,15 +1331,18 @@ assess_df_terms <- assess_df_terms %>%
         
 
 
-assess_df_viol <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Nevada/P2 Submission-June 30/pretrial_data.xlsx", sheet = 5)
+# old  assess_df_viol_p2 <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Nevada/P2 Submission-June 30/pretrial_data.xlsx", sheet = 5)
+
+assess_df_viol <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Nevada/P3 Submission-Jan 15/pretrial_data Jan 2021.xlsx", sheet = 5)
 
 #Standardize Names
 
 names_df5 <- tibble(original_field = names(assess_df_viol))
 
-names(assess_df_viol)<- c("pretrial_id", "pretrial_id1", "pretrial_id2", "arresting_agency", "name",
+names(assess_df_viol)<- c("pretrial_id", "name",
                            "pretrial_violation_original", "pretrial_violation_date")
 
+# these varaibles have been removed "pretrial_id1", "pretrial_id2", "arresting_agency"
 
 #the violations in this file are all violations, not just those that result in termiantion
 names_df5$field <-  names(assess_df_viol)
@@ -1325,6 +1356,58 @@ assess_df_viol <- assess_df_viol %>%
 
 
 ```
+Nevada Probation Diagnostics
+```{r}
+# P3 Diagnostics
+##are any essential data elements missing
+
+str(assess_df_case)
+str(assess_df_demo)
+str(assess_df_score)
+str(assess_df_terms)
+str(assess_df_viol)
+
+## how well do tables match: 
+# assess_df_demo has 263 unique pretrial_ids
+## 262 matches found in assess_df_case 99.6% match
+## 263 matches found in assess_df_score 100% match
+## 263 matches found in assess_df_terms 100% match
+## 263 matches found in assess_df_viol 100% match
+
+test2 <- assess_df_demo %>%
+  distinct(pretrial_id) %>%
+  semi_join(assess_df_viol, by = "pretrial_id")
+
+
+
+#Are the contents mostly complete? 
+
+lapply(assess_df_viol, function(i){
+  if (is.character(i)==T){
+    sum(is.na(i)|i=="NULL")
+  }
+  else{
+    sum(is.na(i))
+  }
+})
+
+lapply(assess_df_viol, function(i){
+  if(length (unique(i)) <=50)
+    table(i, useNA="always")})
+
+
+# Do the date ranges make sense?
+
+summary(assess_df_case$pretrial_release_date)
+summary(assess_df_case$pretrial_termination_date)
+
+summary(assess_df_score$assessment_date_time)
+
+summary(assess_df_viol$pretrial_violation_date)
+
+
+```
+
 
 Probation Join Tables
 ```{r}
@@ -1858,14 +1941,24 @@ write.xlsx(Nevada_df, file = "Code Books/Nevada Code Book.xlsx")
 ```
 DOJ CII/Linking Extraction
 ```{r}
-# Grab Tables with CII
+# Grab Tables with CII for P3
 df <- sapply(ls()[which(sapply(ls(), function(i){
   sum(names(get(i)) %in% "cii")
 }) == 1)], get)
 
 # Pull CII and other identifiers
-doj_book <- df[[1]] %>%
-  select(cii, fbi, name, dob, cdl_id, race_original, sex_original) %>%
+doj_assess <- df[[1]] %>%
+  select(cii, fbi, first_name, middle_name, last_name, suffix, dob, cdl_id, race_original, sex_original) %>%
+  mutate(cii = parse_number(cii),
+         cii = case_when(nchar(cii) == 6 ~ paste0("0000", cii),
+                         nchar(cii) == 7 ~ paste0("000", cii),
+                         nchar(cii) == 8 ~ paste0("00", cii),
+                         nchar(cii) == 9 ~ paste0("0", cii),
+                         T ~ as.character(cii)),
+         cii = if_else(nchar(cii) != 10, NA_character_, cii)) 
+
+doj_book <- df[[2]] %>%
+  select(cii, fbi, first_name, middle_name, last_name, suffix, dob, cdl_id, race_original, sex_original) %>%
   mutate(cii = parse_number(cii),
          cii = case_when(nchar(cii) == 6 ~ paste0("0000", cii),
                          nchar(cii) == 7 ~ paste0("000", cii),
@@ -1875,7 +1968,7 @@ doj_book <- df[[1]] %>%
          cii = if_else(nchar(cii) != 10, NA_character_, cii)) 
 
 
-doj_court <- df[[2]] %>%
+doj_court <- df[[3]] %>%
   select(cii, fbi, dob, race_original, sex_original, first_name, middle_name, last_name, suffix, local_id) %>%
   mutate(cii = parse_number(cii),
          cii = case_when(nchar(cii) == 6 ~ paste0("0000", cii),
@@ -1888,68 +1981,60 @@ doj_court <- df[[2]] %>%
 
 
 # Examine missing ciis and duplicates on cii. 
-# doj_book %>% #Off by about 55,000
-#   distinct()
-# 
-# doj_book %>% 
-#   distinct(cii)
-# 
-# doj_book %>% 
-#   distinct() %>%
-#   add_count(cii) %>%
-#   filter(n > 1) %>%
-#   arrange(desc(n)) %>% 
-#   View()
-# 
-# doj_court %>% #Off by about 45,000
-#   distinct()
-# 
-# doj_court %>% 
-#   distinct(cii)
-# 
-# doj_court %>% 
-#   distinct() %>%
-#   add_count(cii) %>%
-#   filter(n > 1) %>%
-#   arrange(desc(n)) %>% 
-#   View()
-# 
-# 
-# doj_book %>% # Off by about 7,000
-#   distinct()
-# 
-# doj_book %>% 
-#   distinct(cii)
 
-# doj_book %>% 
-#   distinct() %>%
-#   add_count(cii) %>%
-#   filter(n > 1) %>%
-#   arrange(desc(n)) %>% 
-#   View()
-# 
-# doj_court %>% #Off by about 9,000
-#   distinct()
-# 
-# doj_court %>% 
-#   distinct(cii)
-# 
-# doj_court %>% 
-#   distinct() %>%
-#   add_count(cii) %>%
-#   filter(n > 1) %>%
-#   arrange(desc(n)) %>% 
-#   View()
+ doj_book %>%  
+   distinct()
+
+ doj_book %>%
+   distinct(cii)
+
+ doj_book %>%
+   distinct() %>%
+   add_count(cii) %>%
+   filter(n > 1) %>%
+   arrange(desc(n)) %>%
+   View()
+
+ doj_court %>%   
+   distinct()
+
+ doj_court %>%
+   distinct(cii)
+
+ doj_court %>%
+   distinct() %>%
+   add_count(cii) %>%
+   filter(n > 1) %>%
+   arrange(desc(n)) %>%
+   View()
+
+
+ doj_assess %>%    
+   distinct()
+
+ doj_assess %>%
+   distinct(cii)
+
+ doj_assess %>%
+   distinct() %>%
+   add_count(cii) %>%
+   filter(n > 1) %>%
+   arrange(desc(n)) %>%
+   View()
+
 
 #CIIs for DOJ
-doj_cii <- bind_rows(doj_book %>% select(cii), doj_court %>% select(cii)) %>% distinct()
+doj_cii <- bind_rows(doj_book %>% select(cii), doj_court %>% select(cii), doj_assess %>% select(cii)) %>% distinct()
 
 doj_court <- doj_court %>%
   mutate_if(is.character, funs(trimws(gsub("[^[:alnum:]]", "", .)))) %>%
   mutate_if(is.character, funs(if_else(. == "", NA_character_, .))) 
 
 #Create an excel workbook with all data table. Make sure to include the cii table first. 
-write.xlsx(list(doj_cii, doj_book, doj_court), file = "CIIs for DOJ/Nevada CIIs and Demographics for DOJ.xlsx", sheetName = c("ciis", "booking", "court"))
+write.xlsx(list(doj_cii, doj_book, doj_court, doj_assess), file = "G:/CrimJustice/PretrialAssessmentPilot/CIIs for DOJ/February 2021/Nevada P3 CIIs and Demographics for DOJ.xlsx", sheetName = c("ciis", "booking", "court", "assess"))
+
+
+ 
 ```
 
 P2 pulling CII's 
@@ -2516,7 +2601,7 @@ book_df <- book_df %>%
   ungroup() %>%
   distinct(book_num, court_case_id, .keep_all = T)
 
-fwrite(book_df, "G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/San Mateo Booking Collapse.csv")
+#fwrite(book_df, "G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/San Mateo Booking Collapse.csv")
 
 ```
 San Mateo Jail Diagnostics
@@ -3801,7 +3886,7 @@ San Mateo Assessment Data (Probation) 1/23/2020- 6/30/2020 Go live date was Jan 
  ##10/6/2020 their jail submitted data with the local_id (still need to check for match).  Probation currently ##doesnt have court_case_id, booking_num, or arrest_date 
  ## Condition under basic=phone 1 time per week, regular MOR= come in 1 x per week, enhanced=come in 1 x per week ##and additional conditions
  
-
+# Old P2
 assess_df <- read_csv("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/San Mateo/P2 Submission-June 30/41-Probation-01OF02-JAN232020-JUN302020.csv")
 
 names_df <- tibble(original_field = names(assess_df))
@@ -4439,10 +4524,11 @@ write.xlsx(San_Mateo_df, file = "Code Books/San Mateo Code Book.xlsx")
 
 DOJ CII/Linking Extraction
 ```{r}
+
 # Grab Tables with CII
-# df <- sapply(ls()[which(sapply(ls(), function(i){
-#   sum(names(get(i)) %in% "cii")
-# }) == 1)], get)
+df <- sapply(ls()[which(sapply(ls(), function(i){
+  sum(names(get(i)) %in% "cii")
+ }) == 1)], get)
 
 # Pull CII and other identifiers
 doj_book <- book_df %>%
@@ -4580,6 +4666,54 @@ rm(doj_assess)
 #Create an excel workbook with all data table. Make sure to include the cii table first.--Note there are no ciis in the assessment data
 write.xlsx(list(doj_cii, doj_book, doj_court), file = "G:/CrimJustice/PretrialAssessmentPilot/CIIs for DOJ/October 2020/San Mateo P2 CIIs and Demographics for DOJ.xlsx", sheetName = c("ciis", "booking", "court"))
 
+
+
+
+```
+P3 pulling CII's 
+```{r eval=FALSE, include=FALSE}
+# Grab Tables with CII
+df_list <- sapply(
+  ls()[which(sapply(ls(), function(i){
+    sum(names(get(i)) %in% "cii")
+    }) == 1)],
+  function(j){
+    df <- get(j)
+    df <- df %>%
+      select(any_of(c("cii", "cdl_id", "fbi", "last_name", "first_name", "middle_name", "dob", "sex_original", "race_original"))) %>%
+       mutate(
+         cii = parse_number(cii),
+         cii = case_when(nchar(cii) == 6 ~ paste0("0000", cii),
+                         nchar(cii) == 7 ~ paste0("000", cii),
+                         nchar(cii) == 8 ~ paste0("00", cii),
+                         nchar(cii) == 9 ~ paste0("0", cii),
+                         T ~ as.character(cii)),
+         cii = if_else(nchar(cii) != 10, NA_character_, cii)) %>%
+  distinct()
+ 
+})
+
+# CIIs from assessment tables--
+doj_assess <- bind_rows(df_list[[1]]) %>%
+  mutate_all(as.character)
+
+# CIIs from booking tables
+doj_book <- bind_rows(df_list[[2]]) %>%
+   mutate_all(as.character)
+  
+# CIIs from court tables
+doj_court <- bind_rows(df_list[[3]]) %>%
+   mutate_all(as.character)
+
+#CIIs for DOJ
+doj_cii <- bind_rows(doj_book %>% select(cii), doj_court %>% select(cii), doj_assess %>% select(cii))  %>% 
+  distinct() %>%
+  filter(nchar(cii) == 10)
+
+
+
+#Create an excel workbook with all data table. Make sure to include the cii table first.--Note there are no ciis in the assessment data
+write.xlsx(list(doj_cii, doj_book, doj_court, doj_assess), file = "G:/CrimJustice/PretrialAssessmentPilot/CIIs for DOJ/February 2021/San Mateo P3 CIIs and Demographics for DOJ.xlsx", sheetName = c("ciis", "booking", "court", "assess"))
 
 
 
