@@ -1381,38 +1381,38 @@ Assessment Collapse
 
 assess_df_score <- assess_df_score %>%
   arrange(assessment_date) %>%
-  distinct(pretrial_id2, assessment_date, .keep_all = TRUE)
+  distinct(pretrial_id, assessment_date, .keep_all = TRUE)
   
 assess_df_case <- assess_df_case%>%
-  group_by(pretrial_id2) %>%
+  group_by(pretrial_id) %>%
   mutate_at(vars(contains("flag")), funs(if_else(is.na(.), 0, .))) %>%
   mutate_at(vars(contains("flag")), max) %>%
-  distinct(pretrial_id2, .keep_all = TRUE)
+  distinct(pretrial_id, .keep_all = TRUE)
 
 # dont use for now until we figure out event ID
 assess_df_viol <- assess_df_viol%>%
-  distinct(pretrial_id2, .keep_all = TRUE)
+  distinct(pretrial_id, .keep_all = TRUE)
 
 assess_df_demo <- assess_df_demo%>%
-  distinct(pretrial_id2 , .keep_all = TRUE) %>%
-  mutate (pretrial_id2 = as.numeric(pretrial_id2))
+  distinct(pretrial_id , .keep_all = TRUE) 
+ 
 
 assess_df_terms <- assess_df_terms%>%
-  group_by(pretrial_id2) %>%
+  group_by(pretrial_id) %>%
   mutate_at(vars(contains("flag")), funs(if_else(is.na(.), 0, .))) %>%
   mutate_at(vars(contains("flag")), max) %>%
-  distinct(pretrial_id2, .keep_all = TRUE)
+  distinct(pretrial_id, .keep_all = TRUE)
 
 assess_df <- assess_df_score %>%
-  left_join(assess_df_demo, by = "pretrial_id2") %>%
+  left_join(assess_df_demo, by = "pretrial_id") %>%
   select(-contains(".y")) %>%
   rename_at(vars(contains(".x")), funs(gsub("\\.x", "", .))) %>%
 
-  left_join(assess_df_case, by = "pretrial_id2") %>%
+  left_join(assess_df_case, by = "pretrial_id") %>%
   select(-contains(".y")) %>%
   rename_at(vars(contains(".x")), funs(gsub("\\.x", "", .))) %>%
 
-  left_join(assess_df_terms, by = "pretrial_id2") %>%
+  left_join(assess_df_terms, by = "pretrial_id") %>%
   select(-contains(".y")) %>%
   rename_at(vars(contains(".x")), funs(gsub("\\.x", "", .)))  
 
@@ -1444,7 +1444,7 @@ assess_table <- assess_df %>%
   # Filter for only those actually assessed
   filter(!is.na(assessment_date)) %>%
   # Create county name.
-  mutate(county = "Nevada", risk_score = oras_risk_score) 
+  mutate(county = "Nevada") 
   # Select relevants variables.
 
 # No booking number in assessment data,  so removing charge_level
