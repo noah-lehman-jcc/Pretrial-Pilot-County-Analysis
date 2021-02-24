@@ -181,6 +181,9 @@ book_df <- book_df %>%
 # book_df %>%
 #   select(book_num, book_date, book_type_original, court_case_id, arrest_charge_original, arrest_charge_count, disposition_type_original, disposition_date)
 
+book_df %>%
+  count(release_type_original)
+
 ```
 
 
@@ -1514,7 +1517,6 @@ book_charge <- book_charge %>%
          arrest_qualifier_flag = if_else(arrest_charge_level_original == "SA", 1, 0)
          ) %>%
   rename_at(vars(contains("flag")), funs(paste0("arrest_", .)))
-
 
 
 ```
@@ -3383,6 +3385,8 @@ book_bail <- fread("Historical Data Submissions/Sacramento/P3 Submission-Jan 15/
 names(book_bail) <- c("jail_court_id", "book_num", "registry_sub_num", "book_type_code", "bail_amt")
 
 #need to ask Sac about P3 book charge data, looks like it is only a partial file
+
+
 ```
 
 
@@ -5144,8 +5148,7 @@ names(court_sentence) <- c("court_case_id", "court_docket_id", "charge_id", "sen
 
 # Date Reformatting--See pg. xxx for more details.
 court_sentence <- court_sentence %>%
-  mutate_at(vars(sentence_date, probation_status_date),ymd_hms) %>%
-  mutate_at(vars(sentence_date, probation_status_date),as_date)
+  mutate_at(vars(sentence_date, probation_status_date),mdy)
 
 
 
@@ -5273,6 +5276,7 @@ court_hearing <- court_hearing %>%
 court_hearing <- court_hearing %>%
   mutate(court_sup_vio_post_flag = if_else(hearing_type_desc %in% c("Violation of Probation", "Violation of Formal Probation", "Possible Violation of Probation", "Hearing Re: Violation of Probation", "Violation of Mandatory Supervision", "Violation of Formal Probation Hearing", "Violation of Post Release Community Supervision", "Violation of Parole Supervision", "RPO RE VOP", "Trailing - Violation of Probation", "Violation of Parole Supervision Hearing"), 1, 0),
          court_sup_vio_pre_flag = if_else(hearing_type_desc %in% c("Violation of Pretrial Release"), 1, 0))
+
 
 
 
