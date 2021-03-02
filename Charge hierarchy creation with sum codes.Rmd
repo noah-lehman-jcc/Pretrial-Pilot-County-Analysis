@@ -468,7 +468,14 @@ charge_hier <- charge_hier %>%
          drug_flag = if_else(summary_code %in% c(12:15, 34:36), 1, 0)) %>%
   select(-n, -ns, -charge_start, -bcs_code)
 
+#load("G:/CrimJustice/PretrialAssessmentPilot/Complete Charge Code Hierarchy_SL.RData")
 
+#there are a few instances where the charge hierarchy is incorrectly less than 1000
+charge_hier <- charge_hier %>%
+  mutate(hierarchy = if_else(hierarchy < 1000, 1e6, hierarchy),
+         charge_code = if_else(!charge_code %in% c("PC", "VC", "HS", "BP", "WI", "US"), "Other", charge_code)) %>%
+  unite(join_var, charge_level, charge_code, charge, remove = F) %>%
+  select(join_var, charge_level, charge_code, charge, master_charge_description, everything())
 
 
 save(charge_hier, file = "Complete Charge Code Hierarchy_SL.RData")
