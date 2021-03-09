@@ -305,19 +305,15 @@ court_status <- read_excel("Historical Data Submissions/Kings/KINGS/KINGS.xlsx",
 
 names(court_status) <- c("court_case_id", "court_docket_id", "case_status_date", "case_status")
 
-#original_df[[2]] <- tibble(table_name = "court_status", original_field = original_field, modified_field = names(court_status))
-
 court_status <- court_status %>%
   mutate(case_status_date = as_date(case_status_date))
 
 # Court charges
 court_charges <- read_excel("Historical Data Submissions/Kings/KINGS/KINGS.xlsx", sheet = 2)
 
-#original_field <- names(court_charges)
 
 names(court_charges) <- c("court_case_id", "court_docket_id", "court_charge_count", "court_charge_original", "court_charge_level_original", "court_charge_description", "plea_date", "plea_type_original", "disposition_date", "disposition_type_original", "final_date")
 
-#original_df[[3]] <- tibble(table_name = "court_charges", original_field = original_field, modified_field = names(court_charges))
 
 court_charges <- court_charges %>%
   mutate_at(vars(plea_date),as_date) %>%
@@ -526,6 +522,7 @@ court_fta <- court_fta %>%
 #   select(court_charge_original, court_charge, court_charge_level_original, court_charge_level, court_charge_code_original, court_charge_code, court_charge_description) %>%
 #   unique() # %>%
   # write.xlsx(file = "qualifier_codes_for_Noah_Kings_Court.xlsx")
+
 
 ```
 
@@ -1079,7 +1076,8 @@ save(assess_table, file = "G:/CrimJustice/PretrialAssessmentPilot/Assessment Out
 
 
 ```
-
+  
+ 
 
 Assessment (9/2020) 
 ```{r}
@@ -1209,10 +1207,48 @@ date_df <- lapply(ls()[!grepl("original|^df|hier|names|factor|date|flag", ls())]
   select(table_name, field, min_date, max_date)
   
 
-#write.xlsx(list(factor_df, flag_df, date_df), file = "G:/CrimJustice/PretrialAssessmentPilot/Code Books/Assessment Code Book/Kings Assessment Code Book 9-20.xlsx", asTable = T, tableStyle = "TableStyleMedium1", colWidths = "auto", sheetName = c("Factors", "Flags", "Dates"))
+#write.xlsx(list(factor_df, flag_df, date_df), file = "G:/CrimJustice/PretrialAssessmentPilot/Code Books/Assessment Code Book/Kings Assessment Code Book 3-21.xlsx", asTable = T, tableStyle = "TableStyleMedium1", colWidths = "auto", sheetName = c("Factors", "Flags", "Dates"))
 
 ```
 
+Join across agencies (Updated 3.9.21)
+```{r}
+load("G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Kings Assessment Collapse.RData") 
+load("G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Kings Booking Collapse.RData")
+load("G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Kings Court Collapse.RData")
+
+names(book_df)[names(book_df) %in% names(assess_df)]
+
+book_df <- book_df %>%
+  rename(court_docket_id = court_case_id) %>%
+  mutate(court_docket_id = toupper(court_docket_id))
+
+court_df <- court_df %>%
+  mutate(court_docket_id = gsub("-", "", court_docket_id))
+
+#joining court df to book df on jail_court_id, match rate = 19.2% of bookings, 21.6% of court cases
+#less range of dates on court data
+
+nrow(book_df %>%
+ semi_join(court_df, by = c("court_docket_id"), na_matches = "never"))/nrow(book_df)
+
+nrow(court_df %>%
+ semi_join(book_df, by = c("court_docket_id"), na_matches = "never"))/nrow(court_df)
+
+join_df <- book_df %>%
+ left_join(court_df, by = c("court_docket_id"), na_matches = "never") %>%
+  select(-contains(".y")) %>%
+  rename_at(vars(contains(".x")), funs(gsub("\\.x", "", .))) 
+
+
+
+#joining assess_df to joined booking and court data on book num, match rate = 65.1%
+
+nrow(assess_df %>%
+ semi_join(book_df, by = c("book_num"), na_matches = "never"))/nrow(assess_df)
+
+
+```
 
 Code Book
 ```{r}
@@ -2900,51 +2936,44 @@ df <- list(df[[2]], df[[1]])
 
 
 Join
-  Jail Court Join
 ```{r}
-assess_df <- fread("G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Napa Assessment Collapse.csv") %>%
-  mutate(across(contains("time"), as_datetime)) %>%
-  mutate(across(contains("date") & is.character, as_date))
-book_df <- fread("G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Napa Booking Collapse.csv")%>%
-  mutate(across(contains("time"), as_datetime)) %>%
-  mutate(across(contains("date") & is.character, as_date))
-court_df <- fread("G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Napa Court Collapse.csv")%>%
-  mutate(across(contains("time"), as_datetime)) %>%
-  mutate(across(contains("date") & is.character, as_date))
+load("G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Napa Assessment Collapse.RData") 
+load("G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Napa Booking Collapse.RData")
+load("G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Napa Court Collapse.RData")
 
+book_df <- book_df %>%
+  mutate(local_id = as.character(local_id))
 
-#joining court df to book df on court case id and local id, match rate = 99.5%
+assess_df <- assess_df %>%
+  select(-court_case_id, -contains("case_status"), -case_type) %>%
+  distinct(book_num, .keep_all = T)
 
+#joining court df to book df on court case id and local id, jail to court match rate = 99.95%
+#court to jail match rate = 100%
 nrow(book_df %>%
  semi_join(court_df, by = c("court_case_id", "local_id"), na_matches = "never"))/nrow(book_df)
+
+nrow(court_df %>%
+ semi_join(book_df, by = c("court_case_id", "local_id"), na_matches = "never"))/nrow(court_df)
+
 
 join_df <- book_df %>%
  left_join(court_df, by = c("court_case_id", "local_id"), na_matches = "never") %>%
   select(-contains(".y")) %>%
   rename_at(vars(contains(".x")), funs(gsub("\\.x", "", .)))
 
-#joining assess_df to joined booking and court data on local id and assessment date within 2 days of booking, match rate = 78.8%
+
+
+#joining assess df to book df on book num, assess to jail match rate = 90.7%
 
 nrow(assess_df %>%
-  select(-book_date) %>%
-  left_join(join_df, by = c("local_id"), na_matches = "never") %>%
-  select(-contains(".y")) %>%
-  rename_at(vars(contains(".x")), funs(gsub("\\.x", "", .))) %>%
-  filter(assessment_date >= book_date) %>%
-  filter(assessment_date <= book_date + 2) %>%
-  distinct(local_id, pretrial_id, court_case_id, book_num, assessment_id, .keep_all = T) )/nrow(assess_df %>% distinct(local_id, pretrial_id, court_case_id, book_num, assessment_id, .keep_all = T))
-
+ semi_join(book_df, by = c("book_num"), na_matches = "never"))/nrow(assess_df)
 
 
 join_df2 <- join_df %>%
-  mutate(bookplus_date = book_date + 2) %>%
-  fuzzy_left_join(assess_df, 
-                by=c("local_id", "book_date"="assessment_date", "bookplus_date"="assessment_date"),
-                match_fun=list(`==`, `<=`, `>=`))%>%
+  left_join(assess_df, by = "book_num", na_matches = "never") %>%
   select(-contains(".y")) %>%
   rename_at(vars(contains(".x")), funs(gsub("\\.x", "", .)))
-
-
 
 ```
 
@@ -4351,28 +4380,21 @@ save(assess_table, file = "G:/CrimJustice/PretrialAssessmentPilot/Assessment Out
 
 Join across agencies
 ```{r}
+load("G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Sacramento Assessment Collapse.RData") 
+load("G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Sacramento Booking Collapse.RData")
+load("G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Sacramento Court Collapse.RData")
 
-assess_df <- fread("G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Sacramento Assessment Collapse.csv") %>%
-  mutate(across(contains("time"), as_datetime)) %>%
-  mutate(across(contains("date") & is.character, as_date))%>%
-  as_tibble()
 
-book_df <- fread("G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Sacramento Booking Collapse.csv")%>%
-  mutate(across(c(contains("time"), -contains("time_first_release")), as_datetime)) %>%
-  mutate(across(contains("date") & is.character, as_date)) %>%
-  as_tibble() %>%
+book_df <- book_df %>%
   rename("court_id" = "court_case_id",
          "court_case_id" = "court_docket_id",
          "local_id" = "jail_court_id")
 
-court_df <- fread("G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Sacramento Court Collapse.csv")%>%
-  mutate(across(c(contains("time"), -contains("local")), as_datetime)) %>%
-  mutate(across(contains("date") & is.character, as_date))%>%
-  as_tibble()%>%
+court_df <- court_df %>%
   rename("local_id" = "jail_court_id")
 
 
-#joining court df to book df on jail_court_id, match rate = 56.9% of bookings, 82.8% of court cases
+#joining court df to book df on jail_court_id, match rate = 55.5% of bookings, 84.9% of court cases
 
 nrow(book_df %>%
  semi_join(court_df, by = c("local_id", "court_case_id"), na_matches = "never"))/nrow(book_df)
@@ -4386,12 +4408,11 @@ join_df <- book_df %>%
   rename_at(vars(contains(".x")), funs(gsub("\\.x", "", .))) 
 
 
-#joining assess_df to joined booking and court data on local id and book_num, match rate = 54.6%
-## assessment data has longer date range than booking data by a few months
-
+#joining asses df to book df, match rate = 96.7%
 nrow(assess_df %>%
- semi_join(join_df, by = c("local_id", "book_num"), na_matches = "never"))/nrow(assess_df)
+ semi_join(book_df, by = c("local_id", "book_num"), na_matches = "never"))/nrow(assess_df)
 
+#joining assess_df to joined booking and court data on local id and book_num
 join_df2 <- join_df %>%
  left_join(assess_df, by = c("local_id", "book_num"), na_matches = "never") %>%
   select(-contains(".y")) %>%
@@ -5953,9 +5974,13 @@ assess_table <- assess_df %>%
   mutate(release_recommendation = NA_character_,
          risk_level = NA_character_,
          pretrial_termination_outcome = if_else(pretrial_termination_outcome.y == "Unsuccessful", "Unsuccessful", pretrial_termination_outcome.x),
-         pretrial_termination_reason = if_else(pretrial_termination_outcome.y == "Unsuccessful" & pretrial_termination_outcome.x == "Successful", "Violation", pretrial_termination_reason.x)) %>%
+         pretrial_termination_reason = if_else(pretrial_termination_outcome.y == "Unsuccessful" & pretrial_termination_outcome.x == "Successful", "Violation", pretrial_termination_reason.x),
+         psa_nvca_risk_score = if_else(psa_nvca_risk_score == "Yes", 1, 0)) %>%
+  rename(sprat_risk_score = risk_score) %>%
   # Select relevants variables.
-  select(county, release_recommendation, release_decision, assessment_date, risk_score, tool_name, assessment_date, dob, sex, race, charge_level, risk_level, monitor_level, pretrial_termination_outcome, pretrial_termination_reason)
+  select(county, monitor_level, release_recommendation, release_decision, assessment_date,
+matches("risk|score"), tool_name, assessment_date, dob, sex, race, pretrial_termination_reason, pretrial_ineligible_reason)
+  #select(county, release_recommendation, release_decision, assessment_date, risk_score, tool_name, assessment_date, dob, sex, race, charge_level, risk_level, monitor_level, pretrial_termination_outcome, pretrial_termination_reason)
 
 # Save file  
 #save(assess_table, file = "G:/CrimJustice/PretrialAssessmentPilot/Assessment Output Tables/Sonoma Assessment Output 02-2021.RData")
@@ -6314,33 +6339,13 @@ write.xlsx(list(doj_cii, doj_book, doj_court_person, doj_court_ra, doj_assess), 
 
 Join across agencies
 ```{r}
-
-assess_df <- fread("G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Sonoma Assessment Collapse.csv") %>%
-  mutate(across(contains("time"), as_datetime)) %>%
-  mutate(across(contains("date") & where(is.character), as_date))%>%
-  as_tibble()
-
-book_df <- fread("G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Sonoma Booking Collapse.csv")%>%
-  mutate(across(c(contains("time"), -contains("time_first_release")), as_datetime)) %>%
-  mutate(across(contains("date") & where(is.character), as_date)) %>%
-  as_tibble() %>%
-  rename("court_num" = "court_case_id",
-         "court_case_id" = "court_docket_id") %>%
-  rename("court_docket_id" = "court_num")
-
-court_df <- fread("G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Sonoma Court Collapse.csv")%>%
-  mutate(across(c(contains("time"), -contains("local")), as_datetime)) %>%
-  mutate(across(contains("date") & where(is.character), as_date))%>%
-  as_tibble() %>%
-  rename("court_num" = "court_case_id",
-         "court_case_id" = "court_docket_id") %>%
-  rename("court_docket_id" = "court_num")
-  #rename("local_id" = "jail_court_id")
-
-## ASK SONOMA: why are there so few court cases?
+load("G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Sonoma Assessment Collapse.RData") 
+load("G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Sonoma Booking Collapse.RData")
+load("G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Sonoma Court Collapse.RData")
 
 
-#joining court df to book df on jail_court_id, match rate = 20.6% of bookings, 96.2% of court cases
+
+#joining court df to book df on jail_court_id, match rate = 98.3% of bookings, 56.2% of court cases
 
 nrow(book_df %>%
  semi_join(court_df, by = c("court_docket_id"), na_matches = "never"))/nrow(book_df)
@@ -6355,8 +6360,14 @@ join_df <- book_df %>%
 
 
 
-#joining assess_df to joined booking and court data on book num, court docket id, and lent key (person identifier), match rate = 91%
+#joining assess_df to joined booking and court data on book num, book release date, and lent key (person identifier), match rate = 93.9%
 ## assessment data has longer date range than booking data by a few months
+
+nrow(assess_df %>%
+ semi_join(book_df, by = c("book_num", "lent_key", "book_release_date" = "release_date"), na_matches = "never"))/nrow(assess_df)
+
+book_df %>%
+  left_join(assess_df, by = c("book_num", "lent_key", "release_date" = "book_release_date"), na_matches = "never")
 
 nrow(assess_df %>%
  semi_join(join_df, by = c("book_num", "lent_key", "court_docket_id"), na_matches = "never"))/nrow(assess_df)
@@ -6366,7 +6377,13 @@ join_df2 <- join_df %>%
   select(-contains(".y")) %>%
   rename_at(vars(contains(".x")), funs(gsub("\\.x", "", .))) 
 
+assess_df %>%
+  filter(assess_flag == 1) %>%
+  add_count(book_num, lent_key) %>%
+  filter(n>1) %>%
+  arrange(book_num)
 
+#talk to Sonoma about multiple rows in assessment table when there are different types, assessment w/o linked release, and release w/o assessment
 ```
 
 Collapse of joined dataset
