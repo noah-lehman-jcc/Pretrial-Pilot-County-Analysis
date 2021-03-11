@@ -1247,6 +1247,33 @@ join_df <- book_df %>%
 nrow(assess_df %>%
  semi_join(book_df, by = c("book_num"), na_matches = "never"))/nrow(assess_df)
 
+join_df2 <- join_df %>%
+ left_join(assess_df, by = c("book_num"), na_matches = "never") %>%
+  select(-contains(".y")) %>%
+  rename_at(vars(contains(".x")), funs(gsub("\\.x", "", .))) 
+
+
+```
+
+Join collapse
+```{r}
+
+kings_collapse <- join_df2 %>%
+  rename(pretrial_end_date = final_disposition_date) %>%
+  mutate(across(contains("flag"), ~if_else(is.na(.x), 0, .x))) %>%
+  mutate(new_arrest_flag = if_else(book_type %in% c("On_View", "New_Warrant"), 1, 0)) %>%
+  mutate(release_type = ordered(release_type, levels = c("Unknown", "Other", "Sentenced", "Time_Served", "Detain_Only", "Dismissed_Dropped", "OR",
+                                                         "Bail_Bond", "Cite_Release", "Hold_Release"))) %>%
+  group_by(book_num) %>%
+  mutate(release_type = max(release_type)) %>%
+  mutate(across(contains("sup_vio"), max)) %>%
+  filter(sum(new_arrest_flag) == 0 | new_arrest_flag == 1) %>%
+  mutate(across(contains("flag"), max)) %>%
+  ungroup() %>%
+  distinct(book_num, .keep_all = T)
+  
+#save(kings_collapse, file = "G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Kings Join Collapse.RData")
+
 
 ```
 
@@ -2993,18 +3020,20 @@ Collapse of joined dataset
 
 ### need to fix the flag_count variables, they are being maxed instead of summed
 
-join_collapse <- join_df2 %>%
-  mutate(across(contains("flag"), ~if_else(is.na(.x), as.integer(0), .x))) %>%
+napa_collapse <- join_df2 %>%
+  rename(pretrial_end_date = final_disposition_date) %>%
+  mutate(new_arrest_flag = if_else(book_type %in% c("On_View", "New_Warrant"), 1, 0)) %>%
+  mutate(across(contains("flag"), ~if_else(is.na(.x), 0, .x))) %>%
   group_by(local_id, book_date) %>%
   mutate(across(contains("sup_vio"), max)) %>% 
-  ungroup() %>%
-  filter(final_disposition_date >= book_date, book_type %in% c("On_View", "New_Warrant")) %>%
-  group_by(local_id, book_date) %>%
+  filter(sum(new_arrest_flag) == 0 | new_arrest_flag == 1) %>%
   mutate(across(contains("flag"), max)) %>%
   ungroup() %>%
   distinct(local_id, book_date, .keep_all = T)
   
-#fwrite(join_collapse, "G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Napa Join Collapse.csv")
+#save(napa_collapse, file = "G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Napa Join Collapse.RData")
+
+
 ```
 
 Old and diagnostic code
@@ -4424,32 +4453,22 @@ join_df2 <- join_df %>%
 Collapse of joined dataset
 ```{r}
 
-
-book_df %>%
-  arrange(local_id) %>%
-  add_count(local_id) %>%
-  filter(n >1)
-
-book_df %>%
-  filter(book_num %in% book_num[book_type_original == "FILED SUPERIOR COURT CASE"]) %>%
-  arrange(book_num, registry_sub_num)
-
-join_collapse <- join_df2 %>%
-  mutate(across(contains("flag"), ~if_else(is.na(.x), as.integer(0), .x))) %>%
+sacramento_collapse <- join_df2 %>%
+  rename(pretrial_end_date = final_disposition_date) %>%
+  mutate(across(contains("flag"), ~if_else(is.na(.x), 0, .x))) %>%
+  mutate(new_arrest_flag = if_else(book_type %in% c("On_View", "Warrant"), 1, 0)) %>%
   mutate(release_type = ordered(release_type, levels = c("Unknown", "Other", "Sentenced", "Time_Served", "Detain_Only", "Dismissed_Dropped", "OR",
                                                          "Bail_Bond", "Cite_Release", "Hold_Release"))) %>%
   group_by(book_num) %>%
   mutate(release_type = max(release_type)) %>%
   mutate(across(contains("sup_vio"), max)) %>%
-  ungroup() %>%
-  filter(final_disposition_date >= book_date, book_type %in% c("On_View", "Warrant")) %>%
-  group_by(book_num) %>%
+  filter(sum(new_arrest_flag) == 0 | new_arrest_flag == 1) %>%
   mutate(across(contains("flag"), max)) %>%
   ungroup() %>%
   distinct(book_num, .keep_all = T)
   
-#fwrite(join_collapse, "G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Sacramento Join Collapse.csv")
-join_collapse
+#save(sacramento_collapse, file = "G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Sacramento Join Collapse.RData")
+
 ```
 Old code
 ```{r}
@@ -4609,6 +4628,7 @@ c1 <- anti_join(court_df3, book_df, by = c("jail_court_id", "court_case_id"), na
 # )
 # 
 # join_df <- bind_rows(join1, join2, join3)
+    
 ```
 
 
@@ -6366,14 +6386,9 @@ join_df <- book_df %>%
 nrow(assess_df %>%
  semi_join(book_df, by = c("book_num", "lent_key", "book_release_date" = "release_date"), na_matches = "never"))/nrow(assess_df)
 
-book_df %>%
-  left_join(assess_df, by = c("book_num", "lent_key", "release_date" = "book_release_date"), na_matches = "never")
-
-nrow(assess_df %>%
- semi_join(join_df, by = c("book_num", "lent_key", "court_docket_id"), na_matches = "never"))/nrow(assess_df)
 
 join_df2 <- join_df %>%
- left_join(assess_df, by = c("book_num", "lent_key", "court_docket_id"), na_matches = "never") %>%
+ left_join(assess_df, by = c("book_num", "lent_key", "release_date" = "book_release_date"), na_matches = "never") %>%
   select(-contains(".y")) %>%
   rename_at(vars(contains(".x")), funs(gsub("\\.x", "", .))) 
 
@@ -6384,26 +6399,27 @@ assess_df %>%
   arrange(book_num)
 
 #talk to Sonoma about multiple rows in assessment table when there are different types, assessment w/o linked release, and release w/o assessment
+
+
 ```
 
 Collapse of joined dataset
 ```{r}
 
-join_collapse <- join_df2 %>%
-  mutate(across(contains("flag"), ~if_else(is.na(.x), as.integer(0), .x))) %>%
+sonoma_collapse <- join_df2 %>%
+  mutate(across(contains("flag"), ~if_else(is.na(.x), 0, .x))) %>%
+  mutate(new_arrest_flag = if_else(book_type %in% c("On_View", "Warrant"), 1, 0)) %>%
   mutate(release_type = ordered(release_type, levels = c("Unknown", "Other", "Sentenced", "Time_Served", "Detain_Only", "Dismissed_Dropped", "OR",
                                                          "Bail_Bond", "Cite_Release", "Hold_Release"))) %>%
   group_by(book_num) %>%
   mutate(release_type = max(release_type)) %>%
   mutate(across(contains("sup_vio"), max)) %>%
-  ungroup() %>%
-  filter(pretrial_end_date >= book_date, book_type %in% c("On_View", "Warrant")) %>%
-  group_by(book_num) %>%
+  filter(sum(new_arrest_flag) == 0 | new_arrest_flag == 1) %>%
   mutate(across(contains("flag"), max)) %>%
   ungroup() %>%
   distinct(book_num, .keep_all = T)
   
-#fwrite(join_collapse, "G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Sonoma Join Collapse.csv")
+#save(sonoma_collapse, file = "G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Sonoma Join Collapse.RData")
 
 
 ```
