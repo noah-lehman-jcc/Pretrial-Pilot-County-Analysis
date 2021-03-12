@@ -1587,7 +1587,7 @@ Jail Court Join Post-Collapse
 #   mutate(across(where(is.character), ~if_else(.x == "", NA_character_, .x)))
   
 
-names(book_df)[names(book_df) %in% names(court_df)]
+# names(book_df)[names(book_df) %in% names(court_df)]
 
 load("G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Nevada Assessment Collapse.RData")
 load("G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Nevada Booking Collapse.RData")
@@ -1716,34 +1716,52 @@ Final Collapse
 ```{r}
 
 # look into keeping the highest charge description
-join_collapse <- join_df2 %>%
-  mutate(across (c(contains("flag"), contains("_count")), ~if_else(is.na(.x), as.integer(0), as.integer(.x)))) %>%
-  mutate(release_type = ordered(release_type, levels = c("Unknown", "Other", "Sentenced", "Time_Served",
-                                                         "Detain_Only", "Dismissed_Dropped", "OR",
+# join_collapse <- join_df2 %>%
+#   mutate(across (c(contains("flag"), contains("_count")), ~if_else(is.na(.x), as.integer(0), as.integer(.x)))) %>%
+#   mutate(release_type = ordered(release_type, levels = c("Unknown", "Other", "Sentenced", "Time_Served",
+#                                                          "Detain_Only", "Dismissed_Dropped", "OR",
+#                                                          "Bail_Bond", "Cite_Release", "Hold_Release"))) %>%
+#  group_by(book_num) %>%
+#   mutate(release_type = max(release_type)) %>%
+#   mutate(across(c(contains("sup_vio"), -contains("_count")), max)) %>%
+#   mutate(across(c(contains("sup_vio_flag_count")), sum)) %>%
+#   ungroup() %>%
+#   # Nevada has no sentence dates, so final dispo date is just dispo date
+#   filter(disposition_date >= book_date, book_type %in% c("On_View", "Bench_Warrant", "Other_Warrant")) %>%
+#   group_by(book_num) %>%
+#   mutate(across(c(contains("flag"), -contains("_count")), max)) %>%
+#   mutate(across(c(contains("_count"), -contains("sup_vio_flag_count")), sum)) %>%
+#   ungroup() %>%
+#   distinct(book_num, .keep_all = T)
+  
+
+
+
+
+nevada_collapse <- join_df2 %>%
+  mutate(across(contains("flag"), ~if_else(is.na(.x), 0, .x))) %>%
+  mutate(new_arrest_flag = if_else(book_type %in% c("On_View", "New_Warrant"), 1, 0)) %>%
+  mutate(release_type = ordered(release_type, levels = c("Unknown", "Other", "Sentenced", "Time_Served", "Detain_Only", "Dismissed_Dropped", "OR",
                                                          "Bail_Bond", "Cite_Release", "Hold_Release"))) %>%
- group_by(book_num) %>%
-  mutate(release_type = max(release_type)) %>%
-  mutate(across(c(contains("sup_vio"), -contains("_count")), max)) %>%
-  mutate(across(c(contains("sup_vio_flag_count")), sum)) %>%
-  ungroup() %>%
-  # Nevada has no sentence dates, so final dispo date is just dispo date
-  filter(disposition_date >= book_date, book_type %in% c("On_View", "Bench_Warrant", "Other_Warrant")) %>%
   group_by(book_num) %>%
-  mutate(across(c(contains("flag"), -contains("_count")), max)) %>%
-  mutate(across(c(contains("_count"), -contains("sup_vio_flag_count")), sum)) %>%
+  mutate(release_type = max(release_type)) %>%
+  mutate(across(contains("sup_vio"), max)) %>%
+  filter(sum(new_arrest_flag) == 0 | new_arrest_flag == 1) %>%
+  mutate(across(contains("flag"), max)) %>%
   ungroup() %>%
   distinct(book_num, .keep_all = T)
   
-
-fwrite(join_collapse, "G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Nevada Join Collapse.csv")
+save(nevada_collapse, file = "G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Nevada Join Collapse.RData")
 
 join_df2 %>%
-  select(contains("sup_vio"))
+  count(assess_flag)
 
-court_df %>%
-  select(contains("sentence"))
+assess_df %>%
+  distinct(pretrial_id, .keep_all = T) %>%
+ count(assess_flag )
 
-summary(join_collapse$hierarchy)
+
+
 ```
 
 # San Mateo
@@ -3467,18 +3485,18 @@ Court Join with Jail
 ```{r}
 # Pull in Agency Collapsed Data made for Noah in December
 
-assess_df <- fread("G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/San Mateo Assessment Collapse.csv") %>%
-  mutate(across(contains("time"), as_datetime)) %>%
-  mutate(across(contains("date") & is.character, as_date))
-
-book_df <- fread("G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/San Mateo Booking Collapse.csv")%>%
-  mutate(across(contains("time"), as_datetime)) %>%
-  mutate(across(contains("date") & is.character, as_date))
-
-court_df <- fread("G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/San Mateo Court Collapse.csv")%>%
-  mutate(across(contains("time"), as_datetime)) %>%
-  mutate(across(contains("date") & is.character, as_date)) %>%
-  mutate(book_num = as.numeric(book_num))
+# assess_df <- fread("G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/San Mateo Assessment Collapse.csv") %>%
+#   mutate(across(contains("time"), as_datetime)) %>%
+#   mutate(across(contains("date") & is.character, as_date))
+# 
+# book_df <- fread("G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/San Mateo Booking Collapse.csv")%>%
+#   mutate(across(contains("time"), as_datetime)) %>%
+#   mutate(across(contains("date") & is.character, as_date))
+# 
+# court_df <- fread("G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/San Mateo Court Collapse.csv")%>%
+#   mutate(across(contains("time"), as_datetime)) %>%
+#   mutate(across(contains("date") & is.character, as_date)) %>%
+#   mutate(book_num = as.numeric(book_num))
 
 load("G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/San Mateo Assessment Collapse.RData")
 load("G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/San Mateo Booking Collapse.RData")
@@ -3607,39 +3625,46 @@ join_df2 <- join_df %>%
 
 Joining All Data Post-Collapse and then collapsing to final joined dataset--1 row for each booking, if there are multi cases for a single booking then that will be indicated with flags so we will have 1 booking/case/defendant with flags
 ```{r}
-join_collapse <- join_df2 %>%
-  mutate(across(contains("flag"), ~if_else(is.na(.x), as.integer(0), .x))) %>%
-  mutate(release_type = ordered(release_type, levels = c("Unknown", "Other", "Sentenced", "Time_Served", "Detain_Only",
-                                                         "Dismissed_Dropped", "OR",
-                                                         "Bail_Bond", "Cite_Release", "Hold_Release"))) %>%
- group_by(book_num) %>%
-  mutate(release_type = max(release_type)) %>%
-  mutate(across(contains("sup_vio"), max)) %>%
-  ungroup() %>%
-  filter(final_disposition_date >= book_date, book_type %in% c("On_View", "Bench_Warrant", "Other_Warrant")) %>%
-  group_by(book_num) %>%
-  mutate(across(contains("flag"), max)) %>%
-  ungroup() %>%
-  distinct(book_num, .keep_all = T)
-
-
-fwrite(join_collapse, "G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/San Mateo Join Collapse.csv")
+# join_collapse <- join_df2 %>%
+#   mutate(across(contains("flag"), ~if_else(is.na(.x), as.integer(0), .x))) %>%
+#   mutate(release_type = ordered(release_type, levels = c("Unknown", "Other", "Sentenced", "Time_Served", "Detain_Only",
+#                                                          "Dismissed_Dropped", "OR",
+#                                                          "Bail_Bond", "Cite_Release", "Hold_Release"))) %>%
+#  group_by(book_num) %>%
+#   mutate(release_type = max(release_type)) %>%
+#   mutate(across(contains("sup_vio"), max)) %>%
+#   ungroup() %>%
+#   filter(final_disposition_date >= book_date, book_type %in% c("On_View", "Bench_Warrant", "Other_Warrant")) %>%
+#   group_by(book_num) %>%
+#   mutate(across(contains("flag"), max)) %>%
+#   ungroup() %>%
+#   distinct(book_num, .keep_all = T)
+# 
+# 
+# fwrite(join_collapse, "G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/San Mateo Join Collapse.csv")
 
 #we are currently having trouble with the number of assessments that drop out of the final dataset, why are they assessinbg so many people who are in on probation violations, and  why are their crrespoknding book_type not sup vio instead of bench warrants.
 
-join_collapse %>%
-  count(assess_flag)
-assess_df %>%
-  count(assess_flag)
 
-join_df2 %>%
-  filter(book_date > as_date("2020-08-04")) %>%
-  count(assess_flag)
- 
-court_df %>%
-  arrange(court_party_id)
 
-summary(join_df2$assessment_date)
+san_mateo_collapse <- join_df2 %>%
+  #rename(pretrial_end_date = final_disposition_date) %>%
+  mutate(across(contains("flag"), ~if_else(is.na(.x), 0, .x))) %>%
+  mutate(new_arrest_flag = if_else(book_type %in% c("On_View", "Other_Warrant"), 1, 0)) %>%
+  mutate(release_type = ordered(release_type, levels = c("Unknown", "Other", "Sentenced", "Time_Served", "Detain_Only",
+                                                         "Dismissed_Dropped", "OR",
+                                                         "Bail_Bond", "Cite_Release", "Hold_Release"))) %>%
+  group_by(book_num) %>%
+  mutate(release_type = max(release_type)) %>%
+  mutate(across(contains("sup_vio"), max)) %>%
+  filter(sum(new_arrest_flag) == 0 | new_arrest_flag == 1) %>%
+  mutate(across(contains("flag"), max)) %>%
+  ungroup() %>%
+  distinct(book_num, .keep_all = T)
+  
+save(san_mateo_collapse, file = "G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/San Mateo Join Collapse.RData")
+
+
 ```
 
 ```{r}
