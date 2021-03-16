@@ -1,0 +1,318 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+```{r}
+# library(rlang)
+library(tidyverse)
+library(data.table)
+library(openxlsx)
+library(readxl)
+library(lubridate)
+library(XML)
+library(xml2)
+# library(xmltools)o
+library(gsubfn)
+library(fuzzyjoin)
+library(dplyr)
+library(openxlsx)
+# library(multidplyr)
+library(keras)
+library(rsample)
+library(tfdatasets)
+library(tensorflow)
+library(tokenizers)
+library(text2vec)
+library(sandwich)
+library(lmtest)
+```
+
+Load Data
+```{r}
+book_df <- read_csv("C:/Work/PretrialAssessmentPilot/Agency Collapse CSV Files/Alameda Booking Collapse.csv") %>%
+  ungroup() %>%
+  select(event_id, local_id, join_var, book_date, release_date)
+  
+court_df <- read_csv("C:/Work/PretrialAssessmentPilot/Agency Collapse CSV Files/Alameda Court Collapse.csv") %>%
+  ungroup() %>%
+  select(event_id, local_id, join_var, file_date, disposition_date)
+
+join_df <- inner_join(book_df, court_df, by = "local_id") %>%
+  mutate(y = if_else(event_id.x != event_id.y | is.na(event_id.x) | is.na(event_id.y), 0, 1)) %>%
+  mutate(across(contains("date"), as.numeric))
+```
+
+Sets
+```{r}
+split <- initial_split(join_df, prop = 4/5)
+train <- training(split)
+test <- testing(split)
+
+# the we split the training set into validation and training
+# split <- initial_split(train, prop = 4/5)
+# train <- training(split)
+# val <- testing(split)
+```
+
+Text to Vec
+```{r}
+it_train <- itoken(train$join_var.y)
+
+vocab <- create_vocabulary(it_train, ngram = c(1L, 2L))
+
+vocab <- prune_vocabulary(vocab, term_count_min = 10, 
+                         doc_proportion_max = 0.5)
+
+bigram_vectorizer <- vocab_vectorizer(vocab)
+
+dtm_train <- create_dtm(it_train, bigram_vectorizer)
+
+dim(dtm_train)
+
+# define tfidf model
+tfidf = TfIdf$new()
+# fit model to train data and transform train data with fitted model
+dtm_train_tfidf = fit_transform(dtm_train, tfidf)
+# tfidf modified by fit_transform() call!
+# apply pre-trained tf-idf transformation to test data
+dtm_test_tfidf = create_dtm(it_test, vectorizer)
+dtm_test_tfidf = transform(dtm_test_tfidf, tfidf)
+```
+
+```{r}
+#   mutate(join_var.yy = str_split(join_var.y, pattern = " ")) %>%
+#   mutate(join_var.xx = str_split(join_var.x, pattern = " ")) 
+# 
+# join_df$charge_match <- sapply(1:nrow(join_df), function(i){
+#        sum(join_df$join_var.xx[[i]] %in% join_df$join_var.yy[[i]])
+#   })
+# 
+# join_df$book_dif <- sapply(1:nrow(join_df), function(i){
+#        sum(!join_df$join_var.xx[[i]] %in% join_df$join_var.yy[[i]])
+#   })
+# 
+# join_df$court_dif <- sapply(1:nrow(join_df), function(i){
+#        sum(!join_df$join_var.yy[[i]] %in% join_df$join_var.xx[[i]])
+#   })
+# 
+# 
+# raw_df <- join_df %>%
+#   select(-c(event_id.x, event_id.y, local_id, join_var.x, join_var.y)) 
+  
+
+# join_df %>%
+#   mutate(join_var.x)
+# 
+# sum(c(1,2,3,1) %in% c(4,5,6,1))
+# 
+# paste("1 2 3", collapse = ",")
+# 
+# 
+# join_df %>%
+#   mutate(join_var.y = str_split(join_var.y, pattern = " "))
+# 
+setdiff(join_df$join_var.x, c(4,5,6,1))
+
+matcher <- function(x,y){
+  mapply(sum(unique(x) %in% unique(y)))}
+
+matcher(join_varf$join_var.x[1], join_var$join_var.y[1])
+
+join_df %>%
+  filter(y == 1, charge_match == 0) %>%
+  view()
+
+
+num_words <- 1689
+max_length <- 10
+
+text_vectorization <- layer_text_vectorization(
+  max_tokens = num_words, 
+  output_sequence_length = max_length, 
+)
+
+text_vectorization %>%
+  adapt(join_df$join_var.y)
+
+get_vocabulary(join_df)
+```
+
+Vocabulary Creation
+```{r}
+# join_df$join_var.y %>%
+#   strsplit(" ") %>%
+#   sapply(length) %>%
+#   summary()
+# 
+# join_df$join_var.x %>%
+#   strsplit(" ") %>%
+#   sapply(length) %>%
+#   summary()
+# 
+# join_df %>%
+#   ungroup() %>%
+#   pivot_longer(c(join_var.x, join_var.y), values_to = "join_var") %>%
+#   select(-name) %>%
+#   separate_rows(join_var, sep = " ") %>%
+#   count(join_var) %>%
+#   distinct(join_var)
+
+# 1689
+
+num_words <- 1689
+max_length <- 10
+
+```
+
+```{r}
+split <- initial_split(join_df, prop = 4/5)
+train <- training(split)
+test <- testing(split)
+
+# the we split the training set into validation and training
+split <- initial_split(train, prop = 4/5)
+train <- training(split)
+val <- testing(split)
+
+# create shuffled training set
+df_to_dataset <- function(df, shuffle = TRUE, batch_size = 32) {
+  ds <- df %>% 
+    tensor_slices_dataset()
+  
+  if (shuffle)
+    ds <- ds %>% dataset_shuffle(buffer_size = nrow(df))
+  
+  ds %>% 
+    dataset_batch(batch_size = batch_size)
+}
+
+batch_size <- 5
+train_ds <- df_to_dataset(train, batch_size = batch_size)
+val_ds <- df_to_dataset(val, shuffle = FALSE, batch_size = batch_size)
+test_ds <- df_to_dataset(test, shuffle = FALSE, batch_size = batch_size)
+```
+
+
+```{r}
+text_vectorization <- layer_text_vectorization(
+  max_tokens = num_words, 
+  output_sequence_length = max_length, 
+)
+
+text_vectorization %>%
+  adapt(join_df$join_var.y)
+
+
+input1 <- layer_input(shape = c(1), dtype = "string") %>%
+  text_vectorization() %>% 
+  layer_embedding(input_dim = num_words + 1, output_dim = 16, trainable = F) %>%
+  layer_lstm(64, activation = "relu") %>%
+  layer_flatten()
+
+input2 <- layer_input(shape = c(1), dtype = "string") %>%
+  text_vectorization() %>% 
+  layer_embedding(input_dim = num_words + 1, output_dim = 16, trainable = F) %>%
+  layer_lstm(64, activation = "relu") %>%
+  layer_flatten()
+
+output <- input %>% 
+  text_vectorization() %>% 
+  layer_embedding(input_dim = num_words + 1, output_dim = 16) %>%
+  layer_global_average_pooling_1d() %>%
+  layer_dense(units = 16, activation = "relu") %>%
+  layer_dropout(0.5) %>% 
+  layer_dense(units = 1, activation = "sigmoid")
+
+model <- keras_model(input, output)
+
+
+?layer_lstm
+
+# Diagnostics
+get_vocabulary(text_vectorization)
+
+text_vectorization(matrix(book_df$join_var[100], ncol = 1))
+
+?layer_global_average_pooling_1d
+
+layer_flatten()
+```
+
+```{r}
+split <- initial_split(join_df, prop = 4/5)
+train <- training(split)
+test <- testing(split)
+
+# the we split the training set into validation and training
+split <- initial_split(train, prop = 4/5)
+train <- training(split)
+val <- testing(split)
+
+# create shuffled training set
+df_to_dataset <- function(df, shuffle = TRUE, batch_size = 32) {
+  ds <- df %>% 
+    tensor_slices_dataset()
+  
+  if (shuffle)
+    ds <- ds %>% dataset_shuffle(buffer_size = nrow(df))
+  
+  ds %>% 
+    dataset_batch(batch_size = batch_size)
+}
+
+batch_size <- 5
+train_ds <- df_to_dataset(train, batch_size = batch_size)
+val_ds <- df_to_dataset(val, shuffle = FALSE, batch_size = batch_size)
+test_ds <- df_to_dataset(test, shuffle = FALSE, batch_size = batch_size)
+
+train_ds %>% 
+  reticulate::as_iterator() %>% 
+  reticulate::iter_next() %>% 
+  str()
+
+spec <- feature_spec(train_ds, y ~ .)
+
+spec <- spec %>% 
+  step_numeric_column(
+    all_numeric(),
+    normalizer_fn = scaler_standard()
+  ) %>%
+  step_indicator_column(c(join_var.x, join_var.y)) %>%
+  step_embedding_column(c(join_var.x, join_var.y)) 
+  # # step_embedding_column(join_var.y, dimension = 10) %>%
+  # # step_embedding_column(join_var.x, dimension = 10) %>%
+  # step_crossed_column(join_var = c(join_var.x, join_var.y), hash_bucket_size = 10) %>%
+  # step_indicator_column(join_var)
+  # step_categorical_column_with_hash_bucket(join_var.y, hash_bucket_size = 10) %>%
+  # step_categorical_column_with_hash_bucket(join_var.x, hash_bucket_size = 10) 
+  # step_categorical_column_with_hash_bucket(join_var, hash_bucket_size = 10)
+
+
+spec_prep <- fit(spec)
+
+# str(spec_prep)
+
+str(spec_prep$dense_features())
+
+model <- keras_model_sequential() %>% 
+  layer_dense_features(dense_features(spec_prep)) %>% 
+  layer_dense(units = 32, activation = "relu") %>% 
+  layer_dense(units = 1, activation = "sigmoid")
+
+
+model %>% compile(
+  loss = loss_binary_crossentropy, 
+  optimizer = "adam", 
+  metrics = "binary_accuracy"
+)
+
+history <- model %>% 
+  fit(
+    dataset_use_spec(train_ds, spec = spec_prep),
+    epochs = 15, 
+    validation_data = dataset_use_spec(val_ds, spec_prep),
+    verbose = 2
+  )
+
+```
+

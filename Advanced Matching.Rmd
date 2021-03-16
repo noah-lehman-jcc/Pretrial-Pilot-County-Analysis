@@ -1,0 +1,316 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+library(RecordLinkage)
+library(fastLink)
+library(tidyverse)
+library(randomForest)
+library(stringdist)
+library(lubridate)
+library(xgboost)
+library(mice)
+```
+
+```{r}
+save(assess_df, file = "Tuolumne Collapsed Assessment.RData")
+save(book_df, file = "Tuolumne Collapsed Booking.RData")
+save(court_df, file = "Tuolumne Collapsed Court.RData")
+
+```
+
+Inital Test
+```{r}
+#Load Example data
+load("Tuolumne Collapsed Assessment.RData")
+load("Tuolumne Collapsed Booking.RData")
+load("Tuolumne Collapsed Court.RData")
+
+#Check for common variables
+names(book_df)[names(book_df) %in% names(court_df)]
+
+names(book_df)[names(book_df) %in% names(assess_df)]
+
+#Fastlink
+link_df <- fastLink(book_df, court_df, varnames = c("last_name", "first_name", "middle_name", "cii", "fbi", "court_case_id"), 
+                    return.df = T, dedupe.matches = F)
+
+View(link_df$EM)
+
+confusion(link_df)
+
+book_df
+
+court_df %>%
+  slice(2347)
+
+summary.fas(link_df)
+
+1 - stringdist("A000908082034", "Hello", method = "jw")
+```
+
+Examine Alameda
+```{r}
+anti_join(book_df, court_df, by = "court_case_id") %>%
+  select(court_case_id) 
+
+court_df %>%
+  mutate(court_case_id = nchar(court_case_id)) %>%
+  count(court_case_id)
+
+book_df %>%
+ mutate(court_case_id = nchar(court_case_id)) %>%
+  count(court_case_id)
+
+
+```
+
+
+Full Example
+```{r}
+# save(book_df, file = "Alameda Collapsed Booking.RData")
+# save(court_df, file = "Alameda Collapsed Court.RData")
+
+#Load Data
+load("Alameda Collapsed Booking.RData")
+load("Alameda Collapsed Court.RData")
+
+set.seed(890123)
+
+# Replace NAs with corresponding values
+  ## Drop 229,636 to 228,880
+book_df <- book_df %>%
+  mutate_at(vars(c("cii", "fbi")), (funs(if_else(. %in% c("NULL", "", " "), "0", trimws(.))))) %>%
+  filter_at(vars(c("cii", "fbi")), all_vars(. != "0")) %>%
+  group_by(cii) %>%
+  mutate(fbi = if_else(fbi == "0", max(fbi), fbi)) %>%
+  group_by(fbi) %>%
+  mutate(cii = if_else(cii == "0", max(cii), cii)) %>%
+  ungroup() %>%
+  mutate_at(vars(c("cii", "fbi")), (funs(if_else(. == "0", NA_character_, .))))
+
+# Replace NAs with corresponding values
+  ## Drop 100,207 to 97,597 
+court_df <- court_df %>%
+  mutate_at(vars(c("cii", "fbi")), (funs(if_else(. %in% c("NULL", "", " "), "0", trimws(.))))) %>%
+  filter_at(vars(c("cii", "fbi")), all_vars(. != "0")) %>%
+  group_by(cii) %>%
+  mutate(fbi = if_else(fbi == "0", max(fbi), fbi)) %>%
+  group_by(fbi) %>%
+  mutate(cii = if_else(cii == "0", max(cii), cii)) %>%
+  ungroup() %>%
+  mutate_at(vars(c("cii", "fbi")), (funs(if_else(. == "0", NA_character_, .)))) 
+
+# Create Person Tables to match people. 
+book_person <- book_df %>%
+  distinct(cii, fbi)
+  
+court_person <- court_df %>%
+  distinct(cii, fbi)
+ 
+# Run linking algorithm 
+# link_df <- fastLink(book_person, court_person, varnames = c("cii", "fbi"), stringdist.match = c("cii", "fbi"), return.df = T, n.cores = 11)
+# save(link_df, file = "Matching Algorithm for Alameda.RData")
+# load("Matching Algorithm for Alameda.RData")
+
+# Run linking algorithm with no Dedupes!
+# link_df <- fastLink(book_person, court_person, varnames = c("cii", "fbi"), stringdist.match = c("cii", "fbi"), return.df = T, n.cores = 11, dedupe.matches = F)
+# save(link_df, file = "Matching Algorithm for Alameda No Dedupes.RData")
+load("Matching Algorithm for Alameda No Dedupes.RData")
+
+#Create Indices
+book_index <- bind_cols(as_tibble(link_df$dfA.match), tibble("book_index" = link_df$matches$inds.a, 
+                        "court_index" = link_df$matches$inds.b, posterior = link_df$posterior))
+
+court_index <- bind_cols(as_tibble(link_df$dfB.match), tibble("book_index" = link_df$matches$inds.a, 
+                        "court_index" = link_df$matches$inds.b, posterior = link_df$posterior))
+
+
+#Person Matching
+book_join <- book_df %>%
+  select(cii, fbi, court_case_id, matches("date|flag"), - matches("time|count")) %>%
+  left_join(book_index) %>%
+  select(-c(cii, fbi, arrest_date, onview_flag, warrant_flag))
+
+court_join <- court_df %>%
+  select(cii, fbi, court_case_id, matches("date|flag"), - matches("time|count|conviction")) %>%
+  left_join(court_index) %>%
+  select(-c(cii, fbi, case_status_date, final_disposition_date, fta_flag, fta_warrant_date, posterior))
+  
+
+#Matching
+join_df <- inner_join(book_join, court_join, by = c("court_index", "book_index"), na_matches = "never")
+
+join_df <- join_df %>%
+  mutate(y = if_else(court_case_id.x == court_case_id.y, 1, 0)) %>%
+  select(posterior, matches("date"), matches("flag"), y) %>%
+  mutate_if(is.Date, as.numeric)
+
+#training and test dfs
+train_index <- sample(1:nrow(join_df), 0.8 * nrow(join_df))
+test_index <- setdiff(1:nrow(join_df), train_index)
+
+train_df <- join_df[train_index,]
+test_df <- join_df[test_index,]
+
+#xgboost
+params <- list(booster = "gbtree", objective = "binary:logistic", eta = 0.3, gamma = 2, max_depth = 10, min_child_weight = 1, subsample = 1, colsample_bytree = 1)
+
+cv1 <- xgb.cv(as.matrix(train_df %>% select(-y)), label = train_df$y, params = params, nrounds = 400, nfold = 5, showsd = T, stratified = T, print_every_n = 10, early_stop_round = 20, maximize = F)
+
+model1 <- xgboost(as.matrix(train_df %>% select(-y)), label = train_df$y, nrounds = 400)
+```
+
+Diagnostics
+```{r}
+book_index %>%
+  filter(grepl("1", court_index))
+  distinct(court_index)
+  
+
+bind_cols(book_index, court_index) %>%
+  filter(posterior <= .88)
+
+hist(book_index$posterior)
+
+book_index %>%
+  distinct(cii)
+
+memory.size()
+
+court_person %>%
+  slice(182)
+
+book_person %>%
+  slice(51162)
+
+
+bind_cols(book_index, court_index) %>%
+  filter(posterior < .8)
+
+court_person %>%
+  filter()
+
+semi_join(book_person, court_person, by = c("cii")) 
+  filter(fbi.x != fbi.y) 
+  filter(fbi.x == "")
+
+link_df$matches %>%
+  distinct(inds.b)
+
+court_person %>%
+  select(c("cii", "fbi", "cdl_id")) %>%
+  mutate_all(funs(is.na(.))) %>%
+  summarise_all(sum)
+
+book_df %>%
+  filter(is.na(cii))
+
+?fastLink
+
+link_df$posterior
+
+book_person %>%
+  distinct(cdl_id)
+
+link_df$dfA.match
+
+link_df$dfB.match
+
+court_person %>%
+  filter()
+
+book_person %>%
+  slice(1364)
+
+court_person %>%
+  slice(3)
+
+court_index %>%
+  filter(court_index == "62871")
+  distinct(court_index)
+
+```
+
+
+Full Example--Old
+```{r}
+# save(book_df, file = "Alameda Collapsed Booking.RData")
+# save(court_df, file = "Alameda Collapsed Court.RData")
+
+#Load Data
+load("Alameda Collapsed Booking.RData")
+load("Alameda Collapsed Court.RData")
+
+set.seed(890123)
+
+#Clean data
+book_df <- book_df %>%
+  select(court_case_id, cii, fbi, cdl_id, first_name, last_name, dob, matches("date|flag|count"), - matches("time|count")) %>%
+  mutate(index = row_number(), cross_match = sample(1:10000, nrow(book_df), replace = T))
+
+court_df <- court_df %>%
+  select(court_case_id, cii, fbi, cdl_id, first_name, last_name, dob, matches("date|flag"), - matches("time|count")) %>%
+  mutate(index = row_number(), cross_match = sample(1:10000, nrow(court_df), replace = T)) 
+
+#Create true data
+match_df <- inner_join(book_df, court_df, by = "court_case_id") %>%
+  rename_at(vars(contains(".x")), funs(paste0("arrest_", gsub("\\.x$", "", .)))) %>%
+  rename_at(vars(contains(".y")), funs(paste0("court_", gsub("\\.y$", "", .)))) %>%
+  select(-matches("cross_match|court_case_id")) %>%
+  mutate(y = 1)
+
+#Create false data
+cross_df <- inner_join(book_df, court_df, by = "cross_match") %>%
+  rename_at(vars(contains(".x")), funs(paste0("arrest_", gsub("\\.x$", "", .)))) %>%
+  rename_at(vars(contains(".y")), funs(paste0("court_", gsub("\\.y$", "", .)))) %>%
+  select(-matches("cross_match|court_case_id")) %>%
+  mutate(y = 0)
+
+#Remove duplicates
+full_df <- bind_rows(match_df, cross_df) %>%
+  distinct(arrest_index, court_index, .keep_all = T)
+
+#Determine string distance
+predict_df <- full_df %>%
+  mutate(court_first_name = arrest_first_name,
+         court_last_name = arrest_last_name)
+
+predict_df[1:5] <- sapply(1:5, function(i){
+  stringdist(predict_df[[i]], predict_df[[i+36]], method = "jw")
+})
+
+names(predict_df)[1:5] <- c("cii_dist", "fbi_dist", "cdl_id_dist", "first_name_dist", "last_name_dist")
+
+predict_df <- predict_df %>%
+  select(-c(court_cii:court_last_name, arrest_index, court_index, y)) %>%
+  mutate_at(vars(matches("date|dob")), as_date) %>%
+  mutate_if(is.Date, as.numeric)
+
+#Imputing missing values
+predict_df <- rfImpute(predict_df, full_df$y)
+
+#sets
+train_index <- sample(1:nrow(full_df), 0.8 * nrow(full_df))
+test_index <- setdiff(1:nrow(full_df), train_index)
+
+train_df <- full_df[train_index,]
+test_df <- full_df[test_index,]
+
+
+
+#develop Algorithm
+model_rf <- randomForest(x = full_df %>% select(-arrest_index, court_index, y), y = full_df$y, importance = T, na.action = "na.roughfix")
+
+stringdist(full_df[1], full_df[37])
+
+full_df[37:41]
+
+stringdist(c("a", "b"), c("a", "c"), method = "jw")
+
+full_df[[1]]
+```
+
+
