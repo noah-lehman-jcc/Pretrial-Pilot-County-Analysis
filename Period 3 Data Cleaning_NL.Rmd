@@ -8,7 +8,7 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 
-knitr::opts_knit$set(root.dir = "C:/Work/PretrialAssessmentPilot")
+knitr::opts_knit$set(root.dir = "G:/CrimJustice/PretrialAssessmentPilot")
 
 # library(rlang)
 library(tidyverse)
@@ -37,8 +37,8 @@ library(openxlsx)
 2020 DOJ Hieararchies
 ```{r, eval=FALSE, include=FALSE}
 #DOJ Crime Severity Ratings 2008
-doj_hierarchy_2020 <- fread("C:/Work/PretrialAssessmentPilot/Charge Definitions and Hierarchy/Master Charge Code Table 2020.csv")
-doj_hierarchy_2020_jbsis <- read_excel("C:/Work/PretrialAssessmentPilot/Charge Definitions and Hierarchy/2020_March04_DOJ_Offense_Table_JBSIS.xlsx")
+doj_hierarchy_2020 <- fread("G:/CrimJustice/PretrialAssessmentPilot/Charge Definitions and Hierarchy/Master Charge Code Table 2020.csv")
+doj_hierarchy_2020_jbsis <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Charge Definitions and Hierarchy/2020_March04_DOJ_Offense_Table_JBSIS.xlsx")
 
 
 names(doj_hierarchy_2020) <- c("offense_id", "cjis_code", "hierarchy", "charge_level", "charge", "charge_code", "master_charge_description", "sentence")
@@ -60,7 +60,7 @@ doj_hierarchy_2020 <- doj_hierarchy_2020 %>%
 2017 DOJ Hieararchies
 ```{r, eval=FALSE, include=FALSE}
 #DOJ Crime Severity Ratings 2008
-doj_hierarchy_2017 <- read_excel("C:/Work/PretrialAssessmentPilot/Charge Definitions and Hierarchy/dojoffenses.xls")
+doj_hierarchy_2017 <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Charge Definitions and Hierarchy/dojoffenses.xls")
 
 doj_hierarchy_2017 <- doj_hierarchy_2017 %>%
   mutate(STATUTE2 = gsub("\\/|\\(|\\)| |\\.|\\.*","", STATUTE2)) %>%
@@ -96,7 +96,7 @@ doj_hierarchy_2017 %>%
 2008 DOJ Hierarchies
 ```{r}
 #DOJ Crime Severity Ratings 2008
-doj_hierarchy_2008 <- read_excel("C:/Work/PretrialAssessmentPilot/Charge Definitions and Hierarchy/DOJ Crime Severity Ratings May 2008.xls", col_names = FALSE, skip = 11)
+doj_hierarchy_2008 <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Charge Definitions and Hierarchy/DOJ Crime Severity Ratings May 2008.xls", col_names = FALSE, skip = 11)
 
 #Recreating Variables
 names(doj_hierarchy_2008) <- c("sum", "bcs", "hierarchy", "charge_level", "charge", "charge_code", "master_charge_description", "sentence")
@@ -134,7 +134,7 @@ doj_hierarchy_2008 %>%
  Charge Code Table 
 ```{r}
 #--This chunk pulls the master charge code table and standardizes it. 
-mcct_2016 <- read_excel("C:/Work/PretrialAssessmentPilot/Charge Definitions and Hierarchy/Master Charge Code Table 2016.xlsx", guess_max = Inf)
+mcct_2016 <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Charge Definitions and Hierarchy/Master Charge Code Table 2016.xlsx", guess_max = Inf)
 
 mcct_2016 <- mcct_2016 %>%
   filter(!is.na(`CalDOJ HIERARCHY Code Informational only`))
@@ -172,7 +172,7 @@ mcct_2016 %>%
 JBSIS Hierarchies
 ```{r, eval=FALSE, include=FALSE}
 #JBSIS matched Charges
-charge_hier_jbsis <- read_excel("C:/Work/PretrialAssessmentPilot/Charge Definitions and Hierarchy/Copy of 2016_Nov21_DOJ_Offense_Table_JBSIS.xlsx") 
+charge_hier_jbsis <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Charge Definitions and Hierarchy/Copy of 2016_Nov21_DOJ_Offense_Table_JBSIS.xlsx") 
 
 names(charge_hier_jbsis) <- toupper(names(charge_hier_jbsis))
 
@@ -208,11 +208,11 @@ charge_hier_jbsis %>%
 
 Special Allegations--Hierarchies are Max
 ```{r}
-charge_hier_special <- fread("C:/Work/PretrialAssessmentPilot/Charge Definitions and Hierarchy/San_Mateo_Qualifier_Flags_Court_charges.csv", header = T)
-charge_hier_special2 <- fread("C:/Work/PretrialAssessmentPilot/Charge Definitions and Hierarchy/Yuba_Qualifier_Flags_Court_charges.csv", header = T)
-charge_hier_special3 <- read_excel("C:/Work/PretrialAssessmentPilot/Charge Definitions and Hierarchy/qualifier_codes_for_Noah_Kings_Court.xlsx")
-charge_hier_special4 <- read_excel("C:/Work/PretrialAssessmentPilot/Charge Definitions and Hierarchy/qualifier_codes_for_Noah_Napa_Court.xlsx")
-charge_hier_special5 <- read_excel("C:/Work/PretrialAssessmentPilot/Charge Definitions and Hierarchy/qualifier_codes_for_Noah_Sonoma_Court.xlsx")
+charge_hier_special <- fread("G:/CrimJustice/PretrialAssessmentPilot/Charge Definitions and Hierarchy/San_Mateo_Qualifier_Flags_Court_charges.csv", header = T)
+charge_hier_special2 <- fread("G:/CrimJustice/PretrialAssessmentPilot/Charge Definitions and Hierarchy/Yuba_Qualifier_Flags_Court_charges.csv", header = T)
+charge_hier_special3 <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Charge Definitions and Hierarchy/qualifier_codes_for_Noah_Kings_Court.xlsx")
+charge_hier_special4 <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Charge Definitions and Hierarchy/qualifier_codes_for_Noah_Napa_Court.xlsx")
+charge_hier_special5 <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Charge Definitions and Hierarchy/qualifier_codes_for_Noah_Sonoma_Court.xlsx")
 
 charge_hier_special6 <- tibble(join_var = c("M_VC_23578", "M_VC_231035", "F_PC_117012C1", "F_PC_120225A", "F_PC_1170H3", "F_PC_1170H", 
                                                "F_PC_120227A", "F_PC_120221", "F_PC_667A1", "F_PC_12022A1", "F_PC_12022B1", 
@@ -261,7 +261,7 @@ anti_join(charge_hier_check, charge_hier_special)
 
 Missing Charges
 ```{r}
-charge_hier_missing <- read_excel("C:/Work/PretrialAssessmentPilot/Charge Definitions and Hierarchy/Charges Missing from the Charge Code Tables original.xlsx", sheet = "Combined") 
+charge_hier_missing <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Charge Definitions and Hierarchy/Charges Missing from the Charge Code Tables original.xlsx", sheet = "Combined") 
 
 charge_hier_missing <- charge_hier_missing %>% 
   mutate(charge_level = if_else(!charge_level %in% c("F", "I", "M"), "Other", charge_level),
@@ -322,7 +322,7 @@ charge_hier %>%
 load("Complete Charge Code Hierarchy.RData")
 
 #Serious and Violent Felonies
-serious_violent_charges <- read_excel("C:/Work/PretrialAssessmentPilot/Charge Definitions and Hierarchy/Serious and Violent Charges.xlsx", 
+serious_violent_charges <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Charge Definitions and Hierarchy/Serious and Violent Charges.xlsx", 
     sheet = "Data") %>%
   # filter(Serious == T | Violent == T)
   select(charge, charge_level, serious_felony_flag = Serious, violent_felony_flag = Violent) %>%
@@ -347,7 +347,7 @@ charge_hier <- charge_hier %>%
 rm(serious_violent_charges)
 
 #Pretrial Violent Charges
-pretrial_violent <- read_excel("C:/Work/PretrialAssessmentPilot/Charge Definitions and Hierarchy/Pretrial Pilot Consensus on Violent Offense List - FINAL 2-3-20.xlsx")
+pretrial_violent <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Charge Definitions and Hierarchy/Pretrial Pilot Consensus on Violent Offense List - FINAL 2-3-20.xlsx")
 
 names(pretrial_violent) <- c("charge", "violent_description", "violent_psa_flag")
 
@@ -395,7 +395,7 @@ charge_hier <- charge_hier %>%
 
 save(charge_hier, file = "Complete Charge Code Hierarchy.RData")
 
-# write.xlsx(charge_hier, file = "C:/Work/PretrialAssessmentPilot/Charge Definitions and Hierarchy/Complete Charge Hieararchy with Flags.xlsx", asTable = T, tableStyle = "TableStyleMedium1")
+# write.xlsx(charge_hier, file = "G:/CrimJustice/PretrialAssessmentPilot/Charge Definitions and Hierarchy/Complete Charge Hieararchy with Flags.xlsx", asTable = T, tableStyle = "TableStyleMedium1")
 ```
 
   Flag Excel for Legal
@@ -479,7 +479,7 @@ write.xlsx(
   firstRow = T
   )
 
-serious_violent <- fread("C:/Work/PretrialAssessmentPilot/Charge Definitions and Hierarchy/Bail Deviation Exclusion List_for review by Pretrial Pilots - updated for research team 4-24-20.csv", header = T)
+serious_violent <- fread("G:/CrimJustice/PretrialAssessmentPilot/Charge Definitions and Hierarchy/Bail Deviation Exclusion List_for review by Pretrial Pilots - updated for research team 4-24-20.csv", header = T)
 
 names(serious_violent) <- c("charge", "master_charge_description", "serious_flag", "violent_flag", "remove", "remove2", "remove3")
 
@@ -503,7 +503,7 @@ serious_violent <- serious_violent %>%
 
 missing_df <- anti_join(serious_violent, charge_hier, by = "join_var") 
 
-write.xlsx(missing_df, file = "C:/Work/PretrialAssessmentPilot/Charge Definitions and Hierarchy/Missing Serious and Violent Charges.xlsx")
+write.xlsx(missing_df, file = "G:/CrimJustice/PretrialAssessmentPilot/Charge Definitions and Hierarchy/Missing Serious and Violent Charges.xlsx")
 ```
 
   
@@ -554,7 +554,7 @@ charge_hier
 
 Lawyer Reviewed Flags
 ```{r}
-file <- "C:/Work/PretrialAssessmentPilot/Charge Definitions and Hierarchy/Legal Review of Offense Flags.xlsx"
+file <- "G:/CrimJustice/PretrialAssessmentPilot/Charge Definitions and Hierarchy/Legal Review of Offense Flags.xlsx"
 
 # getSheetNames(file)
 
@@ -591,7 +591,7 @@ charge_df <- charge_df %>%
 load("Complete Charge Code Hierarchy Base.RData")
 
 #Fixing missing JBSIS Codes
-doj_hierarchy_2020_jbsis <- read_excel("C:/Work/PretrialAssessmentPilot/Charge Definitions and Hierarchy/2020_March04_DOJ_Offense_Table_JBSIS.xlsx")
+doj_hierarchy_2020_jbsis <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Charge Definitions and Hierarchy/2020_March04_DOJ_Offense_Table_JBSIS.xlsx")
 
 names(doj_hierarchy_2020_jbsis) <- c("offense_id", "cjis_code", "hierarchy", "charge_level", "charge", "charge_code", "master_charge_description", "sentence", "jbsis_code")
 
@@ -876,14 +876,14 @@ book_df <- book_df %>%
   distinct(book_num, book_date, event_id, .keep_all = T) %>%
   ungroup()
 
-save(book_df, file = "C:/Work/PretrialAssessmentPilot/Agency Collapse CSV Files/Alameda Booking Collapse.RData")
+save(book_df, file = "G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Alameda Booking Collapse.RData")
 ```
 
 Alameda Extra
 ```{r}
-# df1 <- read_excel("C:/Work/PretrialAssessmentPilot/Historical Data Submissions/Alameda/P2 Submission-June 30/1_Identifiers-and-Demographics.xls")
+# df1 <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Alameda/P2 Submission-June 30/1_Identifiers-and-Demographics.xls")
 
-files <- list.files("C:/Work/PretrialAssessmentPilot/Historical Data Submissions/Alameda/P2 Submission-June 30/11_05_2020", full.names = T)
+files <- list.files("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Alameda/P2 Submission-June 30/11_05_2020", full.names = T)
 
 files <- files[grepl("xls", files)]
 
@@ -1336,7 +1336,7 @@ court_df <- reduce(list(court_charge2, court_arraignment, court_fta_war, court_p
   mutate(pretrial_end_date = if_else(disposition_date < sentence_date|is.na(sentence_date), disposition_date, sentence_date),
          conviction_flag = if_else(disposition_type %in% c("Nolo_Contendere", "Guilty"), 1, 0))
 
-save(court_df, file = "C:/Work/PretrialAssessmentPilot/Agency Collapse CSV Files/Alameda Court Collapse.RData")
+save(court_df, file = "G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Alameda Court Collapse.RData")
 ```
 
   Court Diagnostics
@@ -1652,7 +1652,7 @@ assess_df <- assess_df %>%
          risk_level = NA_character_) 
   
 
-save(assess_df, file = "C:/Work/PretrialAssessmentPilot/Agency Collapse CSV Files/Alameda Assessment Collapse.RData")
+save(assess_df, file = "G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Alameda Assessment Collapse.RData")
 ```
 
 
@@ -1686,13 +1686,13 @@ person_df <- person_df %>%
                           T ~ "Other_Unknown"),
   event_id = as.numeric(event_id))
  
-load("C:/Work/PretrialAssessmentPilot/Agency Collapse CSV Files/Alameda Booking Collapse.RData") 
+load("G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Alameda Booking Collapse.RData") 
 
-load("C:/Work/PretrialAssessmentPilot/Agency Collapse CSV Files/Alameda Court Collapse.RData") 
+load("G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Alameda Court Collapse.RData") 
 
-load("C:/Work/PretrialAssessmentPilot/Agency Collapse CSV Files/Alameda Assessment Collapse.RData") 
+load("G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Alameda Assessment Collapse.RData") 
 
-# date_df <- fread("C:/Work/PretrialAssessmentPilot/County Join Dates/VENTURA Join Dates.csv", colClasses = "character") %>%
+# date_df <- fread("G:/CrimJustice/PretrialAssessmentPilot/County Join Dates/VENTURA Join Dates.csv", colClasses = "character") %>%
 #   # rename(file_date = filing_date) %>%
 #   mutate_at(vars(contains("date")), as_date)
 
@@ -1769,7 +1769,7 @@ alameda_collapse <- join_df2 %>%
 
  
 
-save(alameda_collapse, file = "C:/Work/PretrialAssessmentPilot/Agency Collapse CSV Files/Alameda Join Collapse.RData")
+save(alameda_collapse, file = "G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Alameda Join Collapse.RData")
 
 ``` 
 
@@ -1914,7 +1914,7 @@ write.xlsx(Alameda_df, file = "Code Books/Alameda Code Book.xlsx")
 
   Completion
 ```{r}
-files <- list.files("C:/Work/PretrialAssessmentPilot/Code Books/Code Book Notes", pattern = "Alameda", full.names = T)
+files <- list.files("G:/CrimJustice/PretrialAssessmentPilot/Code Books/Code Book Notes", pattern = "Alameda", full.names = T)
 
 df <- lapply(files, read_excel)
 
@@ -1925,7 +1925,7 @@ df[[2]] <- df[[1]] %>%
 
 df <- list(df[[2]], df[[1]])
 
-write.xlsx(df, file = "C:/Work/PretrialAssessmentPilot/Code Books/Variable Construction/Alameda Factor Construction.xlsx", asTable = T, tableStyle = "TableStyleMedium1", sheetName = c("Variable Construction", "jw_notes", "nl_notes"))
+write.xlsx(df, file = "G:/CrimJustice/PretrialAssessmentPilot/Code Books/Variable Construction/Alameda Factor Construction.xlsx", asTable = T, tableStyle = "TableStyleMedium1", sheetName = c("Variable Construction", "jw_notes", "nl_notes"))
 ```
   
   Factors
@@ -1960,7 +1960,7 @@ factor_df <- lapply(ls()[!grepl("original|^df|hier", ls())], function(i){
   }) %>%
   bind_rows()
 
-write.xlsx(factor_df, file = "C:/Work/PretrialAssessmentPilot/Code Books/Factor Code Book/Alameda Factor Code Book.xlsx", asTable = T, tableStyle = "TableStyleMedium1", colWidths = "auto")
+write.xlsx(factor_df, file = "G:/CrimJustice/PretrialAssessmentPilot/Code Books/Factor Code Book/Alameda Factor Code Book.xlsx", asTable = T, tableStyle = "TableStyleMedium1", colWidths = "auto")
 ```
   
 
@@ -1968,7 +1968,7 @@ DOJ CII/Linking Extraction
 ```{r}
 #Alameda has an integrated system. Only one CII file.
 
-cii_df <- read_excel("C:/Work/PretrialAssessmentPilot/Historical Data Submissions/Alameda/P3 Submission-Jan 15/2.5.21/IdentifiersAndDemographicsBookings07012016to12312020.xlsx")  
+cii_df <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Alameda/P3 Submission-Jan 15/2.5.21/IdentifiersAndDemographicsBookings07012016to12312020.xlsx")  
 
 names(cii_df) <- c("event_id", "local_id", "first_name", "last_name", "dob", "cii", "fbi", "race_original", "sex_original", "cdl_id", "cdl_state", "zip_code", "arrest_date", "book_date", "pt_assessed")
 
@@ -2049,7 +2049,7 @@ assess_table <- assess_df %>%
   mutate(dob = convertToDate(dob))
 
 # Save file  
-save(assess_table, file = "C:/Work/PretrialAssessmentPilot/Assessment Output Tables/Alameda Assessment Output 02-2021.RData")
+save(assess_table, file = "G:/CrimJustice/PretrialAssessmentPilot/Assessment Output Tables/Alameda Assessment Output 02-2021.RData")
 
 # assess_df %>%
 #   # Collapse to each assessment
@@ -2223,7 +2223,7 @@ book_charge <- book_charge %>%
 
 book_df <- left_join(book_charge, book_court)
 
-save(book_df, file = "C:/Work/PretrialAssessmentPilot/Agency Collapse CSV Files/Los Angeles Booking Collapse.RData")
+save(book_df, file = "G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Los Angeles Booking Collapse.RData")
 ```
 
   Jail Diagnostics
@@ -2529,7 +2529,7 @@ court_fta <- court_fta %>%
 court_df <- court_df %>%
   left_join(court_fta, by = c("court_case_id", "court_docket_id"))
 
-save(court_df, file = "C:/Work/PretrialAssessmentPilot/Agency Collapse CSV Files/Los Angeles Court Collapse.RData")
+save(court_df, file = "G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Los Angeles Court Collapse.RData")
 ```
   
   Court Diagnostics
@@ -2615,10 +2615,10 @@ Assessment Data (Probation)
 
 # Assessments Data Import
   ## assess_df contains one row per risk assessment event/risk assessment question/pretrial terms and conditions. The questions are widened into columns.
-assess_df <- fread("C:/Work/PretrialAssessmentPilot/Historical Data Submissions/Los Angeles/P2 Submission-June 30/ISAB_PsaHistoricalExtract_20201021.csv",
+assess_df <- fread("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Los Angeles/P2 Submission-June 30/ISAB_PsaHistoricalExtract_20201021.csv",
                   sep = "|", colClasses = "character")
 
-assess_dfq2 <- fread("C:/Work/PretrialAssessmentPilot/Historical Data Submissions/Los Angeles/P3 Submission-Jan 15/ISAB_PsaHistoricalExtract_20210114.csv",
+assess_dfq2 <- fread("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Los Angeles/P3 Submission-Jan 15/ISAB_PsaHistoricalExtract_20210114.csv",
                   sep = "|", colClasses = "character")
 
 assess_df <- bind_rows(assess_df, assess_dfq2)
@@ -2704,13 +2704,13 @@ assess_df <- assess_df %>%
 
 
 
-# assess_df2 <- read_excel("C:/Work/PretrialAssessmentPilot/Historical Data Submissions/Los Angeles/P2 Submission-June 30/Los Angeles County Pretrial Services Bureau - JCC Quarterly SB10 Data (2020-04-01 to 2020-06-30) - Revised.xlsx", sheet = 2, col_types = "text")
+# assess_df2 <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Los Angeles/P2 Submission-June 30/Los Angeles County Pretrial Services Bureau - JCC Quarterly SB10 Data (2020-04-01 to 2020-06-30) - Revised.xlsx", sheet = 2, col_types = "text")
 
-assess_df2 <- read_excel("C:/Work/PretrialAssessmentPilot/Historical Data Submissions/Los Angeles/P3 Submission-Jan 15/Los Angeles County Pretrial Services Bureau - JCC Court Pilot Data (2020-01-01 to 2020-12-31).xlsx", sheet = 3, col_types = "text")
+assess_df2 <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Los Angeles/P3 Submission-Jan 15/Los Angeles County Pretrial Services Bureau - JCC Court Pilot Data (2020-01-01 to 2020-12-31).xlsx", sheet = 3, col_types = "text")
 
 names(assess_df2) <- toupper(names(assess_df2))
 
-assess_df2_response <- read_excel("C:/Work/PretrialAssessmentPilot/Historical Data Submissions/Los Angeles/P3 Submission-Jan 15/Los Angeles County Pretrial Services Bureau - JCC Court Pilot Data (2020-01-01 to 2020-12-31).xlsx", sheet = 4, col_types = "text")
+assess_df2_response <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Los Angeles/P3 Submission-Jan 15/Los Angeles County Pretrial Services Bureau - JCC Court Pilot Data (2020-01-01 to 2020-12-31).xlsx", sheet = 4, col_types = "text")
 
 assess_df2 <- assess_df2 %>%
   distinct(APPLICATION_ID, .keep_all = T) %>%
@@ -2892,7 +2892,7 @@ assess_df2 <- assess_df2 %>%
 
 
 #Ask about EM in LA.
-assess_df3 <- read_excel("C:/Work/PretrialAssessmentPilot/Historical Data Submissions/Los Angeles/P2 Submission-June 30/Los Angeles County Pretrial Services Bureau - JCC Quarterly SB10 Data (2020-04-01 to 2020-06-30) - Revised.xlsx", sheet = 3, col_types = "text")
+assess_df3 <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Los Angeles/P2 Submission-June 30/Los Angeles County Pretrial Services Bureau - JCC Quarterly SB10 Data (2020-04-01 to 2020-06-30) - Revised.xlsx", sheet = 3, col_types = "text")
 
   
 names(assess_df3) <- c("key", "pretrial_id", "cii", "fbi", "local_id", "cdl_id", "first_name", "last_name", "dob", "sex_original", "race_original", "tool_name", "assessment_date", "zip_code", "modified_wisconsin_score", "release_recommendation_original", "release_authorization_original", "release_decision_original", "pretrial_release_date", "release_conditions_original", "pretrial_violation_original", "pretrial_violation_date", "court_date_reminder_original", "other_pretrial_service_original", "pretrial_termination_outcome_original", "pretrial_termination_date")
@@ -2977,7 +2977,7 @@ assess_OR2 <- read_excel("Historical Data Submissions/Los Angeles/Los Angeles Co
 
 assess_OR3 <- read_excel("Historical Data Submissions/Los Angeles/Los Angeles County JCC Data - Arraignment Unfavorable Recommendations (2015-01 to 2019-09).xlsx") %>% mutate(Termination_Date = as_datetime(Termination_Date))
 
-assess_ORQ1 <- read_excel("C:/Work/PretrialAssessmentPilot/Historical Data Submissions/Los Angeles/Los Angeles County Pretrial Services Bureau - JCC Quarterly SB10 Data (2019-10-01 to 2019-12-31).xlsx", sheet = 2, col_types = "text") %>% 
+assess_ORQ1 <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Los Angeles/Los Angeles County Pretrial Services Bureau - JCC Quarterly SB10 Data (2019-10-01 to 2019-12-31).xlsx", sheet = 2, col_types = "text") %>% 
   mutate_at(vars(Application_Date_Time, Termination_Date, DOB), convertToDateTime) %>%
   mutate_at(vars(contains("Postpoint")), as.numeric) %>%
   unite("Defendant_Name", c(Last_Name, First_Name), sep = ", ") %>%
@@ -3024,7 +3024,7 @@ assess_BD5 <- read_excel("Historical Data Submissions/Los Angeles/Los Angeles Co
 
 assess_BD6 <- read_excel("Historical Data Submissions/Los Angeles/Los Angeles County JCC Data - Pre-arraignment OR Release Denied (2015-01 to 2019-09).xlsx")
 
-assess_BDQ1 <- read_excel("C:/Work/PretrialAssessmentPilot/Historical Data Submissions/Los Angeles/Los Angeles County Pretrial Services Bureau - JCC Quarterly SB10 Data (2019-10-01 to 2019-12-31).xlsx", sheet = 1, col_types = "text")
+assess_BDQ1 <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Los Angeles/Los Angeles County Pretrial Services Bureau - JCC Quarterly SB10 Data (2019-10-01 to 2019-12-31).xlsx", sheet = 1, col_types = "text")
 
 assess_BDQ1 <- assess_BDQ1 %>%
   gather(key, value, 15:46) %>%
@@ -3065,7 +3065,7 @@ assess_BD <- assess_BD %>%
 # Probation EM Responses
 assess_EM_response <- read_excel("Historical Data Submissions/Los Angeles/California JCC Historical EM Records (Revised 2019-11-25).xlsx", sheet = 2)
 
-assess_EM_responseQ1 <- read_excel("C:/Work/PretrialAssessmentPilot/Historical Data Submissions/Los Angeles/Los Angeles County Pretrial Services Bureau - JCC Quarterly SB10 Data (2019-10-01 to 2019-12-31).xlsx", sheet = 4) %>%
+assess_EM_responseQ1 <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Los Angeles/Los Angeles County Pretrial Services Bureau - JCC Quarterly SB10 Data (2019-10-01 to 2019-12-31).xlsx", sheet = 4) %>%
   select(-2)
 
 names(assess_EM_responseQ1) <- names(assess_EM_response)
@@ -3083,7 +3083,7 @@ assess_EM <- read_excel("Historical Data Submissions/Los Angeles/California JCC 
                       sheet = 1) %>%
   select(-`Application ID`)
 
-assess_EMQ1 <- read_excel("C:/Work/PretrialAssessmentPilot/Historical Data Submissions/Los Angeles/Los Angeles County Pretrial Services Bureau - JCC Quarterly SB10 Data (2019-10-01 to 2019-12-31).xlsx", sheet = 3) %>%
+assess_EMQ1 <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Los Angeles/Los Angeles County Pretrial Services Bureau - JCC Quarterly SB10 Data (2019-10-01 to 2019-12-31).xlsx", sheet = 3) %>%
   rename("Release_Date_Time" = Release_Date,
          "Score(s)_1" = "Score(s)") %>%
   mutate_at(vars(Termination_Date, PTR_Violation_Date_Time), convertToDateTime)
@@ -3162,7 +3162,7 @@ assess_EM_response %>%
 assess_df <- assess_df %>%
   bind_rows(assess_df2, assess_df3)
 
-save(assess_df, file = "C:/Work/PretrialAssessmentPilot/Agency Collapse CSV Files/Los Angeles Assessment Collapse.RData")
+save(assess_df, file = "G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Los Angeles Assessment Collapse.RData")
 ```
   
   Assessment Diagnostics
@@ -3192,11 +3192,11 @@ assess_df %>%
 Join
 ```{r}
 # Wait for CII Join
-load("C:/Work/PretrialAssessmentPilot/Agency Collapse CSV Files/Los Angeles Booking Collapse.RData") 
+load("G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Los Angeles Booking Collapse.RData") 
 
-load("C:/Work/PretrialAssessmentPilot/Agency Collapse CSV Files/Los Angeles Court Collapse.RData") 
+load("G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Los Angeles Court Collapse.RData") 
 
-load("C:/Work/PretrialAssessmentPilot/Agency Collapse CSV Files/Los Angeles Assessment Collapse.RData")
+load("G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Los Angeles Assessment Collapse.RData")
 
 book_df <- book_df %>%
   mutate(court_docket_id = court_case_id) %>%
@@ -3207,7 +3207,7 @@ court_df <- court_df %>%
          court_docket_id = gsub(" ", "", court_docket_id)) 
 
 
-# date_df <- fread("C:/Work/PretrialAssessmentPilot/County Join Dates/Los Angeles Join Dates.csv", colClasses = "character") %>%
+# date_df <- fread("G:/CrimJustice/PretrialAssessmentPilot/County Join Dates/Los Angeles Join Dates.csv", colClasses = "character") %>%
 #   # rename(file_date = filing_date) %>%
 #   mutate_at(vars(contains("date")), as_date)
 
@@ -3362,7 +3362,7 @@ join_collapse <- join_df2 %>%
   ungroup() %>%
   distinct(book_num, .keep_all = T)
 
-fwrite(join_collapse, "C:/Work/PretrialAssessmentPilot/Agency Collapse CSV Files/Los Angeles Join Collapse.csv")
+fwrite(join_collapse, "G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Los Angeles Join Collapse.csv")
 
 sample
 ``` 
@@ -3430,7 +3430,7 @@ write.xlsx(Los_Angeles_df, file = "Code Books/Los Angeles Code Book.xlsx")
 
  Completion
 ```{r}
-files <- list.files("C:/Work/PretrialAssessmentPilot/Code Books/Code Book Notes", pattern = "Alameda", full.names = T)
+files <- list.files("G:/CrimJustice/PretrialAssessmentPilot/Code Books/Code Book Notes", pattern = "Alameda", full.names = T)
 
 df <- lapply(files, read_excel)
 
@@ -3441,7 +3441,7 @@ df[[2]] <- df[[1]] %>%
 
 df <- list(df[[2]], df[[1]])
 
-write.xlsx(df, file = "C:/Work/PretrialAssessmentPilot/Code Books/Variable Construction/Alameda Factor Construction.xlsx", asTable = T, tableStyle = "TableStyleMedium1", sheetName = c("Variable Construction", "jw_notes", "nl_notes"))
+write.xlsx(df, file = "G:/CrimJustice/PretrialAssessmentPilot/Code Books/Variable Construction/Alameda Factor Construction.xlsx", asTable = T, tableStyle = "TableStyleMedium1", sheetName = c("Variable Construction", "jw_notes", "nl_notes"))
 ```
   
   factors
@@ -3476,7 +3476,7 @@ factor_df <- lapply(ls()[!grepl("original|^df|hier", ls())], function(i){
   }) %>%
   bind_rows()
 
-write.xlsx(factor_df, file = "C:/Work/PretrialAssessmentPilot/Code Books/Factor Code Book/Los Angeles Factor Code Book.xlsx", asTable = T, tableStyle = "TableStyleMedium1", colWidths = "auto")
+write.xlsx(factor_df, file = "G:/CrimJustice/PretrialAssessmentPilot/Code Books/Factor Code Book/Los Angeles Factor Code Book.xlsx", asTable = T, tableStyle = "TableStyleMedium1", colWidths = "auto")
 ```
 
   
@@ -3597,7 +3597,7 @@ date_df <- lapply("assess_df3", function(i){
   distinct()
   
 
-write.xlsx(list(factor_df, flag_df, date_df), file = "C:/Work/PretrialAssessmentPilot/Code Books/Assessment Code Book/Los Angeles Assessment Code Book EM 10-20.xlsx", asTable = T, tableStyle = "TableStyleMedium1", colWidths = "auto", sheetName = c("Factors", "Flags", "Dates"))
+write.xlsx(list(factor_df, flag_df, date_df), file = "G:/CrimJustice/PretrialAssessmentPilot/Code Books/Assessment Code Book/Los Angeles Assessment Code Book EM 10-20.xlsx", asTable = T, tableStyle = "TableStyleMedium1", colWidths = "auto", sheetName = c("Factors", "Flags", "Dates"))
 ```
 
 EM Code Book
@@ -3720,7 +3720,7 @@ date_df <- lapply("assess_df2", function(i){
   distinct()
   
 
-write.xlsx(list(factor_df, flag_df, date_df), file = "C:/Work/PretrialAssessmentPilot/Code Books/Assessment Code Book/Santa Barbara Assessment Code Book 9-20.xlsx", asTable = T, tableStyle = "TableStyleMedium1", colWidths = "auto", sheetName = c("Factors", "Flags", "Dates"))
+write.xlsx(list(factor_df, flag_df, date_df), file = "G:/CrimJustice/PretrialAssessmentPilot/Code Books/Assessment Code Book/Santa Barbara Assessment Code Book 9-20.xlsx", asTable = T, tableStyle = "TableStyleMedium1", colWidths = "auto", sheetName = c("Factors", "Flags", "Dates"))
 ```
 
 
@@ -3810,7 +3810,7 @@ assess_table <- assess_df %>%
 
 
 # Save file  
-save(assess_table, file = "C:/Work/PretrialAssessmentPilot/Assessment Output Tables/Los Angeles Assessment Output 02-2021.RData")
+save(assess_table, file = "G:/CrimJustice/PretrialAssessmentPilot/Assessment Output Tables/Los Angeles Assessment Output 02-2021.RData")
 
 # assess_df %>%
 #   # Collapse to each assessment
@@ -3861,12 +3861,12 @@ Jail Data
   ## book_df contains one row per booking/charge/courtcase combination and includes information on the person, the charge, as well as the time of booking and release. It contains some duplicates based around release information. Additional, it is ambiguous whether identical charges attached to some bookings are a separate count or dupliation error. Follow up with SB.    
 book_df <- read_excel("Historical Data Submissions/Santa Barbara/Jail.Data.12.5.xlsx", col_types = "text")
 
-book_df2 <- read_excel("C:/Work/PretrialAssessmentPilot/Historical Data Submissions/Santa Barbara/PretrialJailData1.28.xlsx", col_types = "text") %>%
+book_df2 <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Santa Barbara/PretrialJailData1.28.xlsx", col_types = "text") %>%
   select(-10)
 
-book_df3 <- read_excel("C:/Work/PretrialAssessmentPilot/Historical Data Submissions/Santa Barbara/P2 Submission-June 30/JailData.Jan.Jun.20.xlsx", col_types = "text")
+book_df3 <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Santa Barbara/P2 Submission-June 30/JailData.Jan.Jun.20.xlsx", col_types = "text")
 
-book_df4 <- read_excel("C:/Work/PretrialAssessmentPilot/Historical Data Submissions/Santa Barbara/P3 Submission-Jan 15/SB.Jail.Data.Jul.Dec.20.xlsx", col_types = "text")
+book_df4 <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Santa Barbara/P3 Submission-Jan 15/SB.Jail.Data.Jul.Dec.20.xlsx", col_types = "text")
 
   ## Period 1 and 2 Submission data came in with slightly different names than the historical data, but in the same order, so I changed the names to match the first submission before joining them.   
 names(book_df2) <- names(book_df)
@@ -3994,7 +3994,7 @@ book_df <- book_df %>%
   ungroup() %>%
   distinct(book_num, book_date, court_docket_id, .keep_all = T) 
 
-save(book_df, file = "C:/Work/PretrialAssessmentPilot/Agency Collapse CSV Files/Santa Barbara Booking Collapse.RData")
+save(book_df, file = "G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Santa Barbara Booking Collapse.RData")
 ```
 
   Jail Diagnostics
@@ -4350,7 +4350,7 @@ court_df <- reduce(list(court_person, court_dispo, court_fta_war, court_hearing,
   mutate(pretrial_end_date = if_else(disposition_date <= sentence_date|is.na(sentence_date), disposition_date, sentence_date),
          conviction_flag = if_else(!is.na(sentence_date), 1, 0))
 
-save(court_df, file = "C:/Work/PretrialAssessmentPilot/Agency Collapse CSV Files/Santa Barbara Court Collapse.RData")
+save(court_df, file = "G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Santa Barbara Court Collapse.RData")
 ```
 
   Court Diagnostics
@@ -4727,7 +4727,7 @@ assess_df <- assess_df %>%
   mutate_at(vars(contains("flag")), funs(max(., na.rm = T))) %>%
   distinct(pretrial_id, assessment_date, court_docket_id, .keep_all = T)
 
-save(assess_df, file = "C:/Work/PretrialAssessmentPilot/Agency Collapse CSV Files/Santa Barbara Assessment Collapse.RData")
+save(assess_df, file = "G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Santa Barbara Assessment Collapse.RData")
 ```
 
   Assessment Diagnostics
@@ -4932,13 +4932,13 @@ assess_df <- assess_tracking %>%
 
 Join
 ```{r}
-load("C:/Work/PretrialAssessmentPilot/Agency Collapse CSV Files/Santa Barbara Booking Collapse.RData") 
+load("G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Santa Barbara Booking Collapse.RData") 
 
-load("C:/Work/PretrialAssessmentPilot/Agency Collapse CSV Files/Santa Barbara Court Collapse.RData") 
+load("G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Santa Barbara Court Collapse.RData") 
 
-load("C:/Work/PretrialAssessmentPilot/Agency Collapse CSV Files/Santa Barbara Assessment Collapse.RData")
+load("G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Santa Barbara Assessment Collapse.RData")
 
-# date_df <- fread("C:/Work/PretrialAssessmentPilot/County Join Dates/SANTA BARBARA Join Dates.csv") %>%
+# date_df <- fread("G:/CrimJustice/PretrialAssessmentPilot/County Join Dates/SANTA BARBARA Join Dates.csv") %>%
 #   rename(file_date = filing_date) %>%
 #   mutate_at(vars(contains("date")), as_date)
 
@@ -5045,7 +5045,7 @@ santa_barbara_collapse <- join_df2 %>%
 
  
 
-save(santa_barbara_collapse, file = "C:/Work/PretrialAssessmentPilot/Agency Collapse CSV Files/Santa Barbara Join Collapse.RData")
+save(santa_barbara_collapse, file = "G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Santa Barbara Join Collapse.RData")
 
 
 # Diagnostics
@@ -5201,7 +5201,7 @@ write.xlsx(Santa_Barbara_df, file = "Code Books/Santa Barbara/P2 Submission-June
  
  Completion
 ```{r}
-files <- list.files("C:/Work/PretrialAssessmentPilot/Code Books/Code Book Notes", pattern = "Alameda", full.names = T)
+files <- list.files("G:/CrimJustice/PretrialAssessmentPilot/Code Books/Code Book Notes", pattern = "Alameda", full.names = T)
 
 df <- lapply(files, read_excel)
 
@@ -5212,7 +5212,7 @@ df[[2]] <- df[[1]] %>%
 
 df <- list(df[[2]], df[[1]])
 
-write.xlsx(df, file = "C:/Work/PretrialAssessmentPilot/Code Books/Variable Construction/Alameda Factor Construction.xlsx", asTable = T, tableStyle = "TableStyleMedium1", sheetName = c("Variable Construction", "jw_notes", "nl_notes"))
+write.xlsx(df, file = "G:/CrimJustice/PretrialAssessmentPilot/Code Books/Variable Construction/Alameda Factor Construction.xlsx", asTable = T, tableStyle = "TableStyleMedium1", sheetName = c("Variable Construction", "jw_notes", "nl_notes"))
 ```
   
   Factors
@@ -5247,7 +5247,7 @@ factor_df <- lapply(ls()[!grepl("original|^df|hier", ls())], function(i){
   }) %>%
   bind_rows()
 
-write.xlsx(factor_df, file = "C:/Work/PretrialAssessmentPilot/Code Books/Factor Code Book/Santa Barbara/P2 Submission-June 30 Factor Code Book.xlsx", asTable = T, tableStyle = "TableStyleMedium1", colWidths = "auto")
+write.xlsx(factor_df, file = "G:/CrimJustice/PretrialAssessmentPilot/Code Books/Factor Code Book/Santa Barbara/P2 Submission-June 30 Factor Code Book.xlsx", asTable = T, tableStyle = "TableStyleMedium1", colWidths = "auto")
 ```
 
   Assessment (9/2020)
@@ -5377,7 +5377,7 @@ date_df <- lapply(ls()[!grepl("original|^df|hier|names|factor|date|flag", ls())]
   select(table_name, field, min_date, max_date)
   
 
-write.xlsx(list(factor_df, flag_df, date_df), file = "C:/Work/PretrialAssessmentPilot/Code Books/Assessment Code Book/Santa Barbara Assessment Code Book 9-20.xlsx", asTable = T, tableStyle = "TableStyleMedium1", colWidths = "auto", sheetName = c("Factors", "Flags", "Dates"))
+write.xlsx(list(factor_df, flag_df, date_df), file = "G:/CrimJustice/PretrialAssessmentPilot/Code Books/Assessment Code Book/Santa Barbara Assessment Code Book 9-20.xlsx", asTable = T, tableStyle = "TableStyleMedium1", colWidths = "auto", sheetName = c("Factors", "Flags", "Dates"))
 ```
 
 DOJ CII/Linking Extraction
@@ -5466,7 +5466,7 @@ assess_table <- assess_df %>%
   # select(county, risk_level, monitor_level, release_recommendation, release_decision, assessment_date, vprai_risk_score, vprair_risk_score, tool_name, assessment_date, dob, sex, race, pretrial_termination_reason, pretrial_ineligible_reason)
 
 # Save file  
-save(assess_table, file = "C:/Work/PretrialAssessmentPilot/Assessment Output Tables/Santa Barbara Assessment Output 10-2020.RData")
+save(assess_table, file = "G:/CrimJustice/PretrialAssessmentPilot/Assessment Output Tables/Santa Barbara Assessment Output 10-2020.RData")
 
 # assess_df %>%
 #   # Collapse to each assessment
@@ -5489,7 +5489,7 @@ save(assess_table, file = "C:/Work/PretrialAssessmentPilot/Assessment Output Tab
 Jail Data
 ```{r}
 #Jail Data
-# doc <- read_xml("C:/Work/PretrialAssessmentPilot/Historical Data Submissions/Tulare/P3 Submission-Jan 15/10_01_2020-02_01_2021.xml")
+# doc <- read_xml("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Tulare/P3 Submission-Jan 15/10_01_2020-02_01_2021.xml")
 # doc_list <- lapply(
 #   paste0("Historical Data Submissions/Tulare/P2 Submission-June 30/JMS", c("2015", "2016", "2017", "2018", "20200101_20200630"), ".xml"),
 #   read_xml
@@ -5534,7 +5534,7 @@ Jail Data
 #   unnest_auto(bailtype)
 # 
 # 
-# fwrite(jail_df, file = "C:/Work/PretrialAssessmentPilot/Historical Data Submissions/Tulare/P3 Submission-Jan 15/Tulare Jail xml to csv 2-18-2021.csv")
+# fwrite(jail_df, file = "G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Tulare/P3 Submission-Jan 15/Tulare Jail xml to csv 2-18-2021.csv")
 
 ####
 
@@ -5543,7 +5543,7 @@ Jail Data
 
 
 
-book_df <- fread("C:/Work/PretrialAssessmentPilot/Historical Data Submissions/Tulare/P3 Submission-Jan 15/Tulare Jail xml to csv 2-18-2021.csv",
+book_df <- fread("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Tulare/P3 Submission-Jan 15/Tulare Jail xml to csv 2-18-2021.csv",
                  colClasses = "character")
 
 names(book_df) <- c("book_id", "book_date", "book_time", "book_num", "book_type", "local_id", "last_name", "first_name", "middle_name", "dob", "gender", "hair", "race", "cdl_id", "fbi", "cii", "employed_flag", "arrest_date", "arrest_time", "charge_original", "charge_level_original", "release_date", "release_type_original", "first_court_date", "bail_amt", "bail_type") 
@@ -5656,7 +5656,7 @@ book_df <- book_df %>%
   ungroup() %>%
   distinct(book_num, book_date, .keep_all = T) 
 
-fwrite(book_df, "C:/Work/PretrialAssessmentPilot/Agency Collapse CSV Files/Tulare Booking Collapse.csv")
+fwrite(book_df, "G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Tulare Booking Collapse.csv")
 ```
 
   Jail Diagnostics
@@ -5687,7 +5687,7 @@ book_charge %>%
 Court Data
 ```{r}
 court_df <- lapply(1:6, function(i){
-  read_excel("C:/Work/PretrialAssessmentPilot/Historical Data Submissions/Tulare/P3 Submission-Jan 15/TCSC Case Filings.xlsx", col_types = "text", sheet = i, col_names = F)
+  read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Tulare/P3 Submission-Jan 15/TCSC Case Filings.xlsx", col_types = "text", sheet = i, col_names = F)
 }) %>% bind_rows()
 
 names(court_df) <- court_df[1,]
@@ -5767,7 +5767,7 @@ court_df <- court_df %>%
 ####
 
 court_hearing <- lapply(1:3, function(i){
-  read_excel("C:/Work/PretrialAssessmentPilot/Historical Data Submissions/Tulare/P3 Submission-Jan 15/TCSC Hearings.xlsx", col_types = "text", sheet = i, col_names = F)
+  read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Tulare/P3 Submission-Jan 15/TCSC Hearings.xlsx", col_types = "text", sheet = i, col_names = F)
 }) %>% bind_rows()
 
 names(court_hearing) <- court_hearing[1,]
@@ -5801,7 +5801,7 @@ court_hearing %>%
 #   semi_join(year())
 # 
 # court_hearing <- lapply(1:2, function(i){
-#   read_excel("C:/Work/PretrialAssessmentPilot/Historical Data Submissions/Tulare/P3 Submission-Jan 15/TCSC Hearings.xlsx", col_types = "text", sheet = i, col_names = F)
+#   read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Tulare/P3 Submission-Jan 15/TCSC Hearings.xlsx", col_types = "text", sheet = i, col_names = F)
 # }) %>% bind_rows()
 ```
 
@@ -5839,7 +5839,7 @@ court_df <- court_df %>%
   mutate(pretrial_end_date = if_else(disposition_date <= sentence_date|is.na(sentence_date), disposition_date, sentence_date),
          conviction_flag = if_else(!is.na(sentence_date), 1, 0))
 
-fwrite(court_df, "C:/Work/PretrialAssessmentPilot/Agency Collapse CSV Files/Tulare Court Collapse.csv")
+fwrite(court_df, "G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Tulare Court Collapse.csv")
 ```
 
 
@@ -5892,7 +5892,7 @@ Assessment Data (New)
 
 # Assessments Data Import
   ## assess_df contains one row per risk assessment event/risk assessment question/pretrial terms and conditions. The questions are widened into columns.
-assess_df <- read_excel("C:/Work/PretrialAssessmentPilot/Historical Data Submissions/Tulare/P2 Submission-June 30/PreTrialProject_DataElementInventory 20200101-20200630 run 20200819 1506.xlsx", col_types = "text")
+assess_df <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Tulare/P2 Submission-June 30/PreTrialProject_DataElementInventory 20200101-20200630 run 20200819 1506.xlsx", col_types = "text")
 
 # The tool questions are widened so that each question is a variable and each response a value. This is done first, so that standardized names may be added. 
 assess_df <- assess_df %>%
@@ -6036,7 +6036,7 @@ assess_df <- assess_df %>%
 
 ####
 
-assess_response <-  read_excel("C:/Work/PretrialAssessmentPilot/Historical Data Submissions/Tulare/P2 Submission-June 30/PreTrialProject_AssessmentPSA 20200819 1502.xlsx", col_types = "text")
+assess_response <-  read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Tulare/P2 Submission-June 30/PreTrialProject_AssessmentPSA 20200819 1502.xlsx", col_types = "text")
 
 
 # Variable name standardization--See pg. xxx for more details.
@@ -6090,7 +6090,7 @@ assess_response %>%
 assess_df <- assess_df %>%
   left_join(assess_response)
 
-fwrite(assess_df, "C:/Work/PretrialAssessmentPilot/Agency Collapse CSV Files/Tulare Assessment Collapse.csv")
+fwrite(assess_df, "G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Tulare Assessment Collapse.csv")
 ```
 
 
@@ -6473,7 +6473,7 @@ date_df <- lapply(ls()[!grepl("original|^df|hier|names|factor|date|flag", ls())]
   select(table_name, field, min_date, max_date)
   
 
-write.xlsx(list(factor_df, flag_df, date_df), file = "C:/Work/PretrialAssessmentPilot/Code Books/Assessment Code Book/Tulare Assessment Code Book 9-20.xlsx", asTable = T, tableStyle = "TableStyleMedium1", colWidths = "auto", sheetName = c("Factors", "Flags", "Dates"))
+write.xlsx(list(factor_df, flag_df, date_df), file = "G:/CrimJustice/PretrialAssessmentPilot/Code Books/Assessment Code Book/Tulare Assessment Code Book 9-20.xlsx", asTable = T, tableStyle = "TableStyleMedium1", colWidths = "auto", sheetName = c("Factors", "Flags", "Dates"))
 
 
 ## Notes for Call:
@@ -6502,7 +6502,7 @@ assess_table <- assess_df %>%
   select(county, release_recommendation, release_decision, assessment_date, psa_nvca_risk_score, psa_nca_risk_score, psa_fta_risk_score, tool_name, assessment_date, dob, sex, race, monitor_level, pretrial_termination_reason)
 
 # Save file  
-fwrite(assess_table, file = "C:/Work/PretrialAssessmentPilot/Assessment Output Tables/Tulare Assessment Output 10-2020.csv")
+fwrite(assess_table, file = "G:/CrimJustice/PretrialAssessmentPilot/Assessment Output Tables/Tulare Assessment Output 10-2020.csv")
 
 # assess_df %>%
 #   # Collapse to each assessment
@@ -6610,12 +6610,12 @@ Jail Data
 #   unnest_longer(WN) %>%
 #   unnest_longer(Suffix)
 
-# fwrite(jail_df, file = "C:/Work/PretrialAssessmentPilot/Historical Data Submissions/Tuolumne/Tuolumne Jail xml to csv Period 3.csv")
+# fwrite(jail_df, file = "G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Tuolumne/Tuolumne Jail xml to csv Period 3.csv")
 
 #Jail Data Loaded from fixed XML bullshit
 
-# book_df <- fread("C:/Work/PretrialAssessmentPilot/Historical Data Submissions/Tuolumne/Tuolumne Jail xml to csv Period 2.csv")
-book_df <- fread("C:/Work/PretrialAssessmentPilot/Historical Data Submissions/Tuolumne/Tuolumne Jail xml to csv Period 3.csv")
+# book_df <- fread("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Tuolumne/Tuolumne Jail xml to csv Period 2.csv")
+book_df <- fread("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Tuolumne/Tuolumne Jail xml to csv Period 3.csv")
 
 # original_field <- names(book_df)
 
@@ -6724,7 +6724,7 @@ book_df <- book_df %>%
 # book_df %>%
 #   distinct(book_num, court_case_id)
 
-save(book_df, file = "C:/Work/PretrialAssessmentPilot/Agency Collapse CSV Files/Tuolumne Booking Collapse.RData")
+save(book_df, file = "G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Tuolumne Booking Collapse.RData")
 ```
 
   Jail Diagnostics
@@ -7083,7 +7083,7 @@ court_df <- reduce(list(court_case, court_person, court_cii, court_dispo, court_
          conviction_flag = if_else(!is.na(sentence_date), 1, 0))
 
 
-save(court_df, file = "C:/Work/PretrialAssessmentPilot/Agency Collapse CSV Files/Tuolumne Court Collapse.RData")
+save(court_df, file = "G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Tuolumne Court Collapse.RData")
 
 # Diagnostics
 # court_fta %>%
@@ -7170,10 +7170,10 @@ Assessment Data (New)
 # Assessments Data Import
   ## assess_df contains one row per risk assessment event/risk assessment question/pretrial terms and conditions. The questions are widened into columns.
   ## Bring in and standardize data
-assess_df <- read_excel("C:/Work/PretrialAssessmentPilot/Historical Data Submissions/Tuolumne/P2 Submission-June 30/Pre-Trial Spreadsheet April-June 2020.xlsx", col_types = "text")
+assess_df <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Tuolumne/P2 Submission-June 30/Pre-Trial Spreadsheet April-June 2020.xlsx", col_types = "text")
 
 # Fixing names to match P2
-assess_df2 <- read_excel("C:/Work/PretrialAssessmentPilot/Historical Data Submissions/Tuolumne/P3 Submission-Jan 15/6.30.20-12.31.20 Pretrial Spreadsheet.xlsx", col_types = "text") %>%
+assess_df2 <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Tuolumne/P3 Submission-Jan 15/6.30.20-12.31.20 Pretrial Spreadsheet.xlsx", col_types = "text") %>%
   mutate("Arrest Date and Time" = paste(convertToDate(`Arrest Date`), `Arrest Time`, sep = "-"),
          "Risk Assessment Date and Time" = paste(convertToDate(`PSA Date`), `PSA Time`, sep = "-"),
          "Arrest Date and Time" = paste(convertToDate(`Arrest Date`), `Arrest Time`, sep = "-"),
@@ -7302,7 +7302,7 @@ assess_df <- assess_df %>%
 ####
 
 # Assessment Responses
-assess_response <- read_excel("C:/Work/PretrialAssessmentPilot/Historical Data Submissions/Tuolumne/P3 Submission-Jan 15/PSAs 6.30.20-12.31.20.xls", col_types = "text", skip = 1)
+assess_response <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Tuolumne/P3 Submission-Jan 15/PSAs 6.30.20-12.31.20.xls", col_types = "text", skip = 1)
 
 
 # Variable name standardization--See pg. xxx for more details.
@@ -7341,9 +7341,9 @@ assess_response <- assess_response %>%
 Period 3 Assessment Import
 ```{r}
 # Period 3 Assessment Data Import---Where are the tool responses? 
-# assess_df2 <- read_excel("C:/Work/PretrialAssessmentPilot/Historical Data Submissions/Tuolumne/P2 Submission-June 30/6.30.20 - 9.30.20 Probation Pretrial Spreadsheet.xlsx", col_types = "text")
+# assess_df2 <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Tuolumne/P2 Submission-June 30/6.30.20 - 9.30.20 Probation Pretrial Spreadsheet.xlsx", col_types = "text")
 
-assess_df2 <- read_excel("C:/Work/PretrialAssessmentPilot/Historical Data Submissions/Tuolumne/P3 Submission-Jan 15/6.30.20-12.31.20 Pretrial Spreadsheet.xlsx", col_types = "text")
+assess_df2 <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Tuolumne/P3 Submission-Jan 15/6.30.20-12.31.20 Pretrial Spreadsheet.xlsx", col_types = "text")
 
 # Variable name standardization--See pg. xxx for more details.
 names(assess_df2) <- c("name", "local_id", "cii", "fbi", "cdl_id", "dob", "sex_original", "race_original", "zip_code", "arrest_date", "arrest_time", "book_num",  "court_case_id", "book_type", "assessment_date", "assessment_time", "psa_fta_risk_score", "psa_nca_risk_score", "psa_nvca_risk_score", "monitor_level_original", "eligible_flag", "pretrial_ineligible_reason_original", "release_recommendation_original", "release_decision_prearraignment", "release_decision_post_arraignment", "release_authorization_original", "case_status", "OR_release_date", "release_conditions_original", "condition_no_contact_flag", "pretrial_violation_original", "pretrial_violation_date", "next_hearing_date", "next_hearing_time", "court_date_reminder_flag",  "emp_status", "pretrial_termination_outcome_original", "pretrial_termination_reason_original", "pretrial_termination_date", "pretrial_termination_time", "fta_count", "other_pretrial_service_original", "notes")
@@ -7441,7 +7441,7 @@ assess_df2 <- assess_df2 %>%
          pretrial_violation_flag = if_else(is.na(pretrial_violation_original)|pretrial_violation_original == "NA", 0,1))
 
 
-assess_response <- read_excel("C:/Work/PretrialAssessmentPilot/Historical Data Submissions/Tuolumne/P3 Submission-Jan 15/PSAs 6.30.20-12.31.20.xls", col_types = "text", skip = 1)
+assess_response <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Tuolumne/P3 Submission-Jan 15/PSAs 6.30.20-12.31.20.xls", col_types = "text", skip = 1)
 
 
 #Start Here
@@ -7471,15 +7471,15 @@ assess_df <- assess_df %>%
 
 assess_df <- left_join(assess_df, assess_response)
 
-save(assess_df, file = "C:/Work/PretrialAssessmentPilot/Agency Collapse CSV Files/Tuolumne Assessment Collapse.RData")
+save(assess_df, file = "G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Tuolumne Assessment Collapse.RData")
 ```
 
 Probation Assessment Data (old)
 ```{r}
 assess_df <- lapply(2018:2019, function(i){
-  lapply(getSheetNames(paste0("C:/Work/PretrialAssessmentPilot/Historical Data Submissions/Tuolumne/Tuolumne County Probation Pre-Trial Data ", i, ".xlsx")),
+  lapply(getSheetNames(paste0("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Tuolumne/Tuolumne County Probation Pre-Trial Data ", i, ".xlsx")),
          function(j){
-    df <- read_excel(paste0("C:/Work/PretrialAssessmentPilot/Historical Data Submissions/Tuolumne/Tuolumne County Probation Pre-Trial Data ", i, ".xlsx"),
+    df <- read_excel(paste0("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Tuolumne/Tuolumne County Probation Pre-Trial Data ", i, ".xlsx"),
                      sheet = j, col_types = "text")
     df$risk_score <- j
     names(df) <- gsub("sucesful|succesful", "successful", tolower(names(df)))
@@ -7538,11 +7538,11 @@ assess_df %>%
 
 Join
 ```{r}
-load("C:/Work/PretrialAssessmentPilot/Agency Collapse CSV Files/Tuolumne Booking Collapse.RData") 
+load("G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Tuolumne Booking Collapse.RData") 
 
-load("C:/Work/PretrialAssessmentPilot/Agency Collapse CSV Files/Tuolumne Court Collapse.RData") 
+load("G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Tuolumne Court Collapse.RData") 
 
-load("C:/Work/PretrialAssessmentPilot/Agency Collapse CSV Files/Tuolumne Assessment Collapse.RData")
+load("G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Tuolumne Assessment Collapse.RData")
 
 #Changing dates to DOJ format
 book_df <- book_df %>%
@@ -7621,7 +7621,7 @@ tuolumne_collapse <- join_df2 %>%
 
  
 
-save(tuolumne_collapse, file = "C:/Work/PretrialAssessmentPilot/Agency Collapse CSV Files/tuolumne Join Collapse.RData")
+save(tuolumne_collapse, file = "G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/tuolumne Join Collapse.RData")
 
 ```
 
@@ -7672,7 +7672,7 @@ write.xlsx(Tuolumne_df, file = "Code Books/Tuolumne Code Book3.xlsx")
 
  Completion
 ```{r}
-files <- list.files("C:/Work/PretrialAssessmentPilot/Code Books/Code Book Notes", pattern = "Alameda", full.names = T)
+files <- list.files("G:/CrimJustice/PretrialAssessmentPilot/Code Books/Code Book Notes", pattern = "Alameda", full.names = T)
 
 df <- lapply(files, read_excel)
 
@@ -7683,7 +7683,7 @@ df[[2]] <- df[[1]] %>%
 
 df <- list(df[[2]], df[[1]])
 
-write.xlsx(df, file = "C:/Work/PretrialAssessmentPilot/Code Books/Variable Construction/Alameda Factor Construction.xlsx", asTable = T, tableStyle = "TableStyleMedium1", sheetName = c("Variable Construction", "jw_notes", "nl_notes"))
+write.xlsx(df, file = "G:/CrimJustice/PretrialAssessmentPilot/Code Books/Variable Construction/Alameda Factor Construction.xlsx", asTable = T, tableStyle = "TableStyleMedium1", sheetName = c("Variable Construction", "jw_notes", "nl_notes"))
 ```
   
   Factors
@@ -7718,7 +7718,7 @@ factor_df <- lapply(ls()[!grepl("original|^df|hier", ls())], function(i){
   }) %>%
   bind_rows()
 
-write.xlsx(factor_df, file = "C:/Work/PretrialAssessmentPilot/Code Books/Factor Code Book/Tuolumne Factor Code Book.xlsx", asTable = T, tableStyle = "TableStyleMedium1", colWidths = "auto")
+write.xlsx(factor_df, file = "G:/CrimJustice/PretrialAssessmentPilot/Code Books/Factor Code Book/Tuolumne Factor Code Book.xlsx", asTable = T, tableStyle = "TableStyleMedium1", colWidths = "auto")
 ```
 
 Assessment Tables
@@ -7732,7 +7732,7 @@ assess_table <- assess_df %>%
   mutate(county = "Tuolumne") 
 
 # Save file  
-save(assess_table, file = "C:/Work/PretrialAssessmentPilot/Assessment Output Tables/Tuolumne Assessment Output 02-2021.RData")
+save(assess_table, file = "G:/CrimJustice/PretrialAssessmentPilot/Assessment Output Tables/Tuolumne Assessment Output 02-2021.RData")
 
 # assess_df %>%
 #   # Collapse to each assessment
@@ -7879,10 +7879,10 @@ date_df <- lapply("assess_df2", function(i){
 assess_df2 %>%
   select(pretrial_violation_date)
 
-write.xlsx(list(factor_df, flag_df, date_df), file = "C:/Work/PretrialAssessmentPilot/Code Books/Assessment Code Book/Tuolumne Assessment Code Book 10-20.xlsx", asTable = T, tableStyle = "TableStyleMedium1", colWidths = "auto", sheetName = c("Factors", "Flags", "Dates"))
+write.xlsx(list(factor_df, flag_df, date_df), file = "G:/CrimJustice/PretrialAssessmentPilot/Code Books/Assessment Code Book/Tuolumne Assessment Code Book 10-20.xlsx", asTable = T, tableStyle = "TableStyleMedium1", colWidths = "auto", sheetName = c("Factors", "Flags", "Dates"))
 
 
-# shell.exec("C:/Work/PretrialAssessmentPilot/Code Books/Assessment Code Book/Tuolumne Assessment Code Book 10-20.xlsx")
+# shell.exec("G:/CrimJustice/PretrialAssessmentPilot/Code Books/Assessment Code Book/Tuolumne Assessment Code Book 10-20.xlsx")
 ## Notes for Call:
   # Why use EM enhancements?
   # Are the conditions always consistent with the matrix?
@@ -7973,16 +7973,16 @@ write.xlsx(list(doj_cii, doj_book, doj_court, doj_assess), file = "CIIs for DOJ/
 Jail Court Join
 ```{r}
  
-book_df <- fread("C:/Work/PretrialAssessmentPilot/Agency Collapse CSV Files/Ventura Booking Collapse.csv") %>%
+book_df <- fread("G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Ventura Booking Collapse.csv") %>%
   mutate_at(vars(contains("date"), dob), as_date)
 
-court_df <- fread("C:/Work/PretrialAssessmentPilot/Agency Collapse CSV Files/Ventura Court Collapse.csv") %>%
+court_df <- fread("G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Ventura Court Collapse.csv") %>%
   mutate_at(vars(contains("date"), dob), as_date)
 
-assess_df <- fread("C:/Work/PretrialAssessmentPilot/Agency Collapse CSV Files/Ventura Assessment Collapse.csv") %>%
+assess_df <- fread("G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Ventura Assessment Collapse.csv") %>%
   mutate_at(vars(contains("date"), dob), as_date)
 
-date_df <- fread("C:/Work/PretrialAssessmentPilot/County Join Dates/VENTURA Join Dates.csv", colClasses = "character") %>%
+date_df <- fread("G:/CrimJustice/PretrialAssessmentPilot/County Join Dates/VENTURA Join Dates.csv", colClasses = "character") %>%
   # rename(file_date = filing_date) %>%
   mutate_at(vars(contains("date")), as_date)
 
@@ -8054,16 +8054,16 @@ rm(list = ls()[!ls() %in% ls(pattern = "df")])
   Jail Court Join
 ```{r}
  
-book_df <- fread("C:/Work/PretrialAssessmentPilot/Agency Collapse CSV Files/Modoc Booking Collapse.csv") %>%
+book_df <- fread("G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Modoc Booking Collapse.csv") %>%
   mutate_at(vars(contains("date"), dob), as_date)
 
-court_df <- fread("C:/Work/PretrialAssessmentPilot/Agency Collapse CSV Files/Modoc Court Collapse.csv") %>%
+court_df <- fread("G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Modoc Court Collapse.csv") %>%
   mutate_at(vars(contains("date"), dob), as_date)
 
-assess_df <- fread("C:/Work/PretrialAssessmentPilot/Agency Collapse CSV Files/Modoc Assessment Collapse.csv") %>%
+assess_df <- fread("G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Modoc Assessment Collapse.csv") %>%
   mutate_at(vars(contains("date"), dob), as_date)
 
-date_df <- fread("C:/Work/PretrialAssessmentPilot/County Join Dates/MODOC Join Dates.csv", colClasses = "character") %>%
+date_df <- fread("G:/CrimJustice/PretrialAssessmentPilot/County Join Dates/MODOC Join Dates.csv", colClasses = "character") %>%
   # rename(file_date = filing_date) %>%
   mutate_at(vars(contains("date")), as_date)
 
@@ -8114,7 +8114,7 @@ as.numeric(as_date("2020-01-01"))
 
 # File Sizes
 ```{r}
-files <- list.files("C:/Work/PretrialAssessmentPilot/Historical Data Submissions", recursive = T, pattern = "csv|xml|xls", full.names = T)
+files <- list.files("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions", recursive = T, pattern = "csv|xml|xls", full.names = T)
 
 size <- file.info(files)$size
 
