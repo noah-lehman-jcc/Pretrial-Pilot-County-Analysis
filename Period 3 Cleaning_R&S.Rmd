@@ -120,11 +120,7 @@ book_df <- book_df %>%
 
 #Flag Construction
   ##not seeing any qualifier charges here  arrest_qualifier_flag=if_else()
-book_df<- book_df %>%
-    mutate(arrest_misd_flag=if_else(arrest_charge_level=="M", 1, 0),
-           arrest_felony_flag =if_else(arrest_charge_level=="F", 1, 0),
-           attempt_flag=if_else(attempt=="1", 1, 0)) 
-           
+
 # Code for Charge Hierarchy
   ## the new data corrects for the problem cited below
   ## county data has no charge code data, so we had to make join_var2 for the join with the hierarchy/this is corrected 
@@ -140,9 +136,13 @@ load("G:/CrimJustice/PretrialAssessmentPilot/Complete Charge Code Hierarchy.RDat
 #     distinct(join_var, .keep_all = T)
 
 
-book_df <- left_join(book_df, charge_hier, by = "join_var")
-
-
+book_df <- left_join(book_df, charge_hier, by = "join_var") %>% 
+  rename_at(vars(contains("flag")), funs(paste0("arrest_", .))) %>%
+   mutate(arrest_misd_flag=if_else(arrest_charge_level=="M", 1, 0),
+           arrest_felony_flag =if_else(arrest_charge_level=="F", 1, 0),
+           attempt_flag=if_else(attempt=="1", 1, 0)) 
+           
+  
 #code clip to look for zero bail people
 # book_df %>%
 #  filter(release_type=="Bail_Bond", year(release_date)==2020, month(release_date) %in% 1:12) %>%
@@ -1237,7 +1237,7 @@ assess_df_score <- assess_df_score %>%
 # Standardize Names
 names(assess_df_score) <- c("id", "pretrial_id",  "name","tool_name",
                             "assessment_date_time", "questions_id", "oras_risk_score", "last_name", "first_name",
-                            "middle_name","suffix","oras_tool_response_1", "oral_tool_response_2",
+                            "middle_name","suffix","oras_tool_response_1", "oras_tool_response_2",
                             "oras_tool_response_3",	"oras_tool_response_4","oras_tool_response_5",
                             "oras_tool_response_6", "oras_tool_response_7")
 
@@ -1267,6 +1267,25 @@ assess_df_score <- assess_df_score %>%
          # they call this CE check in It is remote or can be done from a kiosk
          condition_phone_flag = if_else(oras_risk_score %in% c(0,1,2), 1,0),
          condition_inperson_flag = if_else(oras_risk_score %in% c(3,4,5,6,7,8,9), 1, 0))
+
+assess_df_score <- assess_df_score %>%
+  mutate(tool_name = "oras",
+         oras_tool_response_1 = if_else(oras_tool_response_1 == "32 or older", 0, 1),
+         oras_tool_response_2 = case_when(oras_tool_response_2 == "None" ~ 0, 
+                                          oras_tool_response_2 == "One Warrant for FTA" ~ 1, 
+                                           oras_tool_response_2 == "Two or more FTA Warrants" ~ 2),
+        
+         oras_tool_response_3 = if_else(oras_tool_response_3 == "Yes", 1, 0),
+         
+         oras_tool_response_4 = case_when(oras_tool_response_4 == "Yes, Full-time" ~ 0, 
+                                          oras_tool_response_4 == "Yes, Part-time" ~ 1, 
+                                           oras_tool_response_4 == "Not employed" ~ 2),
+         
+         oras_tool_response_5 = if_else(oras_tool_response_5 == "Not Lived at Same Residence", 1, 0),
+       
+          oras_tool_response_6 = if_else(oras_tool_response_6 == "Yes", 1, 0),
+          oras_tool_response_7 = if_else(oras_tool_response_7 == "Yes", 1, 0))
+        
 
 
 
@@ -1765,6 +1784,14 @@ assess_df %>%
 ```
 
 # San Mateo
+```{r}
+load("G:/CrimJustice/PretrialAssessmentPilot/County Flag Check.RData")
+flag_list$san_mateo_collapse
+
+
+
+```
+
 San Mateo Jail Data
 ```{r eval=FALSE, include=FALSE}
 # Jail Bookings Data Import--- San Mateo, P3 cummulative book dates 2015-01-01 to 12-31-2020
@@ -1874,7 +1901,7 @@ book_df <- book_df %>%
          arrest_charge_code = if_else(!arrest_charge_code %in% c("PC", "VC", "HS", "BP", "WI", "US"), "Other", arrest_charge_code),
          arrest_charge_level = if_else(!arrest_charge_level_original %in% c("F", "I", "M"), "Other", arrest_charge_level_original),
          arrest_charge = gsub(">.*| .*|MISD|FEL|-FEL|INF" , "", arrest_charge_original),
-         arrest_attempt_flag = if_else(grepl("664", arrest_charge_original), 1, 0),
+          attempt_flag = if_else(grepl("664", arrest_charge_original), 1, 0),
          arrest_charge = gsub("664/", "", arrest_charge)) %>%
          separate_rows(arrest_charge, sep = "/") %>%
          mutate(arrest_charge = toupper(gsub("\\/|\\(|\\)| |\\.|\\.*|^[A-Z]*|\\\\.*|\\{|\\-.*","", arrest_charge))) %>%
@@ -1894,9 +1921,10 @@ book_df <- left_join(book_df, charge_hier, by = "join_var")
 
 # are we supposed to be adding all of these flags?  I am wondering most about the fta_flag
 book_df<- book_df %>%
+  rename_at(vars(contains("flag")), funs(paste0("arrest_", .))) %>%
     mutate(arrest_misd_flag=if_else(arrest_charge_level=="M", 1, 0),
            arrest_felony_flag =if_else(arrest_charge_level=="F", 1, 0),
-           arrest_attempt_flag=if_else(arrest_charge=="664", 1, arrest_attempt_flag),
+           attempt_flag=if_else(arrest_charge=="664", 1, arrest_attempt_flag),
            # not seeing any qualifier charges here  arrest_qualifier_flag=if_else()
            sup_vio_post_flag=if_else(book_type=="Sup_Vio_Post", 1, 0),
            fta_flag=if_else(arrest_charge%in% c("8537", "1320A", "1320B", "13205", "40508A"), 1, 0)) 
