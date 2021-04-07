@@ -36,11 +36,13 @@ Jail Data Nevada
   ##Sierra does not have a jail so this includes Sierra bookings
 
 
-#reading in new P3 data
+#reading in new P3 data (this was sent 4 6 2021 becasue the last file was missing so many CIIs)
 
-book_df <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Nevada/P3 Submission-Jan 15/Pretrial Data Through December 2020.xlsx",
+
+book_df <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Nevada/P3 Submission-Jan 15/2021-04-06 Submission.xlsx",
                       col_types = c("text", rep("guess", 10), "date", rep("guess", 8)), na = "NULL") %>%
   distinct()
+
 
 
 # Variable name standardization--See pg. xxx for more details
@@ -1653,7 +1655,7 @@ Nevada Assessment JoinPost-collapse join of Assessment and joined Court/Jail
 #Join Assessment data to court/jail joined data match rate = 73.9
 # 
 
-book_df %>%
+book_df_fnlndob <- book_df %>%
   count(year(book_date))
 
 assess_df %>%
@@ -1680,6 +1682,9 @@ join_df2 <- join_df %>%
                 match_fun=list(`==`, `==`, `==`, `<=`, `>=`))%>%
   select(-contains(".y")) %>%
   rename_at(vars(contains(".x")), funs(gsub("\\.x", "", .)))
+
+
+
 
   
 ```
