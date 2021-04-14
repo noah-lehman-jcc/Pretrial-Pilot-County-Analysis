@@ -1,0 +1,250 @@
+---
+title: "Binding Collapsed Data"
+author: "Noah Lehman"
+date: "3/16/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+knitr::opts_knit$set(root.dir = "G:/CrimJustice/PretrialAssessmentPilot")
+
+# library(rlang)
+library(tidyverse)
+library(data.table)
+library(openxlsx)
+library(readxl)
+library(lubridate)
+library(XML)
+library(xml2)
+# library(xmltools)o
+library(gsubfn)
+library(fuzzyjoin)
+library(dplyr)
+library(openxlsx)
+# library(multidplyr)
+library(ggthemes)
+```
+
+Loading Data
+```{r}
+files <- list.files("G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files", pattern = "Join.*RD", full.names =  T)
+
+sapply(files, load, globalenv())
+
+df_list <- lapply(ls(pattern = "collapse"), function(i){
+  df <- get(i)
+  
+  names(df) <- gsub("arrest_arrest_", "arrest_", names(df))
+  names(df) <- gsub("court_court_", "court_", names(df))
+  names(df) <- gsub("conviction_conviction_", "conviction_", names(df))
+  
+  df <- df %>%
+    mutate(county = gsub("_collapse", "", i)) %>%
+    # mutate(across(c(contains("date_time")), as.POSIXct)) %>%
+    # mutate(across(c(contains("date"), -contains("time"), -contains("reminder")), as_date)) %>%
+    mutate(across(c(contains("flag"), contains("score"), contains("response")), as.numeric)) %>%
+    mutate(across(c(-matches("date|flag|score|response")), as.character))
+})
+
+names(df_list) <- ls(pattern = "collapse")
+
+# df_list <- lapply(df_list, function(i){
+#   df <- i %>%
+#     mutate(across(c(contains("date_time")), as.POSIXct.Date)) %>%
+#     mutate(across(c(contains("date"), -contains("time"), -contains("reminder")), as_date())) %>%
+#     mutate(county = gsub("_.*", "", i))
+# })
+
+df <- bind_rows(df_list)
+
+# alameda_collapse
+
+# alameda_collapse %>%
+#   select(-contains("flag_count"))
+# 
+# df %>%
+#   select(cii, fbi, dob, race, sex, book_num, court_case_id, assessment_id, pretrial_id, matches("flag|date|original|type|response|score|level|release"), -contains("flag_count"))
+
+shell.exec("Agency Collapse CSV Files")
+```
+
+Falloff
+```{r}
+df2 <- df %>%
+  mutate(county = if_else(is.na(county_sierra), county, "sierra")) %>%
+  select(county, tool_name, book_num, book_date, release_date, assessment_date, pretrial_end_date, new_arrest_flag) %>%
+  filter(book_date >= as_date("2019-10-01"), book_date <= as_date("2020-12-31")) %>%
+  mutate(tool_name = if_else(county == "alameda"&is.na(tool_name), "vprair", tool_name),
+         tool_name = gsub("-.*", "", toupper(tool_name)))
+
+falloff_df <- df2 %>%
+  mutate(pretrial_end_date = if_else(pretrial_end_date < book_date, NA_Date_, pretrial_end_date),
+         pretrial_release_flag = if_else(pretrial_end_date > release_date, 1, 0),
+         assess_release_flag = if_else(pretrial_end_date > release_date & !is.na(pretrial_end_date) & !is.na(assessment_date) & new_arrest_flag == 1, 1, 0),
+         three_month_flag = if_else(book_date <= as_date("2020-09-30"), 1, 0),
+         six_month_flag = if_else(book_date <= as_date("2020-06-30"), 1, 0)) %>%
+  group_by(county) %>%
+  summarise(Bookings = n(), 
+            `New Arrest Bookings` = sum(new_arrest_flag),
+            `Bookings w/ Dispo` = sum(!is.na(pretrial_end_date) & new_arrest_flag == 1),
+            Assessments = sum(!is.na(assessment_date)),
+            `Assessments w/ Dispo` =  sum(!is.na(pretrial_end_date) & !is.na(assessment_date)),
+            `Assessed, Released w/Dispo` = sum(assess_release_flag, na.rm = T))
+
+falloff_df2 <- df2 %>%
+  mutate(pretrial_end_date = if_else(pretrial_end_date < book_date, NA_Date_, pretrial_end_date),
+         pretrial_release_flag = if_else(pretrial_end_date > release_date, 1, 0),
+         assess_release_flag = if_else(pretrial_end_date > release_date & !is.na(pretrial_end_date) & !is.na(assessment_date) & new_arrest_flag == 1, 1, 0),
+         three_month_flag = if_else(book_date <= as_date("2020-09-30"), 1, 0),
+         six_month_flag = if_else(book_date <= as_date("2020-06-30"), 1, 0)) %>%
+  group_by(tool_name) %>%
+  summarise(#Bookings = n(), 
+  #           `New Arrest Bookings` = sum(new_arrest_flag),
+  #           `New Arrest Bookings with Dispostions` = sum(!is.na(pretrial_end_date) & new_arrest_flag == 1), 
+            Assessments = sum(!is.na(assessment_date)),
+            Dispositions =  sum(!is.na(pretrial_end_date) & !is.na(assessment_date)),
+            `Pretrial Releases` = sum(assess_release_flag, na.rm = T),
+            `3 Month Follow Up` = sum(assess_release_flag*three_month_flag, na.rm = T),
+            `6 MonthFollow Up` = sum(assess_release_flag*six_month_flag, na.rm = T)) %>%
+  filter(tool_name %in% c("ORAS", "PSA", "VPRAI", "VPRAIR", "VPRAIO"))
+  
+# df2 %>%
+#   filter(pretrial_end_date > release_date & !is.na(pretrial_end_date) & !is.na(assessment_date) & new_arrest_flag == 1) %>%
+#   count(county)
+
+# write.csv(falloff_df, file = "Bookings, Assessments, and Dispositions.csv")
+
+# df2 %>%
+#   filter(!is.na(assessment_date)) %>%
+#   count(tool_name, county)
+
+lapply(df_list, function(i){
+  i <- i %>%
+    # mutate_if(is.character, funs(if_else(toupper(.) == "NULL", NA_character_, .))) %>%
+    select(where(~all(is.na(.x))))
+  
+  names(i)
+})
+
+
+flag_list <- lapply(df_list, function(i){
+  i <- i %>%
+    select(contains("flag"))
+  
+  names(i)[order(names(i))]
+})
+
+kings_collapse %>%
+  select_if(funs(sum(is.na(.) == length(.))))
+
+kings_collapse %>% 
+  select(where(~all(is.na(.x))))
+
+save(flag_list, file = "County Flag Check.RData")
+# 
+# load("G:/CrimJustice/PretrialAssessmentPilot/County Flag Check.RData")
+# flag_list$county_name
+# 
+# ymd("1992-12-01 00:00.000")
+```
+
+Jail Profile Survey
+```{r}
+jps_match <- df %>%
+  count(county, year = year(book_date), month = month(book_date)) %>%
+  rename(bookings = n) %>%
+  mutate(county = gsub("_", " ", county))
+
+save(jps_match, file = "G:/CrimJustice/Criminal Justice Office/Research Group/Jail Profile Survey/Pretrial Bookings.RData")
+
+load("G:/CrimJustice/Criminal Justice Office/Research Group/Jail Profile Survey/Pretrial Bookings.RData")
+
+load("G:/CrimJustice/Criminal Justice Office/Research Group/Jail Profile Survey/jps_df_2002_2020.RData")
+
+jps_match %>%
+  left_join(jps %>%
+              mutate(across(c(year, month), as.numeric))) %>%
+  filter(year == 2020) %>%
+  group_by(county) %>%
+  summarise(across(c(bookings, tot_booked), sum, na.rm = T)) %>%
+  mutate(perc_match = round(bookings/tot_booked*100))
+```
+
+Diagnostics
+```{r}
+date_check <- lapply(df_list, function(i){
+  i <- i %>%
+    filter(book_date >= as_date("2019-10-01"), book_date <= as_date("2020-12-31")) %>%
+    select(matches("book_date|assessment_date|^release_date|pretrial_end_date|file_date"), -matches("time"), county) %>%
+    group_by(county) %>%
+    summarise_all(funs(100 - round(sum(is.na(.)|. == -Inf)/length(.)*100)))
+  
+  # sapply(i, function(j){
+  #   c(round(sum(is.na(j)|j == -Inf)/length(j)*100))
+  #   })
+}) %>%
+  bind_rows()
+
+as_tibble(t(date_check[1]), rownames = NA)
+
+df_list[[1]] %>%
+  select(county)
+
+write.xlsx(date_check, file = "County Data Checks.xlsx", asTable = T)
+
+lapply(df_list, function(i){
+  i <- i %>%
+    select_if(is.character) %>%
+    select(county, contains("date_time"))
+    # filter(book_date >= as_date("2019-10-01"), book_date <= as_date("2020-12-31")) %>%
+    # select(matches("book_date|assessment_date|^release_date|pretrial_end_date|file_date"), -matches("time"), county) %>%
+    # group_by(county) %>%
+    # summarise_all(funs(100 - round(sum(is.na(.)|. == -Inf)/length(.)*100)))
+  
+  # sapply(i, function(j){
+  #   c(round(sum(is.na(j)|j == -Inf)/length(j)*100))
+  #   })
+})
+```
+
+Fall Off Graphs
+```{r fig.width=15, fig.height=8.5}
+falloff_df2 %>%
+  pivot_longer(2:6) %>%
+  mutate(name = factor(name, levels = c("Assessments", "Dispositions", "Pretrial Releases", "3 Month Follow Up", "6 MonthFollow Up"))) %>%
+  ggplot() +
+  aes(x = name, y = value) +
+  geom_col(fill = "#2C497F") +
+  geom_text(aes(label = value), vjust = -.5, size = 3.5) +
+  facet_wrap(~tool_name, scales = "free_y") +
+  scale_y_continuous(expand = expansion(mult = c(0, .1))) +
+  labs(x = "", y = "", title = "Bookings with Assessments, Dispositions, and Pretrial Releases by Tool") +
+  theme_few() +
+  # scale_fill_manual(values = c("#632A50", "#BAD29F", "#745296", "#2C497F")) +
+  theme(axis.text.x = element_text(angle = 30, vjust = .7, hjust = .6)) 
+```
+
+```{r fig.width=16, fig.height=18}
+falloff_df %>%
+  pivot_longer(2:7) %>%
+  mutate(name = factor(name, levels = c("Bookings", "New Arrest Bookings", "Bookings w/ Dispo", "Assessments", "Assessments w/ Dispo", 
+                                        "Assessed, Released w/Dispo"))) %>%
+  ggplot() +
+  aes(x = name, y = value) +
+  geom_col(fill = "dark grey") +
+  geom_text(aes(label = value), vjust = -.2, size = 3.5) +
+  facet_wrap(~county, scales = "free") +
+  labs(x = "", y = "", title = "Bookings, Assessments, and Dispositions by County") +
+  theme_few() +
+  # scale_fill_manual(values = c("#632A50", "#BAD29F", "#745296", "#2C497F")) +
+  theme(axis.text.x = element_text(angle = 30, hjust = 1)) 
+
+# `New Arrest Bookings` = sum(new_arrest_flag),
+#             `Bookings with Dispostions` = sum(!is.na(pretrial_end_date) & new_arrest_flag == 1),
+#             Assessments = sum(!is.na(assessment_date)),
+#             `Assessments with Dispositions` =  sum(!is.na(pretrial_end_date) & !is.na(assessment_date)),
+#             `Pretrial Releases`
+```
+
