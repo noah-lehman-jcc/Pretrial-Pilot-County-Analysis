@@ -1,5 +1,5 @@
 ---
-title: "AB 74 Jan 2021 Output Tables"
+title: "AB 74 Feb 2021 Output Tables"
 author: "Noah Lehman and Sal Lempert"
 output: pdf_document
 ---
@@ -48,16 +48,26 @@ my_kable <- function(x){
 
 
 ```{r include=FALSE}
-load("C:/Work/PretrialAssessmentPilot/Pretrial-Pilot-County-Analysis/Assessment Output Data Frame v2.RData")
+load("C:/Work/PretrialAssessmentPilot/Pretrial-Pilot-County-Analysis/Assessment Output Data Frame 03-2021.RData")
+
+
+# Removing local tools and unrelated tools.
+df <- df %>%
+  mutate(tool_name = if_else(tool_name %in% c("sprat", "tuol_co_pretrial"), "local", tool_name)) %>%
+  filter(!tool_name %in% c("modified wisconsin")) %>%
+  mutate(across(c(psa_nca_risk_score, psa_fta_risk_score), ~if_else(.x > 6 | .x < 1, NA_real_, .x))) %>%
+  mutate(tool_name = if_else(is.na(tool_name), "vprair", tool_name))
 
 # save(df, file = "C:/Work/PretrialAssessmentPilot/Pretrial-Pilot-County-Analysis/Assessment Output Data Frame v2.RData")
-
+# 
 # df %>%
 #   group_by(county) %>%
 #   summarise(min_assessment_date = min(assessment_date),
 #             max_assessment_date = max(assessment_date)) %>%
 #   View()
-  
+
+# df %>%
+#   count(tool_name)
 ```
 
 \newpage
@@ -89,7 +99,7 @@ kable(county_df, booktabs = T, format.args = list(big.mark = ","),
         # table.attr = "style = \"color: black;\"",
         format = "latex") %>%
     kable_styling(position = "center", full_width = F, 
-                  bootstrap_options = c("striped", "hover"), stripe_color = "gray", font_size = 14)
+                  bootstrap_options = c("striped", "hover"), stripe_color = "gray", font_size = 12)
 ```
 
 
@@ -353,23 +363,23 @@ Notes: This table includes data from five counties (Calaveras, Los Angeles, Sacr
 
 ## The Number of Assessed Individuals by Risk Score (SPRAT)
 ```{r}
-risk_df_sprat <- df %>%
-  filter(tool_name == "sprat") %>%
-  count(sprat_risk_score) %>%
-  mutate(sprat_risk_score = as.character(sprat_risk_score)) %>%
-  bind_rows(df %>% filter(tool_name == "sprat") %>% count() %>% mutate(sprat_risk_score = "Total"))
-  
-# names(risk_df_sprat) <- c("SPRAT Risk Score", "Count")
+# risk_df_sprat <- df %>%
+#   filter(tool_name == "sprat") %>%
+#   count(sprat_risk_score) %>%
+#   mutate(sprat_risk_score = as.character(sprat_risk_score)) %>%
+#   bind_rows(df %>% filter(tool_name == "sprat") %>% count() %>% mutate(sprat_risk_score = "Total"))
 #   
-# my_kable(risk_df_sprat)
-
-ggplot(risk_df_sprat %>%
-         filter(sprat_risk_score != "Total")) +
-  aes(x = as.numeric(sprat_risk_score), y = n) +
-  geom_col(fill = "dark blue") +
-  geom_text(nudge_y = 15, aes(label = n)) +
-  theme_bw() +
-  labs(x = "Risk Score", y = "Assessments") +
+# # names(risk_df_sprat) <- c("SPRAT Risk Score", "Count")
+# #   
+# # my_kable(risk_df_sprat)
+# 
+# ggplot(risk_df_sprat %>%
+#          filter(sprat_risk_score != "Total")) +
+#   aes(x = as.numeric(sprat_risk_score), y = n) +
+#   geom_col(fill = "dark blue") +
+#   geom_text(nudge_y = 15, aes(label = n)) +
+#   theme_bw() +
+#   labs(x = "Risk Score", y = "Assessments") +
   scale_x_discrete(limits = -10:10)
 ```
 Notes: This table includes data from one county (Sonoma).
