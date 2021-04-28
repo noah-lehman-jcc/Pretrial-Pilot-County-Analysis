@@ -851,6 +851,7 @@ book_charge <- book_charge %>%
   mutate(arrest_felony_flag = if_else(arrest_charge_level == "F", 1, 0),
          arrest_misd_flag = if_else(arrest_charge_level == "M", 1, 0)) 
   
+charge_hier
 ```
   
   Jail Collapse
@@ -1324,11 +1325,11 @@ assess_conditions <- bind_rows(assess_rec_conditions, assess_prearraignment_cond
 assess_conditions <- assess_conditions %>%
   mutate(monitor_level = case_when(
     monitor_level_original %in% c("Level I - Pretrial Release Supervision",
-                                     "Pretrial Supervision Level I") ~ "Low",
+                                     "Pretrial Supervision Level I", "1") ~ "Low",
     monitor_level_original %in% c("Level II - Pretrial Release Supervision",
-                                     "Pretrial Supervision Level II") ~ "Medium",
+                                     "Pretrial Supervision Level II", "2") ~ "Medium",
     monitor_level_original %in% c("Level III - Pretrial Release Supervision",
-                                     "Pretrial Supervision Level III") ~ "High",
+                                     "Pretrial Supervision Level III", "3:4") ~ "High",
                               T ~ "Other_Unknown"),
     monitor_level = ordered(monitor_level, levels = c("Other_Unknown", "Low", "Medium", "High")))
 
@@ -2345,7 +2346,9 @@ assess_df3 <- assess_df3 %>%
   Assessment Collapase
 ```{r}
 assess_df <- assess_df %>%
-  bind_rows(assess_df2, assess_df3)
+  bind_rows(assess_df2, assess_df3) %>%
+  select(-extract_date) %>%
+  distinct()
 
 save(assess_df, file = "G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Los Angeles Assessment Collapse.RData")
 ```
@@ -2422,6 +2425,7 @@ join_df <- book_df %>%
 # Match rate when matching on cii from assessment to joined data ~ 61%
 nrow(assess_df %>%
   semi_join(book_df, by = c("cii"), na_matches = "never")) / nrow(assess_df) * 100
+
 
 assess_df %>%
   anti_join(court_df, by = c("cii"), na_matches = "never") %>%
@@ -2632,6 +2636,58 @@ save(assess_table, file = "G:/CrimJustice/PretrialAssessmentPilot/Assessment Out
 
 ```
 
+Assessment and Booking Mismatch for LAs Review
+```{r}
+assess_df %>%
+  count(cii) %>%
+  arrange(desc(n))
+
+book_df %>%
+  count(cii) %>%
+  arrange(desc(n))
+
+assess_df %>%
+  anti_join(book_df, by = c("cii"), na_matches = "never")
+
+book_df %>%
+  anti_join(assess_df, by = c("cii"), na_matches = "never")
+
+book_df2 <- book_df %>%
+  distinct(book_num, .keep_all = T) %>%
+  count(year = year(book_date), month = month(book_date)) %>%
+  rename(bookings = n)
+
+assess_df2 <- assess_df %>%
+  distinct(pretrial_id, .keep_all = T) %>%
+  filter(tool_name == "psa") %>%
+  count(year = year(assessment_date), month =  month(assessment_date)) %>%
+  rename(assessments = n)
+
+df <- left_join(book_df2, assess_df2) %>%
+  # mutate(ratio = assessments/bookings) %>%
+  left_join(jps %>%
+              filter(county == "los angeles") %>%
+              select(year, month, jail_profile_survey_bookings = tot_booked)) %>%
+  filter(year == 2020)
+
+
+df2 <- assess_df %>%
+  # distinct(pretrial_id, assessment_date, cii)
+  anti_join(book_df, by = "cii") %>%
+    select(pretrial_id)
+
+write.xlsx(list(df, df2), asTable = T, file = "Assessment without Booking Data from Los Angeles.xlsx")
+shell.exec(getwd())
+
+assess_df %>%
+  select(-extract_date) %>%
+  distinct()
+  add_count(pretrial_id) %>%
+  filter(n > 1) %>%
+  arrange(pretrial_id)
+
+```
+
 
 # Santa Barbara
 
@@ -2688,7 +2744,6 @@ book_df <- book_df %>%
   mutate(arrest_date = as_date(arrest_date_time),
          book_date = as_date(book_date_time),
          release_date = as_date(release_date_time))
-
 
 # Deduplicating entries with and without release information.--follow up with Santa Barbara about identical lines. Are they mulitiple counts or coding dupulicates.  
 book_df <- book_df %>%
