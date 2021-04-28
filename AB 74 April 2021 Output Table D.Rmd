@@ -1,0 +1,177 @@
+---
+title: "AB 74 Feb 2021 Output Tables"
+author: "Noah Lehman and Sal Lempert"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+
+```{r include=FALSE}
+library(janitor)
+library(tidyverse)
+library(lubridate)
+library(scales)
+library(pROC)
+library(kableExtra)
+library(stargazer)
+library(data.table)
+library(ggthemes)
+
+```
+
+
+```{r include=FALSE}
+my_kable <- function(x){
+  kable(x, booktabs = T, format.args = list(big.mark = ","), 
+        # table.attr = "style = \"color: black;\"",
+        format = "latex") %>%
+    kable_styling(position = "center", full_width = F, 
+                  bootstrap_options = c("striped", "hover"), stripe_color = "gray", font_size = 14) %>%
+    row_spec(nrow(x), bold = T)
+    # column_spec(2, bold = T)
+  # footnote(general_title = "", general = "Source: Judicial Council of California, Recidivism Reduction Fund Quarterly Reports (July 1, 2015-March 31, 2018).")  %>%
+    
+}
+
+# Age Creator
+  # mutate(dob = as_date(dob),
+  #        assessment_date = as_date(assessment_date)) %>%
+  # mutate(age = year(assessment_date) - year(dob),
+  #        age = if_else(month(assessment_date) < month(dob), age - 1L, age),
+  #        age = if_else(month(assessment_date) == month(dob) & day(assessment_date) < day(dob), age - 1L, age))
+
+
+```
+
+
+```{r include=FALSE}
+# load("G:/CrimJustice/PretrialAssessmentPilot/Assessment Output Tables" "Assessment Output Data Frame 03-2021.RData")
+# 
+# 
+# # Removing local tools and unrelated tools.
+# df <- df %>%
+#   mutate(tool_name = if_else(tool_name %in% c("sprat", "tuol_co_pretrial"), "local", tool_name)) %>%
+#   filter(!tool_name %in% c("modified wisconsin")) %>%
+#   mutate(across(c(psa_nca_risk_score, psa_fta_risk_score), ~if_else(.x > 6 | .x < 1, NA_real_, .x))) %>%
+#   mutate(tool_name = if_else(is.na(tool_name), "vprair", tool_name))
+
+# save(df, file = "C:/Work/PretrialAssessmentPilot/Pretrial-Pilot-County-Analysis/Assessment Output Data Frame v2.RData")
+# 
+# df %>%
+#   group_by(county) %>%
+#   summarise(min_assessment_date = min(assessment_date),
+#             max_assessment_date = max(assessment_date)) %>%
+#   View()
+
+# df %>%
+#   count(tool_name)
+
+load("G:/CrimJustice/PretrialAssessmentPilot/Final Failure Evaluation2.RData")
+# load("Final Failure Evaluation.RData")
+
+eval_df <- eval_df %>%
+  filter(!is.na(cii)) %>%
+  mutate(monitor_level = case_when(
+    monitor_level %in% c("Level I - Pretrial Release Supervision",
+                                     "Pretrial Supervision Level I", "1", "Low") ~ "Low",
+    monitor_level %in% c("Level II - Pretrial Release Supervision",
+                                     "Pretrial Supervision Level II", "2", "Medium") ~ "Medium",
+    monitor_level %in% c("Level III - Pretrial Release Supervision",
+                                     "Pretrial Supervision Level III", "3:4", "High") ~ "High",
+                              T ~ monitor_level)) %>%
+  mutate(fta_flag = if_else(fta_flag == 1|arrest_fta_flag == 1|court_fta_flag == 1|court_fta_flag_doj == 1, 1, 0),
+         revoked_flag = if_else(pretrial_termination_outcome == "Unsuccessful", 1, 0),
+         oras_risk_score = if_else(oras_risk_score == -Inf, NA_real_, oras_risk_score)) %>%
+  mutate(monitor_level = factor(monitor_level, levels = c("Low", "Medium", "High", "Other_Unknown")))
+```
+\newpage
+
+# AB 74: Tables
+
+16. (d) The number and percentage of assessed individuals by supervision level who fail to appear in court as required, are arrested for a new offense during the pretrial period, or have pretrial release revoked.
+\newpage
+
+
+
+## Pretrial Revocations by Termination Reason and Monitor Level 
+```{r message=FALSE, warning=FALSE}
+eval_df <- eval_df %>%
+  mutate(monitor_level = case_when(monitor_level == "Low" ~ "Basic",
+                                   monitor_level == "Medium" ~ "Moderate",
+                                   monitor_level == "High" ~ "Enhanced",
+                                   monitor_level == "Other_Unknown" ~ "Unspecified",
+                                   T ~ as.character(monitor_level))) %>%
+  filter(monitor_level %in% c("Basic", "Moderate", "Enhanced")) %>%
+  mutate(monitor_level = factor(monitor_level, levels =  c("Basic", "Moderate", "Enhanced"))) %>%
+  filter(county != "San Joaquin") %>%
+  mutate(revoked_flag = if_else(fta_flag == 1|recid_flag == 1|pretrial_termination_outcome == "Unsuccessful", 1, 0)) %>%
+  mutate(revoked_flag = if_else(is.na(revoked_flag), 0, revoked_flag)) 
+
+fta_df <- eval_df %>%
+  group_by(monitor_level, fta_flag) %>%
+  count() %>%
+  group_by(monitor_level) %>%
+  mutate(Total = sum(n), n = paste0(round(n = n/Total*100), "%", " ", n)) %>%
+  spread(fta_flag, n) %>%
+  select(-`0`) %>%
+  bind_rows(eval_df %>%
+              count(fta_flag) %>%
+              mutate(Total = sum(n), n = paste0(round(n = n/Total*100), "%", " ", n)) %>%
+  spread(fta_flag, n) %>%
+  select(-`0`) %>%
+  mutate(monitor_level = "All_Levels")) %>%
+  separate(`1`, sep = " ", into = c("Percent", "Count"))
+
+recid_df <- eval_df %>%
+  group_by(monitor_level, recid_flag) %>%
+  count() %>%
+  group_by(monitor_level) %>%
+  mutate(Total = sum(n), n = paste0(round(n = n/Total*100), "%", " ", n)) %>%
+  spread(recid_flag, n) %>%
+  select(-`0`) %>%
+  bind_rows(eval_df %>%
+              count(recid_flag) %>%
+              mutate(Total = sum(n), n = paste0(round(n = n/Total*100), "%", " ", n)) %>%
+  spread(recid_flag, n) %>%
+  select(-`0`) %>%
+  mutate(monitor_level = "All_Levels")) %>%
+  separate(`1`, sep = " ", into = c("Percent", "Count"))
+
+revoked_df <- eval_df %>%
+  group_by(monitor_level, revoked_flag) %>%
+  count() %>%
+  group_by(monitor_level) %>%
+  mutate(Total = sum(n), n = paste0(round(n = n/Total*100), "%", " ", n)) %>%
+  spread(revoked_flag, n) %>%
+  select(-`0`) %>%
+  bind_rows(eval_df %>%
+              count(revoked_flag) %>%
+              mutate(Total = sum(n), n = paste0(round(n = n/Total*100), "%", " ", n)) %>%
+  spread(revoked_flag, n) %>%
+  select(-`0`) %>%
+  mutate(monitor_level = "All_Levels")) %>%
+  separate(`1`, sep = " ", into = c("Percent", "Count"))
+
+  
+outcome_df <- bind_cols(fta_df, recid_df[3:4], revoked_df[3:4]) %>%
+  rename("Monitor Level" = "monitor_level")
+
+names(outcome_df) <- gsub("\\..*", "", names(outcome_df))
+
+
+kable(outcome_df, booktabs = T, format.args = list(big.mark = ","),
+        # table.attr = "style = \"color: black;\"",
+        format = "latex") %>%
+    kable_styling(position = "center", full_width = T,
+                  bootstrap_options = c("striped", "hover"), stripe_color = "gray") %>%
+  add_header_above(c(" " = 2, "FTA" = 2, "New Crime" = 2,
+                     "Total FTA, New Crime,\n or Revocation" = 2)) %>%
+  column_spec(2:10, width = ".5in") %>%
+  column_spec(1, width = "1in") %>%
+  row_spec(5, bold = T)
+```
+Notes: For counties which use discrete supervision levels, supervision levels were collapsed into 'Basic', 'Moderate', and 'Enhanced' supervision, though what each of these supervision levels mean varies widely across counties.
+
