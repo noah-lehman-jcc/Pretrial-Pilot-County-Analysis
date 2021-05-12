@@ -1,0 +1,580 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+# Settup and Library
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+knitr::opts_knit$set(root.dir = "G:/CrimJustice/PretrialAssessmentPilot")
+
+# library(rlang)
+library(tidyverse)
+library(data.table)
+library(openxlsx)
+library(readxl)
+library(lubridate)
+library(XML)
+library(xml2)
+# library(xmltools)o
+library(gsubfn)
+library(fuzzyjoin)
+library(dplyr)
+library(openxlsx)
+library(fuzzyjoin)
+# library(multidplyr)
+library(pROC)
+```
+
+# Data Import 
+```{r}
+load("G:/CrimJustice/PretrialAssessmentPilot/Final Failure Evaluation2.RData")
+
+eval_df <- eval_df %>%
+  filter(new_arrest_flag == 1,
+         book_date >= "2018-07-01") %>%
+  mutate(arrest_charge_level = case_when(is.na(arrest_charge_level)|arrest_charge_level %in% c("Other", "I") ~"Other_Unknown",
+                                         arrest_charge_level == "F" ~ "Felony",
+                                         arrest_charge_level == "M" ~ "Misdemeanor")) %>%
+  filter(!is.na(cii)) %>%
+  mutate(monitor_level = case_when(
+    monitor_level %in% c("Level I - Pretrial Release Supervision",
+                                     "Pretrial Supervision Level I", "1", "Low") ~ "Low",
+    monitor_level %in% c("Level II - Pretrial Release Supervision",
+                                     "Pretrial Supervision Level II", "2", "Medium") ~ "Medium",
+    monitor_level %in% c("Level III - Pretrial Release Supervision",
+                                     "Pretrial Supervision Level III", "3:4", "High") ~ "High",
+                              T ~ monitor_level)) %>%
+  mutate(fta_flag = if_else(fta_flag == 1|arrest_fta_flag == 1|court_fta_flag == 1|court_fta_flag_doj == 1, 1, 0),
+         revoked_flag = if_else(pretrial_termination_outcome == "Unsuccessful", 1, 0),
+         oras_risk_score = if_else(oras_risk_score == -Inf, NA_real_, oras_risk_score)) %>%
+  mutate(monitor_level = factor(monitor_level, levels = c("Low", "Medium", "High", "Other_Unknown"))) %>%
+  mutate(county = tools::toTitleCase(gsub("_", " ", county))) %>%
+  mutate(pre_trial_release_flag = if_else(release_date >= pretrial_end_date|is.na(release_date), 0, 1)) %>%
+  mutate(sex = case_when(sex == "F" ~ "Female",
+                         sex == "M" ~ "Male",
+                         T ~ sex),
+         tool_name = gsub("-", "", tool_name),
+         tool_name = if_else(county == "Alameda" & !is.na(assessment_date), "vprair", tool_name),
+         tool_name = if_else(county == "Yuba" & !is.na(assessment_date), "oras", tool_name),
+         tool_name = if_else(tool_name == "ORASPAT", "oras", tolower(tool_name)),
+         tool_name = if_else(tool_name == "null", NA_character_, tool_name)) %>%
+  mutate(release_type = case_when(
+    county %in% c("San Joaquin", "Ventura", "Alameda", "Tuolumne", "Nevada", "San Mateo", "Kings") &
+      release_type_original %in% c("EMERGENCY ZERO BAIL", "Zero Bail", "TEMPORARY EMERGENCY BAIL",
+                                   "TEMPORARY EMERGENCY CITATION", "Covid 19", "Emergency Bail Schedule",
+                                   "ZERO DOLLAR BAIL", "COVID-Pretrial Court-Order", "Pandemic Citation Release", 
+                                   "Pandemic Sentence Release", "Emergency Bail Schedule-Cite", 
+                                   "Emergency Bail Schedule-Court") ~ "Zero_Bail",
+    county %in% c("San Joaquin", "Ventura", "Alameda", "Tuolumne", "Nevada", "San Mateo", "Kings") & 
+      release_type == "Bail_Bond" ~ "Non_Zero_Bail",
+    (!county %in% c("San Joaquin", "Ventura", "Alameda", "Tuolumne", "Nevada", "San Mateo", "Kings")) & 
+      release_type == "Bail_Bond" ~ "Unknown_Bail",
+    T ~ release_type),
+    any_pretrial_failure_flag = if_else(fta_flag == 1|recid_arrested_flag==1|recid_filed_flag==1|recid_convicted_flag==1, 1, 0)) %>%
+  mutate(dob = as_date(dob),
+         assessment_date = as_date(assessment_date)) %>%
+  mutate(age = year(assessment_date) - year(dob),
+         age = if_else(month(assessment_date) < month(dob), age - 1L, age),
+         age = if_else(month(assessment_date) == month(dob) & day(assessment_date) < day(dob), age - 1L, age),
+         age = case_when(age <= 25 & age >= 18 ~ "18-25",
+                         age <= 35 & age >= 26 ~ "26-35",
+                         age <= 45 & age >= 36 ~ "36-45",
+                         age <= 55 & age >= 46 ~ "46-55",
+                         age >= 56 & age <= 120 ~ "56+",
+                         T ~ "Other_Unknown")) %>%
+  mutate_at(vars(contains("flag")), funs(if_else(. == -Inf, 0, .))) %>%
+
+eval_df <- eval_df %>%
+  filter(!is.na(assessment_date)) %>%
+  # count(tool_name)
+  # filter(!is.na(tool_name))
+  filter(tool_name %in% c("oras", "psa", "vprai", "vprair"))
+```
+
+## Tools
+# Descriptive Statistics
+
+Table 1. Program Size and Effective Sample 
+
+With available data from July 1, 2018 through Jan 22, 2021, of the 609K bookings and 137K assessments, we were able to match 77K bookings to assessments to Arrests. Of this 77K bookings, 13K were then released pretrial and had a case disposition. 
+```{r}
+load("G:/CrimJustice/PretrialAssessmentPilot/Pretrial Data Matching Rates by County.RData")
+
+match_table %>%
+  select(2:11) %>%
+  summarise_all(sum) %>%
+  select(bookings, assessments, assessments_doj_match, validation_sample)
+```
+
+Table 2. Adverse Outcomes
+```{r}
+eval_df %>%
+  group_by(tool_name) %>%
+  summarise_at(vars(fta_flag, recid_arrested_flag, recid_filed_flag, recid_convicted_flag, 
+                    any_pretrial_failure_flag, recid_filed_violent_psa_flag),
+               funs(round(mean(.)*100, 1))) %>%
+  View()
+```
+
+Table 3. Defendant Characteristics
+```{r}
+# race
+eval_df %>%
+  group_by(tool_name, race) %>%
+  count() %>%
+  spread(race, n)
+
+# Sex
+eval_df %>%
+  group_by(tool_name, sex) %>%
+  count() %>%
+  spread(sex, n)
+
+# Age
+eval_df %>%
+  group_by(tool_name, age) %>%
+  count() %>%
+  spread(age, n)
+```
+
+Table 4. Arrest Charge
+```{r}
+eval_df %>%
+  group_by(tool_name) %>%
+  select(-contains("recid"), -matches("attempt|special|capital")) %>%
+    summarise_at(vars(matches("arrest.*flag")),
+               funs(round(mean(.)*100, 1))) %>%
+  View()
+```
+
+Table 5. Risk Levels
+```{r}
+
+```
+
+Table 6. Priors
+```{r}
+
+```
+
+Table 7. Supervision Conditions
+```{r}
+eval_df %>%
+  mutate_at(vars(contains("flag")), funs(if_else(. == -Inf, 0, .))) %>%
+  select(matches("cond.*flag"), county) %>%
+  # filter_all(any_vars(. == Inf)) 
+  summarise_all(funs(round(mean(.)*100)))
+```
+
+Tool Accuracy
+```{r}
+# eval_df <- eval_df %>%
+#   mutate(race = factor(race, levels = c("White", "Black", "Hispanic", "Other_Unknown")))
+
+#VPRAI  
+summary(lm(fta_flag ~ vprai_risk_score, data = eval_df))
+summary(lm(recid_arrested_flag ~ vprai_risk_score, data = eval_df))
+summary(lm(recid_filed_flag ~ vprai_risk_score, data = eval_df))
+summary(lm(recid_convicted_flag ~ vprai_risk_score, data = eval_df))
+summary(lm(recid_arrest_violent_psa_flag ~ vprai_risk_score, data = eval_df))
+
+#VPRAI-R
+summary(lm(fta_flag ~ vprair_risk_score, data = eval_df))
+summary(lm(recid_arrested_flag ~ vprair_risk_score, data = eval_df))
+summary(lm(recid_filed_flag ~ vprair_risk_score, data = eval_df))
+summary(lm(recid_convicted_flag ~ vprair_risk_score, data = eval_df))
+summary(lm(recid_arrest_violent_psa_flag ~ vprair_risk_score, data = eval_df))
+
+#PSA
+summary(lm(fta_flag ~ psa_fta_risk_score, data = eval_df))
+summary(lm(recid_arrested_flag ~ psa_nca_risk_score, data = eval_df))
+summary(lm(recid_filed_flag ~ psa_nca_risk_score, data = eval_df))
+summary(lm(recid_convicted_flag ~ psa_nca_risk_score, data = eval_df))
+summary(lm(recid_arrest_violent_psa_flag ~ psa_nvca_risk_score, data = eval_df))
+
+#ORAS
+summary(lm(fta_flag ~ oras_risk_score, data = eval_df))
+summary(lm(recid_arrested_flag ~ oras_risk_score, data = eval_df))
+summary(lm(recid_filed_flag ~ oras_risk_score, data = eval_df))
+summary(lm(recid_convicted_flag ~ oras_risk_score, data = eval_df))
+summary(lm(recid_arrest_violent_psa_flag ~ oras_risk_score, data = eval_df))
+```
+
+AUC
+```{r}
+#VPRAI  
+(roc(fta_flag ~ vprai_risk_score, data = eval_df))
+(roc(recid_arrested_flag ~ vprai_risk_score, data = eval_df))
+(roc(recid_filed_flag ~ vprai_risk_score, data = eval_df))
+(roc(recid_convicted_flag ~ vprai_risk_score, data = eval_df))
+(roc(recid_arrest_violent_psa_flag ~ vprai_risk_score, data = eval_df))
+
+#VPRAI-R
+(roc(fta_flag ~ vprair_risk_score, data = eval_df))
+(roc(recid_arrested_flag ~ vprair_risk_score, data = eval_df))
+(roc(recid_filed_flag ~ vprair_risk_score, data = eval_df))
+(roc(recid_convicted_flag ~ vprair_risk_score, data = eval_df))
+(roc(recid_arrest_violent_psa_flag ~ vprair_risk_score, data = eval_df))
+
+#PSA
+(roc(fta_flag ~ psa_fta_risk_score, data = eval_df))
+(roc(recid_arrested_flag ~ psa_nca_risk_score, data = eval_df))
+(roc(recid_filed_flag ~ psa_nca_risk_score, data = eval_df))
+(roc(recid_convicted_flag ~ psa_nca_risk_score, data = eval_df))
+(roc(recid_arrest_violent_psa_flag ~ psa_nvca_risk_score, data = eval_df))
+
+#ORAS
+(roc(fta_flag ~ oras_risk_score, data = eval_df))
+(roc(recid_arrested_flag ~ oras_risk_score, data = eval_df))
+(roc(recid_filed_flag ~ oras_risk_score, data = eval_df))
+(roc(recid_convicted_flag ~ oras_risk_score, data = eval_df))
+(roc(recid_arrest_violent_psa_flag ~ oras_risk_score, data = eval_df))
+
+
+```
+
+Racial Bias
+```{r}
+race_df <- eval_df %>%
+  mutate(race = factor(race, levels = c("White", "Black", "Hispanic", "Other_Unknown")))
+
+#VPRAI  
+summary(lm(fta_flag ~ vprai_risk_score + race, data = race_df))
+summary(lm(recid_arrested_flag ~ vprai_risk_score + race, data = race_df))
+summary(lm(recid_filed_flag ~ vprai_risk_score + race, data = race_df))
+summary(lm(recid_convicted_flag ~ vprai_risk_score + race, data = race_df))
+summary(lm(recid_arrest_violent_psa_flag ~ vprai_risk_score + race, data = race_df))
+
+#VPRAI-R
+summary(lm(fta_flag ~ vprair_risk_score + race, data = race_df))
+summary(lm(recid_arrested_flag ~ vprair_risk_score + race, data = race_df))
+summary(lm(recid_filed_flag ~ vprair_risk_score + race, data = race_df))
+summary(lm(recid_convicted_flag ~ vprair_risk_score + race, data = race_df))
+summary(lm(recid_arrest_violent_psa_flag ~ vprair_risk_score + race, data = race_df))
+
+#PSA
+summary(lm(fta_flag ~ psa_fta_risk_score + race, data = race_df))
+summary(lm(recid_arrested_flag ~ psa_nca_risk_score + race, data = race_df))
+summary(lm(recid_filed_flag ~ psa_nca_risk_score + race, data = race_df))
+summary(lm(recid_convicted_flag ~ psa_nca_risk_score + race, data = race_df))
+summary(lm(recid_arrest_violent_psa_flag ~ psa_nvca_risk_score + race, data = race_df))
+
+#ORAS
+summary(lm(fta_flag ~ oras_risk_score + race, data = race_df))
+summary(lm(recid_arrested_flag ~ oras_risk_score + race, data = race_df))
+summary(lm(recid_filed_flag ~ oras_risk_score + race, data = race_df))
+summary(lm(recid_convicted_flag ~ oras_risk_score + race, data = race_df))
+summary(lm(recid_arrest_violent_psa_flag ~ oras_risk_score + race, data = race_df))
+
+eval_df %>%
+  count(tool_name, race)
+```
+
+Gender Bias
+```{r}
+sex_df <- eval_df %>%
+  filter(sex %in% c("Male", "Female")) %>%
+  mutate(sex = factor(sex, levels = c("Male", "Female")))
+
+#VPRAI  
+summary(lm(fta_flag ~ vprai_risk_score + sex, data = sex_df))
+summary(lm(recid_arrested_flag ~ vprai_risk_score + sex, data = sex_df))
+summary(lm(recid_filed_flag ~ vprai_risk_score + sex, data = sex_df))
+summary(lm(recid_convicted_flag ~ vprai_risk_score + sex, data = sex_df))
+summary(lm(recid_arrest_violent_psa_flag ~ vprai_risk_score + sex, data = sex_df))
+
+#VPRAI-R
+summary(lm(fta_flag ~ vprair_risk_score + sex, data = sex_df))
+summary(lm(recid_arrested_flag ~ vprair_risk_score + sex, data = sex_df))
+summary(lm(recid_filed_flag ~ vprair_risk_score + sex, data = sex_df))
+summary(lm(recid_convicted_flag ~ vprair_risk_score + sex, data = sex_df))
+summary(lm(recid_arrest_violent_psa_flag ~ vprair_risk_score + sex, data = sex_df))
+
+#PSA
+summary(lm(fta_flag ~ psa_fta_risk_score + sex, data = sex_df))
+summary(lm(recid_arrested_flag ~ psa_nca_risk_score + sex, data = sex_df))
+summary(lm(recid_filed_flag ~ psa_nca_risk_score + sex, data = sex_df))
+summary(lm(recid_convicted_flag ~ psa_nca_risk_score + sex, data = sex_df))
+summary(lm(recid_arrest_violent_psa_flag ~ psa_nvca_risk_score + sex, data = sex_df))
+
+#ORAS
+summary(lm(fta_flag ~ oras_risk_score + sex, data = sex_df))
+summary(lm(recid_arrested_flag ~ oras_risk_score + sex, data = sex_df))
+summary(lm(recid_filed_flag ~ oras_risk_score + sex, data = sex_df))
+summary(lm(recid_convicted_flag ~ oras_risk_score + sex, data = sex_df))
+summary(lm(recid_arrest_violent_psa_flag ~ oras_risk_score + sex, data = sex_df))
+
+eval_df %>%
+  count(tool_name, race)
+```
+
+Age Bias
+```{r}
+age_df <- eval_df 
+  # filter(age %in% c("Male", "Female")) %>%
+  # mutate(age = factor(age, levels = c("Male", "Female")))
+
+#VPRAI  
+summary(lm(fta_flag ~ vprai_risk_score + age, data = age_df))
+summary(lm(recid_arrested_flag ~ vprai_risk_score + age, data = age_df))
+summary(lm(recid_filed_flag ~ vprai_risk_score + age, data = age_df))
+summary(lm(recid_convicted_flag ~ vprai_risk_score + age, data = age_df))
+summary(lm(recid_arrest_violent_psa_flag ~ vprai_risk_score + age, data = age_df))
+
+#VPRAI-R
+summary(lm(fta_flag ~ vprair_risk_score + age, data = age_df))
+summary(lm(recid_arrested_flag ~ vprair_risk_score + age, data = age_df))
+summary(lm(recid_filed_flag ~ vprair_risk_score + age, data = age_df))
+summary(lm(recid_convicted_flag ~ vprair_risk_score + age, data = age_df))
+summary(lm(recid_arrest_violent_psa_flag ~ vprair_risk_score + age, data = age_df))
+
+#PSA
+summary(lm(fta_flag ~ psa_fta_risk_score + age, data = age_df))
+summary(lm(recid_arrested_flag ~ psa_nca_risk_score + age, data = age_df))
+summary(lm(recid_filed_flag ~ psa_nca_risk_score + age, data = age_df))
+summary(lm(recid_convicted_flag ~ psa_nca_risk_score + age, data = age_df))
+summary(lm(recid_arrest_violent_psa_flag ~ psa_nvca_risk_score + age, data = age_df))
+
+#ORAS
+summary(lm(fta_flag ~ oras_risk_score + age, data = age_df))
+summary(lm(recid_arrested_flag ~ oras_risk_score + age, data = age_df))
+summary(lm(recid_filed_flag ~ oras_risk_score + age, data = age_df))
+summary(lm(recid_convicted_flag ~ oras_risk_score + age, data = age_df))
+summary(lm(recid_arrest_violent_psa_flag ~ oras_risk_score + age, data = age_df))
+
+eval_df %>%
+  group_by(race) %>%
+  summarise(male = mean(sex == "Male"))
+  count(tool_name, age)
+```
+
+VPRAI
+```{r}
+race_df %>%
+  # filter(race %in% c("White", "Black", "Hispanic")) %>%
+  filter(vprai_risk_score %in% 0:9) %>%
+  # mutate(vprai_risk_score = as.integer(vprair_risk_score)) %>%
+  group_by(vprai_risk_score, race) %>%
+  summarise(fta_flag = mean(fta_flag)) %>%
+  ggplot() +
+  labs(title = "FTAs by VPRAI Risk Score", subtitle = paste("N = " ,nrow(eval_df %>% filter(!is.na(vprai_risk_score))))) +
+  aes(x = vprai_risk_score, y = fta_flag) +
+  geom_col(position = "dodge") +
+  # geom_smooth(method = "lm", alpha = .2) +
+  scale_x_continuous(breaks = 0:9)
+
+
+race_df %>%
+  filter(race %in% c("White", "Black", "Hispanic")) %>%
+  filter(vprai_risk_score %in% 0:9) %>%
+  # mutate(vprai_risk_score = as.integer(vprair_risk_score)) %>%
+  group_by(vprai_risk_score, race) %>%
+  summarise(fta_flag = mean(fta_flag)) %>%
+  ggplot() +
+  labs(title = "FTAs by VPRAI Risk Score and Race", subtitle = paste("N = " ,nrow(eval_df %>% filter(!is.na(vprai_risk_score))))) +
+  aes(x = vprai_risk_score, y = fta_flag, color = race) +
+  # geom_col(position = "dodge")
+  geom_smooth(method = "lm", alpha = .2) +
+  scale_x_continuous(breaks = 0:9)
+  
+race_df %>%
+  # filter(race %in% c("White", "Black", "Hispanic")) %>%
+  filter(vprai_risk_score %in% 0:9) %>%
+  # mutate(vprai_risk_score = as.integer(vprair_risk_score)) %>%
+  group_by(vprai_risk_score, race) %>%
+  summarise(recid_flag = mean(recid_flag)) %>%
+  ggplot() +
+  labs(title = "Recidivism by VPRAI Risk Score", subtitle = paste("N = " ,nrow(eval_df %>% filter(!is.na(vprai_risk_score))))) +
+  aes(x = vprai_risk_score, y = recid_flag) +
+  geom_col(position = "dodge") +
+  # geom_smooth(method = "lm", alpha = .2) +
+  scale_x_continuous(breaks = 0:9)
+
+
+race_df %>%
+  filter(race %in% c("White", "Black", "Hispanic")) %>%
+  filter(vprai_risk_score %in% 0:9) %>%
+  # mutate(vprai_risk_score = as.integer(vprair_risk_score)) %>%
+  group_by(vprai_risk_score, race) %>%
+  summarise(recid_flag = mean(recid_flag)) %>%
+  ggplot() +
+  labs(title = "Recidivism by VPRAI Risk Score and Race", subtitle = paste("N = " ,nrow(eval_df %>% filter(!is.na(vprai_risk_score))))) +
+  aes(x = vprai_risk_score, y = recid_flag, color = race) +
+  # geom_col(position = "dodge")
+  geom_smooth(method = "lm", alpha = .2) +
+  scale_x_continuous(breaks = 0:9)  
+```
+
+VPRAI-R
+```{r}
+race_df %>%
+  # filter(race %in% c("White", "Black", "Hispanic")) %>%
+  filter(vprair_risk_score %in% 0:13) %>%
+  # mutate(vprair_risk_score = as.integer(vprairr_risk_score)) %>%
+  group_by(vprair_risk_score, race) %>%
+  summarise(fta_flag = mean(fta_flag)) %>%
+  ggplot() +
+  labs(title = "FTAs by VPRAI-R Risk Score", subtitle = paste("N = " ,nrow(eval_df %>% filter(!is.na(vprair_risk_score))))) +
+  aes(x = vprair_risk_score, y = fta_flag) +
+  geom_col(position = "dodge") +
+  # geom_smooth(method = "lm", alpha = .2) +
+  scale_x_continuous(breaks = 0:13)
+
+
+race_df %>%
+  filter(race %in% c("White", "Black", "Hispanic")) %>%
+  filter(vprair_risk_score %in% 0:13) %>%
+  # mutate(vprair_risk_score = as.integer(vprairr_risk_score)) %>%
+  group_by(vprair_risk_score, race) %>%
+  summarise(fta_flag = mean(fta_flag)) %>%
+  ggplot() +
+  labs(title = "FTAs by VPRAI-R Risk Score and Race", subtitle = paste("N = " ,nrow(eval_df %>% filter(!is.na(vprair_risk_score))))) +
+  aes(x = vprair_risk_score, y = fta_flag, color = race) +
+  # geom_col(position = "dodge")
+  geom_smooth(method = "lm", alpha = .2) +
+  scale_x_continuous(breaks = 0:13)
+  
+race_df %>%
+  # filter(race %in% c("White", "Black", "Hispanic")) %>%
+  filter(vprair_risk_score %in% 0:13) %>%
+  # mutate(vprair_risk_score = as.integer(vprairr_risk_score)) %>%
+  group_by(vprair_risk_score, race) %>%
+  summarise(recid_flag = mean(recid_flag)) %>%
+  ggplot() +
+  labs(title = "Recidivism by VPRAI-R Risk Score", subtitle = paste("N = " ,nrow(eval_df %>% filter(!is.na(vprair_risk_score))))) +
+  aes(x = vprair_risk_score, y = recid_flag) +
+  geom_col(position = "dodge") +
+  # geom_smooth(method = "lm", alpha = .2) +
+  scale_x_continuous(breaks = 0:13)
+
+
+race_df %>%
+  filter(race %in% c("White", "Black", "Hispanic")) %>%
+  filter(vprair_risk_score %in% 0:13) %>%
+  # mutate(vprair_risk_score = as.integer(vprairr_risk_score)) %>%
+  group_by(vprair_risk_score, race) %>%
+  summarise(recid_flag = mean(recid_flag)) %>%
+  ggplot() +
+  labs(title = "Recidivism by VPRAI-R Risk Score and Race", subtitle = paste("N = " ,nrow(eval_df %>% filter(!is.na(vprair_risk_score))))) +
+  aes(x = vprair_risk_score, y = recid_flag, color = race) +
+  # geom_col(position = "dodge")
+  geom_smooth(method = "lm", alpha = .2) +
+  scale_x_continuous(breaks = 0:13)  
+
+```
+
+PSA
+```{r}
+race_df %>%
+  # filter(race %in% c("White", "Black", "Hispanic")) %>%
+  filter(psa_fta_risk_score %in% 1:6) %>%
+  # mutate(psa_fta_risk_score = as.integer(vprairr_risk_score)) %>%
+  group_by(psa_fta_risk_score, race) %>%
+  summarise(fta_flag = mean(fta_flag)) %>%
+  ggplot() +
+  labs(title = "FTAs by PSA FTA Risk Score", subtitle = paste("N = " ,nrow(eval_df %>% filter(!is.na(psa_fta_risk_score))))) +
+  aes(x = psa_fta_risk_score, y = fta_flag) +
+  geom_col(position = "dodge") +
+  # geom_smooth(method = "lm", alpha = .2) +
+  scale_x_continuous(breaks = 1:6)
+
+
+race_df %>%
+  filter(race %in% c("White", "Black", "Hispanic")) %>%
+  filter(psa_fta_risk_score %in% 1:6) %>%
+  # mutate(psa_fta_risk_score = as.integer(vprairr_risk_score)) %>%
+  group_by(psa_fta_risk_score, race) %>%
+  summarise(fta_flag = mean(fta_flag)) %>%
+  ggplot() +
+  labs(title = "FTAs by PSA FTA Risk Score and Race", subtitle = paste("N = " ,nrow(eval_df %>% filter(!is.na(psa_fta_risk_score))))) +
+  aes(x = psa_fta_risk_score, y = fta_flag, color = race) +
+  # geom_col(position = "dodge")
+  geom_smooth(method = "lm", alpha = .2) +
+  scale_x_continuous(breaks = 1:6)
+  
+race_df %>%
+  # filter(race %in% c("White", "Black", "Hispanic")) %>%
+  filter(psa_nca_risk_score %in% 1:6) %>%
+  # mutate(psa_nca_risk_score = as.integer(vprairr_risk_score)) %>%
+  group_by(psa_nca_risk_score, race) %>%
+  summarise(recid_flag = mean(recid_flag)) %>%
+  ggplot() +
+  labs(title = "Recidivism by PSA NCA Risk Score", subtitle = paste("N = " ,nrow(eval_df %>% filter(!is.na(psa_nca_risk_score))))) +
+  aes(x = psa_nca_risk_score, y = recid_flag) +
+  geom_col(position = "dodge") +
+  # geom_smooth(method = "lm", alpha = .2) +
+  scale_x_continuous(breaks = 1:6)
+
+
+race_df %>%
+  filter(race %in% c("White", "Black", "Hispanic")) %>%
+  filter(psa_nca_risk_score %in% 1:6) %>%
+  # mutate(psa_nca_risk_score = as.integer(vprairr_risk_score)) %>%
+  group_by(psa_nca_risk_score, race) %>%
+  summarise(recid_flag = mean(recid_flag)) %>%
+  ggplot() +
+  labs(title = "Recidivism by PSA NCA Risk Score and Race", subtitle = paste("N = " ,nrow(eval_df %>% filter(!is.na(psa_nca_risk_score))))) +
+  aes(x = psa_nca_risk_score, y = recid_flag, color = race) +
+  # geom_col(position = "dodge")
+  geom_smooth(method = "lm", alpha = .2) +
+  scale_x_continuous(breaks = 1:6)  
+```
+
+ORAS
+```{r}
+race_df %>%
+  # filter(race %in% c("White", "Black", "Hispanic")) %>%
+  filter(oras_risk_score %in% 0:9) %>%
+  # mutate(oras_risk_score = as.integer(vprairr_risk_score)) %>%
+  group_by(oras_risk_score, race) %>%
+  summarise(fta_flag = mean(fta_flag)) %>%
+  ggplot() +
+  labs(title = "FTAs by ORAS Risk Score", subtitle = paste("N = " ,nrow(eval_df %>% filter(!is.na(oras_risk_score))))) +
+  aes(x = oras_risk_score, y = fta_flag) +
+  geom_col(position = "dodge") +
+  # geom_smooth(method = "lm", alpha = .2) +
+  scale_x_continuous(breaks = 0:9)
+
+
+race_df %>%
+  filter(race %in% c("White", "Black", "Hispanic")) %>%
+  filter(oras_risk_score %in% 0:9) %>%
+  # mutate(oras_risk_score = as.integer(vprairr_risk_score)) %>%
+  group_by(oras_risk_score, race) %>%
+  summarise(fta_flag = mean(fta_flag)) %>%
+  ggplot() +
+  labs(title = "FTAs by ORAS Risk Score and Race", subtitle = paste("N = " ,nrow(eval_df %>% filter(!is.na(oras_risk_score))))) +
+  aes(x = oras_risk_score, y = fta_flag, color = race) +
+  # geom_col(position = "dodge")
+  geom_smooth(method = "lm", alpha = .2) +
+  scale_x_continuous(breaks = 0:9)
+  
+race_df %>%
+  # filter(race %in% c("White", "Black", "Hispanic")) %>%
+  filter(oras_risk_score %in% 0:9) %>%
+  # mutate(oras_risk_score = as.integer(vprairr_risk_score)) %>%
+  group_by(oras_risk_score, race) %>%
+  summarise(recid_flag = mean(recid_flag)) %>%
+  ggplot() +
+  labs(title = "Recidivism by ORAS Risk Score", subtitle = paste("N = " ,nrow(eval_df %>% filter(!is.na(oras_risk_score))))) +
+  aes(x = oras_risk_score, y = recid_flag) +
+  geom_col(position = "dodge") +
+  # geom_smooth(method = "lm", alpha = .2) +
+  scale_x_continuous(breaks = 0:9)
+
+
+race_df %>%
+  filter(race %in% c("White", "Black", "Hispanic")) %>%
+  filter(oras_risk_score %in% 0:9) %>%
+  # mutate(oras_risk_score = as.integer(vprairr_risk_score)) %>%
+  group_by(oras_risk_score, race) %>%
+  summarise(recid_flag = mean(recid_flag)) %>%
+  ggplot() +
+  labs(title = "Recidivism by ORAS Risk Score and Race", subtitle = paste("N = " ,nrow(eval_df %>% filter(!is.na(oras_risk_score))))) +
+  aes(x = oras_risk_score, y = recid_flag, color = race) +
+  # geom_col(position = "dodge")
+  geom_smooth(method = "lm", alpha = .2) +
+  scale_x_continuous(breaks = 0:9)  
+```
