@@ -25,6 +25,7 @@ library(openxlsx)
 library(fuzzyjoin)
 # library(multidplyr)
 library(pROC)
+library(broom)
 ```
 
 # Data Import 
@@ -85,6 +86,7 @@ eval_df <- eval_df %>%
                          age >= 56 & age <= 120 ~ "56+",
                          T ~ "Other_Unknown")) %>%
   mutate_at(vars(contains("flag")), funs(if_else(. == -Inf, 0, .))) %>%
+  mutate(release_to_pretrial_end = pretrial_end_date - release_date)
 
 eval_df <- eval_df %>%
   filter(!is.na(assessment_date)) %>%
@@ -168,71 +170,126 @@ eval_df %>%
   summarise_all(funs(round(mean(.)*100)))
 ```
 
+Time Released
+```{r}
+eval_df %>%
+  ggplot() +
+  aes(x = release_to_pretrial_end) +
+  geom_histogram()
+```
+
 Tool Accuracy
 ```{r}
 # eval_df <- eval_df %>%
 #   mutate(race = factor(race, levels = c("White", "Black", "Hispanic", "Other_Unknown")))
 
 #VPRAI  
-summary(lm(fta_flag ~ vprai_risk_score, data = eval_df))
-summary(lm(recid_arrested_flag ~ vprai_risk_score, data = eval_df))
-summary(lm(recid_filed_flag ~ vprai_risk_score, data = eval_df))
-summary(lm(recid_convicted_flag ~ vprai_risk_score, data = eval_df))
-summary(lm(recid_arrest_violent_psa_flag ~ vprai_risk_score, data = eval_df))
+summary(lm(fta_flag ~ vprai_risk_score + release_to_pretrial_end , data = eval_df))
+summary(lm(recid_arrested_flag ~ vprai_risk_score + release_to_pretrial_end , data = eval_df))
+summary(lm(recid_filed_flag ~ vprai_risk_score + release_to_pretrial_end , data = eval_df))
+summary(lm(recid_convicted_flag ~ vprai_risk_score + release_to_pretrial_end , data = eval_df))
+summary(lm(recid_arrest_violent_psa_flag ~ vprai_risk_score + release_to_pretrial_end , data = eval_df))
 
 #VPRAI-R
-summary(lm(fta_flag ~ vprair_risk_score, data = eval_df))
-summary(lm(recid_arrested_flag ~ vprair_risk_score, data = eval_df))
-summary(lm(recid_filed_flag ~ vprair_risk_score, data = eval_df))
-summary(lm(recid_convicted_flag ~ vprair_risk_score, data = eval_df))
-summary(lm(recid_arrest_violent_psa_flag ~ vprair_risk_score, data = eval_df))
+summary(lm(fta_flag ~ vprair_risk_score + release_to_pretrial_end , data = eval_df))
+summary(lm(recid_arrested_flag ~ vprair_risk_score + release_to_pretrial_end , data = eval_df))
+summary(lm(recid_filed_flag ~ vprair_risk_score + release_to_pretrial_end , data = eval_df))
+summary(lm(recid_convicted_flag ~ vprair_risk_score + release_to_pretrial_end , data = eval_df))
+summary(lm(recid_arrest_violent_psa_flag ~ vprair_risk_score + release_to_pretrial_end , data = eval_df))
 
 #PSA
-summary(lm(fta_flag ~ psa_fta_risk_score, data = eval_df))
-summary(lm(recid_arrested_flag ~ psa_nca_risk_score, data = eval_df))
-summary(lm(recid_filed_flag ~ psa_nca_risk_score, data = eval_df))
-summary(lm(recid_convicted_flag ~ psa_nca_risk_score, data = eval_df))
-summary(lm(recid_arrest_violent_psa_flag ~ psa_nvca_risk_score, data = eval_df))
+summary(lm(fta_flag ~ psa_fta_risk_score + release_to_pretrial_end , data = eval_df))
+summary(lm(recid_arrested_flag ~ psa_nca_risk_score + release_to_pretrial_end , data = eval_df))
+summary(lm(recid_filed_flag ~ psa_nca_risk_score + release_to_pretrial_end , data = eval_df))
+summary(lm(recid_convicted_flag ~ psa_nca_risk_score + release_to_pretrial_end , data = eval_df))
+summary(lm(recid_arrest_violent_psa_flag ~ psa_nvca_risk_score + release_to_pretrial_end , data = eval_df))
 
 #ORAS
-summary(lm(fta_flag ~ oras_risk_score, data = eval_df))
-summary(lm(recid_arrested_flag ~ oras_risk_score, data = eval_df))
-summary(lm(recid_filed_flag ~ oras_risk_score, data = eval_df))
-summary(lm(recid_convicted_flag ~ oras_risk_score, data = eval_df))
-summary(lm(recid_arrest_violent_psa_flag ~ oras_risk_score, data = eval_df))
+summary(lm(fta_flag ~ oras_risk_score + release_to_pretrial_end , data = eval_df))
+summary(lm(recid_arrested_flag ~ oras_risk_score + release_to_pretrial_end , data = eval_df))
+summary(lm(recid_filed_flag ~ oras_risk_score + release_to_pretrial_end , data = eval_df))
+summary(lm(recid_convicted_flag ~ oras_risk_score + release_to_pretrial_end , data = eval_df))
+summary(lm(recid_arrest_violent_psa_flag ~ oras_risk_score + release_to_pretrial_end , data = eval_df))
 ```
 
 AUC
 ```{r}
 #VPRAI  
-(roc(fta_flag ~ vprai_risk_score, data = eval_df))
-(roc(recid_arrested_flag ~ vprai_risk_score, data = eval_df))
-(roc(recid_filed_flag ~ vprai_risk_score, data = eval_df))
-(roc(recid_convicted_flag ~ vprai_risk_score, data = eval_df))
-(roc(recid_arrest_violent_psa_flag ~ vprai_risk_score, data = eval_df))
+(roc(fta_flag ~ vprai_risk_score + release_to_pretrial_end , data = eval_df))
+(roc(recid_arrested_flag ~ vprai_risk_score + release_to_pretrial_end , data = eval_df))
+(roc(recid_filed_flag ~ vprai_risk_score + release_to_pretrial_end , data = eval_df))
+(roc(recid_convicted_flag ~ vprai_risk_score + release_to_pretrial_end , data = eval_df))
+(roc(recid_arrest_violent_psa_flag ~ vprai_risk_score + release_to_pretrial_end , data = eval_df))
 
 #VPRAI-R
-(roc(fta_flag ~ vprair_risk_score, data = eval_df))
-(roc(recid_arrested_flag ~ vprair_risk_score, data = eval_df))
-(roc(recid_filed_flag ~ vprair_risk_score, data = eval_df))
-(roc(recid_convicted_flag ~ vprair_risk_score, data = eval_df))
-(roc(recid_arrest_violent_psa_flag ~ vprair_risk_score, data = eval_df))
+(roc(fta_flag ~ vprair_risk_score + release_to_pretrial_end , data = eval_df))
+(roc(recid_arrested_flag ~ vprair_risk_score + release_to_pretrial_end , data = eval_df))
+(roc(recid_filed_flag ~ vprair_risk_score + release_to_pretrial_end , data = eval_df))
+(roc(recid_convicted_flag ~ vprair_risk_score + release_to_pretrial_end , data = eval_df))
+(roc(recid_arrest_violent_psa_flag ~ vprair_risk_score + release_to_pretrial_end , data = eval_df))
 
 #PSA
-(roc(fta_flag ~ psa_fta_risk_score, data = eval_df))
-(roc(recid_arrested_flag ~ psa_nca_risk_score, data = eval_df))
-(roc(recid_filed_flag ~ psa_nca_risk_score, data = eval_df))
-(roc(recid_convicted_flag ~ psa_nca_risk_score, data = eval_df))
-(roc(recid_arrest_violent_psa_flag ~ psa_nvca_risk_score, data = eval_df))
+(roc(fta_flag ~ psa_fta_risk_score + release_to_pretrial_end , data = eval_df))
+(roc(recid_arrested_flag ~ psa_nca_risk_score + release_to_pretrial_end , data = eval_df))
+(roc(recid_filed_flag ~ psa_nca_risk_score + release_to_pretrial_end , data = eval_df))
+(roc(recid_convicted_flag ~ psa_nca_risk_score + release_to_pretrial_end , data = eval_df))
+(roc(recid_arrest_violent_psa_flag ~ psa_nvca_risk_score + release_to_pretrial_end , data = eval_df))
 
 #ORAS
-(roc(fta_flag ~ oras_risk_score, data = eval_df))
-(roc(recid_arrested_flag ~ oras_risk_score, data = eval_df))
-(roc(recid_filed_flag ~ oras_risk_score, data = eval_df))
-(roc(recid_convicted_flag ~ oras_risk_score, data = eval_df))
-(roc(recid_arrest_violent_psa_flag ~ oras_risk_score, data = eval_df))
+(roc(fta_flag ~ oras_risk_score + release_to_pretrial_end , data = eval_df))
+(roc(recid_arrested_flag ~ oras_risk_score + release_to_pretrial_end , data = eval_df))
+(roc(recid_filed_flag ~ oras_risk_score + release_to_pretrial_end , data = eval_df))
+(roc(recid_convicted_flag ~ oras_risk_score + release_to_pretrial_end , data = eval_df))
+(roc(recid_arrest_violent_psa_flag ~ oras_risk_score + release_to_pretrial_end , data = eval_df))
 
 
+```
+
+AUC by Race
+```{r}
+race_df <- eval_df %>%
+  mutate(race = factor(race, levels = c("White", "Black", "Hispanic", "Other_Unknown")))
+
+#VPRAI  
+(roc(fta_flag ~ vprai_risk_score , data = eval_df))
+(roc(recid_arrested_flag ~ vprai_risk_score , data = eval_df))
+(roc(recid_filed_flag ~ vprai_risk_score , data = eval_df))
+(roc(recid_convicted_flag ~ vprai_risk_score , data = eval_df))
+(roc(recid_arrest_violent_psa_flag ~ vprai_risk_score , data = eval_df))
+
+#VPRAI-R
+(roc(fta_flag ~ vprair_risk_score , data = eval_df))
+(roc(recid_arrested_flag ~ vprair_risk_score , data = eval_df))
+(roc(recid_filed_flag ~ vprair_risk_score , data = eval_df))
+(roc(recid_convicted_flag ~ vprair_risk_score , data = eval_df))
+(roc(recid_arrest_violent_psa_flag ~ vprair_risk_score , data = eval_df))
+
+#PSA
+(roc(fta_flag ~ psa_fta_risk_score , data = eval_df))
+(roc(recid_arrested_flag ~ psa_nca_risk_score , data = eval_df))
+(roc(recid_filed_flag ~ psa_nca_risk_score , data = eval_df))
+(roc(recid_convicted_flag ~ psa_nca_risk_score , data = eval_df))
+(roc(recid_arrest_violent_psa_flag ~ psa_nvca_risk_score , data = eval_df))
+
+#ORAS
+(roc(fta_flag ~ oras_risk_score , data = eval_df))
+(roc(recid_arrested_flag ~ oras_risk_score , data = eval_df))
+(roc(recid_filed_flag ~ oras_risk_score , data = eval_df))
+(roc(recid_convicted_flag ~ oras_risk_score , data = eval_df))
+(roc(recid_arrest_violent_psa_flag ~ oras_risk_score , data = eval_df))
+
+lapply(unique(eval_df$race), function(i){
+  
+  eval_df <- eval_df %>%
+    filter(race == i)
+  
+  # (roc(fta_flag ~ psa_fta_risk_score , data = eval_df))
+  # (roc(recid_arrested_flag ~  , data = eval_df))
+  # (roc(recid_filed_flag ~ psa_nca_risk_score , data = eval_df))
+  (roc(recid_convicted_flag ~ psa_nca_risk_score , data = eval_df))
+  # (roc(recid_arrest_violent_psa_flag ~ psa_nvca_risk_score , data = eval_df))
+  
+})
 ```
 
 Racial Bias
@@ -241,32 +298,182 @@ race_df <- eval_df %>%
   mutate(race = factor(race, levels = c("White", "Black", "Hispanic", "Other_Unknown")))
 
 #VPRAI  
-summary(lm(fta_flag ~ vprai_risk_score + race, data = race_df))
-summary(lm(recid_arrested_flag ~ vprai_risk_score + race, data = race_df))
-summary(lm(recid_filed_flag ~ vprai_risk_score + race, data = race_df))
-summary(lm(recid_convicted_flag ~ vprai_risk_score + race, data = race_df))
-summary(lm(recid_arrest_violent_psa_flag ~ vprai_risk_score + race, data = race_df))
+summary(lm(fta_flag ~ vprai_risk_score + release_to_pretrial_end  + race, data = race_df))
+summary(lm(recid_arrested_flag ~ vprai_risk_score + release_to_pretrial_end  + race, data = race_df))
+summary(lm(recid_filed_flag ~ vprai_risk_score + release_to_pretrial_end  + race, data = race_df))
+summary(lm(recid_convicted_flag ~ vprai_risk_score + release_to_pretrial_end  + race, data = race_df))
+summary(lm(recid_arrest_violent_psa_flag ~ vprai_risk_score + release_to_pretrial_end  + race, data = race_df))
 
 #VPRAI-R
-summary(lm(fta_flag ~ vprair_risk_score + race, data = race_df))
-summary(lm(recid_arrested_flag ~ vprair_risk_score + race, data = race_df))
-summary(lm(recid_filed_flag ~ vprair_risk_score + race, data = race_df))
-summary(lm(recid_convicted_flag ~ vprair_risk_score + race, data = race_df))
-summary(lm(recid_arrest_violent_psa_flag ~ vprair_risk_score + race, data = race_df))
+summary(lm(fta_flag ~ vprair_risk_score + release_to_pretrial_end  + race, data = race_df))
+summary(lm(recid_arrested_flag ~ vprair_risk_score + release_to_pretrial_end  + race, data = race_df))
+summary(lm(recid_filed_flag ~ vprair_risk_score + release_to_pretrial_end  + race, data = race_df))
+summary(lm(recid_convicted_flag ~ vprair_risk_score + release_to_pretrial_end  + race, data = race_df))
+summary(lm(recid_arrest_violent_psa_flag ~ vprair_risk_score + release_to_pretrial_end  + race, data = race_df))
 
 #PSA
-summary(lm(fta_flag ~ psa_fta_risk_score + race, data = race_df))
-summary(lm(recid_arrested_flag ~ psa_nca_risk_score + race, data = race_df))
-summary(lm(recid_filed_flag ~ psa_nca_risk_score + race, data = race_df))
-summary(lm(recid_convicted_flag ~ psa_nca_risk_score + race, data = race_df))
-summary(lm(recid_arrest_violent_psa_flag ~ psa_nvca_risk_score + race, data = race_df))
+summary(lm(fta_flag ~ psa_fta_risk_score + release_to_pretrial_end  + race, data = race_df))
+summary(lm(recid_arrested_flag ~ psa_nca_risk_score + release_to_pretrial_end  + race, data = race_df))
+summary(lm(recid_filed_flag ~ psa_nca_risk_score + release_to_pretrial_end  + race, data = race_df))
+summary(lm(recid_convicted_flag ~ psa_nca_risk_score + release_to_pretrial_end  + race, data = race_df))
+summary(lm(recid_arrest_violent_psa_flag ~ psa_nvca_risk_score + release_to_pretrial_end  + race, data = race_df))
 
 #ORAS
-summary(lm(fta_flag ~ oras_risk_score + race, data = race_df))
-summary(lm(recid_arrested_flag ~ oras_risk_score + race, data = race_df))
-summary(lm(recid_filed_flag ~ oras_risk_score + race, data = race_df))
-summary(lm(recid_convicted_flag ~ oras_risk_score + race, data = race_df))
-summary(lm(recid_arrest_violent_psa_flag ~ oras_risk_score + race, data = race_df))
+summary(lm(fta_flag ~ oras_risk_score + release_to_pretrial_end  + race, data = race_df))
+summary(lm(recid_arrested_flag ~ oras_risk_score + release_to_pretrial_end  + race, data = race_df))
+summary(lm(recid_filed_flag ~ oras_risk_score + release_to_pretrial_end  + race, data = race_df))
+summary(lm(recid_convicted_flag ~ oras_risk_score + release_to_pretrial_end  + race, data = race_df))
+summary(lm(recid_arrest_violent_psa_flag ~ oras_risk_score + release_to_pretrial_end  + race, data = race_df))
+```
+
+Gender Bias
+```{r}
+sex_df <- eval_df %>%
+  filter(sex %in% c("Male", "Female")) %>%
+  mutate(sex = factor(sex, levels = c("Male", "Female")))
+
+#VPRAI  
+summary(lm(fta_flag ~ vprai_risk_score + release_to_pretrial_end  + sex, data = sex_df))
+summary(lm(recid_arrested_flag ~ vprai_risk_score + release_to_pretrial_end  + sex, data = sex_df))
+summary(lm(recid_filed_flag ~ vprai_risk_score + release_to_pretrial_end  + sex, data = sex_df))
+summary(lm(recid_convicted_flag ~ vprai_risk_score + release_to_pretrial_end  + sex, data = sex_df))
+summary(lm(recid_arrest_violent_psa_flag ~ vprai_risk_score + release_to_pretrial_end  + sex, data = sex_df))
+
+#VPRAI-R
+summary(lm(fta_flag ~ vprair_risk_score + release_to_pretrial_end  + sex, data = sex_df))
+summary(lm(recid_arrested_flag ~ vprair_risk_score + release_to_pretrial_end  + sex, data = sex_df))
+summary(lm(recid_filed_flag ~ vprair_risk_score + release_to_pretrial_end  + sex, data = sex_df))
+summary(lm(recid_convicted_flag ~ vprair_risk_score + release_to_pretrial_end  + sex, data = sex_df))
+summary(lm(recid_arrest_violent_psa_flag ~ vprair_risk_score + release_to_pretrial_end  + sex, data = sex_df))
+
+#PSA
+summary(lm(fta_flag ~ psa_fta_risk_score + release_to_pretrial_end  + sex, data = sex_df))
+summary(lm(recid_arrested_flag ~ psa_nca_risk_score + release_to_pretrial_end  + sex, data = sex_df))
+summary(lm(recid_filed_flag ~ psa_nca_risk_score + release_to_pretrial_end  + sex, data = sex_df))
+summary(lm(recid_convicted_flag ~ psa_nca_risk_score + release_to_pretrial_end  + sex, data = sex_df))
+summary(lm(recid_arrest_violent_psa_flag ~ psa_nvca_risk_score + release_to_pretrial_end  + sex, data = sex_df))
+
+#ORAS
+summary(lm(fta_flag ~ oras_risk_score + release_to_pretrial_end  + sex, data = sex_df))
+summary(lm(recid_arrested_flag ~ oras_risk_score + release_to_pretrial_end  + sex, data = sex_df))
+summary(lm(recid_filed_flag ~ oras_risk_score + release_to_pretrial_end  + sex, data = sex_df))
+summary(lm(recid_convicted_flag ~ oras_risk_score + release_to_pretrial_end  + sex, data = sex_df))
+summary(lm(recid_arrest_violent_psa_flag ~ oras_risk_score + release_to_pretrial_end  + sex, data = sex_df))
+
+eval_df %>%
+  count(tool_name, race)
+```
+
+Age Bias
+```{r}
+age_df <- eval_df %>%
+  mutate(age = (assessment_date - dob)/365.25)
+  # filter(age %in% c("Male", "Female")) %>%
+  # mutate(age = factor(age, levels = c("Male", "Female")))
+
+#VPRAI  
+summary(lm(fta_flag ~ vprai_risk_score + release_to_pretrial_end  + age, data = age_df))
+summary(lm(recid_arrested_flag ~ vprai_risk_score + release_to_pretrial_end  + age, data = age_df))
+summary(lm(recid_filed_flag ~ vprai_risk_score + release_to_pretrial_end  + age, data = age_df))
+summary(lm(recid_convicted_flag ~ vprai_risk_score + release_to_pretrial_end  + age, data = age_df))
+summary(lm(recid_arrest_violent_psa_flag ~ vprai_risk_score + release_to_pretrial_end  + age, data = age_df))
+
+#VPRAI-R
+summary(lm(fta_flag ~ vprair_risk_score + release_to_pretrial_end  + age, data = age_df))
+summary(lm(recid_arrested_flag ~ vprair_risk_score + release_to_pretrial_end  + age, data = age_df))
+summary(lm(recid_filed_flag ~ vprair_risk_score + release_to_pretrial_end  + age, data = age_df))
+summary(lm(recid_convicted_flag ~ vprair_risk_score + release_to_pretrial_end  + age, data = age_df))
+summary(lm(recid_arrest_violent_psa_flag ~ vprair_risk_score + release_to_pretrial_end  + age, data = age_df))
+
+#PSA
+summary(lm(fta_flag ~ psa_fta_risk_score + release_to_pretrial_end  + age, data = age_df))
+summary(lm(recid_arrested_flag ~ psa_nca_risk_score + release_to_pretrial_end  + age, data = age_df))
+summary(lm(recid_filed_flag ~ psa_nca_risk_score + release_to_pretrial_end  + age, data = age_df))
+summary(lm(recid_convicted_flag ~ psa_nca_risk_score + release_to_pretrial_end  + age, data = age_df))
+summary(lm(recid_arrest_violent_psa_flag ~ psa_nvca_risk_score + release_to_pretrial_end  + age, data = age_df))
+
+#ORAS
+summary(lm(fta_flag ~ oras_risk_score + release_to_pretrial_end  + age, data = age_df))
+summary(lm(recid_arrested_flag ~ oras_risk_score + release_to_pretrial_end  + age, data = age_df))
+summary(lm(recid_filed_flag ~ oras_risk_score + release_to_pretrial_end  + age, data = age_df))
+summary(lm(recid_convicted_flag ~ oras_risk_score + release_to_pretrial_end  + age, data = age_df))
+summary(lm(recid_arrest_violent_psa_flag ~ oras_risk_score + release_to_pretrial_end  + age, data = age_df))
+
+age_df %>%
+  group_by(race) %>%
+  summarise(age = mean(age, na.rm = T))
+  count(tool_name, age)
+```
+
+All Bias
+```{r}
+bias_df <- eval_df %>%
+  mutate(race = factor(race, levels = c("White", "Black", "Hispanic", "Other_Unknown"))) %>%
+  mutate(age = (assessment_date - dob)/365.25) %>%
+  filter(sex %in% c("Male", "Female")) %>%
+  mutate(sex = factor(sex, levels = c("Male", "Female")))
+
+#VPRAI  
+summary(lm(fta_flag ~ vprai_risk_score + release_to_pretrial_end  + race + sex + age, data = bias_df))
+summary(lm(recid_arrested_flag ~ vprai_risk_score + release_to_pretrial_end  + race + sex + age, data = bias_df))
+summary(lm(recid_filed_flag ~ vprai_risk_score + release_to_pretrial_end  + race + sex + age, data = bias_df))
+summary(lm(recid_convicted_flag ~ vprai_risk_score + release_to_pretrial_end  + race + sex + age, data = bias_df))
+summary(lm(recid_arrest_violent_psa_flag ~ vprai_risk_score + release_to_pretrial_end  + race + sex + age, data = bias_df))
+
+#VPRAI-R
+summary(lm(fta_flag ~ vprair_risk_score + release_to_pretrial_end  + race + sex + age, data = bias_df))
+summary(lm(recid_arrested_flag ~ vprair_risk_score + release_to_pretrial_end  + race + sex + age, data = bias_df))
+summary(lm(recid_filed_flag ~ vprair_risk_score + release_to_pretrial_end  + race + sex + age, data = bias_df))
+summary(lm(recid_convicted_flag ~ vprair_risk_score + release_to_pretrial_end  + race + sex + age, data = bias_df))
+summary(lm(recid_arrest_violent_psa_flag ~ vprair_risk_score + release_to_pretrial_end  + race + sex + age, data = bias_df))
+
+#PSA
+summary(lm(fta_flag ~ psa_fta_risk_score + release_to_pretrial_end  + race + sex + age, data = bias_df))
+summary(lm(recid_arrested_flag ~ psa_nca_risk_score + release_to_pretrial_end  + race + sex + age, data = bias_df))
+summary(lm(recid_filed_flag ~ psa_nca_risk_score + release_to_pretrial_end  + race + sex + age, data = bias_df))
+summary(lm(recid_convicted_flag ~ psa_nca_risk_score + release_to_pretrial_end  + race + sex + age, data = bias_df))
+summary(lm(recid_arrest_violent_psa_flag ~ psa_nvca_risk_score + release_to_pretrial_end  + race + sex + age, data = bias_df))
+
+#ORAS
+summary(lm(fta_flag ~ oras_risk_score + release_to_pretrial_end  + race + sex + age, data = bias_df))
+summary(lm(recid_arrested_flag ~ oras_risk_score + release_to_pretrial_end  + race + sex + age, data = bias_df))
+summary(lm(recid_filed_flag ~ oras_risk_score + release_to_pretrial_end  + race + sex + age, data = bias_df))
+summary(lm(recid_convicted_flag ~ oras_risk_score + release_to_pretrial_end  + race + sex + age, data = bias_df))
+summary(lm(recid_arrest_violent_psa_flag ~ oras_risk_score + release_to_pretrial_end  + race + sex + age, data = bias_df))
+```
+
+Racial Bias
+```{r}
+race_df <- eval_df %>%
+  mutate(race = factor(race, levels = c("White", "Black", "Hispanic", "Other_Unknown")))
+
+#VPRAI  
+summary(lm(fta_flag ~ vprai_risk_score *  race, data = race_df))
+summary(lm(recid_arrested_flag ~ vprai_risk_score *  race, data = race_df))
+summary(lm(recid_filed_flag ~ vprai_risk_score *  race, data = race_df))
+summary(lm(recid_convicted_flag ~ vprai_risk_score *  race, data = race_df))
+summary(lm(recid_arrest_violent_psa_flag ~ vprai_risk_score *  race, data = race_df))
+
+#VPRAI-R
+summary(lm(fta_flag ~ vprair_risk_score *  race, data = race_df))
+summary(lm(recid_arrested_flag ~ vprair_risk_score *  race, data = race_df))
+summary(lm(recid_filed_flag ~ vprair_risk_score *  race, data = race_df))
+summary(lm(recid_convicted_flag ~ vprair_risk_score *  race, data = race_df))
+summary(lm(recid_arrest_violent_psa_flag ~ vprair_risk_score *  race, data = race_df))
+
+#PSA
+summary(lm(fta_flag ~ psa_fta_risk_score *  race, data = race_df))
+summary(lm(recid_arrested_flag ~ psa_nca_risk_score *  race, data = race_df))
+summary(lm(recid_filed_flag ~ psa_nca_risk_score *  race, data = race_df))
+summary(lm(recid_convicted_flag ~ psa_nca_risk_score *  race, data = race_df))
+summary(lm(recid_arrest_violent_psa_flag ~ psa_nvca_risk_score *  race, data = race_df))
+
+#ORAS
+summary(lm(fta_flag ~ oras_risk_score *  race, data = race_df))
+summary(lm(recid_arrested_flag ~ oras_risk_score *  race, data = race_df))
+summary(lm(recid_filed_flag ~ oras_risk_score *  race, data = race_df))
+summary(lm(recid_convicted_flag ~ oras_risk_score *  race, data = race_df))
+summary(lm(recid_arrest_violent_psa_flag ~ oras_risk_score *  race, data = race_df))
 
 eval_df %>%
   count(tool_name, race)
@@ -279,32 +486,32 @@ sex_df <- eval_df %>%
   mutate(sex = factor(sex, levels = c("Male", "Female")))
 
 #VPRAI  
-summary(lm(fta_flag ~ vprai_risk_score + sex, data = sex_df))
-summary(lm(recid_arrested_flag ~ vprai_risk_score + sex, data = sex_df))
-summary(lm(recid_filed_flag ~ vprai_risk_score + sex, data = sex_df))
-summary(lm(recid_convicted_flag ~ vprai_risk_score + sex, data = sex_df))
-summary(lm(recid_arrest_violent_psa_flag ~ vprai_risk_score + sex, data = sex_df))
+summary(lm(fta_flag ~ vprai_risk_score *  sex, data = sex_df))
+summary(lm(recid_arrested_flag ~ vprai_risk_score *  sex, data = sex_df))
+summary(lm(recid_filed_flag ~ vprai_risk_score *  sex, data = sex_df))
+summary(lm(recid_convicted_flag ~ vprai_risk_score *  sex, data = sex_df))
+summary(lm(recid_arrest_violent_psa_flag ~ vprai_risk_score *  sex, data = sex_df))
 
 #VPRAI-R
-summary(lm(fta_flag ~ vprair_risk_score + sex, data = sex_df))
-summary(lm(recid_arrested_flag ~ vprair_risk_score + sex, data = sex_df))
-summary(lm(recid_filed_flag ~ vprair_risk_score + sex, data = sex_df))
-summary(lm(recid_convicted_flag ~ vprair_risk_score + sex, data = sex_df))
-summary(lm(recid_arrest_violent_psa_flag ~ vprair_risk_score + sex, data = sex_df))
+summary(lm(fta_flag ~ vprair_risk_score *  sex, data = sex_df))
+summary(lm(recid_arrested_flag ~ vprair_risk_score *  sex, data = sex_df))
+summary(lm(recid_filed_flag ~ vprair_risk_score *  sex, data = sex_df))
+summary(lm(recid_convicted_flag ~ vprair_risk_score *  sex, data = sex_df))
+summary(lm(recid_arrest_violent_psa_flag ~ vprair_risk_score *  sex, data = sex_df))
 
 #PSA
-summary(lm(fta_flag ~ psa_fta_risk_score + sex, data = sex_df))
-summary(lm(recid_arrested_flag ~ psa_nca_risk_score + sex, data = sex_df))
-summary(lm(recid_filed_flag ~ psa_nca_risk_score + sex, data = sex_df))
-summary(lm(recid_convicted_flag ~ psa_nca_risk_score + sex, data = sex_df))
-summary(lm(recid_arrest_violent_psa_flag ~ psa_nvca_risk_score + sex, data = sex_df))
+summary(lm(fta_flag ~ psa_fta_risk_score *  sex, data = sex_df))
+summary(lm(recid_arrested_flag ~ psa_nca_risk_score *  sex, data = sex_df))
+summary(lm(recid_filed_flag ~ psa_nca_risk_score *  sex, data = sex_df))
+summary(lm(recid_convicted_flag ~ psa_nca_risk_score *  sex, data = sex_df))
+summary(lm(recid_arrest_violent_psa_flag ~ psa_nvca_risk_score *  sex, data = sex_df))
 
 #ORAS
-summary(lm(fta_flag ~ oras_risk_score + sex, data = sex_df))
-summary(lm(recid_arrested_flag ~ oras_risk_score + sex, data = sex_df))
-summary(lm(recid_filed_flag ~ oras_risk_score + sex, data = sex_df))
-summary(lm(recid_convicted_flag ~ oras_risk_score + sex, data = sex_df))
-summary(lm(recid_arrest_violent_psa_flag ~ oras_risk_score + sex, data = sex_df))
+summary(lm(fta_flag ~ oras_risk_score *  sex, data = sex_df))
+summary(lm(recid_arrested_flag ~ oras_risk_score *  sex, data = sex_df))
+summary(lm(recid_filed_flag ~ oras_risk_score *  sex, data = sex_df))
+summary(lm(recid_convicted_flag ~ oras_risk_score *  sex, data = sex_df))
+summary(lm(recid_arrest_violent_psa_flag ~ oras_risk_score *  sex, data = sex_df))
 
 eval_df %>%
   count(tool_name, race)
@@ -312,42 +519,80 @@ eval_df %>%
 
 Age Bias
 ```{r}
-age_df <- eval_df 
+age_df <- eval_df %>%
+  mutate(age = (assessment_date - dob)/365.25)
   # filter(age %in% c("Male", "Female")) %>%
   # mutate(age = factor(age, levels = c("Male", "Female")))
 
 #VPRAI  
-summary(lm(fta_flag ~ vprai_risk_score + age, data = age_df))
-summary(lm(recid_arrested_flag ~ vprai_risk_score + age, data = age_df))
-summary(lm(recid_filed_flag ~ vprai_risk_score + age, data = age_df))
-summary(lm(recid_convicted_flag ~ vprai_risk_score + age, data = age_df))
-summary(lm(recid_arrest_violent_psa_flag ~ vprai_risk_score + age, data = age_df))
+summary(lm(fta_flag ~ vprai_risk_score *  age, data = age_df))
+summary(lm(recid_arrested_flag ~ vprai_risk_score *  age, data = age_df))
+summary(lm(recid_filed_flag ~ vprai_risk_score *  age, data = age_df))
+summary(lm(recid_convicted_flag ~ vprai_risk_score *  age, data = age_df))
+summary(lm(recid_arrest_violent_psa_flag ~ vprai_risk_score *  age, data = age_df))
 
 #VPRAI-R
-summary(lm(fta_flag ~ vprair_risk_score + age, data = age_df))
-summary(lm(recid_arrested_flag ~ vprair_risk_score + age, data = age_df))
-summary(lm(recid_filed_flag ~ vprair_risk_score + age, data = age_df))
-summary(lm(recid_convicted_flag ~ vprair_risk_score + age, data = age_df))
-summary(lm(recid_arrest_violent_psa_flag ~ vprair_risk_score + age, data = age_df))
+summary(lm(fta_flag ~ vprair_risk_score *  age, data = age_df))
+summary(lm(recid_arrested_flag ~ vprair_risk_score *  age, data = age_df))
+summary(lm(recid_filed_flag ~ vprair_risk_score *  age, data = age_df))
+summary(lm(recid_convicted_flag ~ vprair_risk_score *  age, data = age_df))
+summary(lm(recid_arrest_violent_psa_flag ~ vprair_risk_score *  age, data = age_df))
 
 #PSA
-summary(lm(fta_flag ~ psa_fta_risk_score + age, data = age_df))
-summary(lm(recid_arrested_flag ~ psa_nca_risk_score + age, data = age_df))
-summary(lm(recid_filed_flag ~ psa_nca_risk_score + age, data = age_df))
-summary(lm(recid_convicted_flag ~ psa_nca_risk_score + age, data = age_df))
-summary(lm(recid_arrest_violent_psa_flag ~ psa_nvca_risk_score + age, data = age_df))
+summary(lm(fta_flag ~ psa_fta_risk_score *  age, data = age_df))
+summary(lm(recid_arrested_flag ~ psa_nca_risk_score *  age, data = age_df))
+summary(lm(recid_filed_flag ~ psa_nca_risk_score *  age, data = age_df))
+summary(lm(recid_convicted_flag ~ psa_nca_risk_score *  age, data = age_df))
+summary(lm(recid_arrest_violent_psa_flag ~ psa_nvca_risk_score *  age, data = age_df))
 
 #ORAS
-summary(lm(fta_flag ~ oras_risk_score + age, data = age_df))
-summary(lm(recid_arrested_flag ~ oras_risk_score + age, data = age_df))
-summary(lm(recid_filed_flag ~ oras_risk_score + age, data = age_df))
-summary(lm(recid_convicted_flag ~ oras_risk_score + age, data = age_df))
-summary(lm(recid_arrest_violent_psa_flag ~ oras_risk_score + age, data = age_df))
+summary(lm(fta_flag ~ oras_risk_score *  age, data = age_df))
+summary(lm(recid_arrested_flag ~ oras_risk_score *  age, data = age_df))
+summary(lm(recid_filed_flag ~ oras_risk_score *  age, data = age_df))
+summary(lm(recid_convicted_flag ~ oras_risk_score *  age, data = age_df))
+summary(lm(recid_arrest_violent_psa_flag ~ oras_risk_score *  age, data = age_df))
 
-eval_df %>%
+age_df %>%
   group_by(race) %>%
-  summarise(male = mean(sex == "Male"))
+  summarise(age = mean(age, na.rm = T))
   count(tool_name, age)
+```
+
+All Bias
+```{r}
+bias_df <- eval_df %>%
+  mutate(race = factor(race, levels = c("White", "Black", "Hispanic", "Other_Unknown"))) %>%
+  mutate(age = (assessment_date - dob)/365.25) %>%
+  filter(sex %in% c("Male", "Female")) %>%
+  mutate(sex = factor(sex, levels = c("Male", "Female")))
+
+#VPRAI  
+summary(lm(fta_flag ~ vprai_risk_score *  race * sex * age, data = bias_df))
+summary(lm(recid_arrested_flag ~ vprai_risk_score *  race * sex * age, data = bias_df))
+summary(lm(recid_filed_flag ~ vprai_risk_score *  race * sex * age, data = bias_df))
+summary(lm(recid_convicted_flag ~ vprai_risk_score *  race * sex * age, data = bias_df))
+summary(lm(recid_arrest_violent_psa_flag ~ vprai_risk_score *  race * sex * age, data = bias_df))
+
+#VPRAI-R
+summary(lm(fta_flag ~ vprair_risk_score *  race * sex * age, data = bias_df))
+summary(lm(recid_arrested_flag ~ vprair_risk_score *  race * sex * age, data = bias_df))
+summary(lm(recid_filed_flag ~ vprair_risk_score *  race * sex * age, data = bias_df))
+summary(lm(recid_convicted_flag ~ vprair_risk_score *  race * sex * age, data = bias_df))
+summary(lm(recid_arrest_violent_psa_flag ~ vprair_risk_score *  race * sex * age, data = bias_df))
+
+#PSA
+summary(lm(fta_flag ~ psa_fta_risk_score *  race * sex * age, data = bias_df))
+summary(lm(recid_arrested_flag ~ psa_nca_risk_score *  race * sex * age, data = bias_df))
+summary(lm(recid_filed_flag ~ psa_nca_risk_score *  race * sex * age, data = bias_df))
+summary(lm(recid_convicted_flag ~ psa_nca_risk_score *  race * sex * age, data = bias_df))
+summary(lm(recid_arrest_violent_psa_flag ~ psa_nvca_risk_score *  race * sex * age, data = bias_df))
+
+#ORAS
+summary(lm(fta_flag ~ oras_risk_score *  race * sex * age, data = bias_df))
+summary(lm(recid_arrested_flag ~ oras_risk_score *  race * sex * age, data = bias_df))
+summary(lm(recid_filed_flag ~ oras_risk_score *  race * sex * age, data = bias_df))
+summary(lm(recid_convicted_flag ~ oras_risk_score *  race * sex * age, data = bias_df))
+summary(lm(recid_arrest_violent_psa_flag ~ oras_risk_score *  race * sex * age, data = bias_df))
 ```
 
 VPRAI
