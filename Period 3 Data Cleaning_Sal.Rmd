@@ -90,7 +90,7 @@ book_df <- book_df %>%
         T ~ "Other"),
       arrest_charge = gsub("[A-Z]{2}|[A-Z]{1}&[A-Z]{1}", "", arrest_charge),
       arrest_charge = toupper(gsub("\\/|\\(|\\)| |\\.|\\.*|^[A-Z]*|\\\\.*|\\{|\\}","", arrest_charge)),
-      arrest_attempt_flag = if_else(grepl("^664", arrest_charge), 1,0),
+      attempt_flag = if_else(grepl("^664", arrest_charge), 1,0),
       arrest_charge = gsub("^664", "", arrest_charge),
       arrest_charge = gsub("849B2$", "", arrest_charge),
       arrest_charge_level = case_when(
@@ -161,6 +161,7 @@ book_df <- book_df %>%
 
 # Flag Construction--See pg. xxx for more details.
 book_df <- book_df %>%
+  rename_at(vars(contains("flag")), funs(paste0("arrest_", .))) %>%
   mutate(arrest_felony_flag = if_else(arrest_charge_level == "F", 1,0),
          arrest_misd_flag = if_else(arrest_charge_level == "M", 1, 0),
          arrest_attempt_flag = if_else(arrest_charge == "664", 1, arrest_attempt_flag),
@@ -181,8 +182,6 @@ book_df <- book_df %>%
 # book_df %>%
 #   select(book_num, book_date, book_type_original, court_case_id, arrest_charge_original, arrest_charge_count, disposition_type_original, disposition_date)
 
-book_df %>%
-  count(release_type_original)
 
 ```
 
@@ -340,7 +339,7 @@ court_charges <- court_charges %>%
 
 load("Complete Charge Code Hierarchy.RData")
 
-court_charges <- left_join(court_charges, charge_hier, by = "join_var")
+court_charges <- left_join(court_charges, charge_hier, by = "join_var") %>%
 
 
 # Diagnostic Code for Charge Hierarchy
@@ -1000,8 +999,18 @@ assess_df <- assess_df %>%
          
          release_authorization = if_else(grepl("Judge", release_authorization_original), "Judge", "Other_Unknown"),
          
-         tool_name = "vpraio") 
+         tool_name = "vpraio",
          
+         vpraio_tool_response_1 = if_else(trimws(vpraio_tool_response_1) == "Felony", 1, 0),
+         vpraio_tool_response_2 = if_else(trimws(vpraio_tool_response_2) == "Yes", 1, 0),
+         vpraio_tool_response_3 = if_else(trimws(vpraio_tool_response_3) == "Yes", 1, 0),
+         vpraio_tool_response_4 = if_else(trimws(vpraio_tool_response_4) == "Yes", 2, 0),
+         vpraio_tool_response_5 = if_else(trimws(vpraio_tool_response_5) == "Yes", 1, 0),
+         vpraio_tool_response_6 = if_else(trimws(vpraio_tool_response_6) == "Yes", 1, 0),
+         vpraio_tool_response_7 = if_else(trimws(vpraio_tool_response_7) == "Less than 1 Year", 1, 0),
+         vpraio_tool_response_8 = if_else(trimws(vpraio_tool_response_8) == "Yes", 1, 0),
+         vpraio_tool_response_9 = if_else(trimws(vpraio_tool_response_9) == "Yes", 1, 0))
+
 
 
 # Flag Standardization---See pg. xxx for more details.
@@ -1258,9 +1267,10 @@ join_df2 <- join_df %>%
 Join collapse
 ```{r}
 
-kings_collapse <- join_df2 %>%
-  rename(pretrial_end_date = final_disposition_date) %>%
-  mutate(across(contains("flag"), ~if_else(is.na(.x), 0, .x))) %>%
+suppressWarnings(kings_collapse <- join_df2 %>%
+  mutate(across(c(contains("date"), -matches("time|reminder")), ~if_else(.x == -Inf|.x == Inf, NA_Date_, as_date(.x)))) %>%
+  mutate(across(contains("flag"), ~if_else(is.na(.x), 0, as.numeric(.x)))) %>%
+  mutate(pretrial_end_date = if_else(is.na(pretrial_end_date) & release_type == "Dismissed_Dropped", release_date, pretrial_end_date)) %>%
   mutate(new_arrest_flag = if_else(book_type %in% c("On_View", "New_Warrant"), 1, 0)) %>%
   mutate(release_type = ordered(release_type, levels = c("Unknown", "Other", "Sentenced", "Time_Served", "Detain_Only", "Dismissed_Dropped", "OR",
                                                          "Bail_Bond", "Cite_Release", "Hold_Release"))) %>%
@@ -1268,11 +1278,16 @@ kings_collapse <- join_df2 %>%
   mutate(release_type = max(release_type)) %>%
   mutate(across(contains("sup_vio"), max)) %>%
   filter(sum(new_arrest_flag) == 0 | new_arrest_flag == 1) %>%
-  mutate(across(contains("flag"), max)) %>%
+  mutate(across(c(contains("flag"), pretrial_end_date, disposition_date), max)) %>%
+  mutate(sentence_date = min(sentence_date, na.rm = T)) %>%
   ungroup() %>%
-  distinct(book_num, .keep_all = T)
+  distinct(book_num, .keep_all = T) %>%
+  mutate(across(c(contains("date"), -matches("time|reminder")), ~if_else(.x == -Inf|.x == Inf, NA_Date_, as_date(.x)))) %>%
+  mutate(pretrial_end_date = if_else(pretrial_end_date < sentence_date|is.na(sentence_date), pretrial_end_date, sentence_date)))
+
+
   
-#save(kings_collapse, file = "G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Kings Join Collapse.RData")
+save(kings_collapse, file = "G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Kings Join Collapse.RData")
 
 
 ```
@@ -1447,7 +1462,8 @@ person_df <- read_excel("Historical Data Submissions/Napa/P3 Submission-Jan 15/H
 # rm(person_df2, person_df3)
 
 # Variable name standardization--See pg. xxx for more details. 
-names(person_df) <- c("cii", "fbi", "local_id", "cdl_id", "cdl_id_state", "name", "dob", "race_original", "sex_original") 
+## Their id variables appear to be mislabeled, the first column is labeled cii but is not appear to be a cii, while the second column is labeled fbi but appears to be cii
+names(person_df) <- c("unknown_id", "cii", "local_id", "cdl_id", "cdl_id_state", "name", "dob", "race_original", "sex_original") 
 
 #fix dates
 person_df <- person_df %>%
@@ -1490,7 +1506,7 @@ names(book_df) <- c("book_num", "court_case_id", "arrest_date", "local_id", "boo
 
 # Date Reformatting (as well as booking sequence and courtcase_id)--See pg. xxx for more details.
 book_df <- book_df %>%
-  mutate(release_date = convertToDate(release_date)) %>%
+  mutate(release_date = as_date(convertToDateTime(release_date))) %>%
   mutate_at(vars(arrest_date, book_date),  funs("time" = convertToDateTime(.))) %>%
   mutate_at(vars(arrest_date, book_date), convertToDate)
 
@@ -1575,13 +1591,22 @@ book_charge <- left_join(book_charge, charge_hier, by = "join_var")
 
 # Flag Construction--See pg. xxx for more details. 
 book_charge <- book_charge %>%
+  rename_at(vars(contains("flag")), funs(paste0("arrest_", .))) %>%
   mutate(arrest_felony_flag = if_else(arrest_charge_level == "F", 1,0),
          arrest_misd_flag = if_else(arrest_charge_level == "M", 1,0),
          arrest_qualifier_flag = if_else(arrest_charge_level_original == "SA", 1, 0)
-         ) %>%
-  rename_at(vars(contains("flag")), funs(paste0("arrest_", .)))
+         ) 
 
 
+book_df %>%
+  filter(year(book_date) == 2020) %>%
+  ungroup() %>%
+  count(book_num, book_date, release_date)
+
+book_df %>%
+  mutate(release_date = as_date(convertToDateTime(release_date))) %>%
+  filter(book_num == "135398") %>%
+  count(book_num, release_date)
 ```
 
 
@@ -1615,7 +1640,7 @@ book_charge <- book_charge %>%
 book_df <-left_join(book_df, book_charge) %>%
   mutate(local_id = as.numeric(local_id))
 
-book_df <- left_join(book_df, person_df)
+book_df <- left_join(book_df, person_df %>% mutate(local_id = as.numeric(local_id)))
 
 save(book_df, file = "G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Napa Booking Collapse.RData")
 ```
@@ -3010,28 +3035,31 @@ Collapse of joined dataset
 ## ask Napa what does "Local Warrant" mean as a book type?
 ## few of the assessments remain after collapse, but this might be to be expected because there are only 6 months of data and we are filtering out cases that are not yet disposed of, so many of these cases that had assessments associated might not yet be disposed of.
 
-# join_df2 %>%
-#   count(book_type, book_type_original)
-# 
-# book_df %>%
-#   arrange(local_id) %>%
-#   add_count(local_id) %>%
-#   filter(n >1)
 
 ### need to fix the flag_count variables, they are being maxed instead of summed
 
-napa_collapse <- join_df2 %>%
+suppressWarnings(napa_collapse <- join_df2 %>%
   rename(pretrial_end_date = final_disposition_date) %>%
+  mutate(across(c(contains("date"), -matches("time|reminder")), ~if_else(.x == -Inf|.x == Inf, NA_Date_, as_date(.x)))) %>%
+  mutate(across(contains("flag"), ~if_else(is.na(.x), 0, as.numeric(.x)))) %>%
+  mutate(pretrial_end_date = if_else(is.na(pretrial_end_date) & release_type == "Dismissed_Dropped", release_date, pretrial_end_date)) %>%
   mutate(new_arrest_flag = if_else(book_type %in% c("On_View", "New_Warrant"), 1, 0)) %>%
-  mutate(across(contains("flag"), ~if_else(is.na(.x), 0, .x))) %>%
+  mutate(release_type = ordered(release_type, levels = c("Unknown", "Other", "Sentenced", "Time_Served", "Detain_Only", "Dismissed_Dropped", "OR",
+                                                         "Bail_Bond", "Cite_Release", "Hold_Release"))) %>%
   group_by(local_id, book_date) %>%
-  mutate(across(contains("sup_vio"), max)) %>% 
+  mutate(release_type = max(release_type)) %>%
+  mutate(across(contains("sup_vio"), max)) %>%
   filter(sum(new_arrest_flag) == 0 | new_arrest_flag == 1) %>%
-  mutate(across(contains("flag"), max)) %>%
+  mutate(across(c(contains("flag"), pretrial_end_date, disposition_date), max)) %>%
+  mutate(sentence_date = min(sentence_date, na.rm = T)) %>%
   ungroup() %>%
-  distinct(local_id, book_date, .keep_all = T)
-  
-#save(napa_collapse, file = "G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Napa Join Collapse.RData")
+  distinct(local_id, book_date, .keep_all = T) %>%
+  mutate(across(c(contains("date"), -matches("time|reminder")), ~if_else(.x == -Inf|.x == Inf, NA_Date_, as_date(.x)))) %>%
+  mutate(pretrial_end_date = if_else(pretrial_end_date < sentence_date|is.na(sentence_date), pretrial_end_date, sentence_date)))
+
+
+
+save(napa_collapse, file = "G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Napa Join Collapse.RData")
 
 
 ```
@@ -3408,6 +3436,7 @@ book_charge <- book_charge %>%
 # Flag Creation
 
 book_charge <- book_charge %>%
+  rename_at(vars(contains("flag")), funs(paste0("arrest_", .))) %>%
   mutate(arrest_felony_flag = if_else(arrest_charge_level == "F", 1, 0),
          arrest_misd_flag = if_else(arrest_charge_level == "M", 1, 0),
          arrest_sup_vio_post = if_else(arrest_charge_code_original == "PAR" | book_type == "Sup_Vio_Post", 1,0)
@@ -3651,28 +3680,29 @@ court_dispos <- court_dispos %>%
 
 ####
 
+# Since Sac uses a unified system, the person df will be standardized and joined after the jail-court join
 
-#Court person ids
-court_person <- fread("Historical Data Submissions/Sacramento/P3 Submission-Jan 15/SacPersonDetail.csv")
-
-# Variable name standardization--See pg. xxx for more details. 
-names(court_person) <- c("jail_court_id", "first_name", "last_name", "name", "sex_original", "race_original", "dob", "cii", "fbi", "dln")
-
-# Date Reformatting--See pg. xxx for more details.
-court_person <- court_person %>%
-  mutate(dob = ymd(gsub(" .*", "", trimws(dob))))
-
-# Standardize Factors--See pg. xxx for more details.
-court_person <- court_person %>%
-  mutate(race = case_when(race_original %in% c("W") ~ "White",
-                          race_original %in% c("B") ~ "Black",
-                          race_original %in% c("H") ~ "Hispanic",
-                          T ~ "Other_Unknown"),
-         
-         sex = case_when(sex_original %in% c("M") ~ "Male",
-                         sex_original %in% c("F") ~ "Female",
-                         sex_original %in% c("X") ~ "Other_Unknown",
-                         T ~ "Other_Unknown"))
+# #Court person ids
+# court_person <- fread("Historical Data Submissions/Sacramento/P3 Submission-Jan 15/SacPersonDetail.csv")
+# 
+# # Variable name standardization--See pg. xxx for more details. 
+# names(court_person) <- c("jail_court_id", "first_name", "last_name", "name", "sex_original", "race_original", "dob", "cii", "fbi", "dln")
+# 
+# # Date Reformatting--See pg. xxx for more details.
+# court_person <- court_person %>%
+#   mutate(dob = ymd(gsub(" .*", "", trimws(dob))))
+# 
+# # Standardize Factors--See pg. xxx for more details.
+# court_person <- court_person %>%
+#   mutate(race = case_when(race_original %in% c("W") ~ "White",
+#                           race_original %in% c("B") ~ "Black",
+#                           race_original %in% c("H") ~ "Hispanic",
+#                           T ~ "Other_Unknown"),
+#          
+#          sex = case_when(sex_original %in% c("M") ~ "Male",
+#                          sex_original %in% c("F") ~ "Female",
+#                          sex_original %in% c("X") ~ "Other_Unknown",
+#                          T ~ "Other_Unknown"))
 
 
 ####
@@ -3864,8 +3894,9 @@ court_df <- reduce(list(court_dispo, court_fta_war, court_hearings, court_senten
          conviction_flag = if_else(disposition_type %in% c("Guilty","Nolo_Contendere"), 1, 0))
 
 
-court_df <- court_df %>%
-  left_join(court_person)  #1,049 unmatched
+# court_df <- court_df %>%
+#   left_join(court_person)  #1,049 unmatched
+# unified system, so court_person will be joined after the jail-court join
 
 save(court_df, file =  "G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Sacramento Court Collapse.RData")
 
@@ -4132,7 +4163,7 @@ prob_df <- prob_df %>%
 
 # Standardize Factors--See pg. xxx for more details.
 prob_df <- prob_df %>%
-  mutate(tool_name = "PSA",
+  mutate(tool_name = "psa",
          
          sex = case_when(sex_original %in% c("M") ~ "Male",
                          sex_original %in% c("F") ~ "Female",
@@ -4175,9 +4206,24 @@ prob_df <- prob_df %>%
          pretrial_termination_reason = case_when(pretrial_termination_outcome_original %in% c("Completed", "No Charges Filed", "Sentenced-CJP", "Sentenced-Dismissed", "Sentenced-Formal", "Sentenced-Informal", "Sentenced-Jail", "Sentenced-Other") ~ "Case_Disposed",
                                                   pretrial_termination_outcome_original %in% c("Abscond") ~ "Abscond",
                                                   pretrial_termination_outcome_original %in% c("Bailed", "Zero Bail", "Ineligible", "Judge Denied", "Opt Out", "OR Release", "Parole-Not PRCS eligible") ~ "Not_Tracked",
-                                                  T ~ "Other_Unknown")                                       
-         ) 
-  
+                                                  T ~ "Other_Unknown"),
+         
+         psa_tool_response_2a = if_else(psa_tool_response_1 <= 20 & psa_tool_response_2 == "Yes", 1, 0),
+         psa_tool_response_1 = if_else(psa_tool_response_1 >= 23, 0, 2),
+         psa_tool_response_2 = if_else(psa_tool_response_2 == "Yes", 2, 0),
+         psa_tool_response_3 = if_else(psa_tool_response_3 == "Yes", 1, 0),
+         psa_tool_response_4 = if_else(psa_tool_response_4 == "Yes", 1, 0),
+         psa_tool_response_5 = if_else(psa_tool_response_5 == "Yes", 1, 0),
+         psa_tool_response_5a = if_else(psa_tool_response_4 == 1 | psa_tool_response_5 == 1, 1, 0),
+         psa_tool_response_6 = case_when(psa_tool_response_6 == "0" ~ 0,
+                                         psa_tool_response_6 %in% c("1","2") ~ 1,
+                                         psa_tool_response_6 == "3 or more" ~ 2),
+         psa_tool_response_7 = case_when(psa_tool_response_7 == "0" ~ 0,
+                                         psa_tool_response_7 %in% c("1") ~ 2,
+                                         psa_tool_response_7 == "2 or more" ~ 4),
+         psa_tool_response_8 = if_else(psa_tool_response_8 == "Yes", 1, 0),
+         psa_tool_response_9 = if_else(psa_tool_response_9 == "Yes", 2, 0))
+
 
 # Flag Standardization---See pg. xxx for more details.
 
@@ -4453,9 +4499,11 @@ join_df2 <- join_df %>%
 Collapse of joined dataset
 ```{r}
 
-sacramento_collapse <- join_df2 %>%
+suppressWarnings(sacramento_collapse <- join_df2 %>%
   rename(pretrial_end_date = final_disposition_date) %>%
-  mutate(across(contains("flag"), ~if_else(is.na(.x), 0, .x))) %>%
+  mutate(across(c(contains("date"), -matches("time|reminder")), ~if_else(.x == -Inf|.x == Inf, NA_Date_, as_date(.x)))) %>%
+  mutate(across(contains("flag"), ~if_else(is.na(.x), 0, as.numeric(.x)))) %>%
+  mutate(pretrial_end_date = if_else(is.na(pretrial_end_date) & release_type == "Dismissed_Dropped", release_date, pretrial_end_date)) %>%
   mutate(new_arrest_flag = if_else(book_type %in% c("On_View", "Warrant"), 1, 0)) %>%
   mutate(release_type = ordered(release_type, levels = c("Unknown", "Other", "Sentenced", "Time_Served", "Detain_Only", "Dismissed_Dropped", "OR",
                                                          "Bail_Bond", "Cite_Release", "Hold_Release"))) %>%
@@ -4463,13 +4511,19 @@ sacramento_collapse <- join_df2 %>%
   mutate(release_type = max(release_type)) %>%
   mutate(across(contains("sup_vio"), max)) %>%
   filter(sum(new_arrest_flag) == 0 | new_arrest_flag == 1) %>%
-  mutate(across(contains("flag"), max)) %>%
+  mutate(across(c(contains("flag"), pretrial_end_date, disposition_date), max)) %>%
+  mutate(sentence_date = min(sentence_date, na.rm = T)) %>%
   ungroup() %>%
-  distinct(book_num, .keep_all = T)
+  distinct(book_num, .keep_all = T) %>%
+  mutate(across(c(contains("date"), -matches("time|reminder")), ~if_else(.x == -Inf|.x == Inf, NA_Date_, as_date(.x)))) %>%
+  mutate(pretrial_end_date = if_else(pretrial_end_date < sentence_date|is.na(sentence_date), pretrial_end_date, sentence_date)))
+
+
   
-#save(sacramento_collapse, file = "G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Sacramento Join Collapse.RData")
+save(sacramento_collapse, file = "G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Sacramento Join Collapse.RData")
 
 ```
+
 Old code
 ```{r}
 #old code for cycle stuff
@@ -4846,6 +4900,7 @@ book_df <- book_df %>%
 
 # Flag Construction--See pg. xxx for more details. 
 book_df <- book_df %>%
+  rename_at(vars(contains("flag")), funs(paste0("arrest_", .))) %>%
   mutate(arrest_felony_flag = if_else(arrest_charge_level == "F", 1, 0),
          arrest_misd_flag = if_else(arrest_charge_level == "M", 1, 0),
          arrest_qualifier_flag = if_else(arrest_charge_level_original == "x", 1, 0),
@@ -4979,7 +5034,7 @@ book_df <- book_df %>%
   ungroup() %>%
   distinct(book_num, court_case_id, .keep_all = T)
 
-# save(book_df, file =  "G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Sonoma Booking Collapse.RData")
+save(book_df, file =  "G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Sonoma Booking Collapse.RData")
 
 ```
 
@@ -5563,7 +5618,7 @@ Court diagnostics
 Probation Data
 ```{r}
 
-# Probation Data Import--- Sonoma, 2015-01-01 to 2020-07-07
+# Probation Data Import--- Sonoma, 2015-01-01 to 2021-02-27
   ## prob_assess contains one row per pretrial risk assessment (SPRAT), with data for any pretrial release event pertaining to that SPRAT, and one row for any pretrial release event that was not associated to a SPRAT. The primary keys in this file are the sprat_id (unique identifier for each SPRAT assessment) and croa_key (unique identifier for each pretrial grant). 
   ##prob_cond includes the terms and conditions ordered by the Court that are associated with a pretrial grant. The file contains one row per condition, for each pretrial grant. The unique grant of pretrial can be identified by the croa_key field. 
   ##prob_court_date_notification presents the each court reminder phone call made to a defendant while on pretrial release. The file is structured with 1 row per notification attempt. For each defendant on pretrial, it includes the defendant’s court date, the date of the reminder notification(s) and the result of each notification attempt. 
@@ -5579,7 +5634,7 @@ Probation Data
 
 
 
-prob_person <- read.csv("Historical Data Submissions/Sonoma/P3 Submission-Jan 15/ProbationDataset4_Individuals.csv", stringsAsFactors = FALSE) #this appears to be a person table
+prob_person <- read.csv("Historical Data Submissions/Sonoma/P3 Submission-Jan 15/ProbationDataset4_revised_Individuals.csv.filepart", stringsAsFactors = FALSE) #this appears to be a person table
 
 names(prob_person) <- c("lent_key", "cii", "fbi", "dl_state", "cdl_id", "first_name", "middle_name", "last_name", "dob", "sex_original", "race_original")
 
@@ -5600,18 +5655,19 @@ prob_person <- prob_person %>%
 
 ####
 
-prob_book <- read.csv("Historical Data Submissions/Sonoma/P3 Submission-Jan 15/ProbationDataset1_AssessmentsAndGrants.csv", stringsAsFactors = FALSE)
+prob_book <- read.csv("Historical Data Submissions/Sonoma/P3 Submission-Jan 15/ProbationDataset1_revised_AssessmentsAndGrants.csv.filepart", stringsAsFactors = FALSE)
 
 names(prob_book) <- c("record_type", "assessment_id", "lent_key", "pretrial_grant_id", "tool_name", "assessment_date_time", "assessment_custody_status",
-                      "book_num", "book_release_date_time", "book_release_type_original", "city", "zip_code", "pretrial_start_date",
-                      "pretrial_termination_date", "pretrial_release_level_original", "other_pretrial_service", "ptr_grant_prearraignment",
+                      "book_num", "book_release_date_time", "book_release_type_original", "city", "zip_code", "pretrial_start_date_time",
+                      "pretrial_termination_date_time", "pretrial_release_level_original", "other_pretrial_service", "ptr_grant_prearraignment",
                       "release_authorization", "outcome_fta_signup", "outcome_fta_court", "outcome_new_arrest")
 
 prob_book <- prob_book %>%
-  mutate(across(c(assessment_date_time, book_release_date_time), mdy_hm),
+  mutate(across(c(assessment_date_time, book_release_date_time, pretrial_start_date_time, pretrial_termination_date_time), mdy_hm),
          assessment_date = as_date(assessment_date_time),
          book_release_date = as_date(book_release_date_time),
-         across(c(pretrial_start_date, pretrial_termination_date), mdy))
+         pretrial_start_date = as_date(pretrial_start_date_time),
+         pretrial_termination_date = as_date(pretrial_termination_date_time))
 
 ## check with sonoma re monitoring levels. Is Level 1 monitoring the same as basic supervision? Level 2/moderate? Level 3/enhanced?
 ## what is assessment custody status? is that their status at assessment?
@@ -5659,10 +5715,11 @@ prob_book <- prob_book %>%
   )
 
 
+
 ####
 
 ## how should we treat the recommendation overrides?? ASK SONOMA
-prob_sprat <- read.csv("Historical Data Submissions/Sonoma/P3 Submission-Jan 15/ProbationDataset2_SPRATassessments.csv", stringsAsFactors = FALSE)
+prob_sprat <- read.csv("Historical Data Submissions/Sonoma/P3 Submission-Jan 15/ProbationDataset2_revised_SPRATassessments.csv.filepart", stringsAsFactors = FALSE)
 
 names(prob_sprat) <- c("assessment_id", "x1_2orless_charges", "x2_dui_arrest", "x3_dv_arrest",  "x4_violence_arrest", "x5_no_prior_FTA",
                         "x6_employed_or_student", "x7_prior_jail", "x8_pending_cases", "x9_gang_affiliation", "x10_homeless",
@@ -5689,7 +5746,7 @@ prob_sprat <- prob_sprat %>%
 ####
 
 ## ASK SONOMA about presumptive release level
-prob_psa <- read.csv("Historical Data Submissions/Sonoma/P3 Submission-Jan 15/ProbationDataset3_PSAassessments.csv", stringsAsFactors = FALSE)
+prob_psa <- read.csv("Historical Data Submissions/Sonoma/P3 Submission-Jan 15/ProbationDataset3_revised_PSAassessments.csv.filepart", stringsAsFactors = FALSE)
 
 names(prob_psa) <- c("assessment_id", "psa_tool_response_1", "psa_tool_response_2", "psa_tool_response_2a", "psa_tool_response_3", "psa_tool_response_4",
                      "psa_tool_response_5", "psa_tool_response_5a", "psa_tool_response_6", "psa_tool_response_7", "psa_tool_response_8",
@@ -5699,12 +5756,27 @@ names(prob_psa) <- c("assessment_id", "psa_tool_response_1", "psa_tool_response_
 prob_psa <- prob_psa %>%
   mutate(risk_level = case_when(presumptive_release_level == "Release Level 1" ~ "Low",
                                 presumptive_release_level == "Release Level 2" ~ "Medium",
-                                presumptive_release_level == "Release Level 3" ~ "High"))
+                                presumptive_release_level == "Release Level 3" ~ "High"),
+         psa_tool_response_1 = if_else(psa_tool_response_1 == "23 or older", 0, 2),
+         psa_tool_response_2 = if_else(psa_tool_response_2 == "Yes", 2, 0),
+         psa_tool_response_2a = if_else(psa_tool_response_2a == "Yes", 1, 0),
+         psa_tool_response_3 = if_else(psa_tool_response_3 == "Yes", 1, 0),
+         psa_tool_response_4 = if_else(psa_tool_response_4 == "Yes", 1, 0),
+         psa_tool_response_5 = if_else(psa_tool_response_5 == "Yes", 1, 0),
+         psa_tool_response_5a = if_else(psa_tool_response_5a == "Yes", 1, 0),
+         psa_tool_response_6 = case_when(psa_tool_response_6 == "None" ~ 0,
+                                         psa_tool_response_6 %in% c("1 or 2") ~ 1,
+                                         psa_tool_response_6 == "3 or more" ~ 2),
+         psa_tool_response_7 = case_when(psa_tool_response_7 == "None" ~ 0,
+                                         psa_tool_response_7 %in% c("1") ~ 2,
+                                         psa_tool_response_7 == "2 or more" ~ 4),
+         psa_tool_response_8 = if_else(psa_tool_response_8 == "Yes", 1, 0),
+         psa_tool_response_9 = if_else(psa_tool_response_9 == "Yes", 2, 0))
 
 
 ####
 
-prob_violations <- read.csv("Historical Data Submissions/Sonoma/P3 Submission-Jan 15/ProbationDataset5_PretrialViolations.csv", stringsAsFactors = FALSE)
+prob_violations <- read.csv("Historical Data Submissions/Sonoma/P3 Submission-Jan 15/ProbationDataset5_revised_PretrialViolations.csv.filepart", stringsAsFactors = FALSE)
 
 names(prob_violations) <- c("lent_key", "pretrial_grant_id", "pretrial_violation_original", "pretrial_violation_date", "pretrial_violation_outcome_original")
 
@@ -5721,9 +5793,9 @@ prob_violations <- prob_violations %>%
 
 ####
 
-prob_conditions <- read.csv("Historical Data Submissions/Sonoma/P3 Submission-Jan 15/ProbationDataset6_TermsandConditions.csv", stringsAsFactors = FALSE)
+prob_conditions <- read.csv("Historical Data Submissions/Sonoma/P3 Submission-Jan 15/ProbationDataset6_revised_TermsandConditions.csv.filepart", stringsAsFactors = FALSE)
 
-names(prob_conditions) <- c("pretrial_grant_id", "lent_key", "release_conditions_original", "release_condition_type")
+names(prob_conditions) <- c("lent_key", "pretrial_grant_id", "release_conditions_original", "release_condition_type")
 
 prob_conditions <- prob_conditions %>%
   mutate(condition_em_flag = if_else(release_condition_type == "Electronic Monitoring Condition", 1, 0),
@@ -5734,12 +5806,12 @@ prob_conditions <- prob_conditions %>%
 ####
 
 ## should we make a court date reminder flag for every attempt or only for successful attempts??
-prob_reminders <- read.csv("Historical Data Submissions/Sonoma/P3 Submission-Jan 15/ProbationDataset7_CourtDateReminders.csv", stringsAsFactors = FALSE)
+prob_reminders <- read.csv("Historical Data Submissions/Sonoma/P3 Submission-Jan 15/ProbationDataset7_revised_CourtDateReminders.csv.filepart", stringsAsFactors = FALSE)
 
 names(prob_reminders) <- c("lent_key", "court_date_time", "notification_attempt_date_time", "notification_result")
 
 prob_reminders <- prob_reminders %>%
-  mutate(across(c(court_date_time, notification_attempt_date_time), mdy_hm),
+  mutate(across(c(court_date_time, notification_attempt_date_time), mdy_hms),
          court_date = as_date(court_date_time),
          notification_attempt_date = as_date(notification_attempt_date_time),
          court_date_reminder_flag = if_else(notification_result %in% c("Delivered to Answering Machine", "Delivered to Person", "Delivered to Person - Right Party", "Delivered to Person - Take Message"), 1, 0))
@@ -5964,7 +6036,7 @@ assess_df <- prob_book %>%
   left_join(prob_person, by = c("lent_key"))
   
 
-# save(assess_df, file =  "G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Sonoma Assessment Collapse.RData")
+save(assess_df, file =  "G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Sonoma Assessment Collapse.RData")
 
 
 ```
@@ -6406,8 +6478,10 @@ assess_df %>%
 Collapse of joined dataset
 ```{r}
 
-sonoma_collapse <- join_df2 %>%
-  mutate(across(contains("flag"), ~if_else(is.na(.x), 0, .x))) %>%
+suppressWarnings(sonoma_collapse <- join_df2 %>%
+  mutate(across(c(contains("date"), -matches("time|reminder")), ~if_else(.x == -Inf|.x == Inf, NA_Date_, as_date(.x)))) %>%
+  mutate(across(contains("flag"), ~if_else(is.na(.x), 0, as.numeric(.x)))) %>%
+  mutate(pretrial_end_date = if_else(is.na(pretrial_end_date) & release_type == "Dismissed_Dropped", release_date, pretrial_end_date)) %>%
   mutate(new_arrest_flag = if_else(book_type %in% c("On_View", "Warrant"), 1, 0)) %>%
   mutate(release_type = ordered(release_type, levels = c("Unknown", "Other", "Sentenced", "Time_Served", "Detain_Only", "Dismissed_Dropped", "OR",
                                                          "Bail_Bond", "Cite_Release", "Hold_Release"))) %>%
@@ -6415,11 +6489,15 @@ sonoma_collapse <- join_df2 %>%
   mutate(release_type = max(release_type)) %>%
   mutate(across(contains("sup_vio"), max)) %>%
   filter(sum(new_arrest_flag) == 0 | new_arrest_flag == 1) %>%
-  mutate(across(contains("flag"), max)) %>%
+  mutate(across(c(contains("flag"), pretrial_end_date, disposition_date), max)) %>%
+  mutate(sentence_date = min(sentence_date, na.rm = T)) %>%
   ungroup() %>%
-  distinct(book_num, .keep_all = T)
+  distinct(book_num, .keep_all = T) %>%
+  mutate(across(c(contains("date"), -matches("time|reminder")), ~if_else(.x == -Inf|.x == Inf, NA_Date_, as_date(.x)))) %>%
+  mutate(pretrial_end_date = if_else(pretrial_end_date < sentence_date|is.na(sentence_date), pretrial_end_date, sentence_date)))
+
   
-#save(sonoma_collapse, file = "G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Sonoma Join Collapse.RData")
+save(sonoma_collapse, file = "G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Sonoma Join Collapse.RData")
 
 
 ```
@@ -6609,4 +6687,13 @@ join2 <- join1 %>%
 
 ```
 
+
+
+
+# Flag check
+```{r}
+load("G:/CrimJustice/PretrialAssessmentPilot/County Flag Check.RData")
+flag_list$sonoma_collapse
+
+```
 
