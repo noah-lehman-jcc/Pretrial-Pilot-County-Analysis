@@ -33,8 +33,7 @@ library(broom)
 load("G:/CrimJustice/PretrialAssessmentPilot/Final Failure Evaluation2.RData")
 
 eval_df <- eval_df %>%
-  filter(new_arrest_flag == 1,
-         book_date >= "2018-07-01") %>%
+  filter(new_arrest_flag == 1) %>%
   mutate(arrest_charge_level = case_when(is.na(arrest_charge_level)|arrest_charge_level %in% c("Other", "I") ~"Other_Unknown",
                                          arrest_charge_level == "F" ~ "Felony",
                                          arrest_charge_level == "M" ~ "Misdemeanor")) %>%
@@ -92,22 +91,36 @@ eval_df <- eval_df %>%
   filter(!is.na(assessment_date)) %>%
   # count(tool_name)
   # filter(!is.na(tool_name))
-  filter(tool_name %in% c("oras", "psa", "vprai", "vprair"))
+  filter(tool_name %in% c("oras", "psa", "vprai", "vprair")) %>%
+  filter((psa_nca_risk_score %in% c(1:6) &
+         psa_fta_risk_score %in% c(1:6))|tool_name != "psa") 
+
+# 
+# eval_df %>%
+#   group_by(county, tool_name) %>%
+#   summarise(min_date = min(book_date), max_date = max(book_date))
+
+eval_df %>%
+  filter(!is.na(assessment_date)) %>%
+  count(tool_name)
 ```
 
 ## Tools
 # Descriptive Statistics
+
+Table 1. Date Range
+```{r}
+eval_df %>%
+  group_by(county, tool_name) %>%
+  summarise(min_date = min(assessment_date), max_date = max(assessment_date))
+```
+
 
 Table 1. Program Size and Effective Sample 
 
 With available data from July 1, 2018 through Jan 22, 2021, of the 609K bookings and 137K assessments, we were able to match 77K bookings to assessments to Arrests. Of this 77K bookings, 13K were then released pretrial and had a case disposition. 
 ```{r}
 load("G:/CrimJustice/PretrialAssessmentPilot/Pretrial Data Matching Rates by County.RData")
-
-match_table %>%
-  select(2:11) %>%
-  summarise_all(sum) %>%
-  select(bookings, assessments, assessments_doj_match, validation_sample)
 ```
 
 Table 2. Adverse Outcomes
@@ -436,8 +449,6 @@ eval_df %>%
 Racial Bias
 ```{r}
 race_df <- eval_df %>%
-  filter(!psa_nca_risk_score %in% c(0, 7,8, 11)) %>%
-  filter(!psa_fta_risk_score %in% c(0, 7,8, 11)) %>%
   mutate(race = factor(race, levels = c("White", "Black", "Hispanic", "Other_Unknown")))
 
 #VPRAI  
@@ -479,8 +490,29 @@ race_df %>%
   group_by(race, psa_fta_risk_score) %>%
   summarise(fta = round(mean(fta_flag)*100, 1)) %>%
   pivot_wider(names_from = race, values_from = fta)
+```
+# PSA Conty Difference
+```{r}
+race_df <- race_df %>%
+  mutate(la_flag = if_else(county == "Los Angeles", 1, 0))
+#PSA
+summary(lm(fta_flag ~ psa_fta_risk_score + race*la_flag, data = race_df))
+summary(lm(recid_arrested_flag ~ psa_nca_risk_score + race*la_flag, data = race_df))
+summary(lm(recid_filed_flag ~ psa_nca_risk_score + race*la_flag, data = race_df))
+summary(lm(recid_convicted_flag ~ psa_nca_risk_score + race*la_flag, data = race_df))
+summary(lm(recid_arrest_violent_psa_flag ~ psa_nvca_risk_score + race*la_flag, data = race_df))
 
+eval_df %>%
+  filter(county == "Los Angeles") %>%
+  count(condition_em_flag)
 
+race_df %>%
+  filter(tool_name == "psa",
+         race %in% c("Black", "White")) %>%
+  ggplot() +
+  aes(x = psa_nca_risk_score, y = recid_arrested_flag, color = as_factor(la_flag)) +
+  geom_smooth(method = glm) +
+  facet_wrap(~race)
 ```
 
 Gender Bias
@@ -516,9 +548,6 @@ summary(lm(recid_arrested_flag ~ oras_risk_score + release_to_pretrial_end  + se
 summary(lm(recid_filed_flag ~ oras_risk_score + release_to_pretrial_end  + sex, data = sex_df))
 summary(lm(recid_convicted_flag ~ oras_risk_score + release_to_pretrial_end  + sex, data = sex_df))
 summary(lm(recid_arrest_violent_psa_flag ~ oras_risk_score + release_to_pretrial_end  + sex, data = sex_df))
-
-eval_df %>%
-  count(tool_name, race)
 ```
 
 Age Bias
