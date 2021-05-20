@@ -903,6 +903,15 @@ release_df <- df %>%
   count(release_decision) 
 
 write.xlsx(release_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Static Output Tables/2E Release Decision Aggregated.xlsx", asTable = T)  
+
+# Aggregated without LA
+release_df <- df %>%
+  filter(!County %in% c("San Joaquin", "Sonoma", "Los Angeles")) %>%
+  mutate(release_decision = if_else(release_decision %in% c("Monitor", "OR"), "Granted Program Release", release_decision),
+         release_decision = if_else(release_decision %in% c("Detain"), "Denied Program Release", release_decision)) %>%
+  count(release_decision) 
+
+write.xlsx(release_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Static Output Tables/2E Release Decision Aggregated without LA.xlsx", asTable = T)  
 ```
 Notes: 'Release Denied' indicates individuals who judicial officers did not choose to release through the pretrial program. These individuals may still have gotten out on bail. 'Release Approved' includes individuals released on OR or monitoring. 
 
@@ -1068,6 +1077,36 @@ write.xlsx(risk_df_oras, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Prog
 Source: Pretrial Pilot Program Probation Data (10-01-2019 through 03-31-2021) from Modoc, Napa, Nevada, Ventura, and Yuba.
 \newpage
 
+## Outcomes (ORAS) into risk levels
+```{r}
+
+
+risk_df_oras <- eval_df %>%
+  filter(tool_name == "oras",
+         !is.na(oras_risk_score)) %>%
+  mutate(oras_risk_score = case_when(
+    oras_risk_score %in% 6:9 ~ "Scores 6-9",
+    oras_risk_score %in% 3:5 ~ "Scores 3-5",
+    oras_risk_score %in% 0:2 ~ "Scores 0-2",
+    T ~ "Other_Unknown")) %>%
+  group_by(oras_risk_score) %>%
+  summarise(Total = n(), 
+            `Non FTA Rate` = paste(round(100 - mean(fta_flag)*100), "%"),
+            `Non New Charge Rate` = paste(round(100 - mean(recid_filed_flag)*100), "%")) %>%
+  mutate(oras_risk_score = as.character(oras_risk_score)) %>%
+  bind_rows(eval_df %>% 
+              filter(tool_name == "oras",
+                     !is.na(oras_risk_score)) %>% 
+              summarise(Total = n(),
+                        `Non FTA Rate` = paste(round(100 - mean(fta_flag)*100), "%"),
+                        `Non New Charge Rate` = paste(round(100 - mean(recid_filed_flag)*100), "%")) %>%
+              mutate(oras_risk_score = "Total"))
+
+write.xlsx(risk_df_oras, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Static Output Tables/3A Oras categories.xlsx", asTable = T)  
+```
+Source: Pretrial Pilot Program Probation Data (10-01-2019 through 03-31-2021) from Modoc, Napa, Nevada, Ventura, and Yuba.
+\newpage
+
 ## Outcomes (VPRAI)
 ```{r}
 risk_df_vprai <- eval_df %>%
@@ -1087,6 +1126,37 @@ risk_df_vprai <- eval_df %>%
               mutate(vprai_risk_score = "Total"))
 
 write.xlsx(risk_df_vprai, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Static Output Tables/3A Vprai.xlsx", asTable = T)  
+```
+Source: Pretrial Pilot Program Probation Data (10-01-2019 through 03-31-2021) from San Joaquin and Santa Barbara.
+\newpage
+
+## Outcomes (VPRAI) categories
+```{r}
+
+risk_df_vprai <- eval_df %>%
+  filter(tool_name == "vprai",
+         !is.na(vprai_risk_score)) %>%
+  mutate(vprai_risk_score = case_when(
+    vprai_risk_score %in% 0:1 ~ "Scores 0-1",
+    vprai_risk_score %in% 2 ~ "Score 2",
+    vprai_risk_score %in% 3 ~ "Score 3",
+    vprai_risk_score %in% 4 ~ "Score 4",
+    vprai_risk_score %in% 5:9 ~ "Scores 5-9"
+  )) %>%
+  group_by(vprai_risk_score) %>%
+  summarise(Total = n(), 
+            `Non FTA Rate` = paste(round(100 - mean(fta_flag)*100), "%"),
+            `Non New Charge Rate` = paste(round(100 - mean(recid_filed_flag)*100), "%")) %>%
+  mutate(vprai_risk_score = as.character(vprai_risk_score)) %>%
+  bind_rows(eval_df %>% 
+              filter(tool_name == "vprai",
+                     !is.na(vprai_risk_score)) %>% 
+              summarise(Total = n(),
+                        `Non FTA Rate` = paste(round(100 - mean(fta_flag)*100), "%"),
+                        `Non New Charge Rate` = paste(round(100 - mean(recid_filed_flag)*100), "%")) %>%
+              mutate(vprai_risk_score = "Total"))
+
+write.xlsx(risk_df_vprai, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Static Output Tables/3A Vprai categories.xlsx", asTable = T)  
 ```
 Source: Pretrial Pilot Program Probation Data (10-01-2019 through 03-31-2021) from San Joaquin and Santa Barbara.
 \newpage
@@ -1115,6 +1185,38 @@ write.xlsx(risk_df_vprair, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Pr
 Source: Pretrial Pilot Program Probation Data (10-01-2019 through 03-31-2021) from Alameda, San Mateo and Santa Barbara.
 \newpage
 
+## Outcomes (VPRAI-R) categories
+```{r message=FALSE, warning=FALSE}
+risk_df_vprair <- eval_df %>%
+  filter(tool_name == "vprair",
+         !is.na(vprair_risk_score)) %>%
+  mutate(vprair_risk_score = case_when(
+    vprair_risk_score %in% 0:2 ~ "Scores 0-2",
+    vprair_risk_score %in% 3:4 ~ "Scores 3-4",
+    vprair_risk_score %in% 5:6 ~ "Scores 5-6",
+    vprair_risk_score %in% 7:8 ~ "Scores 7-8",
+    vprair_risk_score %in% 9:10 ~ "Scores 9-10",
+    vprair_risk_score %in% 11:14 ~ "Scores 11-14"
+  )) %>%
+  group_by(vprair_risk_score) %>%
+  summarise(Total = n(), 
+            `Non FTA Rate` = paste(round(100 - mean(fta_flag)*100), "%"),
+            `Non New Charge Rate` = paste(round(100 - mean(recid_filed_flag)*100), "%")) %>%
+  mutate(vprair_risk_score = as.character(vprair_risk_score)) %>%
+  bind_rows(eval_df %>% 
+              filter(tool_name == "vprair",
+                     !is.na(vprair_risk_score)) %>% 
+              summarise(Total = n(),
+                        `Non FTA Rate` = paste(round(100 - mean(fta_flag)*100), "%"),
+                        `Non New Charge Rate` = paste(round(100 - mean(recid_filed_flag)*100), "%")) %>%
+              mutate(vprair_risk_score = "Total")) 
+
+
+write.xlsx(risk_df_vprair, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Static Output Tables/3A VpraiR categories.xlsx", asTable = T) 
+```
+Source: Pretrial Pilot Program Probation Data (10-01-2019 through 03-31-2021) from Alameda, San Mateo and Santa Barbara.
+\newpage
+
 ## Outcomes (VPRAI-O)
 ```{r}
 risk_df_vpraio <- eval_df %>%
@@ -1134,6 +1236,36 @@ risk_df_vpraio <- eval_df %>%
               mutate(vpraio_risk_score = "Total")) 
 
 write.xlsx(risk_df_vpraio, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Static Output Tables/3A VpraiO.xlsx", asTable = T)
+```
+Source: Pretrial Pilot Program Probation Data (10-01-2019 through 03-31-2021) from Kings.
+\newpage
+
+## Outcomes (VPRAI-O) categories
+```{r}
+risk_df_vpraio <- eval_df %>%
+  filter(tool_name == "vpraio",
+         !is.na(vpraio_risk_score)) %>%
+  mutate(vpraio_risk_score = case_when(
+    vpraio_risk_score %in% 0:1 ~ "Scores 0-1",
+    vpraio_risk_score %in% 2 ~ "Score 2",
+    vpraio_risk_score %in% 3 ~ "Score 3",
+    vpraio_risk_score %in% 4 ~ "Score 4",
+    vpraio_risk_score %in% 5:10 ~ "Scores 5-10"
+  )) %>%
+  group_by(vpraio_risk_score) %>%
+  summarise(Total = n(), 
+            `Non FTA Rate` = paste(round(100 - mean(fta_flag)*100), "%"),
+            `Non New Charge Rate` = paste(round(100 - mean(recid_filed_flag)*100), "%")) %>%
+  mutate(vpraio_risk_score = as.character(vpraio_risk_score)) %>%
+  bind_rows(eval_df %>% 
+              filter(tool_name == "vpraio",
+                     !is.na(vpraio_risk_score)) %>% 
+              summarise(Total = n(),
+                        `Non FTA Rate` = paste(round(100 - mean(fta_flag)*100), "%"),
+                        `Non New Charge Rate` = paste(round(100 - mean(recid_filed_flag)*100), "%")) %>%
+              mutate(vpraio_risk_score = "Total")) 
+
+write.xlsx(risk_df_vpraio, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Static Output Tables/3A VpraiO categories.xlsx", asTable = T)
 ```
 Source: Pretrial Pilot Program Probation Data (10-01-2019 through 03-31-2021) from Kings.
 \newpage
@@ -1316,28 +1448,33 @@ write.xlsx(list(race_vpraio, gender_vpraio, offense_type_vpraio, zipcode_vpraio,
 ```{r}
 race_psa <- df %>%
   filter(tool_name == "psa",
-         !is.na(psa_fta_risk_score)) %>%
+         !is.na(psa_fta_risk_score),
+         psa_fta_risk_score %in% 1:6) %>%
   mutate(race = if_else(race == "Other", "Other_Unknown", race)) %>%
   count(psa_fta_risk_score, race) 
 
 gender_psa <- df %>%
   filter(tool_name == "psa",
-         !is.na(psa_fta_risk_score)) %>%
+         !is.na(psa_fta_risk_score),
+         psa_fta_risk_score %in% 1:6) %>%
   count(psa_fta_risk_score, sex) 
 
 offense_type_psa <- join_df %>%
   filter(tool_name == "psa",
-         !is.na(psa_fta_risk_score)) %>%
+         !is.na(psa_fta_risk_score),
+         psa_fta_risk_score %in% 1:6) %>%
   count(psa_fta_risk_score, arrest_charge_level) 
 
 zipcode_psa <- join_df %>%
   filter(tool_name == "psa",
-         !is.na(psa_fta_risk_score)) %>%
+         !is.na(psa_fta_risk_score),
+         psa_fta_risk_score %in% 1:6) %>%
   count(psa_fta_risk_score, zip_code)
 
 release_psa <- join_df %>%
   filter(tool_name == "psa",
-         !is.na(psa_fta_risk_score)) %>%
+         !is.na(psa_fta_risk_score),
+         psa_fta_risk_score %in% 1:6) %>%
   count(psa_fta_risk_score, release_decision)
 
 write.xlsx(list(race_psa, gender_psa, offense_type_psa, zipcode_psa, release_psa), file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Static Output Tables/3B PSA FTA.xlsx", asTable = T, sheetName = c("Race", "Gender", "Offense Type", "Zipcode", "Release"))
@@ -1347,28 +1484,33 @@ write.xlsx(list(race_psa, gender_psa, offense_type_psa, zipcode_psa, release_psa
 ```{r}
 race_psa <- df %>%
   filter(tool_name == "psa",
-         !is.na(psa_nca_risk_score)) %>%
+         !is.na(psa_nca_risk_score),
+         psa_nca_risk_score %in% 1:6) %>%
   mutate(race = if_else(race == "Other", "Other_Unknown", race)) %>%
   count(psa_nca_risk_score, race) 
 
 gender_psa <- df %>%
   filter(tool_name == "psa",
-         !is.na(psa_nca_risk_score)) %>%
+         !is.na(psa_nca_risk_score),
+         psa_nca_risk_score %in% 1:6) %>%
   count(psa_nca_risk_score, sex) 
 
 offense_type_psa <- join_df %>%
   filter(tool_name == "psa",
-         !is.na(psa_nca_risk_score)) %>%
+         !is.na(psa_nca_risk_score),
+         psa_nca_risk_score %in% 1:6) %>%
   count(psa_nca_risk_score, arrest_charge_level) 
 
 zipcode_psa <- join_df %>%
   filter(tool_name == "psa",
-         !is.na(psa_nca_risk_score)) %>%
+         !is.na(psa_nca_risk_score),
+         psa_nca_risk_score %in% 1:6) %>%
   count(psa_nca_risk_score, zip_code)
 
 release_psa <- join_df %>%
   filter(tool_name == "psa",
-         !is.na(psa_nca_risk_score)) %>%
+         !is.na(psa_nca_risk_score),
+         psa_nca_risk_score %in% 1:6) %>%
   count(psa_nca_risk_score, release_decision)
 
 write.xlsx(list(race_psa, gender_psa, offense_type_psa, zipcode_psa, release_psa), file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Static Output Tables/3B PSA NCA.xlsx", asTable = T, sheetName = c("Race", "Gender", "Offense Type", "Zipcode", "Release"))
@@ -1446,6 +1588,58 @@ write.xlsx(list(risk_df_oras_gender, risk_df_oras_race, risk_df_oras_offense), f
 Source: Pretrial Pilot Program Probation Data (10-01-2019 through 03-31-2021) from Modoc, Napa, Nevada, Ventura, and Yuba.
 \newpage
 
+## Accuracy (ORAS) categories
+```{r}
+risk_df_oras_gender <- eval_df %>%
+  filter(tool_name == "oras",
+         !is.na(oras_risk_score)) %>%
+  mutate(oras_risk_score = case_when(
+    oras_risk_score %in% 6:9 ~ "Scores 6-9",
+    oras_risk_score %in% 3:5 ~ "Scores 3-5",
+    oras_risk_score %in% 0:2 ~ "Scores 0-2",
+    T ~ "Other_Unknown")) %>%
+  group_by(oras_risk_score, sex) %>%
+  summarise(Total = n(), 
+            `Non FTA Rate` = paste(round(100 - mean(fta_flag)*100), "%"),
+            `Non New Charge Rate` = paste(round(100 - mean(recid_filed_flag)*100), "%")) %>%
+  mutate(oras_risk_score = as.character(oras_risk_score)) %>%
+  arrange(sex, oras_risk_score)
+
+risk_df_oras_race <- eval_df %>%
+  filter(tool_name == "oras",
+         !is.na(oras_risk_score)) %>%
+  mutate(oras_risk_score = case_when(
+    oras_risk_score %in% 6:9 ~ "Scores 6-9",
+    oras_risk_score %in% 3:5 ~ "Scores 3-5",
+    oras_risk_score %in% 0:2 ~ "Scores 0-2",
+    T ~ "Other_Unknown")) %>%
+  group_by(oras_risk_score, race) %>%
+  summarise(Total = n(), 
+            `Non FTA Rate` = paste(round(100 - mean(fta_flag)*100), "%"),
+            `Non New Charge Rate` = paste(round(100 - mean(recid_filed_flag)*100), "%")) %>%
+  mutate(oras_risk_score = as.character(oras_risk_score)) %>% 
+  arrange(race, oras_risk_score)
+
+risk_df_oras_offense <- eval_df %>%
+  filter(tool_name == "oras",
+         !is.na(oras_risk_score)) %>%
+  mutate(oras_risk_score = case_when(
+    oras_risk_score %in% 6:9 ~ "Scores 6-9",
+    oras_risk_score %in% 3:5 ~ "Scores 3-5",
+    oras_risk_score %in% 0:2 ~ "Scores 0-2",
+    T ~ "Other_Unknown")) %>%
+  group_by(oras_risk_score, arrest_charge_level) %>%
+  summarise(Total = n(), 
+            `Non FTA Rate` = paste(round(100 - mean(fta_flag)*100), "%"),
+            `Non New Charge Rate` = paste(round(100 - mean(recid_filed_flag)*100), "%")) %>%
+  mutate(oras_risk_score = as.character(oras_risk_score)) %>%
+  arrange(arrest_charge_level, oras_risk_score)
+
+write.xlsx(list(risk_df_oras_gender, risk_df_oras_race, risk_df_oras_offense), file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Static Output Tables/3C Oras categories.xlsx", asTable = T, sheetName = c("Gender", "Race", "Offense Type"))  
+```
+Source: Pretrial Pilot Program Probation Data (10-01-2019 through 03-31-2021) from Modoc, Napa, Nevada, Ventura, and Yuba.
+\newpage
+
 ## Accuracy (VPRAI)
 ```{r}
 risk_df_vprai_gender <- eval_df %>%
@@ -1479,6 +1673,64 @@ risk_df_vprai_offense <- eval_df %>%
   arrange(arrest_charge_level, vprai_risk_score)
 
 write.xlsx(list(risk_df_vprai_gender, risk_df_vprai_race, risk_df_vprai_offense), file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Static Output Tables/3C VPRAI.xlsx", asTable = T, sheetName = c("Gender", "Race", "Offense Type")) 
+```
+Source: Pretrial Pilot Program Probation Data (10-01-2019 through 03-31-2021) from San Joaquin and Santa Barbara.
+\newpage
+
+## Accuracy (VPRAI) categories
+```{r}
+risk_df_vprai_gender <- eval_df %>%
+  filter(tool_name == "vprai",
+         !is.na(vprai_risk_score)) %>%
+  mutate(vprai_risk_score = case_when(
+    vprai_risk_score %in% 0:1 ~ "Scores 0-1",
+    vprai_risk_score %in% 2 ~ "Score 2",
+    vprai_risk_score %in% 3 ~ "Score 3",
+    vprai_risk_score %in% 4 ~ "Score 4",
+    vprai_risk_score %in% 5:9 ~ "Scores 5-9"
+  )) %>%
+  group_by(vprai_risk_score, sex) %>%
+  summarise(Total = n(), 
+            `Non FTA Rate` = paste(round(100 - mean(fta_flag)*100), "%"),
+            `Non New Charge Rate` = paste(round(100 - mean(recid_filed_flag)*100), "%")) %>%
+  mutate(vprai_risk_score = as.character(vprai_risk_score)) %>%
+  arrange(sex, vprai_risk_score)
+
+risk_df_vprai_race <- eval_df %>%
+  filter(tool_name == "vprai",
+         !is.na(vprai_risk_score)) %>%
+  mutate(vprai_risk_score = case_when(
+    vprai_risk_score %in% 0:1 ~ "Scores 0-1",
+    vprai_risk_score %in% 2 ~ "Score 2",
+    vprai_risk_score %in% 3 ~ "Score 3",
+    vprai_risk_score %in% 4 ~ "Score 4",
+    vprai_risk_score %in% 5:9 ~ "Scores 5-9"
+  )) %>%
+  group_by(vprai_risk_score, race) %>%
+  summarise(Total = n(), 
+            `Non FTA Rate` = paste(round(100 - mean(fta_flag)*100), "%"),
+            `Non New Charge Rate` = paste(round(100 - mean(recid_filed_flag)*100), "%")) %>%
+  mutate(vprai_risk_score = as.character(vprai_risk_score)) %>% 
+  arrange(race, vprai_risk_score)
+
+risk_df_vprai_offense <- eval_df %>%
+  filter(tool_name == "vprai",
+         !is.na(vprai_risk_score)) %>%
+  mutate(vprai_risk_score = case_when(
+    vprai_risk_score %in% 0:1 ~ "Scores 0-1",
+    vprai_risk_score %in% 2 ~ "Score 2",
+    vprai_risk_score %in% 3 ~ "Score 3",
+    vprai_risk_score %in% 4 ~ "Score 4",
+    vprai_risk_score %in% 5:9 ~ "Scores 5-9"
+  )) %>%
+  group_by(vprai_risk_score, arrest_charge_level) %>%
+  summarise(Total = n(), 
+            `Non FTA Rate` = paste(round(100 - mean(fta_flag)*100), "%"),
+            `Non New Charge Rate` = paste(round(100 - mean(recid_filed_flag)*100), "%")) %>%
+  mutate(vprai_risk_score = as.character(vprai_risk_score)) %>%
+  arrange(arrest_charge_level, vprai_risk_score)
+
+write.xlsx(list(risk_df_vprai_gender, risk_df_vprai_race, risk_df_vprai_offense), file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Static Output Tables/3C VPRAI categories.xlsx", asTable = T, sheetName = c("Gender", "Race", "Offense Type")) 
 ```
 Source: Pretrial Pilot Program Probation Data (10-01-2019 through 03-31-2021) from San Joaquin and Santa Barbara.
 \newpage
@@ -1520,6 +1772,67 @@ write.xlsx(list(risk_df_vprair_gender, risk_df_vprair_race, risk_df_vprair_offen
 Source: Pretrial Pilot Program Probation Data (10-01-2019 through 03-31-2021) from Alameda, San Mateo and Santa Barbara.
 \newpage
 
+## Accuracy (VPRAI-R) categories
+```{r message=FALSE, warning=FALSE}
+risk_df_vprair_gender <- eval_df %>%
+  filter(tool_name == "vprair",
+         !is.na(vprair_risk_score)) %>%
+  mutate(vprair_risk_score = case_when(
+    vprair_risk_score %in% 0:2 ~ "Scores 0-2",
+    vprair_risk_score %in% 3:4 ~ "Scores 3-4",
+    vprair_risk_score %in% 5:6 ~ "Scores 5-6",
+    vprair_risk_score %in% 7:8 ~ "Scores 7-8",
+    vprair_risk_score %in% 9:10 ~ "Scores 9-10",
+    vprair_risk_score %in% 11:14 ~ "Scores 11-14"
+  )) %>%
+  group_by(vprair_risk_score, sex) %>%
+  summarise(Total = n(), 
+            `Non FTA Rate` = paste(round(100 - mean(fta_flag)*100), "%"),
+            `Non New Charge Rate` = paste(round(100 - mean(recid_filed_flag)*100), "%")) %>%
+  mutate(vprair_risk_score = as.character(vprair_risk_score)) %>%
+  arrange(sex, vprair_risk_score)
+
+risk_df_vprair_race <- eval_df %>%
+  filter(tool_name == "vprair",
+         !is.na(vprair_risk_score)) %>%
+  mutate(vprair_risk_score = case_when(
+    vprair_risk_score %in% 0:2 ~ "Scores 0-2",
+    vprair_risk_score %in% 3:4 ~ "Scores 3-4",
+    vprair_risk_score %in% 5:6 ~ "Scores 5-6",
+    vprair_risk_score %in% 7:8 ~ "Scores 7-8",
+    vprair_risk_score %in% 9:10 ~ "Scores 9-10",
+    vprair_risk_score %in% 11:14 ~ "Scores 11-14"
+  )) %>%
+  group_by(vprair_risk_score, race) %>%
+  summarise(Total = n(), 
+            `Non FTA Rate` = paste(round(100 - mean(fta_flag)*100), "%"),
+            `Non New Charge Rate` = paste(round(100 - mean(recid_filed_flag)*100), "%")) %>%
+  mutate(vprair_risk_score = as.character(vprair_risk_score)) %>% 
+  arrange(race, vprair_risk_score)
+
+risk_df_vprair_offense <- eval_df %>%
+  filter(tool_name == "vprair",
+         !is.na(vprair_risk_score)) %>%
+  mutate(vprair_risk_score = case_when(
+    vprair_risk_score %in% 0:2 ~ "Scores 0-2",
+    vprair_risk_score %in% 3:4 ~ "Scores 3-4",
+    vprair_risk_score %in% 5:6 ~ "Scores 5-6",
+    vprair_risk_score %in% 7:8 ~ "Scores 7-8",
+    vprair_risk_score %in% 9:10 ~ "Scores 9-10",
+    vprair_risk_score %in% 11:14 ~ "Scores 11-14"
+  )) %>%
+  group_by(vprair_risk_score, arrest_charge_level) %>%
+  summarise(Total = n(), 
+            `Non FTA Rate` = paste(round(100 - mean(fta_flag)*100), "%"),
+            `Non New Charge Rate` = paste(round(100 - mean(recid_filed_flag)*100), "%")) %>%
+  mutate(vprair_risk_score = as.character(vprair_risk_score)) %>%
+  arrange(arrest_charge_level, vprair_risk_score)
+
+write.xlsx(list(risk_df_vprair_gender, risk_df_vprair_race, risk_df_vprair_offense), file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Static Output Tables/3C VPRAIR categories.xlsx", asTable = T, sheetName = c("Gender", "Race", "Offense Type")) 
+```
+Source: Pretrial Pilot Program Probation Data (10-01-2019 through 03-31-2021) from Alameda, San Mateo and Santa Barbara.
+\newpage
+
 ## Accuracy (VPRAI-O)
 ```{r}
 risk_df_vpraio_gender <- eval_df %>%
@@ -1557,11 +1870,70 @@ write.xlsx(list(risk_df_vpraio_gender, risk_df_vpraio_race, risk_df_vpraio_offen
 Source: Pretrial Pilot Program Probation Data (10-01-2019 through 03-31-2021) from Kings.
 \newpage
 
+## Accuracy (VPRAI-O) categories
+```{r}
+risk_df_vpraio_gender <- eval_df %>%
+  filter(tool_name == "vpraio",
+         !is.na(vpraio_risk_score)) %>%
+  mutate(vpraio_risk_score = case_when(
+    vpraio_risk_score %in% 0:1 ~ "Scores 0-1",
+    vpraio_risk_score %in% 2 ~ "Score 2",
+    vpraio_risk_score %in% 3 ~ "Score 3",
+    vpraio_risk_score %in% 4 ~ "Score 4",
+    vpraio_risk_score %in% 5:10 ~ "Scores 5-10"
+  )) %>%
+  group_by(vpraio_risk_score, sex) %>%
+  summarise(Total = n(), 
+            `Non FTA Rate` = paste(round(100 - mean(fta_flag)*100), "%"),
+            `Non New Charge Rate` = paste(round(100 - mean(recid_filed_flag)*100), "%")) %>%
+  mutate(vpraio_risk_score = as.character(vpraio_risk_score)) %>%
+  arrange(sex, vpraio_risk_score)
+
+risk_df_vpraio_race <- eval_df %>%
+  filter(tool_name == "vpraio",
+         !is.na(vpraio_risk_score)) %>%
+  mutate(vpraio_risk_score = case_when(
+    vpraio_risk_score %in% 0:1 ~ "Scores 0-1",
+    vpraio_risk_score %in% 2 ~ "Score 2",
+    vpraio_risk_score %in% 3 ~ "Score 3",
+    vpraio_risk_score %in% 4 ~ "Score 4",
+    vpraio_risk_score %in% 5:10 ~ "Scores 5-10"
+  )) %>%
+  group_by(vpraio_risk_score, race) %>%
+  summarise(Total = n(), 
+            `Non FTA Rate` = paste(round(100 - mean(fta_flag)*100), "%"),
+            `Non New Charge Rate` = paste(round(100 - mean(recid_filed_flag)*100), "%")) %>%
+  mutate(vpraio_risk_score = as.character(vpraio_risk_score)) %>% 
+  arrange(race, vpraio_risk_score)
+
+risk_df_vpraio_offense <- eval_df %>%
+  filter(tool_name == "vpraio",
+         !is.na(vpraio_risk_score)) %>%
+  mutate(vpraio_risk_score = case_when(
+    vpraio_risk_score %in% 0:1 ~ "Scores 0-1",
+    vpraio_risk_score %in% 2 ~ "Score 2",
+    vpraio_risk_score %in% 3 ~ "Score 3",
+    vpraio_risk_score %in% 4 ~ "Score 4",
+    vpraio_risk_score %in% 5:10 ~ "Scores 5-10"
+  )) %>%
+  group_by(vpraio_risk_score, arrest_charge_level) %>%
+  summarise(Total = n(), 
+            `Non FTA Rate` = paste(round(100 - mean(fta_flag)*100), "%"),
+            `Non New Charge Rate` = paste(round(100 - mean(recid_filed_flag)*100), "%")) %>%
+  mutate(vpraio_risk_score = as.character(vpraio_risk_score)) %>%
+  arrange(arrest_charge_level, vpraio_risk_score)
+
+write.xlsx(list(risk_df_vpraio_gender, risk_df_vpraio_race, risk_df_vpraio_offense), file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Static Output Tables/3C VPRAIO categories.xlsx", asTable = T, sheetName = c("Gender", "Race", "Offense Type")) 
+```
+Source: Pretrial Pilot Program Probation Data (10-01-2019 through 03-31-2021) from Kings.
+\newpage
+
 ## Accuracy (PSA)
 ```{r}
 risk_df_psa_gender <- eval_df %>%
   filter(tool_name == "psa",
-         !is.na(psa_fta_risk_score)) %>%
+         !is.na(psa_fta_risk_score),
+         psa_fta_risk_score %in% 1:6) %>%
   group_by(psa_fta_risk_score, sex) %>%
   summarise(Total = n(), 
             `Non FTA Rate` = paste(round(100 - mean(fta_flag)*100), "%")) %>%
@@ -1570,7 +1942,8 @@ risk_df_psa_gender <- eval_df %>%
 
 risk_df_psa_race <- eval_df %>%
   filter(tool_name == "psa",
-         !is.na(psa_fta_risk_score)) %>%
+         !is.na(psa_fta_risk_score),
+         psa_fta_risk_score %in% 1:6) %>%
   group_by(psa_fta_risk_score, race) %>%
   summarise(Total = n(), 
             `Non FTA Rate` = paste(round(100 - mean(fta_flag)*100), "%")) %>%
@@ -1579,7 +1952,8 @@ risk_df_psa_race <- eval_df %>%
 
 risk_df_psa_offense <- eval_df %>%
   filter(tool_name == "psa",
-         !is.na(psa_fta_risk_score)) %>%
+         !is.na(psa_fta_risk_score),
+         psa_fta_risk_score %in% 1:6) %>%
   group_by(psa_fta_risk_score, arrest_charge_level) %>%
   summarise(Total = n(), 
             `Non FTA Rate` = paste(round(100 - mean(fta_flag)*100), "%")) %>%
@@ -1590,7 +1964,8 @@ write.xlsx(list(risk_df_psa_gender, risk_df_psa_race, risk_df_psa_offense), file
 
 risk_df_psa_gender <- eval_df %>%
   filter(tool_name == "psa",
-         !is.na(psa_nca_risk_score)) %>%
+         !is.na(psa_nca_risk_score),
+         psa_nca_risk_score %in% 1:6) %>%
   group_by(psa_nca_risk_score, sex) %>%
   summarise(Total = n(),
             `Non New Charge Rate` = paste(round(100 - mean(recid_filed_flag)*100), "%")) %>%
@@ -1599,7 +1974,8 @@ risk_df_psa_gender <- eval_df %>%
 
 risk_df_psa_race <- eval_df %>%
   filter(tool_name == "psa",
-         !is.na(psa_nca_risk_score)) %>%
+         !is.na(psa_nca_risk_score),
+         psa_nca_risk_score %in% 1:6) %>%
   group_by(psa_nca_risk_score, race) %>%
   summarise(Total = n(),
             `Non New Charge Rate` = paste(round(100 - mean(recid_filed_flag)*100), "%")) %>%
@@ -1608,7 +1984,8 @@ risk_df_psa_race <- eval_df %>%
 
 risk_df_psa_offense <- eval_df %>%
   filter(tool_name == "psa",
-         !is.na(psa_nca_risk_score)) %>%
+         !is.na(psa_nca_risk_score),
+         psa_nca_risk_score %in% 1:6) %>%
   group_by(psa_nca_risk_score, arrest_charge_level) %>%
   summarise(Total = n(), 
             `Non New Charge Rate` = paste(round(100 - mean(recid_filed_flag)*100), "%")) %>%
