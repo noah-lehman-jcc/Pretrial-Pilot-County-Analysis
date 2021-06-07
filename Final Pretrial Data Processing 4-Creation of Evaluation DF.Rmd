@@ -1,0 +1,243 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+# Settup and Library
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+knitr::opts_knit$set(root.dir = "G:/CrimJustice/PretrialAssessmentPilot")
+
+# library(rlang)
+library(tidyverse)
+library(data.table)
+library(openxlsx)
+library(readxl)
+library(lubridate)
+library(XML)
+library(xml2)
+# library(xmltools)o
+library(gsubfn)
+library(fuzzyjoin)
+library(dplyr)
+library(openxlsx)
+library(fuzzyjoin)
+# library(multidplyr)
+library(pROC)
+library(broom)
+```
+
+# Data Import 
+```{r}
+load("G:/CrimJustice/PretrialAssessmentPilot/Final Failure Evaluation2.RData")
+
+eval_df <- eval_df %>%
+  filter(new_arrest_flag == 1) %>%
+  mutate(arrest_charge_level = case_when(is.na(arrest_charge_level)|arrest_charge_level %in% c("Other", "I") ~"Other_Unknown",
+                                         arrest_charge_level == "F" ~ "Felony",
+                                         arrest_charge_level == "M" ~ "Misdemeanor")) %>%
+  filter(!is.na(cii)) %>%
+  mutate(monitor_level = case_when(
+    monitor_level %in% c("Level I - Pretrial Release Supervision",
+                                     "Pretrial Supervision Level I", "1", "Low") ~ "Low",
+    monitor_level %in% c("Level II - Pretrial Release Supervision",
+                                     "Pretrial Supervision Level II", "2", "Medium") ~ "Medium",
+    monitor_level %in% c("Level III - Pretrial Release Supervision",
+                                     "Pretrial Supervision Level III", "3:4", "High") ~ "High",
+                              T ~ monitor_level)) %>%
+  mutate(fta_flag = if_else(fta_flag == 1|arrest_fta_flag == 1|court_fta_flag == 1|court_fta_flag_doj == 1, 1, 0),
+         revoked_flag = if_else(pretrial_termination_outcome == "Unsuccessful", 1, 0),
+         oras_risk_score = if_else(oras_risk_score == -Inf, NA_real_, oras_risk_score)) %>%
+  mutate(monitor_level = factor(monitor_level, levels = c("Low", "Medium", "High", "Other_Unknown"))) %>%
+  mutate(county = tools::toTitleCase(gsub("_", " ", county))) %>%
+  mutate(pre_trial_release_flag = if_else(release_date >= pretrial_end_date|is.na(release_date), 0, 1)) %>%
+  mutate(sex = case_when(sex == "F" ~ "Female",
+                         sex == "M" ~ "Male",
+                         T ~ sex),
+         tool_name = gsub("-", "", tool_name),
+         tool_name = if_else(county == "Alameda" & !is.na(assessment_date), "vprair", tool_name),
+         tool_name = if_else(county == "Yuba" & !is.na(assessment_date), "oras", tool_name),
+         tool_name = if_else(tool_name == "ORASPAT", "oras", tolower(tool_name)),
+         tool_name = if_else(tool_name == "null", NA_character_, tool_name)) %>%
+  mutate(release_type = case_when(
+    county %in% c("San Joaquin", "Ventura", "Alameda", "Tuolumne", "Nevada", "San Mateo", "Kings") &
+      release_type_original %in% c("EMERGENCY ZERO BAIL", "Zero Bail", "TEMPORARY EMERGENCY BAIL",
+                                   "TEMPORARY EMERGENCY CITATION", "Covid 19", "Emergency Bail Schedule",
+                                   "ZERO DOLLAR BAIL", "COVID-Pretrial Court-Order", "Pandemic Citation Release", 
+                                   "Pandemic Sentence Release", "Emergency Bail Schedule-Cite", 
+                                   "Emergency Bail Schedule-Court") ~ "Zero_Bail",
+    county %in% c("San Joaquin", "Ventura", "Alameda", "Tuolumne", "Nevada", "San Mateo", "Kings") & 
+      release_type == "Bail_Bond" ~ "Non_Zero_Bail",
+    (!county %in% c("San Joaquin", "Ventura", "Alameda", "Tuolumne", "Nevada", "San Mateo", "Kings")) & 
+      release_type == "Bail_Bond" ~ "Unknown_Bail",
+    T ~ release_type),
+    any_pretrial_failure_flag = if_else(fta_flag == 1|recid_arrested_flag==1|recid_filed_flag==1|recid_convicted_flag==1, 1, 0)) %>%
+  mutate(dob = as_date(dob),
+         assessment_date = as_date(assessment_date)) %>%
+  mutate(age = year(assessment_date) - year(dob),
+         age = if_else(month(assessment_date) < month(dob), age - 1L, age),
+         age = if_else(month(assessment_date) == month(dob) & day(assessment_date) < day(dob), age - 1L, age),
+         age = case_when(age <= 25 & age >= 18 ~ "18-25",
+                         age <= 35 & age >= 26 ~ "26-35",
+                         age <= 45 & age >= 36 ~ "36-45",
+                         age <= 55 & age >= 46 ~ "46-55",
+                         age >= 56 & age <= 120 ~ "56+",
+                         T ~ "Other_Unknown")) %>%
+  mutate_at(vars(contains("flag")), funs(if_else(. == -Inf, 0, .))) %>%
+  mutate(release_to_pretrial_end = pretrial_end_date - release_date)
+
+eval_df <- eval_df %>%
+  filter(!is.na(assessment_date)) %>%
+  # count(tool_name)
+  # filter(!is.na(tool_name))
+  filter(tool_name %in% c("oras", "psa", "vprai", "vprair", "ccat", "vpraio")) %>%
+  filter((psa_nca_risk_score %in% c(1:6) &
+         psa_fta_risk_score %in% c(1:6))|tool_name != "psa") %>%
+  mutate(oras_risk_score = case_when(
+    oras_risk_score %in% 6:9 ~ 3,
+    oras_risk_score %in% 3:5 ~ 2,
+    oras_risk_score %in% 0:2 ~ 1,
+    T ~ NA_real_)) %>%
+  mutate(vprai_risk_score = case_when(
+    vprai_risk_score %in% 0:1 ~ 1,
+    vprai_risk_score %in% 2 ~ 2,
+    vprai_risk_score %in% 3 ~ 3,
+    vprai_risk_score %in% 4 ~ 4,
+    vprai_risk_score %in% 5:9 ~ 5,
+  T ~ NA_real_)) %>%
+  mutate(vprair_risk_score = case_when(
+    vprair_risk_score %in% 0:2 ~ 1,
+    vprair_risk_score %in% 3:4 ~ 2,
+    vprair_risk_score %in% 5:6 ~ 3,
+    vprair_risk_score %in% 7:8 ~ 4,
+    vprair_risk_score %in% 9:10 ~ 5,
+    vprair_risk_score %in% 11:14 ~ 6,
+    T ~ NA_real_))
+
+# Sonoma Fix
+load("G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Sonoma Join Collapse.RData")
+
+sonoma_fix <- sonoma_collapse %>%
+  filter(!is.na(psa_nvca_risk_score)) %>%
+  distinct(book_num, psa_nvca_risk_score) %>%
+  mutate(book_num = as.character(book_num)) %>%
+  mutate(county = "Sonoma")
+
+eval_df <- eval_df %>%
+  left_join(sonoma_fix, by = c("county", "book_num")) %>%
+  # select(contains("psa_nvca_risk_score")) %>%
+  mutate(psa_nvca_risk_score = if_else(is.na(psa_nvca_risk_score.x), psa_nvca_risk_score.y, psa_nvca_risk_score.x)) %>%
+  select(-psa_nvca_risk_score.x, -psa_nvca_risk_score.y)
+
+save(eval_df, file = "Tool Validation Final Data Frame.RData")
+```
+
+## Tools
+# Descriptive Statistics
+Drop OFF
+```{r}
+load("Tool Validation Final Data Frame.RData")
+load("G:/CrimJustice/PretrialAssessmentPilot/Jail, RRF, Court, DOJ Joined.RData")
+
+# This is really going to be a focus on assessments matched with bookings. 
+drop_df <- full_df %>%
+  filter(new_arrest_flag == 1,
+         !is.na(assessment_date)) %>%
+  mutate(pretrial_end_date = if_else(is.na(pretrial_end_date), pretrial_end_date_doj, pretrial_end_date)) %>%
+  mutate(arrest_charge_level = case_when(is.na(arrest_charge_level)|arrest_charge_level %in% c("Other", "I") ~"Other_Unknown",
+                                         arrest_charge_level == "F" ~ "Felony",
+                                         arrest_charge_level == "M" ~ "Misdemeanor")) %>%
+  filter(!is.na(cii)) %>%
+  mutate(monitor_level = case_when(
+    monitor_level %in% c("Level I - Pretrial Release Supervision",
+                                     "Pretrial Supervision Level I", "1", "Low") ~ "Low",
+    monitor_level %in% c("Level II - Pretrial Release Supervision",
+                                     "Pretrial Supervision Level II", "2", "Medium") ~ "Medium",
+    monitor_level %in% c("Level III - Pretrial Release Supervision",
+                                     "Pretrial Supervision Level III", "3:4", "High") ~ "High",
+                              T ~ monitor_level)) %>%
+  mutate(fta_flag = if_else(fta_flag == 1|arrest_fta_flag == 1|court_fta_flag == 1|court_fta_flag_doj == 1, 1, 0),
+         revoked_flag = if_else(pretrial_termination_outcome == "Unsuccessful", 1, 0),
+         oras_risk_score = if_else(oras_risk_score == -Inf, NA_real_, oras_risk_score)) %>%
+  mutate(monitor_level = factor(monitor_level, levels = c("Low", "Medium", "High", "Other_Unknown"))) %>%
+  mutate(county = tools::toTitleCase(gsub("_", " ", county))) %>%
+  mutate(pre_trial_release_flag = if_else(release_date >= pretrial_end_date|is.na(release_date), 0, 1)) %>%
+  mutate(sex = case_when(sex == "F" ~ "Female",
+                         sex == "M" ~ "Male",
+                         T ~ sex),
+         tool_name = gsub("-", "", tool_name),
+         tool_name = if_else(county == "Alameda" & !is.na(assessment_date), "vprair", tool_name),
+         tool_name = if_else(county == "Yuba" & !is.na(assessment_date), "oras", tool_name),
+         tool_name = if_else(tool_name == "ORASPAT", "oras", tolower(tool_name)),
+         tool_name = if_else(tool_name == "null", NA_character_, tool_name)) %>%
+  mutate(release_type = case_when(
+    county %in% c("San Joaquin", "Ventura", "Alameda", "Tuolumne", "Nevada", "San Mateo", "Kings") &
+      release_type_original %in% c("EMERGENCY ZERO BAIL", "Zero Bail", "TEMPORARY EMERGENCY BAIL",
+                                   "TEMPORARY EMERGENCY CITATION", "Covid 19", "Emergency Bail Schedule",
+                                   "ZERO DOLLAR BAIL", "COVID-Pretrial Court-Order", "Pandemic Citation Release", 
+                                   "Pandemic Sentence Release", "Emergency Bail Schedule-Cite", 
+                                   "Emergency Bail Schedule-Court") ~ "Zero_Bail",
+    county %in% c("San Joaquin", "Ventura", "Alameda", "Tuolumne", "Nevada", "San Mateo", "Kings") & 
+      release_type == "Bail_Bond" ~ "Non_Zero_Bail",
+    (!county %in% c("San Joaquin", "Ventura", "Alameda", "Tuolumne", "Nevada", "San Mateo", "Kings")) & 
+      release_type == "Bail_Bond" ~ "Unknown_Bail",
+    T ~ release_type)) %>%
+  mutate(arrest_charge_level = case_when(is.na(arrest_charge_level)|arrest_charge_level %in% c("Other", "I") ~"Other_Unknown",
+                                         arrest_charge_level == "F" ~ "Felony",
+                                         arrest_charge_level == "M" ~ "Misdemeanor")) %>%
+  filter(tool_name %in% c("oras", "psa", "vprai", "vprair", "ccat", "vpraio")) %>%
+   filter((psa_nca_risk_score %in% c(1:6) &
+         psa_fta_risk_score %in% c(1:6))|tool_name != "psa") %>%
+  group_by(tool_name, county) %>%
+  summarise("Assessed Bookings" = n(),
+            "Has End Date" = sum(!is.na(pretrial_end_date), na.rm = T),
+            "Released Pretrial" = sum(pretrial_end_date - as_date(release_date) > 0, na.rm = T)) %>%
+  rename("Tool Name" = tool_name) %>%
+  mutate(`Tool Name` = toupper(`Tool Name`)) %>%
+  arrange(county)
+
+
+files <- list.files("Assessment Output Tables", pattern = "RData", full.names = T)
+
+assess_df <- lapply(files, function(x) {
+  load(file = x)
+  df <- get(ls()[!ls() %in% c("files", "court_df", "assess_df", "eval_df", "full_df", "drop_df")]) %>%
+    filter(assessment_date >= as_date("2016-11-08")) %>%
+    group_by(tool_name, county) %>%
+    mutate(assessment_date = if_else(assessment_date == -Inf|assessment_date == Inf, NA_Date_, as_date(assessment_date))) %>%
+    summarise(assessments = n(), min_assessment_date = min(assessment_date, na.rm = T), max_assessment_date = max(assessment_date, na.rm = T))
+}) %>% bind_rows() %>%
+  arrange(county)
+
+assess_df <- assess_df %>%
+  arrange(county)
+
+drop_df$`Released Pretrial` <- (eval_df %>%
+                                  arrange(county) %>%
+                                  count(county, tool_name))$n
+
+
+assess_df <- assess_df %>%
+  mutate(tool_name = gsub("-", "", tolower(tool_name)),
+         tool_name = if_else(county == "Alameda","vprair", tool_name),
+         tool_name = if_else(county == "Yuba", "oras", tool_name),
+         tool_name = if_else(tool_name == "oraspat", "oras", tolower(tool_name)),
+         tool_name = if_else(tool_name == "null", NA_character_, tool_name)) %>%
+  filter(tool_name %in% c("oras", "psa", "vprai", "vprair", "ccat", "vpraio")) %>%
+  group_by(tool_name, county) %>%
+  summarise(Assessments = sum(assessments)) %>%
+  rename("Tool Name" = tool_name) %>%
+  mutate(`Tool Name` = toupper(`Tool Name`)) %>%
+  arrange(county)
+
+drop_df <- assess_df %>%
+  left_join(drop_df)
+
+names(drop_df)[2] <- "County"
+names(drop_df)[5] <- "Pretrial Complete" 
+
+save(drop_df, file = "Assessment to Validation Drop Off.RData")
+
+# write.xlsx(drop_df, "Drop Off Table for Sonya.xlsx")
+```  
