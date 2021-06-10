@@ -96,9 +96,9 @@ load("Pre-DOJ Combined County Pretrial Data.RData")
 #   distinct(cii)
 #   
 shell.exec(getwd())
-
-df %>%
-  count(county)
+# 
+# df %>%
+#   count(county)
 ```
 
 Checks
@@ -229,7 +229,6 @@ graph_match %>%
   aes(x = month, y = value, color = name) +
   geom_line() +
   facet_wrap(~county)
-
 ```
 
 Diagnostics

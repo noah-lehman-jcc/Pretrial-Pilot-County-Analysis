@@ -207,8 +207,7 @@ assess_df <- lapply(files, function(x) {
     group_by(tool_name, county) %>%
     mutate(assessment_date = if_else(assessment_date == -Inf|assessment_date == Inf, NA_Date_, as_date(assessment_date))) %>%
     summarise(assessments = n(), min_assessment_date = min(assessment_date, na.rm = T), max_assessment_date = max(assessment_date, na.rm = T))
-}) %>% bind_rows() %>%
-  arrange(county)
+}) %>% bind_rows() 
 
 assess_df <- assess_df %>%
   arrange(county)
@@ -241,3 +240,151 @@ save(drop_df, file = "Assessment to Validation Drop Off.RData")
 
 # write.xlsx(drop_df, "Drop Off Table for Sonya.xlsx")
 ```  
+AUC by Race
+```{r}
+race_df <- eval_df %>%
+  mutate(race = "All")
+
+race_df <- eval_df %>%
+  bind_rows(race_df) %>%
+  mutate(race = factor(race, levels = c("All", "White", "Black", "Hispanic", "Other_Unknown")))
+
+race_df2 <- race_df %>%
+  mutate(county = "All")
+
+race_df <- bind_rows(race_df2,race_df)
+
+race_df2 <- race_df %>%
+  mutate(sex = "All")
+
+race_df <- bind_rows(race_df, race_df2)
+
+rm(race_df2)
+
+# #VPRAI  
+# (roc(fta_flag ~ vprai_risk_score, data = race_df, ci = T))
+# (roc(recid_arrested_flag ~ vprai_risk_score , data = race_df, ci = T))
+# (roc(recid_filed_flag ~ vprai_risk_score , data = race_df, ci = T))
+# (roc(recid_convicted_flag ~ vprai_risk_score , data = race_df, ci = T))
+# (roc(recid_arrest_violent_psa_flag ~ vprai_risk_score , data = race_df, ci = T))
+# 
+# #VPRAI-R
+# (roc(fta_flag ~ vprair_risk_score , data = race_df, ci = T))
+# (roc(recid_arrested_flag ~ vprair_risk_score , data = race_df, ci = T))
+# (roc(recid_filed_flag ~ vprair_risk_score , data = race_df, ci = T))
+# (roc(recid_convicted_flag ~ vprair_risk_score , data = race_df, ci = T))
+# (roc(recid_arrest_violent_psa_flag ~ vprair_risk_score , data = race_df, ci = T))
+# 
+# #PSA
+# (roc(fta_flag ~ psa_fta_risk_score , data = race_df, ci = T))
+# (roc(recid_arrested_flag ~ psa_nca_risk_score , data = race_df, ci = T))
+# (roc(recid_filed_flag ~ psa_nca_risk_score , data = race_df, ci = T))
+# (roc(recid_convicted_flag ~ psa_nca_risk_score , data = race_df, ci = T))
+# (roc(recid_arrest_violent_psa_flag ~ psa_nvca_risk_score , data = race_df, ci = T))
+# 
+# #ORAS
+# (roc(fta_flag ~ oras_risk_score , data = race_df, ci = T))
+# (roc(recid_arrested_flag ~ oras_risk_score , data = race_df, ci = T))
+# (roc(recid_filed_flag ~ oras_risk_score , data = race_df, ci = T))
+# (roc(recid_convicted_flag ~ oras_risk_score , data = race_df, ci = T))
+# (roc(recid_arrest_violent_psa_flag ~ oras_risk_score , data = race_df, ci = T))
+
+roc_df <- lapply(c("All", "White", "Black", "Hispanic"), 
+                 function(i){
+  
+  lapply(c("fta_flag", "recid_arrested_flag", "recid_filed_flag", 
+         "recid_convicted_flag", "recid_arrest_violent_psa_flag", 
+         "any_pretrial_failure_flag"),
+        
+          function(j){
+           
+            lapply(c("vprair_risk_score", "vprai_risk_score", "oras_risk_score", 
+                    "psa_fta_risk_score", "psa_nca_risk_score", "psa_nvca_risk_score"),
+                  function(k){
+                    
+                    lapply(unique(race_df$county), 
+                           function(l){
+                             
+                             lapply(c("All", "Male", "Female"),
+                             function(m){
+                               race_df <- race_df %>%
+                                filter(race == i, county == l, sex == m)
+                              
+                              list_roc <- try(roc(get(j) ~ get(k), data = race_df, ci = T), silent = T)
+                              
+                              if("try-error" %in% class(list_roc)) return(NULL)
+                              
+                              else list_roc <- roc(get(j) ~ get(k), data = race_df, ci = T)
+                              
+                              df_roc <- tibble(AUC = round(list_roc$auc, 3),
+                                               CI = paste(c(round(list_roc$ci[[1]], 3), 
+                                                            round(list_roc$ci[[3]], 3)),
+                                                          collapse = "-"),
+                                               risk_score = k,
+                                               outcome = j,
+                                               race = i,
+                                               sex = m,
+                                               county = l,
+                                               tool_name = gsub("_.*", "", k),
+                                               controls = length(list_roc$controls),
+                                               cases = length(list_roc$cases),
+                                               n = controls + cases)
+                              
+                               
+                             }) %>% bind_rows()
+                      
+                        
+                    }) %>% bind_rows()
+                    
+                  }) %>% bind_rows()
+           
+         }) %>% bind_rows()
+  
+})  %>% bind_rows()
+
+roc_df <- roc_df %>%
+  filter(tool_name != "psa"|(outcome == "fta_flag" & risk_score == "psa_fta_risk_score")|
+           (risk_score == "psa_nca_risk_score" & outcome %in% c("recid_arrested_flag", "recid_filed_flag", "recid_convicted_flag"))|
+           (risk_score == "psa_nvca_risk_score" & outcome == "recid_arrest_violent_psa_flag"))
+
+
+# roc_df %>%
+#   filter(tool_name == "oras", county == "All", sex == "All") %>%
+#   arrange(outcome) %>%
+#   View()
+# 
+# bind_rows(df_roc, NULL)
+# 
+# roc_df %>%
+#   filter(tool_name == "oras")
+# 
+# eval_df %>%
+#   count(tool_name)
+
+write.xlsx(roc_df, file = "G:/CrimJustice/PretrialAssessmentPilot/AUCs by Demographic Category.xlsx", asTable = T)
+
+# eval_df %>%
+#   count(county, tool_name) %>%
+#   arrange(county)
+# # 
+# roc_df %>%
+#   filter(county == "San Mateo", sex == "All", race == "All", county == "All") %>%
+#   arrange(outcome)
+# 
+# roc_df %>%
+#   filter(county %in% c("Los Angeles", "Sacramento", "San Joaquin")) %>%
+#   distinct(county, race, n)
+# 
+# eval_df %>%
+#   count(county)
+# 
+# roc_df %>%
+#   filter(county == "All", sex == "All", race == "All")
+#   # filter(county == "Nevada")
+#   
+# roc_df %>%
+#   filter(county == "Los Angeles", sex == "All") %>%
+#   select(race, outcome, AUC, CI, n) %>%
+#   arrange(outcome)
+
+```

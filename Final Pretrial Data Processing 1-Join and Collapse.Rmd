@@ -136,7 +136,7 @@ suppressWarnings(alameda_collapse <- join_df2 %>%
   mutate(sentence_date = if_else(sentence_date < book_date, NA_Date_, sentence_date)) %>%
   mutate(across(c(contains("date"), -matches("time|reminder")), ~if_else(.x == -Inf|.x == Inf, NA_Date_, as_date(.x)))) %>%
   mutate(across(contains("flag"), ~if_else(is.na(.x), 0, as.numeric(.x)))) %>%
-  mutate(pretrial_end_date = if_else(is.na(pretrial_end_date) & release_type == "Dismissed_Dropped", release_date, pretrial_end_date)) %>%
+  mutate(pretrial_end_date = if_else(is.na(pretrial_end_date) & release_type %in% c("Dismissed_Dropped", "Time_Served", "Sentenced", "Detain_Only"), release_date, pretrial_end_date)) %>%
   mutate(new_arrest_flag = if_else(book_type %in% c("On_View", "New_Warrant"), 1, 0)) %>%
   mutate(release_type = ordered(release_type, levels = c("Unknown", "Other", "Sentenced", "Time_Served", "Detain_Only", "Dismissed_Dropped", "OR",
                                                          "Bail_Bond", "Cite_Release", "Hold_Release"))) %>%
@@ -154,7 +154,7 @@ suppressWarnings(alameda_collapse <- join_df2 %>%
 save(alameda_collapse, file = "G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Alameda Join Collapse.RData")
 
 # alameda_collapse %>%
-#   filter(is.na(pretrial_end_date), release_type == "Dismissed_Dropped")
+#   filter(is.na(pretrial_end_date), release_type %in% c("Dismissed_Dropped", "Time_Served", "Sentenced", "Detain_Only"))
 # 
 # join_df2 %>%
 #   mutate(across(c(contains("date"), -matches("time|reminder")), ~if_else(.x == -Inf|.x == Inf, NA_Date_, as_date(.x)))) %>%
@@ -419,7 +419,7 @@ Collapse
   mutate(sentence_date = if_else(sentence_date < book_date, NA_Date_, sentence_date)) %>%
   mutate(across(c(contains("date"), -matches("time|reminder")), ~if_else(.x == -Inf|.x == Inf, NA_Date_, as_date(.x)))) %>%
   mutate(across(contains("flag"), ~if_else(is.na(.x), 0, as.numeric(.x)))) %>%
-  mutate(pretrial_end_date = if_else(is.na(pretrial_end_date) & release_type == "Dismissed_Dropped", release_date, pretrial_end_date)) %>%
+  mutate(pretrial_end_date = if_else(is.na(pretrial_end_date) & release_type %in% c("Dismissed_Dropped", "Time_Served", "Sentenced", "Detain_Only"), release_date, pretrial_end_date)) %>%
   mutate(new_arrest_flag = if_else(pretrial_end_date >= book_date | is.na(pretrial_end_date), 1, 0)) %>%
   # mutate(new_arrest_flag = if_else(book_type %in% c("On_View", "New_Warrant"), 1, 0)) %>%
   mutate(release_type = ordered(release_type, levels = c("Unknown", "Other", "Sentenced", "Time_Served", "Detain_Only", "Dismissed_Dropped", "OR",
@@ -437,6 +437,8 @@ Collapse
   mutate(pretrial_end_date = if_else(pretrial_end_date < sentence_date|is.na(sentence_date), pretrial_end_date, sentence_date)))
 
 save(los_angeles_collapse, file = "G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Los Angeles Join Collapse.RData")
+
+# load("G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Los Angeles Join Collapse.RData")
 ``` 
 
 
@@ -543,10 +545,11 @@ join_df2 <- join_df %>%
 Collapse
 ```{r}
  suppressWarnings(santa_barbara_collapse <- join_df2 %>%
+  mutate(book_type = if_else(book_type == "New_warrant", "New_Warrant", book_type)) %>%
   mutate(sentence_date = if_else(sentence_date < book_date, NA_Date_, sentence_date)) %>%
   mutate(across(c(contains("date"), -matches("time|reminder")), ~if_else(.x == -Inf|.x == Inf, NA_Date_, as_date(.x)))) %>%
   mutate(across(contains("flag"), ~if_else(is.na(.x), 0, as.numeric(.x)))) %>%
-  mutate(pretrial_end_date = if_else(is.na(pretrial_end_date) & release_type == "Dismissed_Dropped", release_date, pretrial_end_date)) %>%
+  mutate(pretrial_end_date = if_else(is.na(pretrial_end_date) & release_type %in% c("Dismissed_Dropped", "Time_Served", "Sentenced", "Detain_Only"), release_date, pretrial_end_date)) %>%
   mutate(new_arrest_flag = if_else(book_type %in% c("On_View", "New_Warrant"), 1, 0)) %>%
   mutate(release_type = ordered(release_type, levels = c("Unknown", "Other", "Sentenced", "Time_Served", "Detain_Only", "Dismissed_Dropped", "OR",
                                                          "Bail_Bond", "Cite_Release", "Hold_Release"))) %>%
@@ -563,6 +566,7 @@ Collapse
 
 save(santa_barbara_collapse, file = "G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Santa Barbara Join Collapse.RData")
 
+# load("G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Santa Barbara Join Collapse.RData")
 ```
 
 
@@ -671,7 +675,7 @@ Collapse
   mutate(sentence_date = if_else(sentence_date < book_date, NA_Date_, sentence_date)) %>%
   mutate(across(c(contains("date"), -matches("time|reminder")), ~if_else(.x == -Inf|.x == Inf, NA_Date_, as_date(.x)))) %>%
   mutate(across(contains("flag"), ~if_else(is.na(.x), 0, as.numeric(.x)))) %>%
-  mutate(pretrial_end_date = if_else(is.na(pretrial_end_date) & release_type == "Dismissed_Dropped", release_date, pretrial_end_date)) %>%
+  mutate(pretrial_end_date = if_else(is.na(pretrial_end_date) & release_type %in% c("Dismissed_Dropped", "Time_Served", "Sentenced", "Detain_Only"), release_date, pretrial_end_date)) %>%
   mutate(new_arrest_flag = if_else(book_type %in% c("On_View", "Warrant"), 1, 0)) %>%
   mutate(release_type = ordered(release_type, levels = c("Unknown", "Other", "Sentenced", "Time_Served", "Detain_Only", "Dismissed_Dropped", "OR",
                                                          "Bail_Bond", "Cite_Release", "Hold_Release"))) %>%
@@ -745,7 +749,7 @@ suppressWarnings(kings_collapse <- join_df2 %>%
   rename(pretrial_end_date = final_disposition_date) %>%
   mutate(across(c(contains("date"), -matches("time|reminder")), ~if_else(.x == -Inf|.x == Inf, NA_Date_, as_date(.x)))) %>%
   mutate(across(contains("flag"), ~if_else(is.na(.x), 0, as.numeric(.x)))) %>%
-  mutate(pretrial_end_date = if_else(is.na(pretrial_end_date) & release_type == "Dismissed_Dropped", release_date, pretrial_end_date)) %>%
+  mutate(pretrial_end_date = if_else(is.na(pretrial_end_date) & release_type %in% c("Dismissed_Dropped", "Time_Served", "Sentenced", "Detain_Only"), release_date, pretrial_end_date)) %>%
   mutate(new_arrest_flag = if_else(book_type %in% c("On_View", "New_Warrant"), 1, 0)) %>%
   mutate(release_type = ordered(release_type, levels = c("Unknown", "Other", "Sentenced", "Time_Served", "Detain_Only", "Dismissed_Dropped", "OR",
                                                          "Bail_Bond", "Cite_Release", "Hold_Release"))) %>%
@@ -826,7 +830,7 @@ suppressWarnings(napa_collapse <- join_df2 %>%
   rename(pretrial_end_date = final_disposition_date) %>%
   mutate(across(c(contains("date"), -matches("time|reminder")), ~if_else(.x == -Inf|.x == Inf, NA_Date_, as_date(.x)))) %>%
   mutate(across(contains("flag"), ~if_else(is.na(.x), 0, as.numeric(.x)))) %>%
-  mutate(pretrial_end_date = if_else(is.na(pretrial_end_date) & release_type == "Dismissed_Dropped", release_date, pretrial_end_date)) %>%
+  mutate(pretrial_end_date = if_else(is.na(pretrial_end_date) & release_type %in% c("Dismissed_Dropped", "Time_Served", "Sentenced", "Detain_Only"), release_date, pretrial_end_date)) %>%
   mutate(new_arrest_flag = if_else(book_type %in% c("On_View", "New_Warrant"), 1, 0)) %>%
   mutate(release_type = ordered(release_type, levels = c("Unknown", "Other", "Sentenced", "Time_Served", "Detain_Only", "Dismissed_Dropped", "OR",
                                                          "Bail_Bond", "Cite_Release", "Hold_Release"))) %>%
@@ -931,7 +935,7 @@ suppressWarnings(sacramento_collapse <- join_df2 %>%
   rename(pretrial_end_date = final_disposition_date) %>%
   mutate(across(c(contains("date"), -matches("time|reminder")), ~if_else(.x == -Inf|.x == Inf, NA_Date_, as_date(.x)))) %>%
   mutate(across(contains("flag"), ~if_else(is.na(.x), 0, as.numeric(.x)))) %>%
-  mutate(pretrial_end_date = if_else(is.na(pretrial_end_date) & release_type == "Dismissed_Dropped", release_date, pretrial_end_date)) %>%
+  mutate(pretrial_end_date = if_else(is.na(pretrial_end_date) & release_type %in% c("Dismissed_Dropped", "Time_Served", "Sentenced", "Detain_Only"), release_date, pretrial_end_date)) %>%
   mutate(new_arrest_flag = if_else(book_type %in% c("On_View", "Warrant"), 1, 0)) %>%
   mutate(release_type = ordered(release_type, levels = c("Unknown", "Other", "Sentenced", "Time_Served", "Detain_Only", "Dismissed_Dropped", "OR",
                                                          "Bail_Bond", "Cite_Release", "Hold_Release"))) %>%
@@ -1006,7 +1010,7 @@ suppressWarnings(sonoma_collapse <- join_df2 %>%
   mutate(sentence_date = if_else(sentence_date < book_date, NA_Date_, sentence_date)) %>%
   mutate(across(c(contains("date"), -matches("time|reminder")), ~if_else(.x == -Inf|.x == Inf, NA_Date_, as_date(.x)))) %>%
   mutate(across(contains("flag"), ~if_else(is.na(.x), 0, as.numeric(.x)))) %>%
-  mutate(pretrial_end_date = if_else(is.na(pretrial_end_date) & release_type == "Dismissed_Dropped", release_date, pretrial_end_date)) %>%
+  mutate(pretrial_end_date = if_else(is.na(pretrial_end_date) & release_type %in% c("Dismissed_Dropped", "Time_Served", "Sentenced", "Detain_Only"), release_date, pretrial_end_date)) %>%
   mutate(new_arrest_flag = if_else(book_type %in% c("On_View", "Warrant"), 1, 0)) %>%
   mutate(release_type = ordered(release_type, levels = c("Unknown", "Other", "Sentenced", "Time_Served", "Detain_Only", "Dismissed_Dropped", "OR",
                                                          "Bail_Bond", "Cite_Release", "Hold_Release"))) %>%
@@ -1098,7 +1102,7 @@ Collapse
   mutate(sentence_date = if_else(sentence_date < book_date, NA_Date_, sentence_date)) %>%                
   mutate(across(c(contains("date"), -matches("time|reminder")), ~if_else(.x == -Inf|.x == Inf, NA_Date_, as_date(.x)))) %>%
   mutate(across(contains("flag"), ~if_else(is.na(.x), 0, as.numeric(.x)))) %>%
-  mutate(pretrial_end_date = if_else(is.na(pretrial_end_date) & release_type == "Dismissed_Dropped", release_date, pretrial_end_date)) %>%
+  mutate(pretrial_end_date = if_else(is.na(pretrial_end_date) & release_type %in% c("Dismissed_Dropped", "Time_Served", "Sentenced", "Detain_Only"), release_date, pretrial_end_date)) %>%
   mutate(new_arrest_flag = if_else(book_type %in% c("On_View", "New_Warrant"), 1, 0)) %>%
   mutate(release_type = ordered(release_type, levels = c("Unknown", "Other", "Sentenced", "Time_Served", "Detain_Only", "Dismissed_Dropped", "OR",
                                                          "Bail_Bond", "Cite_Release", "Hold_Release"))) %>%
@@ -1292,7 +1296,7 @@ Collapse
   mutate(sentence_date = if_else(sentence_date < book_date, NA_Date_, sentence_date)) %>%
   mutate(across(c(contains("date"), -matches("time|reminder")), ~if_else(.x == -Inf|.x == Inf, NA_Date_, as_date(.x)))) %>%
   mutate(across(contains("flag"), ~if_else(is.na(.x), 0, as.numeric(.x)))) %>%
-  mutate(pretrial_end_date = if_else(is.na(pretrial_end_date) & release_type == "Dismissed_Dropped", release_date, pretrial_end_date)) %>%
+  mutate(pretrial_end_date = if_else(is.na(pretrial_end_date) & release_type %in% c("Dismissed_Dropped", "Time_Served", "Sentenced", "Detain_Only"), release_date, pretrial_end_date)) %>%
   mutate(new_arrest_flag = if_else(book_type %in% c("On_View", "Other_Warrant"), 1, 0)) %>%
   mutate(release_type = ordered(release_type, levels = c("Unknown", "Other", "Sentenced", "Time_Served", "Detain_Only", "Dismissed_Dropped", "OR",
                                                          "Bail_Bond", "Cite_Release", "Hold_Release"))) %>%
@@ -1411,7 +1415,7 @@ Collapse
   mutate(sentence_date = if_else(sentence_date < book_date, NA_Date_, sentence_date)) %>%
   mutate(across(c(contains("date"), -matches("time|reminder")), ~if_else(.x == -Inf|.x == Inf, NA_Date_, as_date(.x)))) %>%
   mutate(across(contains("flag"), ~if_else(is.na(.x), 0, as.numeric(.x)))) %>%
-  mutate(pretrial_end_date = if_else(is.na(pretrial_end_date) & release_type == "Dismissed_Dropped", release_date, pretrial_end_date)) %>%
+  mutate(pretrial_end_date = if_else(is.na(pretrial_end_date) & release_type %in% c("Dismissed_Dropped", "Time_Served", "Sentenced", "Detain_Only"), release_date, pretrial_end_date)) %>%
   mutate(new_arrest_flag = if_else(pretrial_end_date >= book_date | is.na(pretrial_end_date), 1, 0)) %>%
   mutate(release_type = ordered(release_type, levels = c("Unknown", "Other", "Sentenced", "Time_Served", "Detain_Only", "Dismissed_Dropped", "OR",
                                                          "Bail_Bond", "Cite_Release", "Hold_Release"))) %>%
@@ -1516,7 +1520,7 @@ suppressWarnings(modoc_collapse <- join_df2 %>%
   mutate(sentence_date = if_else(sentence_date < book_date, NA_Date_, sentence_date)) %>%
   mutate(across(c(contains("date"), -matches("time|reminder")), ~if_else(.x == -Inf|.x == Inf, NA_Date_, as_date(.x)))) %>%
   mutate(across(contains("flag"), ~if_else(is.na(.x), 0, as.numeric(.x)))) %>%
-  mutate(pretrial_end_date = if_else(is.na(pretrial_end_date) & release_type == "Dismissed_Dropped", release_date, pretrial_end_date)) %>%
+  mutate(pretrial_end_date = if_else(is.na(pretrial_end_date) & release_type %in% c("Dismissed_Dropped", "Time_Served", "Sentenced", "Detain_Only"), release_date, pretrial_end_date)) %>%
   mutate(new_arrest_flag = if_else(pretrial_end_date >= book_date | is.na(pretrial_end_date), 1, 0)) %>%
   mutate(release_type = ordered(release_type, levels = c("Unknown", "Other", "Sentenced", "Time_Served", "Detain_Only", "Dismissed_Dropped", "OR",
                                                          "Bail_Bond", "Cite_Release", "Hold_Release"))) %>%
@@ -1619,7 +1623,7 @@ Collapse
   mutate(sentence_date = if_else(sentence_date < book_date, NA_Date_, sentence_date)) %>%
   mutate(across(c(contains("date"), -matches("time|reminder")), ~if_else(.x == -Inf|.x == Inf, NA_Date_, as_date(.x)))) %>%
   mutate(across(contains("flag"), ~if_else(is.na(.x), 0, as.numeric(.x)))) %>%
-  mutate(pretrial_end_date = if_else(is.na(pretrial_end_date) & release_type == "Dismissed_Dropped", release_date, pretrial_end_date)) %>%
+  mutate(pretrial_end_date = if_else(is.na(pretrial_end_date) & release_type %in% c("Dismissed_Dropped", "Time_Served", "Sentenced", "Detain_Only"), release_date, pretrial_end_date)) %>%
   mutate(new_arrest_flag = if_else(book_type %in% c("On_View", "Warrant"), 1, 0)) %>%
   mutate(release_type = ordered(release_type, levels = c("Unknown", "Other", "Sentenced", "Time_Served", "Detain_Only", "Dismissed_Dropped", "OR",
                                                          "Bail_Bond", "Cite_Release", "Hold_Release"))) %>%
@@ -1717,8 +1721,8 @@ Collapse
   mutate(sentence_date = if_else(sentence_date < book_date, NA_Date_, sentence_date)) %>%
   mutate(across(c(contains("date"), -matches("time|reminder")), ~if_else(.x == -Inf|.x == Inf, NA_Date_, as_date(.x)))) %>%
   mutate(across(contains("flag"), ~if_else(is.na(.x), 0, as.numeric(.x)))) %>%
-  mutate(pretrial_end_date = if_else(is.na(pretrial_end_date) & release_type == "Dismissed_Dropped", release_date, pretrial_end_date)) %>%
-  mutate(new_arrest_flag = if_else(book_type %in% c("On_View", "New_Warrant"), 1, 0)) %>%
+  mutate(pretrial_end_date = if_else(is.na(pretrial_end_date) & release_type %in% c("Dismissed_Dropped", "Time_Served", "Sentenced", "Detain_Only"), release_date, pretrial_end_date)) %>%
+  mutate(new_arrest_flag = if_else(book_type %in% c("On_View", "Warrant"), 1, 0)) %>%
   mutate(release_type = ordered(release_type, levels = c("Unknown", "Other", "Sentenced", "Time_Served", "Detain_Only", "Dismissed_Dropped", "OR",
                                                          "Bail_Bond", "Cite_Release", "Hold_Release"))) %>%
   group_by(book_num) %>%
@@ -1733,6 +1737,8 @@ Collapse
   mutate(pretrial_end_date = if_else(pretrial_end_date < sentence_date|is.na(sentence_date), pretrial_end_date, sentence_date)))
 
 save(ventura_collapse, file = "G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Ventura Join Collapse.RData")
+
+# load("G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Ventura Join Collapse.RData")
 ```
 
 
@@ -1872,6 +1878,7 @@ yuba_collapse <- join_df2 %>%
   mutate(across(contains("flag"), ~if_else(is.na(.x), 0, as.numeric(.x)))) %>%
   mutate(new_arrest_flag = if_else(pretrial_end_date >= book_date, 1, 0)) %>%
   mutate(new_arrest_flag = if_else(is.na(new_arrest_flag), 0, 1)) %>%
+  mutate(pretrial_end_date = if_else(is.na(pretrial_end_date) & release_type %in% c("Dismissed_Dropped", "Time_Served", "Sentenced", "Detain_Only"), release_date, pretrial_end_date)) %>%
   mutate(release_type = ordered(release_type, levels = c("Unknown", "Other", "Sentenced", "Time_Served",
                                                          "Detain_Only", "Dismissed_Dropped", "OR",
                                                          "Bail_Bond", "Cite_Release", "Hold_Release"))) %>%
@@ -1885,6 +1892,12 @@ yuba_collapse <- join_df2 %>%
 
 
 save(yuba_collapse, file = "G:/Crimjustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Yuba Join Collapse.RData")
+
+```
+
+
+
+```{r}
 
 ```
 

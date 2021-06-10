@@ -1432,7 +1432,7 @@ person_df <- read_excel("Historical Data Submissions/Alameda/P3 Submission-Jan 1
 names(person_df) <- c("event_id", "local_id", "first_name", "last_name", "dob", "cii", "fbi", "race_original", "sex_original", "cdl_id", "cdl_state",  "zip_code", "arrest_date", "book_date", "assessment_flag") 
 
 
-#Removing Dates because they are found on the booking table.
+#Removing Dates because they are found on the booking table.--FiX DOB
 person_df <- person_df %>%
   select(-book_date, -arrest_date)
 
@@ -1688,23 +1688,48 @@ book_df <- lapply(2015:2019, function(i){
   bind_rows() 
 
   ## Submission 2 data came in with slightly different names, but in the same order, so I changed the names to match the first submission before joining them.   
-book_df2 <- read_xlsx("Historical Data Submissions/Los Angeles/P2 Submission-June 30/LASD_Rls_Jan_Jun_2020.xlsx") 
+# book_df4 <- read_xlsx("Historical Data Submissions/Los Angeles/P2 Submission-June 30/LASD_Rls_Jan_Jun_2020.xlsx")
+# 
+# book_df3 <- read_xlsx("Historical Data Submissions/Los Angeles/P3 Submission-Jan 15/LASD_JAN_DEC_2020.xlsx")
 
-book_df3 <- read_xlsx("Historical Data Submissions/Los Angeles/P3 Submission-Jan 15/LASD_JAN_DEC_2020.xlsx")
+ ## Resubmitted with missing bookings 5/27/2021, Bookings before July 2019 are still missing. 
+
+book_df2 <- lapply(c("Jul_Dec_2019", "JAN_MAR_2020", "April_June_2020", "Jul_Dec_2020"), function(i){
+  fread(paste0("Historical Data Submissions/Los Angeles/P3 Submission-Jan 15/LA_County_Arrest_",i, ".csv"))}) %>%
+  bind_rows() 
+
+
+# book_df2 <- fread("Historical Data Submissions/Los Angeles/P3 Submission-Jan 15/LA_County_Arrest_Jul_Dec_2019.csv") 
+# 
+# book_df3 <- read_xlsx("Historical Data Submissions/Los Angeles/P3 Submission-Jan 15/LA_County_Arrest_JAN_MAR_2020.csv")
+# 
+# book_df4 <- read_xlsx("Historical Data Submissions/Los Angeles/P3 Submission-Jan 15/LA_County_Arrest_April_June_2020.csv")
+# 
+# book_df5 <- read_xlsx("Historical Data Submissions/Los Angeles/P3 Submission-Jan 15/LA_County_Arrest_Jul_Dec_2020.csv")
 
 names(book_df2) <- names(book_df)
-names(book_df3) <- names(book_df)
+
+#Matching Dates to book_df
+book_df2 <- book_df2 %>%
+  mutate(across(c("DOB", "Arrest Date", "Booking Date", "Release Date"), dmy)) %>%
+  # Removing three incorrect rows
+  filter(`Booking Date` >= `Arrest Date`)
+# names(book_df3) <- names(book_df)
 
 #Removing duplicates between submission 1 and 2 with releases during the P2 time period(2020-01-01 through 2020-06-30)
-book_df <- book_df %>%
-  anti_join(book_df2, by = "Booking Number") %>%
-  anti_join(book_df3, by = "Booking Number")
+# book_df <- book_df %>%
+#   anti_join(book_df2, by = "Booking Number") 
+# 
+# book_df2 <- book_df2 %>%
+#   anti_join(book_df3, by = "Booking Number")
+# 
+# book_df <- bind_rows(book_df, book_df2, book_df3 %>% mutate(CII = as.character(CII))) %>% distinct()
+# rm(book_df2, book_df3)
 
-book_df2 <- book_df2 %>%
-  anti_join(book_df3, by = "Booking Number")
+book_df <- bind_rows(book_df, book_df2)
 
-book_df <- bind_rows(book_df, book_df2, book_df3 %>% mutate(CII = as.character(CII))) %>% distinct()
-rm(book_df2, book_df3)
+
+rm(book_df2)
 
 # Variable name standardization--See pg. xxx for more details. 
 names(book_df) <- c("last_name", "first_name", "dob", "race_original", "sex_original", "cdl_id", "cii", "arrest_date", "book_date", "book_num", "court_case_id", "arrest_charge_original", "arrest_charge_level_original", "release_date", "release_type_original", "bail")
@@ -1720,6 +1745,7 @@ book_charge <- book_df %>%
 
 # Standardize Factors--See pg. xxx for more details.
 book_charge <- book_charge %>%
+  mutate(across(where(is.character), trimws)) %>%
   mutate(sex = case_when(sex_original %in% c("M") ~ "Male",
                          sex_original %in% c("F") ~ "Female"),
          
@@ -1743,6 +1769,7 @@ book_charge <- book_charge %>%
                                   release_type_original %in% c("PRCT") ~ "Unspec_Capacity",
                                   release_type_original %in% c("PRET") ~ "Pretrial_Sup",
                                   T ~ "Other"))
+
 
 # Standardize Charges and join charge hierarchy--See pg. xxx for more details about this process. 
 book_charge <- book_charge %>%
@@ -1777,6 +1804,31 @@ book_court <- book_df %>%
   filter(!is.na(court_case_id))
 ```
 
+LA Data Submission Check
+```{r}
+book_check <- book_charge %>%
+  filter(arrest_date >= as_date("2020-01-01")) %>%
+  distinct(book_num, .keep_all = T)
+
+book_check2 <- bind_rows(book_df3 %>% distinct(BKG), book_df4 %>% distinct(BKG)) %>% distinct(BKG)
+
+book_match <- book_check %>%
+  semi_join(book_check2, by = c("book_num" = "BKG")) 
+
+book_nomatch <- book_check %>%
+  anti_join(book_check2, by = c("book_num" = "BKG"))
+
+book_match %>%
+  count(release_type) %>%
+  mutate(percent = round(n/sum(n)*100)) %>%
+  arrange(desc(n))
+
+book_nomatch %>%
+  count(release_type) %>%
+  mutate(percent = round(n/sum(n)*100)) %>%
+  arrange(desc(n))
+```
+
   Jail Collapse
 ```{r}
 # Booking Collapse--See pg. xxx for more details about this process.
@@ -1797,7 +1849,12 @@ book_charge <- book_charge %>%
   ungroup() %>%
   distinct(book_num, .keep_all = T) 
 
-book_df <- left_join(book_charge, book_court)
+book_df <- left_join(book_charge, book_court) 
+
+#Converting posixct to date
+book_df <- book_df %>%
+  mutate(across(c(dob, contains("date")), as_date))
+
 
 save(book_df, file = "G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Los Angeles Booking Collapse.RData")
 ```
@@ -1815,7 +1872,6 @@ court_df2 <- fread("Historical Data Submissions/Los Angeles/P2 Submission-June 3
 
 court_df3 <- fread("Historical Data Submissions/Los Angeles/P3 Submission-Jan 15/ISAB_CourtCaseExtract_20210114.csv",
                   sep = "|", colClasses = "character")[,1:30]
-
 
 #Removing duplicates between submission 1 and 2 with releases during the P2 time period(2020-01-01 through 2020-06-30)
 court_df <- court_df %>%
@@ -1993,22 +2049,21 @@ Assessment Data
 
 # Assessments Data Import
   ## assess_df contains one row per risk assessment event/risk assessment question/pretrial terms and conditions. The questions are widened into columns.
-assess_df <- fread("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Los Angeles/P2 Submission-June 30/ISAB_PsaHistoricalExtract_20201021.csv",
+# assess_df <- fread("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Los Angeles/P2 Submission-June 30/ISAB_PsaHistoricalExtract_20201021.csv",
+#                   sep = "|", colClasses = "character")
+# 
+# assess_dfq2 <- fread("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Los Angeles/P3 Submission-Jan 15/ISAB_PsaHistoricalExtract_20210114.csv",
+#                   sep = "|", colClasses = "character")
+
+assess_df <- fread("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Los Angeles/P3 Submission-Jan 15/ISAB_PsaHistoricalExtract_20210505.csv",
                   sep = "|", colClasses = "character")
-
-assess_dfq2 <- fread("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Los Angeles/P3 Submission-Jan 15/ISAB_PsaHistoricalExtract_20210114.csv",
-                  sep = "|", colClasses = "character")
-
-assess_df <- bind_rows(assess_df, assess_dfq2)
-
-rm(assess_dfq2)
 
 #Widening PSA Tool Responses
 assess_df <- assess_df %>%
   spread(prep_risk_factor_type, prep_value)
 
 # Variable name standardization--See pg. xxx for more details.
-names(assess_df) <- c("pretrial_id", "tool_name", "local_id", "cii", "first_name", "last_name", "dob", "sex_original", "race_original", "assessment_date", "psa_fta_risk_score", "psa_nca_risk_score", "psa_nvca_risk_score", "release_decision_original", "release_authorization_original", "release_decision_date", "release_conditions_original", "pretrial_violation_original", "pretrial_violation_date", "court_date_reminder_original", "other_pretrial_service_original", "pretrial_termination_outcome_original", "pretrial_termination_date", "extract_date", "psa_tool_response_1", "psa_tool_response_2", "psa_tool_response_2a", "psa_tool_response_3", "psa_tool_response_4", "psa_tool_response_5", "psa_tool_response_5a", "psa_tool_response_6", "psa_tool_response_7", "psa_tool_response_8", "psa_tool_response_9")
+names(assess_df) <- c("pretrial_id", "tool_name", "local_id", "cii", "first_name", "last_name", "dob", "sex_original", "race_original", "assessment_date", "psa_fta_risk_score", "psa_nca_risk_score", "psa_nvca_risk_score", "release_decision_original", "release_authorization_original", "release_decision_date", "release_conditions_original", "pretrial_violation_original", "pretrial_violation_date", "court_date_reminder_original", "other_pretrial_service_original", "pretrial_termination_outcome_original", "pretrial_termination_date", "book_num", "arrest_date", "extract_date", "psa_tool_response_1", "psa_tool_response_2", "psa_tool_response_2a", "psa_tool_response_3", "psa_tool_response_4", "psa_tool_response_5", "psa_tool_response_5a", "psa_tool_response_6", "psa_tool_response_7", "psa_tool_response_8", "psa_tool_response_9")
 
 
 # Date Reformatting--See pg. xxx for more details.
@@ -2020,6 +2075,9 @@ assess_df <- assess_df %>%
 assess_df <- assess_df %>%
   mutate(tool_name = "psa",
          psa_nvca_risk_score = if_else(psa_nvca_risk_score == "Y", 1 ,0))
+
+assess_df %>%
+  select(contains("psa_tool_response"))
 
 # Risk Score Standardization--Tool Response values are changed to their numeric point value.
 assess_df <- assess_df %>%
