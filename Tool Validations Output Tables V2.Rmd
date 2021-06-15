@@ -1350,12 +1350,14 @@ risk_df <- race_df %>%
          name = factor(name, levels = c("FTA or New Arrest", "FTA", "New Arrest", "New Filing",
                                         "New Conviction", "New Violent Arrest")))
   
-ggplot(risk_df %>% distinct(oras_risk_score, Total, race)) +
+ggplot(risk_df %>% distinct(oras_risk_score, Total, race) %>% 
+         group_by(race) %>% 
+         mutate(percent = round(Total/sum(Total)*100)) %>% ungroup()) +
   aes(x = as.factor(oras_risk_score), y = Total, fill = race) +
   geom_col(position = "dodge") +
-  geom_text(vjust = -.3, aes(label = Total), size = 2.6, position = position_dodge(width = .9)) +
+  geom_text(vjust = .4, aes(label = str_c(Total, "\n(", percent, "%)")), size = 2.6, position = position_dodge(width = .9)) +
   theme_bw() +
-  labs(x = "Risk Category", y = "Count", title = "Distribution of Assessments by ORAS Risk Category")
+  labs(x = "Risk Category", y = "Count", title = "Distribution of Assessments by ORAS Risk Category", fill = "Race")
 ```
 \newpage
 
@@ -1379,12 +1381,14 @@ risk_df <- race_df %>%
                           name == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest"),
          name = factor(name, levels = c("FTA or New Arrest", "FTA", "New Arrest", "New Filing", "New Conviction", "New Violent Arrest")))
 
-ggplot(risk_df %>% distinct(vprai_risk_score, Total)) +
+ggplot(risk_df %>% distinct(vprai_risk_score, Total) %>% 
+         group_by(race) %>% 
+         mutate(percent = round(Total/sum(Total)*100)) %>% ungroup()) +
   aes(x = as.factor(vprai_risk_score), y = Total, fill = race) +
   geom_col(position = "dodge") +
-  geom_text(vjust = -.3, aes(label = Total), size = 2.6, position = position_dodge(width = .9)) +
+  geom_text(vjust = .4, aes(label = str_c(Total, "\n(", percent, "%)")), size = 2.6, position = position_dodge(width = .9)) +
   theme_bw() +
-  labs(x = "Risk Category", y = "Count", title = "Distribution of Assessments by VPRAI Risk Category")    
+  labs(x = "Risk Category", y = "Count", title = "Distribution of Assessments by VPRAI Risk Category", fill = "Race")    
 
 ```
 \newpage
@@ -1409,12 +1413,14 @@ risk_df <- race_df %>%
                           name == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest"),
          name = factor(name, levels = c("FTA or New Arrest", "FTA", "New Arrest", "New Filing", "New Conviction", "New Violent Arrest")))
   
-ggplot(risk_df %>% distinct(vprair_risk_score, Total)) +
+ggplot(risk_df %>% distinct(vprair_risk_score, Total) %>% 
+         group_by(race) %>% 
+         mutate(percent = round(Total/sum(Total)*100)) %>% ungroup()) +
   aes(x = as.factor(vprair_risk_score), y = Total, fill = race) +
   geom_col(position = "dodge") +
   theme_bw() +
-  geom_text(vjust = -.3, aes(label = Total), size = 2.6, position = position_dodge(width = .9)) +
-  labs(x = "Risk Category", y = "Count", title = "Distribution of Assessments by VPRAIR Risk Category")  
+  geom_text(vjust = .4, aes(label = str_c(Total, "\n(", percent, "%)")), size = 2.6, position = position_dodge(width = .9)) +
+  labs(x = "Risk Category", y = "Count", title = "Distribution of Assessments by VPRAIR Risk Category", fill = "Race")  
 ```
 \newpage
 
@@ -1464,13 +1470,15 @@ ggplot(risk_df %>%
          filter(!name %in% c("New Filing", "New Conviction")) %>%
          mutate(name = case_when(name == "FTA" ~ "PSA FTA Risk Score",
                                  name == "New Arrest" ~ "PSA NCA Risk Score",
-                                 name == "New Violent Arrest" ~ "PSA NVCA Risk Score"))) +
+                                 name == "New Violent Arrest" ~ "PSA NVCA Risk Score")) %>% 
+         group_by(race, name) %>% 
+         mutate(percent = round(Total/sum(Total)*100)) %>% ungroup()) +
   aes(x = as.factor(psa_risk_score), y = Total, fill = race) +
   geom_col(position = "dodge") +
-  geom_text(vjust = -.3, aes(label = Total), size = 2.6, position = position_dodge(width = .9)) +
+  geom_text(vjust = .4, aes(label = str_c( formatC(Total, big.mark = ","), "\n(", percent, "%)")), size = 2.6, position = position_dodge(width = .9)) +
   theme_bw() +
   facet_wrap(~name, scales = "free", ncol = 1) +
-  labs(x = "Risk Category", y = "Count", title = "Distribution of Assessments by PSA Risk Category") +
+  labs(x = "Risk Category", y = "Count", title = "Distribution of Assessments by PSA Risk Category", fill = "Race") +
   scale_y_continuous(expand = expansion(mult = c(.1, .15)))
 ```
 \newpage
@@ -1495,12 +1503,14 @@ risk_df <- race_df %>%
                           name == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest"),
          name = factor(name, levels = c("FTA or New Arrest", "FTA", "New Arrest", "New Filing", "New Conviction", "New Violent Arrest")))
 
-ggplot(risk_df %>% distinct(vprair_risk_score, Total)) +
+ggplot(risk_df %>% distinct(vprair_risk_score, Total) %>% 
+         group_by(race) %>% 
+         mutate(percent = round(Total/sum(Total)*100))) +
   aes(x = as.factor(vprair_risk_score), y = Total, fill = race) +
   geom_col(position = "dodge") +
-  geom_text(vjust = -.3, aes(label = Total), size = 2.6, position = position_dodge(width = .9)) +
+  geom_text(vjust = .4, aes(label = str_c(Total, "\n(", percent, "%)")), size = 2.6, position = position_dodge(width = .9)) +
   theme_bw() +
-  labs(x = "Risk Category", y = "Count", title = "Alameda Distribution of Assessments by VPRAIR Risk Category")  
+  labs(x = "Risk Category", y = "Count", title = "Alameda Distribution of Assessments by VPRAIR Risk Category", fill = "Race")  
 ```
 \newpage
 
@@ -1550,14 +1560,16 @@ ggplot(risk_df %>%
          filter(!name %in% c("New Filing", "New Conviction")) %>%
          mutate(name = case_when(name == "FTA" ~ "PSA FTA Risk Score",
                                  name == "New Arrest" ~ "PSA NCA Risk Score",
-                                 name == "New Violent Arrest" ~ "PSA NVCA Risk Score"))) +
+                                 name == "New Violent Arrest" ~ "PSA NVCA Risk Score"))%>% 
+         group_by(race, name) %>% 
+         mutate(percent = round(Total/sum(Total)*100)) %>% ungroup()) +
   aes(x = as.factor(psa_risk_score), y = Total, fill = race) +
   geom_col(position = "dodge") +
-  geom_text(vjust = -.3, aes(label = Total), size = 2.6, position = position_dodge(width = .9)) +
+  geom_text(vjust = .4, aes(label = str_c( formatC(Total, big.mark = ","), "\n(", percent, "%)")), size = 2.6, position = position_dodge(width = .9)) +
   theme_bw() +
   # ylim(0,100) +
   facet_wrap(~name, scales = "free", ncol = 1) +
-  labs(x = "Risk Category", y = "Count", title = "Los Angeles Distribution of Assessments by PSA Risk Category") +
+  labs(x = "Risk Category", y = "Count", title = "Los Angeles Distribution of Assessments by PSA Risk Category", fill = "Race") +
   scale_y_continuous(expand = expansion(mult = c(.1, .15)))
 ```
 \newpage
@@ -1608,13 +1620,15 @@ ggplot(risk_df %>%
          filter(!name %in% c("New Filing", "New Conviction")) %>%
          mutate(name = case_when(name == "FTA" ~ "PSA FTA Risk Score",
                                  name == "New Arrest" ~ "PSA NCA Risk Score",
-                                 name == "New Violent Arrest" ~ "PSA NVCA Risk Score"))) +
+                                 name == "New Violent Arrest" ~ "PSA NVCA Risk Score")) %>% 
+         group_by(race, name) %>% 
+         mutate(percent = round(Total/sum(Total)*100)) %>% ungroup()) +
   aes(x = as.factor(psa_risk_score), y = Total, fill = race) +
   geom_col(position = "dodge") +
-  geom_text(vjust = -.3, aes(label = Total), size = 2.6, position = position_dodge(width = .9)) +
+  geom_text(vjust = .4, aes(label = str_c( formatC(Total, big.mark = ","), "\n(", percent, "%)")), size = 2.6, position = position_dodge(width = .9)) +
   theme_bw() +
   facet_wrap(~name, scales = "free", ncol = 1) +
-  labs(x = "Risk Category", y = "Count", title = "Sacramento Distribution of Assessments by PSA Risk Category") +
+  labs(x = "Risk Category", y = "Count", title = "Sacramento Distribution of Assessments by PSA Risk Category", fill = "Race") +
   scale_y_continuous(expand = expansion(mult = c(.1, .15))) 
 ```
 \newpage
@@ -1639,12 +1653,14 @@ risk_df <- race_df %>%
                           name == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest"),
          name = factor(name, levels = c("FTA or New Arrest", "FTA", "New Arrest", "New Filing", "New Conviction", "New Violent Arrest")))
 
-ggplot(risk_df %>% distinct(vprai_risk_score, Total)) +
+ggplot(risk_df %>% distinct(vprai_risk_score, Total) %>% 
+         group_by(race) %>% 
+         mutate(percent = round(Total/sum(Total)*100)) %>% ungroup()) +
   aes(x = as.factor(vprai_risk_score), y = Total, fill = race) +
   geom_col(position = "dodge") +
-  geom_text(vjust = -.3, aes(label = Total), size = 2.6, position = position_dodge(width = .9)) +
+  geom_text(vjust = .4, aes(label = str_c(Total, "\n(", percent, "%)")), size = 2.6, position = position_dodge(width = .9)) +
   theme_bw() +
-  labs(x = "Risk Category", y = "Count", title = "San Joaquin Distribution of Assessments by VPRAI Risk Category")    
+  labs(x = "Risk Category", y = "Count", title = "San Joaquin Distribution of Assessments by VPRAI Risk Category", fill = "Race")    
 ```
 \newpage
 
@@ -1668,12 +1684,14 @@ risk_df <- race_df %>%
                           name == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest"),
          name = factor(name, levels = c("FTA or New Arrest", "FTA", "New Arrest", "New Filing", "New Conviction", "New Violent Arrest")))
 
-ggplot(risk_df %>% distinct(vprair_risk_score, Total)) +
+ggplot(risk_df %>% distinct(vprair_risk_score, Total) %>% 
+         group_by(race) %>% 
+         mutate(percent = round(Total/sum(Total)*100)) %>% ungroup()) +
   aes(x = as.factor(vprair_risk_score), y = Total, fill = race) +
   geom_col(position = "dodge") +
-  geom_text(vjust = -.3, aes(label = Total), size = 2.6, position = position_dodge(width = .9)) +
+  geom_text(vjust = .4, aes(label = str_c(Total, "\n(", percent, "%)")), size = 2.6, position = position_dodge(width = .9)) +
   theme_bw() +
-  labs(x = "Risk Category", y = "Count", title = "Santa Barbara Distribution of Assessments by VPRAIR Risk Category")  
+  labs(x = "Risk Category", y = "Count", title = "Santa Barbara Distribution of Assessments by VPRAIR Risk Category", fill = "Race")  
 ```
 \newpage
 
@@ -1723,14 +1741,16 @@ ggplot(risk_df %>%
          filter(!name %in% c("New Filing", "New Conviction")) %>%
          mutate(name = case_when(name == "FTA" ~ "PSA FTA Risk Score",
                                  name == "New Arrest" ~ "PSA NCA Risk Score",
-                                 name == "New Violent Arrest" ~ "PSA NVCA Risk Score"))) +
+                                 name == "New Violent Arrest" ~ "PSA NVCA Risk Score")) %>% 
+         group_by(race, name) %>% 
+         mutate(percent = round(Total/sum(Total)*100)) %>% ungroup()) +
   aes(x = as.factor(psa_risk_score), y = Total, fill = race) +
   geom_col(position = "dodge") +
-  geom_text(vjust = -.3, aes(label = Total), size = 2.6, position = position_dodge(width = .9)) +
+  geom_text(vjust = .4, aes(label = str_c( formatC(Total, big.mark = ","), "\n(", percent, "%)")), size = 2.6, position = position_dodge(width = .9)) +
   theme_bw() +
   # ylim(0,100) +
   facet_wrap(~name, scales = "free", ncol = 1) +
-  labs(x = "Risk Category", y = "Count", title = "Sonoma Distribution of Assessments by PSA Risk Category") +
+  labs(x = "Risk Category", y = "Count", title = "Sonoma Distribution of Assessments by PSA Risk Category", fill = "Race") +
   scale_y_continuous(expand = expansion(mult = c(.1, .15)))
 ```
 \newpage
@@ -1756,12 +1776,14 @@ risk_df <- race_df %>%
          name = factor(name, levels = c("FTA or New Arrest", "FTA", "New Arrest", "New Filing",
                                         "New Conviction", "New Violent Arrest")))
   
-ggplot(risk_df %>% distinct(oras_risk_score, Total)) +
+ggplot(risk_df %>% distinct(oras_risk_score, Total) %>% 
+         group_by(race) %>% 
+         mutate(percent = round(Total/sum(Total)*100)) %>% ungroup()) +
   aes(x = as.factor(oras_risk_score), y = Total, fill = race) +
   geom_col(position = "dodge") +
-  geom_text(vjust = -.3, aes(label = Total), size = 2.6, position = position_dodge(width = .9)) +
+  geom_text(vjust = .4, aes(label = str_c(Total, "\n(", percent, "%)")), size = 2.6, position = position_dodge(width = .9)) +
   theme_bw() +
-  labs(x = "Risk Category", y = "Count", title = "Ventura Distribution of Assessments by ORAS Risk Category") 
+  labs(x = "Risk Category", y = "Count", title = "Ventura Distribution of Assessments by ORAS Risk Category", fill = "Race") 
 ```
 \newpage
 # Race Logistic Regression Graphs
@@ -2447,12 +2469,14 @@ risk_df <- sex_df %>%
          name = factor(name, levels = c("FTA or New Arrest", "FTA", "New Arrest", "New Filing",
                                         "New Conviction", "New Violent Arrest")))
   
-ggplot(risk_df %>% distinct(oras_risk_score, Total, sex)) +
+ggplot(risk_df %>% distinct(oras_risk_score, Total, sex) %>% 
+         group_by(sex) %>% 
+         mutate(percent = round(Total/sum(Total)*100)) %>% ungroup()) +
   aes(x = as.factor(oras_risk_score), y = Total, fill = sex) +
   geom_col(position = "dodge") +
-  geom_text(vjust = -.3, aes(label = Total), size = 2.6, position = position_dodge(width = .9)) +
+  geom_text(vjust = .4, aes(label = str_c(Total, "\n(", percent, "%)")), size = 2.6, position = position_dodge(width = .9)) +
   theme_bw() +
-  labs(x = "Risk Category", y = "Count", title = "Distribution of Assessments by ORAS Risk Category")
+  labs(x = "Risk Category", y = "Count", title = "Distribution of Assessments by ORAS Risk Category", fill = "Gender")
 ```
 \newpage
 
@@ -2476,12 +2500,14 @@ risk_df <- sex_df %>%
                           name == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest"),
          name = factor(name, levels = c("FTA or New Arrest", "FTA", "New Arrest", "New Filing", "New Conviction", "New Violent Arrest")))
 
-ggplot(risk_df %>% distinct(vprai_risk_score, Total)) +
+ggplot(risk_df %>% distinct(vprai_risk_score, Total) %>% 
+         group_by(sex) %>% 
+         mutate(percent = round(Total/sum(Total)*100)) %>% ungroup()) +
   aes(x = as.factor(vprai_risk_score), y = Total, fill = sex) +
   geom_col(position = "dodge") +
-  geom_text(vjust = -.3, aes(label = Total), size = 2.6, position = position_dodge(width = .9)) +
+  geom_text(vjust = .4, aes(label = str_c(formatC(Total, big.mark = ","), "\n(", percent, "%)")), size = 2.6, position = position_dodge(width = .9)) +
   theme_bw() +
-  labs(x = "Risk Category", y = "Count", title = "Distribution of Assessments by VPRAI Risk Category")    
+  labs(x = "Risk Category", y = "Count", title = "Distribution of Assessments by VPRAI Risk Category", fill = "Gender")    
 
 ```
 \newpage
@@ -2506,11 +2532,13 @@ risk_df <- sex_df %>%
                           name == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest"),
          name = factor(name, levels = c("FTA or New Arrest", "FTA", "New Arrest", "New Filing", "New Conviction", "New Violent Arrest")))
   
-ggplot(risk_df %>% distinct(vprair_risk_score, Total)) +
+ggplot(risk_df %>% distinct(vprair_risk_score, Total) %>% 
+         group_by(sex) %>% 
+         mutate(percent = round(Total/sum(Total)*100)) %>% ungroup()) +
   aes(x = as.factor(vprair_risk_score), y = Total, fill = sex) +
   geom_col(position = "dodge") +
-  geom_text(vjust = -.3, aes(label = Total), size = 2.6, position = position_dodge(width = .9)) +
-  labs(x = "Risk Category", y = "Count", title = "Distribution of Assessments by VPRAIR Risk Category") +
+  geom_text(vjust = .4, aes(label = str_c(formatC(Total, big.mark = ","), "\n(", percent, "%)")), size = 2.6, position = position_dodge(width = .9)) +
+  labs(x = "Risk Category", y = "Count", title = "Distribution of Assessments by VPRAIR Risk Category", fill = "Gender") +
   theme_bw()
 ```
 \newpage
@@ -2562,13 +2590,15 @@ ggplot(risk_df %>%
          filter(!name %in% c("New Filing", "New Conviction")) %>%
          mutate(name = case_when(name == "FTA" ~ "PSA FTA Risk Score",
                                  name == "New Arrest" ~ "PSA NCA Risk Score",
-                                 name == "New Violent Arrest" ~ "PSA NVCA Risk Score"))) +
+                                 name == "New Violent Arrest" ~ "PSA NVCA Risk Score")) %>% 
+         group_by(sex, name) %>% 
+         mutate(percent = round(Total/sum(Total)*100)) %>% ungroup()) +
   aes(x = as.factor(psa_risk_score), y = Total, fill = sex) +
   geom_col(position = "dodge") +
-  geom_text(vjust = -.3, aes(label = Total), size = 2.6, position = position_dodge(width = .9)) +
+  geom_text(vjust = .4, aes(label = str_c(formatC(Total, big.mark = ","), "\n(", percent, "%)")), size = 2.6, position = position_dodge(width = .9)) +
   theme_bw() +
   facet_wrap(~name, scales = "free", ncol = 1) +
-  labs(x = "Risk Category", y = "Count", title = "Distribution of Assessments by PSA Risk Category") +
+  labs(x = "Risk Category", y = "Count", title = "Distribution of Assessments by PSA Risk Category", fill = "Gender") +
   scale_y_continuous(expand = expansion(mult = c(.1, .25))) 
 ```
 \newpage
@@ -2593,12 +2623,14 @@ risk_df <- sex_df %>%
                           name == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest"),
          name = factor(name, levels = c("FTA or New Arrest", "FTA", "New Arrest", "New Filing", "New Conviction", "New Violent Arrest")))
 
-ggplot(risk_df %>% distinct(vprair_risk_score, Total)) +
+ggplot(risk_df %>% distinct(vprair_risk_score, Total) %>% 
+         group_by(sex) %>% 
+         mutate(percent = round(Total/sum(Total)*100)) %>% ungroup()) +
   aes(x = as.factor(vprair_risk_score), y = Total, fill = sex) +
   geom_col(position = "dodge") +
-  geom_text(vjust = -.3, aes(label = Total), size = 2.6, position = position_dodge(width = .9)) +
+  geom_text(vjust = .4, aes(label = str_c(formatC(Total, big.mark = ","), "\n(", percent, "%)")), size = 2.6, position = position_dodge(width = .9)) +
   theme_bw() +
-  labs(x = "Risk Category", y = "Count", title = "Alameda Distribution of Assessments by VPRAIR Risk Category")  
+  labs(x = "Risk Category", y = "Count", title = "Alameda Distribution of Assessments by VPRAIR Risk Category", fill = "Gender")  
 ```
 \newpage
 
@@ -2648,14 +2680,16 @@ ggplot(risk_df %>%
          filter(!name %in% c("New Filing", "New Conviction")) %>%
          mutate(name = case_when(name == "FTA" ~ "PSA FTA Risk Score",
                                  name == "New Arrest" ~ "PSA NCA Risk Score",
-                                 name == "New Violent Arrest" ~ "PSA NVCA Risk Score"))) +
+                                 name == "New Violent Arrest" ~ "PSA NVCA Risk Score")) %>% 
+         group_by(sex, name) %>% 
+         mutate(percent = round(Total/sum(Total)*100)) %>% ungroup()) +
   aes(x = as.factor(psa_risk_score), y = Total, fill = sex) +
   geom_col(position = "dodge") +
-  geom_text(vjust = -.3, aes(label = Total), size = 2.6, position = position_dodge(width = .9)) +
+  geom_text(vjust = .4, aes(label = str_c(formatC(Total, big.mark = ","), "\n(", percent, "%)")), size = 2.6, position = position_dodge(width = .9)) +
   theme_bw() +
   # ylim(0,100) +
   facet_wrap(~name, scales = "free", ncol = 1) +
-  labs(x = "Risk Category", y = "Count", title = "Los Angeles Distribution of Assessments by PSA Risk Category") +
+  labs(x = "Risk Category", y = "Count", title = "Los Angeles Distribution of Assessments by PSA Risk Category", fill = "Gender") +
   scale_y_continuous(expand = expansion(mult = c(.1, .25))) 
 ```
 \newpage
@@ -2706,13 +2740,15 @@ ggplot(risk_df %>%
          filter(!name %in% c("New Filing", "New Conviction")) %>%
          mutate(name = case_when(name == "FTA" ~ "PSA FTA Risk Score",
                                  name == "New Arrest" ~ "PSA NCA Risk Score",
-                                 name == "New Violent Arrest" ~ "PSA NVCA Risk Score"))) +
+                                 name == "New Violent Arrest" ~ "PSA NVCA Risk Score")) %>% 
+         group_by(sex, name) %>% 
+         mutate(percent = round(Total/sum(Total)*100)) %>% ungroup()) +
   aes(x = as.factor(psa_risk_score), y = Total, fill = sex) +
   geom_col(position = "dodge") +
-  geom_text(vjust = -.3, aes(label = Total), size = 2.6, position = position_dodge(width = .9)) +
+  geom_text(vjust = .4, aes(label = str_c(formatC(Total, big.mark = ","), "\n(", percent, "%)")), size = 2.6, position = position_dodge(width = .9)) +
   theme_bw() +
   facet_wrap(~name, scales = "free", ncol = 1) +
-  labs(x = "Risk Category", y = "Count", title = "Sacramento Distribution of Assessments by PSA Risk Category") +
+  labs(x = "Risk Category", y = "Count", title = "Sacramento Distribution of Assessments by PSA Risk Category", fill = "Gender") +
   scale_y_continuous(expand = expansion(mult = c(.1, .25))) 
 ```
 \newpage
@@ -2737,12 +2773,14 @@ risk_df <- sex_df %>%
                           name == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest"),
          name = factor(name, levels = c("FTA or New Arrest", "FTA", "New Arrest", "New Filing", "New Conviction", "New Violent Arrest")))
 
-ggplot(risk_df %>% distinct(vprai_risk_score, Total)) +
+ggplot(risk_df %>% distinct(vprai_risk_score, Total) %>% 
+         group_by(sex) %>% 
+         mutate(percent = round(Total/sum(Total)*100)) %>% ungroup()) +
   aes(x = as.factor(vprai_risk_score), y = Total, fill = sex) +
   geom_col(position = "dodge") +
-  geom_text(vjust = -.3, aes(label = Total), size = 2.6, position = position_dodge(width = .9)) +
+  geom_text(vjust = .4, aes(label = str_c(formatC(Total, big.mark = ","), "\n(", percent, "%)")), size = 2.6, position = position_dodge(width = .9)) +
   theme_bw() +
-  labs(x = "Risk Category", y = "Count", title = "San Joaquin Distribution of Assessments by VPRAI Risk Category")    
+  labs(x = "Risk Category", y = "Count", title = "San Joaquin Distribution of Assessments by VPRAI Risk Category", fill = "Gender")    
 ```
 \newpage
 
@@ -2766,12 +2804,14 @@ risk_df <- sex_df %>%
                           name == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest"),
          name = factor(name, levels = c("FTA or New Arrest", "FTA", "New Arrest", "New Filing", "New Conviction", "New Violent Arrest")))
 
-ggplot(risk_df %>% distinct(vprair_risk_score, Total)) +
+ggplot(risk_df %>% distinct(vprair_risk_score, Total) %>% 
+         group_by(sex) %>% 
+         mutate(percent = round(Total/sum(Total)*100)) %>% ungroup()) +
   aes(x = as.factor(vprair_risk_score), y = Total, fill = sex) +
   geom_col(position = "dodge") +
-  geom_text(vjust = -.3, aes(label = Total), size = 2.6, position = position_dodge(width = .9)) +
+  geom_text(vjust = .4, aes(label = str_c(formatC(Total, big.mark = ","), "\n(", percent, "%)")), size = 2.6, position = position_dodge(width = .9)) +
   theme_bw() +
-  labs(x = "Risk Category", y = "Count", title = "Santa Barbara Distribution of Assessments by VPRAIR Risk Category")  
+  labs(x = "Risk Category", y = "Count", title = "Santa Barbara Distribution of Assessments by VPRAIR Risk Category", fill = "Gender")  
 ```
 \newpage
 
@@ -2821,14 +2861,16 @@ ggplot(risk_df %>%
          filter(!name %in% c("New Filing", "New Conviction")) %>%
          mutate(name = case_when(name == "FTA" ~ "PSA FTA Risk Score",
                                  name == "New Arrest" ~ "PSA NCA Risk Score",
-                                 name == "New Violent Arrest" ~ "PSA NVCA Risk Score"))) +
+                                 name == "New Violent Arrest" ~ "PSA NVCA Risk Score")) %>% 
+         group_by(sex, name) %>% 
+         mutate(percent = round(Total/sum(Total)*100)) %>% ungroup()) +
   aes(x = as.factor(psa_risk_score), y = Total, fill = sex) +
   geom_col(position = "dodge") +
-  geom_text(vjust = -.3, aes(label = Total), size = 2.6, position = position_dodge(width = .9)) +
+  geom_text(vjust = .4, aes(label = str_c(formatC(Total, big.mark = ","), "\n(", percent, "%)")), size = 2.6, position = position_dodge(width = .9)) +
   theme_bw() +
   # ylim(0,100) +
   facet_wrap(~name, scales = "free", ncol = 1) +
-  labs(x = "Risk Category", y = "Count", title = "Sonoma Distribution of Assessments by PSA Risk Category") +
+  labs(x = "Risk Category", y = "Count", title = "Sonoma Distribution of Assessments by PSA Risk Category", fill = "Gender") +
   scale_y_continuous(expand = expansion(mult = c(.1, .25)))  
 ```
 \newpage
@@ -2854,12 +2896,14 @@ risk_df <- sex_df %>%
          name = factor(name, levels = c("FTA or New Arrest", "FTA", "New Arrest", "New Filing",
                                         "New Conviction", "New Violent Arrest")))
   
-ggplot(risk_df %>% distinct(oras_risk_score, Total)) +
+ggplot(risk_df %>% distinct(oras_risk_score, Total) %>% 
+         group_by(sex) %>% 
+         mutate(percent = round(Total/sum(Total)*100)) %>% ungroup()) +
   aes(x = as.factor(oras_risk_score), y = Total, fill = sex) +
   geom_col(position = "dodge") +
-  geom_text(vjust = -.3, aes(label = Total), size = 2.6, position = position_dodge(width = .9)) +
+  geom_text(vjust = .4, aes(label = str_c(formatC(Total, big.mark = ","), "\n(", percent, "%)")), size = 2.6, position = position_dodge(width = .9)) +
   theme_bw() +
-  labs(x = "Risk Category", y = "Count", title = "Ventura Distribution of Assessments by ORAS Risk Category") 
+  labs(x = "Risk Category", y = "Count", title = "Ventura Distribution of Assessments by ORAS Risk Category", fill = "Gender") 
 ```
 \newpage
 # Gender Logistic Regression Graphs
@@ -3624,3 +3668,95 @@ OLD Race Graph VPRAI
 #        caption = "Observations: 1 = 139, 2 = 118, 3 = 142, 4 = 143, 5 = 104, 6 = 49") +
 #   scale_x_continuous(breaks = 1:6)
 ```
+# Exploratory
+PSA -- looking by release type (judge vs bail vs ?)
+\newline
+```{r eval=FALSE, include=FALSE}
+risk_df <- eval_df %>%
+  filter(tool_name == "psa") %>%
+  group_by(psa_fta_risk_score, release_type, county) %>%
+  select(fta_flag) %>%
+  pivot_longer(fta_flag) 
+
+names(risk_df)[1] <- "psa_risk_score"
+
+risk_df2 <- eval_df %>%
+  filter(tool_name == "psa") %>%
+  group_by(psa_nca_risk_score, release_type, county) %>%
+  select(recid_arrested_flag, recid_filed_flag, recid_convicted_flag) %>%
+  pivot_longer(recid_arrested_flag:recid_convicted_flag) 
+
+names(risk_df2)[1] <- "psa_risk_score"
+
+risk_df3 <- eval_df %>%
+  filter(tool_name == "psa", !is.na(psa_nvca_risk_score)) %>%
+  group_by(psa_nvca_risk_score, release_type, county) %>%
+  select(recid_arrest_violent_psa_flag) %>%
+  pivot_longer(recid_arrest_violent_psa_flag) 
+
+names(risk_df3)[1] <- "psa_risk_score"
+
+risk_df <- bind_rows(risk_df, risk_df2, risk_df3)
+  
+rm(risk_df2, risk_df3)
+
+risk_df <- risk_df %>%
+  #mutate(release_type = factor(release_type, levels = c("White", "Black", "Hispanic", "Other_Unknown"))) %>%
+  filter(release_type %in% c("Unknown_Bail", "OR", "Cite_Release")) %>%
+  mutate(name = case_when(name == "fta_flag" ~ "FTA",
+                          name == "recid_arrested_flag" ~ "New Arrest",
+                          name == "recid_filed_flag" ~ "New Filing",
+                          name == "recid_convicted_flag" ~ "New Conviction",
+                          name == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest"),
+         name = factor(name, levels = c("FTA", "New Arrest", "New Filing", "New Conviction", "New Violent Arrest"))) %>%
+  filter(county %in% c("Los Angeles", "Sacramento"))
+
+ggplot(risk_df) +
+  aes(x = psa_risk_score, y = value, color = release_type) +
+  geom_smooth(method = "glm", method.args = list(family=binomial), alpha = .2) +
+  # geom_line() +
+  # geom_point() +
+  theme_bw() +
+  # ylim(0,100) +
+  facet_wrap(~name, scales = "free") +
+  # facet_grid(county~name, scales = "free") +
+  labs(x = "Risk Category", y = "Percent", title = "Comparison of Release Type Differences in Logistic Regression Curves--PSA") +
+  scale_x_continuous(breaks = 1:6)
+
+# eval_df %>%
+#   filter(tool_name == "psa") %>%
+#   count(county)
+
+risk_df %>%
+  ungroup() %>%
+  filter(name == "FTA") %>%
+  count(release_type) 
+```
+\newpage
+
+PSA--Without Interactions
+\newline
+```{r, eval=FALSE, include=FALSE}
+m1 <- glm(family = binomial(),fta_flag ~ psa_fta_risk_score + race + release_to_pretrial_end + release_type, data = race_df)
+m2 <- glm(family = binomial(),recid_arrested_flag ~ psa_nca_risk_score + race + release_to_pretrial_end + release_type, data = race_df)
+#m2 <- glm(family = binomial(),recid_arrested_flag ~ psa_nca_risk_score*release_type, data = race_df)
+
+m3 <- glm(family = binomial(),recid_filed_flag ~ psa_nca_risk_score + race + release_to_pretrial_end + release_type, data = race_df)
+m4 <- glm(family = binomial(),recid_convicted_flag ~ psa_nca_risk_score + race + release_to_pretrial_end + release_type, data = race_df)
+m5 <- glm(family = binomial(),recid_arrest_violent_psa_flag ~ psa_nvca_risk_score + race + release_to_pretrial_end + release_type, data = race_df)
+
+stargazer(list(m1,m2,m3,m4,m5),
+          type = "text",
+          dep.var.labels = c("FTA", "New Arrest", "New Filing", 
+                             "New Conviction", "New Violent Arrest"), 
+          # covariate.labels = c("PSA FTA Risk Score", "PSA NCA Risk Score", 
+          #                      "PSA NVCA Risk Score", "Race:Black", "Race:Hispanic", "Days Released"),
+          star.char = c("*", "**", "***"),
+          star.cutoffs = c(.05, .01, .001),
+          notes = c("*p<0.05; **p<0.01; ***p<.001"),
+          notes.append = F, font.size = "small")
+
+summary(m2)
+```
+\newpage
+
