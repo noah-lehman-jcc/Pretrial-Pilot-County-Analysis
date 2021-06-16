@@ -811,8 +811,10 @@ arrest_charge_level_df <- full_df %>%
   arrange(desc(`Arrest Charge Level`))
 
 write.xlsx(arrest_charge_level_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Static Output Tables/2A Offense Type.xlsx", asTable = F)
+```
 
-
+## Alameda checks
+```{r include = F}
 # alameda_release_types <- full_df %>%
 #   filter(new_arrest_flag == 1,
 #          County == "Alameda") %>%
@@ -827,6 +829,20 @@ write.xlsx(arrest_charge_level_df, file = "G:/CrimJustice/Pretrial/000-Pretrial 
 # 
 # write.xlsx(alameda_release_types, file = "I:/Random for Shelley/2021.06.03 pretrial stuff/Alameda release type codes.xlsx", asTable = F)
   
+# alameda_bookings <- full_df %>%
+#   filter(County == "Alameda",
+#          is.na(arrest_charge_level_original)) %>%
+#   select(book_num, book_date)
+# 
+# write.xlsx(alameda_bookings, file = "I:/Random for Shelley/2021.06.03 pretrial stuff/Alameda bookings missing charges.xlsx", asTable = F)
+# 
+# alameda_bookings %>%
+#   distinct(book_num, )
+# 
+# full_df %>%
+#   filter(County == "Alameda",
+#          is.na(arrest_charge_level_original)) %>%
+#   distinct(book_num, book_date)
 ```
 
 
