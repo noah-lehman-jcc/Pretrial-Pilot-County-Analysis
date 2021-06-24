@@ -117,8 +117,20 @@ full_df <- full_df %>%
 
 ```{r}
 full_df %>%
-  count(release_type) %>%
+  #filter(release_type == "Zero_Bail") %>%
+  count(County, county, release_type) %>%
+  filter(release_type %in% c("Zero_Bail", "Non_Zero_Bail", "Unknown_Bail")) %>%
+  pivot_wider(names_from = release_type, values_from = n) %>%
   arrange(desc(n))
+
+full_df %>%
+  filter(county == "Santa Barbara") %>%
+  count(release_type, release_type_original)
+
+full_df %>%
+  filter(is.na(release_type)) %>%
+  count(is.na(release_date))
+  count(is.na(release_type), is.na(release_date))
 ```
 
 Load and format eval_df

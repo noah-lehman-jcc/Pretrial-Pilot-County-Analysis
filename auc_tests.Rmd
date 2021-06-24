@@ -1,0 +1,553 @@
+---
+output:
+  pdf_document: default
+  html_document: default
+---
+# Settup and Library
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+	echo = FALSE,
+	message = FALSE,
+	warning = FALSE
+)
+knitr::opts_knit$set(root.dir = "G:/CrimJustice/PretrialAssessmentPilot")
+
+# library(rlang)
+library(tidyverse)
+library(data.table)
+library(openxlsx)
+library(readxl)
+library(lubridate)
+library(XML)
+library(xml2)
+# library(xmltools)o
+library(gsubfn)
+library(fuzzyjoin)
+library(dplyr)
+library(openxlsx)
+library(fuzzyjoin)
+# library(multidplyr)
+library(pROC)
+library(broom)
+library(kableExtra)
+library(stargazer)
+
+# shell.exec(getwd())
+```
+
+Load data
+```{r warning=FALSE, include=FALSE}
+load("G:/CrimJustice/PretrialAssessmentPilot/Tool Validation Final Data Frame.RData")
+
+eval_df <- eval_df %>%
+  filter(tool_name %in% c("oras", "psa", "vprai", "vprair"))
+
+```
+
+# PSA AUC race comparison
+
+PSA FTA
+```{r}
+rocW <- roc(fta_flag ~ psa_fta_risk_score, data = eval_df %>% filter(race == "White"), ci = T)
+rocB <- roc(fta_flag ~ psa_fta_risk_score, data = eval_df %>% filter(race == "Black"), ci = T)
+rocH <- roc(fta_flag ~ psa_fta_risk_score, data = eval_df %>% filter(race == "Hispanic"), ci = T)
+roc.test(rocW, rocB)
+roc.test(rocW, rocH)
+roc.test(rocB, rocH)
+```
+
+PSA New arrest
+```{r}
+rocW <- roc(recid_arrested_flag ~ psa_nca_risk_score, data = eval_df %>% filter(race == "White"), ci = T)
+rocB <- roc(recid_arrested_flag ~ psa_nca_risk_score, data = eval_df %>% filter(race == "Black"), ci = T)
+rocH <- roc(recid_arrested_flag ~ psa_nca_risk_score, data = eval_df %>% filter(race == "Hispanic"), ci = T)
+roc.test(rocW, rocB)
+roc.test(rocW, rocH)
+roc.test(rocB, rocH)
+```
+
+PSA New filing
+```{r}
+rocW <- roc(recid_filed_flag ~ psa_nca_risk_score, data = eval_df %>% filter(race == "White"), ci = T)
+rocB <- roc(recid_filed_flag ~ psa_nca_risk_score, data = eval_df %>% filter(race == "Black"), ci = T)
+rocH <- roc(recid_filed_flag ~ psa_nca_risk_score, data = eval_df %>% filter(race == "Hispanic"), ci = T)
+roc.test(rocW, rocB)
+roc.test(rocW, rocH)
+roc.test(rocB, rocH)
+```
+
+PSA New conviction
+```{r}
+rocW <- roc(recid_convicted_flag ~ psa_nca_risk_score, data = eval_df %>% filter(race == "White"), ci = T)
+rocB <- roc(recid_convicted_flag ~ psa_nca_risk_score, data = eval_df %>% filter(race == "Black"), ci = T)
+rocH <- roc(recid_convicted_flag ~ psa_nca_risk_score, data = eval_df %>% filter(race == "Hispanic"), ci = T)
+roc.test(rocW, rocB)
+roc.test(rocW, rocH)
+roc.test(rocB, rocH)
+```
+
+PSA New violent arrest
+```{r}
+rocW <- roc(recid_arrest_violent_psa_flag ~ psa_nvca_risk_score, data = eval_df %>% filter(race == "White"), ci = T)
+rocB <- roc(recid_arrest_violent_psa_flag ~ psa_nvca_risk_score, data = eval_df %>% filter(race == "Black"), ci = T)
+rocH <- roc(recid_arrest_violent_psa_flag ~ psa_nvca_risk_score, data = eval_df %>% filter(race == "Hispanic"), ci = T)
+roc.test(rocW, rocB)
+roc.test(rocW, rocH)
+roc.test(rocB, rocH)
+
+```
+\newpage
+# PSA AUC gender comparison
+
+PSA FTA
+```{r}
+rocM <- roc(fta_flag ~ psa_fta_risk_score, data = eval_df %>% filter(sex == "Male"), ci = T)
+rocF <- roc(fta_flag ~ psa_fta_risk_score, data = eval_df %>% filter(sex == "Female"), ci = T)
+roc.test(rocM, rocF)
+```
+
+PSA New arrest
+```{r}
+rocM <- roc(recid_arrested_flag ~ psa_nca_risk_score, data = eval_df %>% filter(sex == "Male"), ci = T)
+rocF <- roc(recid_arrested_flag ~ psa_nca_risk_score, data = eval_df %>% filter(sex == "Female"), ci = T)
+roc.test(rocM, rocF)
+```
+
+PSA New filing
+```{r}
+rocM <- roc(recid_filed_flag ~ psa_nca_risk_score, data = eval_df %>% filter(sex == "Male"), ci = T)
+rocF <- roc(recid_filed_flag ~ psa_nca_risk_score, data = eval_df %>% filter(sex == "Female"), ci = T)
+roc.test(rocM, rocF)
+```
+
+PSA New conviction
+```{r}
+rocM <- roc(recid_convicted_flag ~ psa_nca_risk_score, data = eval_df %>% filter(sex == "Male"), ci = T)
+rocF <- roc(recid_convicted_flag ~ psa_nca_risk_score, data = eval_df %>% filter(sex == "Female"), ci = T)
+roc.test(rocM, rocF)
+```
+
+PSA New violent arrest
+```{r}
+rocM <- roc(recid_arrest_violent_psa_flag ~ psa_nvca_risk_score, data = eval_df %>% filter(sex == "Male"), ci = T)
+rocF <- roc(recid_arrest_violent_psa_flag ~ psa_nvca_risk_score, data = eval_df %>% filter(sex == "Female"), ci = T)
+roc.test(rocM, rocF)
+```
+\newpage
+
+# VPRAI AUC race comparison
+
+VPRAI FTA
+```{r}
+rocW <- roc(fta_flag ~ vprai_risk_score, data = eval_df %>% filter(race == "White"), ci = T)
+rocB <- roc(fta_flag ~ vprai_risk_score, data = eval_df %>% filter(race == "Black"), ci = T)
+rocH <- roc(fta_flag ~ vprai_risk_score, data = eval_df %>% filter(race == "Hispanic"), ci = T)
+roc.test(rocW, rocB)
+roc.test(rocW, rocH)
+roc.test(rocB, rocH)
+```
+
+VPRAI New arrest
+```{r}
+rocW <- roc(recid_arrested_flag ~ vprai_risk_score, data = eval_df %>% filter(race == "White"), ci = T)
+rocB <- roc(recid_arrested_flag ~ vprai_risk_score, data = eval_df %>% filter(race == "Black"), ci = T)
+rocH <- roc(recid_arrested_flag ~ vprai_risk_score, data = eval_df %>% filter(race == "Hispanic"), ci = T)
+roc.test(rocW, rocB)
+roc.test(rocW, rocH)
+roc.test(rocB, rocH)
+```
+
+VPRAI New filing
+```{r}
+rocW <- roc(recid_filed_flag ~ vprai_risk_score, data = eval_df %>% filter(race == "White"), ci = T)
+rocB <- roc(recid_filed_flag ~ vprai_risk_score, data = eval_df %>% filter(race == "Black"), ci = T)
+rocH <- roc(recid_filed_flag ~ vprai_risk_score, data = eval_df %>% filter(race == "Hispanic"), ci = T)
+roc.test(rocW, rocB)
+roc.test(rocW, rocH)
+roc.test(rocB, rocH)
+```
+
+VPRAI New conviction
+```{r}
+rocW <- roc(recid_convicted_flag ~ vprai_risk_score, data = eval_df %>% filter(race == "White"), ci = T)
+rocB <- roc(recid_convicted_flag ~ vprai_risk_score, data = eval_df %>% filter(race == "Black"), ci = T)
+rocH <- roc(recid_convicted_flag ~ vprai_risk_score, data = eval_df %>% filter(race == "Hispanic"), ci = T)
+roc.test(rocW, rocB)
+roc.test(rocW, rocH)
+roc.test(rocB, rocH)
+```
+
+VPRAI New violent arrest
+```{r}
+rocW <- roc(recid_arrest_violent_psa_flag ~ vprai_risk_score, data = eval_df %>% filter(race == "White"), ci = T)
+rocB <- roc(recid_arrest_violent_psa_flag ~ vprai_risk_score, data = eval_df %>% filter(race == "Black"), ci = T)
+rocH <- roc(recid_arrest_violent_psa_flag ~ vprai_risk_score, data = eval_df %>% filter(race == "Hispanic"), ci = T)
+roc.test(rocW, rocB)
+roc.test(rocW, rocH)
+roc.test(rocB, rocH)
+
+```
+
+VPRAI FTA or new arrest
+```{r}
+rocW <- roc(any_pretrial_failure_flag ~ vprai_risk_score, data = eval_df %>% filter(race == "White"), ci = T)
+rocB <- roc(any_pretrial_failure_flag ~ vprai_risk_score, data = eval_df %>% filter(race == "Black"), ci = T)
+rocH <- roc(any_pretrial_failure_flag ~ vprai_risk_score, data = eval_df %>% filter(race == "Hispanic"), ci = T)
+roc.test(rocW, rocB)
+roc.test(rocW, rocH)
+roc.test(rocB, rocH)
+
+```
+\newpage
+# VPRAI AUC gender comparison
+
+VPRAI FTA
+```{r}
+rocM <- roc(fta_flag ~ vprai_risk_score, data = eval_df %>% filter(sex == "Male"), ci = T)
+rocF <- roc(fta_flag ~ vprai_risk_score, data = eval_df %>% filter(sex == "Female"), ci = T)
+roc.test(rocM, rocF)
+
+```
+
+VPRAI New arrest
+```{r}
+rocM <- roc(recid_arrested_flag ~ vprai_risk_score, data = eval_df %>% filter(sex == "Male"), ci = T)
+rocF <- roc(recid_arrested_flag ~ vprai_risk_score, data = eval_df %>% filter(sex == "Female"), ci = T)
+roc.test(rocM, rocF)
+
+```
+
+VPRAI New filing
+```{r}
+rocM <- roc(recid_filed_flag ~ vprai_risk_score, data = eval_df %>% filter(sex == "Male"), ci = T)
+rocF <- roc(recid_filed_flag ~ vprai_risk_score, data = eval_df %>% filter(sex == "Female"), ci = T)
+roc.test(rocM, rocF)
+
+```
+
+VPRAI New conviction
+```{r}
+rocM <- roc(recid_convicted_flag ~ vprai_risk_score, data = eval_df %>% filter(sex == "Male"), ci = T)
+rocF <- roc(recid_convicted_flag ~ vprai_risk_score, data = eval_df %>% filter(sex == "Female"), ci = T)
+roc.test(rocM, rocF)
+
+```
+
+VPRAI New violent arrest
+```{r}
+rocM <- roc(recid_arrest_violent_psa_flag ~ vprai_risk_score, data = eval_df %>% filter(sex == "Male"), ci = T)
+rocF <- roc(recid_arrest_violent_psa_flag ~ vprai_risk_score, data = eval_df %>% filter(sex == "Female"), ci = T)
+roc.test(rocM, rocF)
+
+```
+
+VPRAI FTA or new arrest
+```{r}
+rocM <- roc(any_pretrial_failure_flag ~ vprai_risk_score, data = eval_df %>% filter(sex == "Male"), ci = T)
+rocF <- roc(any_pretrial_failure_flag ~ vprai_risk_score, data = eval_df %>% filter(sex == "Female"), ci = T)
+roc.test(rocM, rocF)
+
+```
+\newpage
+
+# Los Angeles PSA AUC race comparison
+LA FTA
+```{r}
+rocW <- roc(fta_flag ~ psa_fta_risk_score, data = eval_df %>% filter(county == "Los Angeles") %>% filter(race == "White"), ci = T)
+rocB <- roc(fta_flag ~ psa_fta_risk_score, data = eval_df %>% filter(county == "Los Angeles") %>% filter(race == "Black"), ci = T)
+rocH <- roc(fta_flag ~ psa_fta_risk_score, data = eval_df %>% filter(county == "Los Angeles") %>% filter(race == "Hispanic"), ci = T)
+roc.test(rocW, rocB)
+roc.test(rocW, rocH)
+roc.test(rocB, rocH)
+```
+
+LA New arrest
+```{r}
+rocW <- roc(recid_arrested_flag ~ psa_nca_risk_score, data = eval_df %>% filter(county == "Los Angeles") %>% filter(race == "White"), ci = T)
+rocB <- roc(recid_arrested_flag ~ psa_nca_risk_score, data = eval_df %>% filter(county == "Los Angeles") %>% filter(race == "Black"), ci = T)
+rocH <- roc(recid_arrested_flag ~ psa_nca_risk_score, data = eval_df %>% filter(county == "Los Angeles") %>% filter(race == "Hispanic"), ci = T)
+roc.test(rocW, rocB)
+roc.test(rocW, rocH)
+roc.test(rocB, rocH)
+```
+
+LA New filing
+```{r}
+rocW <- roc(recid_filed_flag ~ psa_nca_risk_score, data = eval_df %>% filter(county == "Los Angeles") %>% filter(race == "White"), ci = T)
+rocB <- roc(recid_filed_flag ~ psa_nca_risk_score, data = eval_df %>% filter(county == "Los Angeles") %>% filter(race == "Black"), ci = T)
+rocH <- roc(recid_filed_flag ~ psa_nca_risk_score, data = eval_df %>% filter(county == "Los Angeles") %>% filter(race == "Hispanic"), ci = T)
+roc.test(rocW, rocB)
+roc.test(rocW, rocH)
+roc.test(rocB, rocH)
+```
+
+LA New conviction
+```{r}
+rocW <- roc(recid_convicted_flag ~ psa_nca_risk_score, data = eval_df %>% filter(county == "Los Angeles") %>% filter(race == "White"), ci = T)
+rocB <- roc(recid_convicted_flag ~ psa_nca_risk_score, data = eval_df %>% filter(county == "Los Angeles") %>% filter(race == "Black"), ci = T)
+rocH <- roc(recid_convicted_flag ~ psa_nca_risk_score, data = eval_df %>% filter(county == "Los Angeles") %>% filter(race == "Hispanic"), ci = T)
+roc.test(rocW, rocB)
+roc.test(rocW, rocH)
+roc.test(rocB, rocH)
+```
+
+LA New violent arrest
+```{r}
+rocW <- roc(recid_arrest_violent_psa_flag ~ psa_nvca_risk_score, data = eval_df %>% filter(county == "Los Angeles") %>% filter(race == "White"), ci = T)
+rocB <- roc(recid_arrest_violent_psa_flag ~ psa_nvca_risk_score, data = eval_df %>% filter(county == "Los Angeles") %>% filter(race == "Black"), ci = T)
+rocH <- roc(recid_arrest_violent_psa_flag ~ psa_nvca_risk_score, data = eval_df %>% filter(county == "Los Angeles") %>% filter(race == "Hispanic"), ci = T)
+roc.test(rocW, rocB)
+roc.test(rocW, rocH)
+roc.test(rocB, rocH)
+
+```
+
+# Los Angeles PSA AUC gender comparison
+LA FTA
+```{r}
+rocM <- roc(fta_flag ~ psa_fta_risk_score, data = eval_df %>% filter(county == "Los Angeles") %>% filter(sex == "Male"), ci = T)
+rocF <- roc(fta_flag ~ psa_fta_risk_score, data = eval_df %>% filter(county == "Los Angeles") %>% filter(sex == "Female"), ci = T)
+roc.test(rocM, rocF)
+
+```
+
+LA New arrest
+```{r}
+rocM <- roc(recid_arrested_flag ~ psa_nca_risk_score, data = eval_df %>% filter(county == "Los Angeles") %>% filter(sex == "Male"), ci = T)
+rocF <- roc(recid_arrested_flag ~ psa_nca_risk_score, data = eval_df %>% filter(county == "Los Angeles") %>% filter(sex == "Female"), ci = T)
+roc.test(rocM, rocF)
+
+```
+
+LA New filing
+```{r}
+rocM <- roc(recid_filed_flag ~ psa_nca_risk_score, data = eval_df %>% filter(county == "Los Angeles") %>% filter(sex == "Male"), ci = T)
+rocF <- roc(recid_filed_flag ~ psa_nca_risk_score, data = eval_df %>% filter(county == "Los Angeles") %>% filter(sex == "Female"), ci = T)
+roc.test(rocM, rocF)
+
+```
+
+LA New conviction
+```{r}
+rocM <- roc(recid_convicted_flag ~ psa_nca_risk_score, data = eval_df %>% filter(county == "Los Angeles") %>% filter(sex == "Male"), ci = T)
+rocF <- roc(recid_convicted_flag ~ psa_nca_risk_score, data = eval_df %>% filter(county == "Los Angeles") %>% filter(sex == "Female"), ci = T)
+roc.test(rocM, rocF)
+
+```
+
+LA New violent arrest
+```{r}
+rocM <- roc(recid_arrest_violent_psa_flag ~ psa_nvca_risk_score, data = eval_df %>% filter(county == "Los Angeles") %>% filter(sex == "Male"), ci = T)
+rocF <- roc(recid_arrest_violent_psa_flag ~ psa_nvca_risk_score, data = eval_df %>% filter(county == "Los Angeles") %>% filter(sex == "Female"), ci = T)
+roc.test(rocM, rocF)
+
+
+```
+\newpage
+# Sacramento PSA AUC race comparison
+Sacramento FTA
+```{r}
+rocW <- roc(fta_flag ~ psa_fta_risk_score, data = eval_df %>% filter(county == "Sacramento") %>% filter(race == "White"), ci = T)
+rocB <- roc(fta_flag ~ psa_fta_risk_score, data = eval_df %>% filter(county == "Sacramento") %>% filter(race == "Black"), ci = T)
+rocH <- roc(fta_flag ~ psa_fta_risk_score, data = eval_df %>% filter(county == "Sacramento") %>% filter(race == "Hispanic"), ci = T)
+roc.test(rocW, rocB)
+roc.test(rocW, rocH)
+roc.test(rocB, rocH)
+```
+
+Sacramento New arrest
+```{r}
+rocW <- roc(recid_arrested_flag ~ psa_nca_risk_score, data = eval_df %>% filter(county == "Sacramento") %>% filter(race == "White"), ci = T)
+rocB <- roc(recid_arrested_flag ~ psa_nca_risk_score, data = eval_df %>% filter(county == "Sacramento") %>% filter(race == "Black"), ci = T)
+rocH <- roc(recid_arrested_flag ~ psa_nca_risk_score, data = eval_df %>% filter(county == "Sacramento") %>% filter(race == "Hispanic"), ci = T)
+roc.test(rocW, rocB)
+roc.test(rocW, rocH)
+roc.test(rocB, rocH)
+```
+
+Sacramento New filing
+```{r}
+rocW <- roc(recid_filed_flag ~ psa_nca_risk_score, data = eval_df %>% filter(county == "Sacramento") %>% filter(race == "White"), ci = T)
+rocB <- roc(recid_filed_flag ~ psa_nca_risk_score, data = eval_df %>% filter(county == "Sacramento") %>% filter(race == "Black"), ci = T)
+rocH <- roc(recid_filed_flag ~ psa_nca_risk_score, data = eval_df %>% filter(county == "Sacramento") %>% filter(race == "Hispanic"), ci = T)
+roc.test(rocW, rocB)
+roc.test(rocW, rocH)
+roc.test(rocB, rocH)
+```
+
+Sacramento New conviction
+```{r}
+rocW <- roc(recid_convicted_flag ~ psa_nca_risk_score, data = eval_df %>% filter(county == "Sacramento") %>% filter(race == "White"), ci = T)
+rocB <- roc(recid_convicted_flag ~ psa_nca_risk_score, data = eval_df %>% filter(county == "Sacramento") %>% filter(race == "Black"), ci = T)
+rocH <- roc(recid_convicted_flag ~ psa_nca_risk_score, data = eval_df %>% filter(county == "Sacramento") %>% filter(race == "Hispanic"), ci = T)
+roc.test(rocW, rocB)
+roc.test(rocW, rocH)
+roc.test(rocB, rocH)
+```
+
+Sacramento New violent arrest
+```{r}
+rocW <- roc(recid_arrest_violent_psa_flag ~ psa_nvca_risk_score, data = eval_df %>% filter(county == "Sacramento") %>% filter(race == "White"), ci = T)
+rocB <- roc(recid_arrest_violent_psa_flag ~ psa_nvca_risk_score, data = eval_df %>% filter(county == "Sacramento") %>% filter(race == "Black"), ci = T)
+rocH <- roc(recid_arrest_violent_psa_flag ~ psa_nvca_risk_score, data = eval_df %>% filter(county == "Sacramento") %>% filter(race == "Hispanic"), ci = T)
+roc.test(rocW, rocB)
+roc.test(rocW, rocH)
+roc.test(rocB, rocH)
+
+```
+
+# Sacramento PSA AUC gender comparison
+Sacramento FTA
+```{r}
+rocM <- roc(fta_flag ~ psa_fta_risk_score, data = eval_df %>% filter(county == "Sacramento") %>% filter(sex == "Male"), ci = T)
+rocF <- roc(fta_flag ~ psa_fta_risk_score, data = eval_df %>% filter(county == "Sacramento") %>% filter(sex == "Female"), ci = T)
+roc.test(rocM, rocF)
+
+```
+
+Sacramento New arrest
+```{r}
+rocM <- roc(recid_arrested_flag ~ psa_nca_risk_score, data = eval_df %>% filter(county == "Sacramento") %>% filter(sex == "Male"), ci = T)
+rocF <- roc(recid_arrested_flag ~ psa_nca_risk_score, data = eval_df %>% filter(county == "Sacramento") %>% filter(sex == "Female"), ci = T)
+roc.test(rocM, rocF)
+
+```
+
+Sacramento New filing
+```{r}
+rocM <- roc(recid_filed_flag ~ psa_nca_risk_score, data = eval_df %>% filter(county == "Sacramento") %>% filter(sex == "Male"), ci = T)
+rocF <- roc(recid_filed_flag ~ psa_nca_risk_score, data = eval_df %>% filter(county == "Sacramento") %>% filter(sex == "Female"), ci = T)
+roc.test(rocM, rocF)
+
+```
+
+Sacramento New conviction
+```{r}
+rocM <- roc(recid_convicted_flag ~ psa_nca_risk_score, data = eval_df %>% filter(county == "Sacramento") %>% filter(sex == "Male"), ci = T)
+rocF <- roc(recid_convicted_flag ~ psa_nca_risk_score, data = eval_df %>% filter(county == "Sacramento") %>% filter(sex == "Female"), ci = T)
+roc.test(rocM, rocF)
+
+```
+
+Sacramento New violent arrest
+```{r}
+rocM <- roc(recid_arrest_violent_psa_flag ~ psa_nvca_risk_score, data = eval_df %>% filter(county == "Sacramento") %>% filter(sex == "Male"), ci = T)
+rocF <- roc(recid_arrest_violent_psa_flag ~ psa_nvca_risk_score, data = eval_df %>% filter(county == "Sacramento") %>% filter(sex == "Female"), ci = T)
+roc.test(rocM, rocF)
+
+
+```
+\newpage
+# San Joaquin AUC race comparison
+
+San Joaquin FTA
+```{r}
+rocW <- roc(fta_flag ~ vprai_risk_score, data = eval_df %>% filter(county == "San Joaquin") %>% filter(race == "White"), ci = T)
+rocB <- roc(fta_flag ~ vprai_risk_score, data = eval_df %>% filter(county == "San Joaquin") %>% filter(race == "Black"), ci = T)
+rocH <- roc(fta_flag ~ vprai_risk_score, data = eval_df %>% filter(county == "San Joaquin") %>% filter(race == "Hispanic"), ci = T)
+roc.test(rocW, rocB)
+roc.test(rocW, rocH)
+roc.test(rocB, rocH)
+```
+
+San Joaquin New arrest
+```{r}
+rocW <- roc(recid_arrested_flag ~ vprai_risk_score, data = eval_df %>% filter(county == "San Joaquin") %>% filter(race == "White"), ci = T)
+rocB <- roc(recid_arrested_flag ~ vprai_risk_score, data = eval_df %>% filter(county == "San Joaquin") %>% filter(race == "Black"), ci = T)
+rocH <- roc(recid_arrested_flag ~ vprai_risk_score, data = eval_df %>% filter(county == "San Joaquin") %>% filter(race == "Hispanic"), ci = T)
+roc.test(rocW, rocB)
+roc.test(rocW, rocH)
+roc.test(rocB, rocH)
+```
+
+San Joaquin New filing
+```{r}
+rocW <- roc(recid_filed_flag ~ vprai_risk_score, data = eval_df %>% filter(county == "San Joaquin") %>% filter(race == "White"), ci = T)
+rocB <- roc(recid_filed_flag ~ vprai_risk_score, data = eval_df %>% filter(county == "San Joaquin") %>% filter(race == "Black"), ci = T)
+rocH <- roc(recid_filed_flag ~ vprai_risk_score, data = eval_df %>% filter(county == "San Joaquin") %>% filter(race == "Hispanic"), ci = T)
+roc.test(rocW, rocB)
+roc.test(rocW, rocH)
+roc.test(rocB, rocH)
+```
+
+San Joaquin New conviction
+```{r}
+rocW <- roc(recid_convicted_flag ~ vprai_risk_score, data = eval_df %>% filter(county == "San Joaquin") %>% filter(race == "White"), ci = T)
+rocB <- roc(recid_convicted_flag ~ vprai_risk_score, data = eval_df %>% filter(county == "San Joaquin") %>% filter(race == "Black"), ci = T)
+rocH <- roc(recid_convicted_flag ~ vprai_risk_score, data = eval_df %>% filter(county == "San Joaquin") %>% filter(race == "Hispanic"), ci = T)
+roc.test(rocW, rocB)
+roc.test(rocW, rocH)
+roc.test(rocB, rocH)
+```
+
+San Joaquin New violent arrest
+```{r}
+rocW <- roc(recid_arrest_violent_psa_flag ~ vprai_risk_score, data = eval_df %>% filter(county == "San Joaquin") %>% filter(race == "White"), ci = T)
+rocB <- roc(recid_arrest_violent_psa_flag ~ vprai_risk_score, data = eval_df %>% filter(county == "San Joaquin") %>% filter(race == "Black"), ci = T)
+rocH <- roc(recid_arrest_violent_psa_flag ~ vprai_risk_score, data = eval_df %>% filter(county == "San Joaquin") %>% filter(race == "Hispanic"), ci = T)
+roc.test(rocW, rocB)
+roc.test(rocW, rocH)
+roc.test(rocB, rocH)
+
+```
+
+San Joaquin FTA or new arrest
+```{r}
+rocW <- roc(any_pretrial_failure_flag ~ vprai_risk_score, data = eval_df %>% filter(county == "San Joaquin") %>% filter(race == "White"), ci = T)
+rocB <- roc(any_pretrial_failure_flag ~ vprai_risk_score, data = eval_df %>% filter(county == "San Joaquin") %>% filter(race == "Black"), ci = T)
+rocH <- roc(any_pretrial_failure_flag ~ vprai_risk_score, data = eval_df %>% filter(county == "San Joaquin") %>% filter(race == "Hispanic"), ci = T)
+roc.test(rocW, rocB)
+roc.test(rocW, rocH)
+roc.test(rocB, rocH)
+
+```
+\newpage
+# San Joaquin AUC gender comparison
+
+San Joaquin FTA
+```{r}
+rocM <- roc(fta_flag ~ vprai_risk_score, data = eval_df %>% filter(county == "San Joaquin") %>% filter(sex == "Male"), ci = T)
+rocF <- roc(fta_flag ~ vprai_risk_score, data = eval_df %>% filter(county == "San Joaquin") %>% filter(sex == "Female"), ci = T)
+roc.test(rocM, rocF)
+
+```
+
+San Joaquin New arrest
+```{r}
+rocM <- roc(recid_arrested_flag ~ vprai_risk_score, data = eval_df %>% filter(county == "San Joaquin") %>% filter(sex == "Male"), ci = T)
+rocF <- roc(recid_arrested_flag ~ vprai_risk_score, data = eval_df %>% filter(county == "San Joaquin") %>% filter(sex == "Female"), ci = T)
+roc.test(rocM, rocF)
+
+```
+
+San Joaquin New filing
+```{r}
+rocM <- roc(recid_filed_flag ~ vprai_risk_score, data = eval_df %>% filter(county == "San Joaquin") %>% filter(sex == "Male"), ci = T)
+rocF <- roc(recid_filed_flag ~ vprai_risk_score, data = eval_df %>% filter(county == "San Joaquin") %>% filter(sex == "Female"), ci = T)
+roc.test(rocM, rocF)
+
+```
+
+San Joaquin New conviction
+```{r}
+rocM <- roc(recid_convicted_flag ~ vprai_risk_score, data = eval_df %>% filter(county == "San Joaquin") %>% filter(sex == "Male"), ci = T)
+rocF <- roc(recid_convicted_flag ~ vprai_risk_score, data = eval_df %>% filter(county == "San Joaquin") %>% filter(sex == "Female"), ci = T)
+roc.test(rocM, rocF)
+
+```
+
+San Joaquin New violent arrest
+```{r}
+rocM <- roc(recid_arrest_violent_psa_flag ~ vprai_risk_score, data = eval_df %>% filter(county == "San Joaquin") %>% filter(sex == "Male"), ci = T)
+rocF <- roc(recid_arrest_violent_psa_flag ~ vprai_risk_score, data = eval_df %>% filter(county == "San Joaquin") %>% filter(sex == "Female"), ci = T)
+roc.test(rocM, rocF)
+
+```
+
+San Joaquin FTA or new arrest
+```{r}
+rocM <- roc(any_pretrial_failure_flag ~ vprai_risk_score, data = eval_df %>% filter(county == "San Joaquin") %>% filter(sex == "Male"), ci = T)
+rocF <- roc(any_pretrial_failure_flag ~ vprai_risk_score, data = eval_df %>% filter(county == "San Joaquin") %>% filter(sex == "Female"), ci = T)
+roc.test(rocM, rocF)
+
+```
