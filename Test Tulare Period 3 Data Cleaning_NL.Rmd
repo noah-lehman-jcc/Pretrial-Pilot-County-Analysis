@@ -1,0 +1,120 @@
+---
+title: "Test Tulare Period 3 Data Cleaning_NL"
+author: "Noah Lehman"
+date: "7/13/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+knitr::opts_knit$set(root.dir = "G:/CrimJustice/PretrialAssessmentPilot")
+
+# library(rlang)
+library(tidyverse)
+library(data.table)
+library(openxlsx)
+library(readxl)
+library(lubridate)
+library(XML)
+library(xml2)
+# library(xmltools)o
+library(gsubfn)
+library(fuzzyjoin)
+library(dplyr)
+library(openxlsx)
+# library(multidplyr)
+```
+
+
+
+Testing New Assessment Data Files this is old bad data
+
+```{r}
+# df1 <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Tulare/P3 Submission-Jan 15/Eric Petersen - Pretrial_Generic_Tool_Response_Detail 20210402.xlsx")
+# 
+# df2 <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Tulare/P3 Submission-Jan 15/Eric Petersen - Pretrial_Individual 20210402.xlsx") %>%
+#   mutate(Pretrial_Assessment_Key = as.numeric(Individual_Key))
+# 
+# df3 <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Tulare/P3 Submission-Jan 15/Eric Petersen - Pretrial_Assessment 20210402.xlsx")
+# 
+# df4 <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Tulare/P3 Submission-Jan 15/Eric Petersen - Pretrial_PSA_Tool_Responses_Details 20210402.xlsx")
+# 
+# df <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Tulare/P3 Submission-Jan 15/Eric Petersen - Pretrial_Release_Condition 20210402.xlsx")
+
+
+  
+
+```
+
+Testing New Assessment Data Files From Drop Box
+
+```{r}
+questions <- read_csv("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Tulare/P3 Submission-Jan 15/from dropbox/Probation Pretrial Reports/Eric Petersen - Pretrial_Generic_Tool_Responses_Details.csv")
+
+people <- read_csv("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Tulare/P3 Submission-Jan 15/from dropbox/Probation Pretrial Reports/Eric Petersen - Pretrial_Individual.csv", guess_max=10000) %>%
+  mutate(Pretrial_Assessment_Key = Individual_Key) 
+  
+ 
+
+people2 <- read_csv("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Tulare/P3 Submission-Jan 15/from dropbox/Eric - 2021-06-29 17.40.36 - Pretrial_Individual.csv",  guess_max=10000) %>%
+  mutate(Pretrial_Assessment_Key = Individual_Key) 
+
+assessdate <- read_csv("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Tulare/P3 Submission-Jan 15/from dropbox/Probation Pretrial Reports/Eric Petersen - Pretrial_Assessment.csv")
+
+totscore <- read_csv("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Tulare/P3 Submission-Jan 15/from dropbox/Probation Pretrial Reports/Eric Petersen - Pretrial_PSA_Tool_Responses_Details.csv")
+
+conditions <- read_csv("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Tulare/P3 Submission-Jan 15/from dropbox/Probation Pretrial Reports/Eric Petersen - Pretrial_Release_Condition.csv")
+
+recs <- read_csv("G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Tulare/P3 Submission-Jan 15/from dropbox/Probation Pretrial Reports/Eric - 2021-06-09 23.16.10 - Pretrial_Assessment.csv")
+
+
+#distinct_people <- people %>%
+  #distinct(Pretrial_Assessment_Key, .keep_all=T) %>%
+  #mutate(DOB)
+
+distinct_totscore <- totscore %>%
+  distinct(Pretrial_Assessment_Key, .keep_all=T)
+
+
+peeps2_totscore <-left_join(people2, distinct_totscore, by = "Pretrial_Assessment_Key", .keep_all=T) %>%
+  distinct(Pretrial_Assessment_Key, .keep_all=T)
+
+
+distinct_assessdate<-assessdate %>%
+  mutate(assess_date_time = as.POSIXct(Assessment_Date, tz = "", format = "%m/%d/%Y %H:%M:%OS"),
+         assess_date = as_date(assess_date_time)) %>%
+  distinct(Pretrial_Assessment_Key, .keep_all=T)
+  
+peeps2_totscore_date <- left_join(peeps2_totscore, distinct_assessdate, by = "Pretrial_Assessment_Key", .keep_all=T)
+
+peeps2_totscore_date_filter <- peeps2_totscore_date %>%
+  filter (assess_date >= as_date("2019-10-01"))
+
+
+ 
+
+
+
+
+tularesb36<-peeps2_totscore_date_filter %>%
+  select(DOB, Sex_JCC_Standardized, Race_JCC_Standardized, assess_date, Age, Score_Failure_To_Appear, Score_New_Criminal_Activity, Score_New_Criminal_Violent_Activity) %>%
+  rename(dob=DOB, sex=Sex_JCC_Standardized, race_original=Race_JCC_Standardized ) %>%
+  mutate(county="Tulare",
+         race = case_when(race_original %in% c("Black") ~ "Black",
+                          race_original %in% c("Hispanic") ~ "Hispanic",
+                          race_original %in% c("White") ~ "White",
+                          #All Other races/ethnicities collapsed into other
+                          T ~ "Other_Unknown"))
+
+
+
+
+save(tularesb36, file = "G:/CrimJustice/PretrialAssessmentPilot/Historical Data Submissions/Tulare/P3 Submission-Jan 15/Special SB 36 Tulare File 6 29 2021/tularesb36.RData")
+
+
+
+summary(tularesb36)
+```
+
+
