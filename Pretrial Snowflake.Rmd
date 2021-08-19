@@ -1,0 +1,232 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+Install
+```{r}
+# install.packages(c("DBI", "dplyr","dbplyr","odbc"))
+```
+
+# Load
+
+Libraries
+```{r}
+library(DBI)
+library(dplyr)
+library(dbplyr)
+library(odbc)
+library(tidyverse)
+library(openxlsx)
+library(lubridate)
+```
+
+Connection
+```{r eval=FALSE, include=FALSE}
+con <- dbConnect(odbc::odbc(), "snowflake_pretrial", uid ="Noah.Lehman@jud.ca.gov", pwd = .rs.askForPassword("Password"))
+```
+
+# Aggregate Data
+
+Snowflake Aggregate KPIs by County
+```{sql connection = con, output.var = sf_kpi}
+SELECT County,
+SUM(Booking_Count) AS Booking_Count,
+SUM(Release_Eligible_Count) AS Release_Eligible_Count,
+SUM(Booking_Assessed_Count) AS Booking_Assessed_Count,
+SUM(Released_To_Pretrial_Services_Count) AS Released_To_Pretrial_Services_Count,
+SUM(Released_Pretrial_Count) AS Released_Pretrial_Count,
+SUM(Failure_To_Appear_Count) AS Failure_To_Appear_Count,
+SUM(New_Crimnal_Activity_Count) AS New_Crimnal_Activity_Count
+FROM "DWH_UAT"."DWH"."AGG_PRETRIAL_KPI"
+WHERE (Booking_date BETWEEN '2018-07-01' AND '2020-12-31') AND (COUNTY <> 'Tulare')
+GROUP BY County
+ORDER BY County;
+```
+
+Snowflake Aggregate KPIs by County, Month, and Year
+```{sql connection = con, output.var = sf_kpi_month}
+SELECT County, YEAR(Booking_date) AS YEAR, MONTH(Booking_date) AS MONTH, 
+SUM(Booking_Count) AS Booking_Count,
+SUM(Release_Eligible_Count) AS Release_Eligible_Count,
+SUM(Booking_Assessed_Count) AS Booking_Assessed_Count,
+SUM(Released_To_Pretrial_Services_Count) AS Released_To_Pretrial_Services_Count,
+SUM(Released_Pretrial_Count) AS Released_Pretrial_Count,
+SUM(Failure_To_Appear_Count) AS Failure_To_Appear_Count,
+SUM(New_Crimnal_Activity_Count) AS New_Crimnal_Activity_Count
+FROM "DWH_UAT"."DWH"."AGG_PRETRIAL_KPI"
+WHERE (Booking_date BETWEEN '2018-07-01' AND '2020-12-31') AND (COUNTY <> 'Tulare')
+GROUP BY County, YEAR, MONTH
+ORDER BY County, YEAR, MONTH;
+```
+
+JCC KPIs by County/ JCC KPIs by County, Month, and Year
+```{r}
+jcc_kpi <- read.xlsx("C:/Work/PretrialAssessmentPilot/Snowflake/kpi_from_CJS.xlsx", sheet = 1)
+
+jcc_kpi <- jcc_kpi %>%
+  mutate(county = gsub("_", " ", county),
+         county = tools::toTitleCase(county))
+
+names(jcc_kpi) <- c("COUNTY", "BOOKING_COUNT", "RELEASE_ELIGIBLE_COUNT", "BOOKING_ASSESSED_COUNT", "RELEASED_TO_PRETRIAL_SERVICES_COUNT",
+                    "OTHER_RELEASE_COUNT", "TWO_DAY_RELEASE_COUNT", "PRE_ARR_RELEASE_COUNT", "RELEASED_PRETRIAL_COUNT", "RELEASES_COUNT",
+                    "FAILURE_TO_APPEAR_COUNT", "NEW_CRIMNAL_ACTIVITY_COUNT", "VIOLATION_COUNT", "PRETRIAL_COMPLETE_COUNT")
+
+jcc_kpi_month <- read.xlsx("C:/Work/PretrialAssessmentPilot/Snowflake/kpi_from_CJS.xlsx", sheet = 2)
+
+jcc_kpi_month <- jcc_kpi_month %>%
+  mutate(county = gsub("_", " ", county),
+         county = tools::toTitleCase(county))
+
+names(jcc_kpi_month) <- c("COUNTY", "YEAR", "MONTH", "BOOKING_COUNT", "RELEASE_ELIGIBLE_COUNT", "BOOKING_ASSESSED_COUNT",
+                          "RELEASED_TO_PRETRIAL_SERVICES_COUNT", "OTHER_RELEASE_COUNT", "TWO_DAY_RELEASE_COUNT", "PRE_ARR_RELEASE_COUNT",
+                          "RELEASED_PRETRIAL_COUNT", "RELEASES_COUNT", "FAILURE_TO_APPEAR_COUNT", "NEW_CRIMNAL_ACTIVITY_COUNT", 
+                          "VIOLATION_COUNT", "PRETRIAL_COMPLETE_COUNT")
+```
+
+# UAT Matching
+County
+```{r}
+match_kpi <- jcc_kpi %>%
+  select(names(sf_kpi)) %>%
+  semi_join(sf_kpi, by = "COUNTY") %>%
+  semi_join(jcc_kpi, by = "COUNTY")
+
+sf_kpi <- sf_kpi %>%
+  semi_join(match_kpi, by = "COUNTY")
+
+match_kpi[2:length(match_kpi)] <- round(sf_kpi[2:length(sf_kpi)]/match_kpi[2:length(match_kpi)]*100)
+
+names(jcc_kpi)[2:ncol(jcc_kpi)] <- paste0(names(jcc_kpi)[2:ncol(jcc_kpi)], "_JCC")
+names(sf_kpi)[2:ncol(sf_kpi)] <- paste0(names(sf_kpi)[2:ncol(sf_kpi)], "_CLOUD")
+names(match_kpi)[2:ncol(match_kpi)] <- paste0(names(match_kpi)[2:ncol(match_kpi)], "_MATCH")
+
+match_kpi2 <- left_join(jcc_kpi, sf_kpi, by = "COUNTY") %>%
+  left_join(match_kpi, by = "COUNTY")
+
+
+match_kpi2 <- match_kpi2 %>%
+  select(COUNTY, order(names(match_kpi2)))
+
+write.xlsx(match_kpi2, file = "Match Rate Between Snowflake and JCC Pretrial Data.xlsx", as.table = T)
+
+shell.exec(getwd())
+```
+
+County, Year, Month
+```{r}
+match_kpi_month <- jcc_kpi_month %>%
+  select(names(sf_kpi_month)) %>%
+  semi_join(sf_kpi_month, by = c("COUNTY", "YEAR", "MONTH"))
+
+match_kpi_month[4:length(match_kpi_month)] <- round(sf_kpi_month[4:length(sf_kpi_month)]/match_kpi_month[4:length(match_kpi_month)]*100)
+
+match_kpi_month <- left_join(jcc_kpi_month, sf_kpi_month, by = c("COUNTY", "YEAR", "MONTH")) %>%
+  left_join(match_kpi_month, by = c("COUNTY", "YEAR", "MONTH")) 
+
+names(match_kpi_month) <- gsub("\\.x", "_JCC", names(match_kpi_month))
+names(match_kpi_month) <- gsub("\\.y", "_SF", names(match_kpi_month))
+# names(match_kpi_month) <- gsub("\\.x", "_MR", names(match_kpi_month))
+
+
+match_kpi_month <- match_kpi_month %>%
+  select(COUNTY, YEAR, MONTH, order(names(match_kpi_month)))
+```
+
+# Tulare Special Check
+Snowflake Aggregate KPIs by County
+```{sql connection = con, output.var = tulare_kpi}
+SELECT County,
+SUM(Booking_Count) AS Booking_Count,
+SUM(Release_Eligible_Count) AS Release_Eligible_Count,
+SUM(Booking_Assessed_Count) AS Booking_Assessed_Count,
+SUM(Released_To_Pretrial_Services_Count) AS Released_To_Pretrial_Services_Count,
+SUM(Released_Pretrial_Count) AS Released_Pretrial_Count,
+SUM(Failure_To_Appear_Count) AS Failure_To_Appear_Count,
+SUM(New_Crimnal_Activity_Count) AS New_Crimnal_Activity_Count
+FROM "DWH_UAT"."DWH"."AGG_PRETRIAL_KPI"
+WHERE (Booking_date BETWEEN '2018-07-01' AND '2020-12-31') AND (COUNTY = 'Tulare')
+GROUP BY County
+ORDER BY County;
+```
+
+Snowflake Aggregate KPIs by County, Month, and Year
+```{sql connection = con, output.var = tulare_kpi_month}
+SELECT County, YEAR(Booking_date) AS YEAR, MONTH(Booking_date) AS MONTH, 
+SUM(Booking_Count) AS Booking_Count,
+SUM(Release_Eligible_Count) AS Release_Eligible_Count,
+SUM(Booking_Assessed_Count) AS Booking_Assessed_Count,
+SUM(Released_To_Pretrial_Services_Count) AS Released_To_Pretrial_Services_Count,
+SUM(Released_Pretrial_Count) AS Released_Pretrial_Count,
+SUM(Failure_To_Appear_Count) AS Failure_To_Appear_Count,
+SUM(New_Crimnal_Activity_Count) AS New_Crimnal_Activity_Count
+FROM "DWH_UAT"."DWH"."AGG_PRETRIAL_KPI"
+WHERE (Booking_date BETWEEN '2018-07-01' AND '2020-12-31') AND (COUNTY = 'Tulare')
+GROUP BY County, YEAR, MONTH
+ORDER BY County, YEAR, MONTH;
+```
+
+```{sql connection = con, output.var = tulare_court}
+SELECT *
+FROM "54_TULARE-DWH_UAT"."SECURE_SHARE"."FACT_COURT_CASE";
+```
+
+```{sql connection = con, output.var = tulare_assessment}
+SELECT *
+FROM "54_TULARE-DWH_UAT"."SECURE_SHARE"."FACT_PRETRIAL_ASSESSMENT";
+```
+
+```{sql connection = con, output.var = tuolumne_assessment}
+SELECT *
+FROM "55_TUOLUMNE-DWH_UAT"."SECURE_SHARE"."FACT_PRETRIAL_ASSESSMENT";
+```
+
+```{sql connection = con, output.var = napa_assess}
+SELECT *
+FROM "28_NAPA-DWH_UAT"."SECURE_SHARE"."FACT_PRETRIAL_";
+```
+
+
+UAT
+```{r}
+load("C:/Work/PretrialAssessmentPilot/tularesb36.RData")
+
+tularesb36 %>%
+  count(year(assess_date), month(assess_date))
+
+tulare_assessment %>%
+  count(DIM_ASSESSMENT_TOOL_KEY)
+  filter(DIM_ASSESSMENT_TOOL_KEY == 1) %>%
+  count()
+  
+tulare_court %>%
+  count(CASE_ID, CASE_KEY)
+  
+tulare_kpi
+
+tulare_assessment %>%
+  distinct()
+
+tuolumne_assessment %>%
+  # ungroup() %>%
+  filter(DIM_ASSESSMENT_DATE_KEY <= 20201231 & DIM_ASSESSMENT_DATE_KEY >= 20200601) %>%
+  distinct(PRETRIAL_ASSESSMENT_KEY)
+
+tulare_kpi
+```
+
+
+# Old
+```{r}
+mydata <- dbGetQuery(con,"SELECT * FROM \"54_TULARE-DWH_UAT\".\"SECURE_SHARE\".\"DIM_PLEA_DATE\"")
+
+tbl(con, "AGG_PRETRIAL_KPI")
+
+tbl(con, "54_TULARE-DWH_UAT\".\"SECURE_SHARE\".\"AGG_PRETRIAL_KPI")
+
+head(mydata)
+
+dbListTables(con)
+
+tbl(con, in_schema("SECURE_SHARE", "DIM_PLEA_DATE"))
+```
+
