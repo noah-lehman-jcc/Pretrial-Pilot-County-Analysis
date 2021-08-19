@@ -30,6 +30,192 @@ library(fuzzyjoin)
 # Alameda--local, Los Angeles--cii, Napa--local, Sacramento--Look, Sonoma-Look, Ventura--local,   
 ```
 
+# Snowflake diagnostics
+```{r}
+book_df %>%
+  distinct(local_id, book_date, .keep_all = T) %>%
+  count(year(book_date))
+
+book_df %>%
+  distinct(book_num,  .keep_all = T) %>%
+  filter(year(book_date) == "2020") %>%
+  count(release_type_original) %>%
+  arrange(desc(n))
+  
+book_df %>%
+  distinct(book_num) %>%
+  sample_n(100)
+
+book_df %>%
+  distinct(book_num) %>%
+  mutate(book_num = as.numeric(book_num)) %>%
+  arrange(book_num)
+
+book_df %>%
+  filter(year(book_date) == "2020")%>%
+  mutate(book_num = gsub("\\..*", "", book_num)) %>%
+  distinct(book_num, book_date)
+
+book_df %>%
+  filter(year(book_date) == "2020") %>%
+  filter(cii%in% cii[grepl("\\.", book_num)]) %>%
+  arrange(book_num)
+
+book_df %>%
+  distinct(book_num, .keep_all = T) %>%
+  count(year(book_date))
+
+book_df %>%
+  filter(year(book_date) == "2020") %>%
+ filter(cii == "")
+
+book_df %>%
+  count(release_type_original, charge_level) %>%
+  arrange(desc(n))
+
+book_df %>%
+  distinct(book_num, .keep_all = T) %>%
+  filter(year(book_date) == "2019") %>%
+  count(book_type, book_type_original) %>%
+  arrange(desc(n))
+
+book_df %>%
+  count(nchar(book_num))
+
+book_df %>%
+  filter(jail_court_id == "3812843") %>%
+  filter(year(book_date) == "2019")
+
+book_df %>%
+  filter(book_date >= as_date("2018-07-01"), book_date <= as_date("2020-12-31")) %>%
+  distinct(book_num, book_date, .keep_all = T) %>%
+  group_by(book_num) %>%
+  add_count(book_date) %>%
+  ungroup() %>%
+  #filter(n>1) %>%
+  arrange(desc(n), book_num)
+
+join_df <- book_df %>%
+  left_join(court_df, by = c("local_id", "court_case_id")) 
+
+join_df %>%
+  filter(file_date >= book_date) %>%
+  mutate(file_book_diff = file_date - book_date) %>%
+  ggplot() +
+  aes(x = file_book_diff) +
+  geom_histogram(binwidth = 10)
+
+book_df %>%
+  left_join(court_df, by = c("local_id")) %>%
+  filter(file_date >= book_date) %>%
+  filter(file_date <= book_date + 60) %>%
+  group_by(book_num) %>%
+  mutate(match = if_else(court_case_id.y %in% court_case_id.x, 1, 0)) %>%
+  ungroup() %>%
+  distinct(local_id, court_case_id.x, .keep_all = T) %>%
+  count(match) %>%
+  mutate(percent = n/sum(n), all = n/11410, k = percent*all/(percent+all)*2)
+
+
+join_df %>%
+  filter(file_date >= book_date)
+
+df = tibble(person_id = c(1,1), court_case = c("a", "b"))
+df2 = tibble(person_id = c(1,1), court_case = c("a", "b"))
+
+df %>%
+  left_join(df2, by = "person_id")
+book_df
+assess_df
+court_df %>%
+  count(no_arr = is.na(arraignment_date), disposition_type_original) %>%
+  filter(no_arr == TRUE) %>%
+  arrange(desc(n))
+
+
+
+#joining court df to book df on jail_court_id, match rate = 55.5% of bookings, 84.9% of court cases - Sacramento
+
+nrow(book_df %>%
+semi_join(court_df, by = c("local_id", "court_case_id"), na_matches = "never"))/nrow(book_df)
+
+nrow(court_df %>%
+semi_join(book_df, by = c("local_id", "court_case_id"), na_matches = "never"))/nrow(court_df)
+
+semi_bc_df <- book_df %>%
+semi_join(court_df, by = c("local_id", "court_case_id"), na_matches = "never") %>%
+  select(-contains(".y")) %>%
+  rename_at(vars(contains(".x")), funs(gsub("\\.x", "", .))) 
+
+bc_df <- semi_bc_df %>%
+  group_by(year = year(book_date)) %>%
+  summarise(matched_n = n())
+
+all <- book_df %>%
+  group_by(year = year(book_date)) %>%
+  summarise(all_n = n())
+
+all %>%
+  left_join(bc_df) %>%
+  mutate(perc = matched_n/all_n)
+
+
+assess_df %>%
+  count(tool_name, year(assessment_date), month(assessment_date))
+
+
+assess_df %>%
+  #filter(assessment_date >= "2020-06-01") %>%
+  #filter(tool_name == "psa") %>%
+  distinct(local_id, assessment_date, tool_name, .keep_all = T)
+
+assess_df
+
+#load("G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Modoc Join Collapse.RData")
+
+#load("G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Tuolumne Join Collapse.RData")
+
+
+tuolumne_collapse %>%
+  filter(release_decision == "Monitor") %>%
+  filter(book_date >= "2018-07-01",
+         book_date <= "2020-12-31") %>%
+  select(book_date, release_date, pretrial_end_date)
+
+assess_df %>%
+  filter(year(assessment_date) == "2020") %>%
+  filter(!is.na(vprair_risk_score)) 
+
+load("G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Alameda Join Collapse.RData")
+
+alameda_collapse %>%
+  filter(year(assessment_date) == "2020") %>%
+  filter(!is.na(vprair_risk_score))
+
+alameda_collapse %>%
+  filter(year(assessment_date) == "2020") %>%
+  filter(!is.na(assessment_date),
+         is.na(vprair_risk_score))
+
+alameda_collapse %>%
+  filter(!is.na(release_date),
+         release_decision == "Monitor") %>%
+  count(release_type_original)
+
+alameda_collapse %>%
+  count(release_type_original)
+
+alameda_collapse %>%
+  filter(year(assessment_date) == "2020") %>%
+  count(release_type_original %in% c("OWN RECOGNIZANCE TO PROGRAM", "PRETRIAL PROBATION OR")) 
+
+alameda_collapse %>%
+  filter(year(book_date) == "2020") %>%
+  #summarise(eligible = sum(new_arrest_flag, na.rm = T)) %>%
+  count(new_arrest_flag,arrest_capital_flag, !is.na(vprair_risk_score))
+```
+
+
 # Alameda
 Join
 ```{r}
@@ -570,7 +756,6 @@ save(santa_barbara_collapse, file = "G:/CrimJustice/PretrialAssessmentPilot/Agen
 ```
 
 
-
 # Tulare 
 Join
 ```{r eval=FALSE, include=FALSE}
@@ -659,7 +844,7 @@ join_df <- bind_rows(join_df, join_df3)
 
 rm(join_df1, join_df2, join_df3)
 
-
+# match rate assess to bookings 97.6%
 nrow(assess_df %>%
   semi_join(join_df, by = c("book_num"), na_matches = "never")) / nrow(assess_df) * 100
 

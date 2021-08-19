@@ -1,0 +1,141 @@
+---
+title: "Untitled"
+output: html_document
+---
+# Settup and Library
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+	echo = FALSE,
+	message = FALSE,
+	warning = FALSE
+)
+knitr::opts_knit$set(root.dir = "G:/CrimJustice/PretrialAssessmentPilot")
+
+
+library(tidyverse)
+library(data.table)
+library(openxlsx)
+library(readxl)
+library(lubridate)
+library(gsubfn)
+library(fuzzyjoin)
+library(dplyr)
+library(openxlsx)
+library(broom)
+library(kableExtra)
+library(stargazer)
+
+
+```
+
+```{r}
+load("G:/CrimJustice/PretrialAssessmentPilot/Final Failure Evaluation2.RData")
+
+eval_df <- eval_df %>%
+  select(cii, book_date, recid_arrested_flag)
+
+eval_df <- eval_df %>%
+  filter(!is.na(cii)) %>%
+  distinct(cii, book_date, .keep_all = T)
+  
+
+```
+
+```{r}
+load("G:/CrimJustice/PretrialAssessmentPilot/Jail, RRF, Court, DOJ Joined.RData")
+
+full_df <- full_df %>% 
+  mutate(arrest_charge_level = case_when(is.na(arrest_charge_level)|arrest_charge_level %in% c("Other", "I") ~"Other_Unknown",
+                                         arrest_charge_level == "F" ~ "Felony",
+                                         arrest_charge_level == "M" ~ "Misdemeanor")) %>%
+  filter(book_date <= as_date("2020-12-31"),
+         book_date >= as_date("2018-07-01")) %>%
+  mutate(dob = as_date(dob)) %>%
+  mutate(sex = case_when(sex == "F" ~ "Female",
+                         sex == "M" ~ "Male",
+                         T ~ sex)) %>%
+  mutate_at(vars(race, sex), funs(if_else(is.na(.), "Other_Unknown", .)))
+
+full_df <- full_df %>%
+  left_join(eval_df)
+
+
+```
+
+
+```{r}
+kpi_monthly_counts <- full_df %>%
+  mutate(two_day_release = case_when(
+            weekdays(book_date) == "Thursday" & release_date - book_date <= 4 ~ 1,
+            weekdays(book_date) == "Friday" & release_date - book_date <= 4 ~ 1,
+            weekdays(book_date) == "Saturday" & release_date - book_date <= 3 ~ 1,
+            !weekdays(book_date) %in% c("Thursday", "Friday", "Saturday") & release_date - book_date <= 2 ~ 1,
+            is.na(release_date) ~ 0,
+            T ~ 0),
+    pretrial_release_flag = if_else(new_arrest_flag ==1 & release_date < pretrial_end_date, 1, 0),
+    pretrial_complete_flag = if_else(new_arrest_flag == 1 & !is.na(pretrial_end_date), 1, 0),
+    releases_pretrial_ornoend_flag = if_else(new_arrest_flag == 1 & !is.na(release_date) & is.na(pretrial_end_date), 1, pretrial_release_flag),
+    two_day_release = if_else(new_arrest_flag == 1 & pretrial_release_flag == 1, two_day_release, 0),
+    pre_arr_release = if_else(new_arrest_flag == 1 & pretrial_release_flag == 1 & release_date < arraignment_date, 1, 0),
+    pts_release_flag = if_else(release_decision == "Monitor", 1, 0),
+    nonpts_release_flag = if_else(pretrial_release_flag == 1 & pts_release_flag == 0, 1, 0),
+    fta_flag = if_else(releases_pretrial_ornoend_flag ==1 & (fta_flag == 1|arrest_fta_flag == 1|court_fta_flag == 1), 1, 0),
+    recid_arrested_flag = if_else(pretrial_release_flag ==1, recid_arrested_flag, 0),
+    violation_flag = if_else(fta_flag == 1 | recid_arrested_flag == 1, 1, 0)) %>%
+  group_by(county, year = year(book_date), month = month(book_date)) %>%
+  summarize(bookings_count = n(), 
+         release_eligible_count = sum(new_arrest_flag, na.rm = T), 
+         assessments_count = sum(!is.na(assessment_date)),
+         pts_release_count = sum(pts_release_flag, na.rm = T),
+         nonpts_release_count = sum(nonpts_release_flag, na.rm = T),
+         two_day_release_count = sum(two_day_release, na.rm = T),
+         pre_arr_release_count = sum(pre_arr_release, na.rm = T),
+         pretrial_release_count = sum(pretrial_release_flag, na.rm = T),
+         releases_pretrial_ornoend_count = sum(releases_pretrial_ornoend_flag, na.rm = T),
+         fta_count = sum(fta_flag, na.rm = T),
+         nca_count = sum(recid_arrested_flag, na.rm = T),
+         violation_count = sum(violation_flag, na.rm = T),
+         pretrial_complete_count = sum(pretrial_complete_flag)
+         )
+
+kpi_county_counts <- full_df %>%
+  mutate(two_day_release = case_when(
+            weekdays(book_date) == "Thursday" & release_date - book_date <= 4 ~ 1,
+            weekdays(book_date) == "Friday" & release_date - book_date <= 4 ~ 1,
+            weekdays(book_date) == "Saturday" & release_date - book_date <= 3 ~ 1,
+            !weekdays(book_date) %in% c("Thursday", "Friday", "Saturday") & release_date - book_date <= 2 ~ 1,
+            is.na(release_date) ~ 0,
+            T ~ 0),
+    pretrial_release_flag = if_else(new_arrest_flag ==1 & release_date < pretrial_end_date, 1, 0),
+    pretrial_complete_flag = if_else(new_arrest_flag == 1 & !is.na(pretrial_end_date), 1, 0),
+    releases_pretrial_ornoend_flag = if_else(new_arrest_flag == 1 & !is.na(release_date) & is.na(pretrial_end_date), 1, pretrial_release_flag),
+    two_day_release = if_else(new_arrest_flag == 1 & pretrial_release_flag == 1, two_day_release, 0),
+    pre_arr_release = if_else(new_arrest_flag == 1 & pretrial_release_flag == 1 & release_date < arraignment_date, 1, 0),
+    pts_release_flag = if_else(release_decision == "Monitor", 1, 0),
+    nonpts_release_flag = if_else(pretrial_release_flag == 1 & pts_release_flag == 0, 1, 0),
+    fta_flag = if_else(releases_pretrial_ornoend_flag ==1 & (fta_flag == 1|arrest_fta_flag == 1|court_fta_flag == 1), 1, 0),
+    recid_arrested_flag = if_else(pretrial_release_flag ==1, recid_arrested_flag, 0),
+    violation_flag = if_else(fta_flag == 1 | recid_arrested_flag == 1, 1, 0)) %>%
+  group_by(county) %>%
+  summarize(bookings_count = n(), 
+         release_eligible_count = sum(new_arrest_flag, na.rm = T), 
+         assessments_count = sum(!is.na(assessment_date)),
+         pts_release_count = sum(pts_release_flag, na.rm = T),
+         nonpts_release_count = sum(nonpts_release_flag, na.rm = T),
+         two_day_release_count = sum(two_day_release, na.rm = T),
+         pre_arr_release_count = sum(pre_arr_release, na.rm = T),
+         pretrial_release_count = sum(pretrial_release_flag, na.rm = T),
+         releases_pretrial_ornoend_count = sum(releases_pretrial_ornoend_flag, na.rm = T),
+         fta_count = sum(fta_flag, na.rm = T),
+         nca_count = sum(recid_arrested_flag, na.rm = T),
+         violation_count = sum(violation_flag, na.rm = T),
+         pretrial_complete_count = sum(pretrial_complete_flag)
+         )
+
+write.xlsx(list(kpi_county_counts, kpi_monthly_counts), file = "kpi_from_CJS.xlsx", asTable = T, sheetName = c("kpi_county", "kpi_monthly"))
+
+shell.exec(getwd())
+
+```
+
+
