@@ -4,13 +4,14 @@ output: html_notebook
 ---
 Install
 ```{r}
-# install.packages(c("DBI", "dplyr","dbplyr","odbc"))
+#install.packages(c("DBI", "dplyr","dbplyr","odbc"))
+#install.packages("DBI")
 ```
 
 # Load
 
 Libraries
-```{r}
+```{r setup}
 library(DBI)
 library(dplyr)
 library(dbplyr)
@@ -22,7 +23,7 @@ library(lubridate)
 
 Connection
 ```{r eval=FALSE, include=FALSE}
-con <- dbConnect(odbc::odbc(), "snowflake_pretrial", uid ="Noah.Lehman@jud.ca.gov", pwd = .rs.askForPassword("Password"))
+con <- dbConnect(odbc::odbc(), "snowflake_pretrial", uid ="Sal.Lempert@jud.ca.gov", pwd = .rs.askForPassword("Password"))
 ```
 
 # Aggregate Data
@@ -130,6 +131,8 @@ names(match_kpi_month) <- gsub("\\.y", "_SF", names(match_kpi_month))
 
 match_kpi_month <- match_kpi_month %>%
   select(COUNTY, YEAR, MONTH, order(names(match_kpi_month)))
+
+court_df <- court_df2
 ```
 
 # Tulare Special Check
@@ -213,7 +216,346 @@ tuolumne_assessment %>%
 
 tulare_kpi
 ```
+# LA check
+```{sql connection = con, output.var = la_snow}
 
+SELECT Booking_ID, Public_Case_Number, Booking_Date, Case_Filed_Date, Pretrial_Period_End_Date, County
+FROM "DWH_UAT"."DWH"."AGG_PRETRIAL_KPI"
+WHERE YEAR(Booking_Date) = 2020
+AND Public_Case_Number IS NOT NULL;
+
+```
+
+```{sql connection = con, output.var = la_snow}
+
+SELECT Booking_ID, Public_Case_Number, Booking_Date, Case_Filed_Date, Pretrial_Period_End_Date
+FROM "DWH_UAT"."DWH"."AGG_PRETRIAL_KPI"
+WHERE YEAR(Booking_Date) = 2020
+AND County = 'Los Angeles'
+AND Public_Case_Number IS NOT NULL;
+
+```
+
+```{r}
+la_snow <- la_snow %>%
+  filter(year(CASE_FILED_DATE) == 2020)
+
+la_cjs <- full_df %>%
+  filter(county == "los_angeles") %>%
+  filter(new_arrest_flag == 1) %>%
+  filter(year(book_date) == 2020) %>%
+  filter(!is.na(court_charge_original))
+
+la_cjs %>%
+  anti_join(la_snow , by = c("book_num" = "BOOKING_ID")) %>%
+  select(book_num, local_id, book_date, release_date, file_date, pretrial_end_date, court_case_id, court_docket_id)
+
+la_snow %>%
+  filter(BOOKING_ID %in% c("5702599", "5835607", "5835609", "5835612", "5835615", "5835661", "5835694", "5835695", "5835777", "5614853"))
+
+la_snow %>%
+  anti_join(la_cjs , by = c("BOOKING_ID" = "book_num")) 
+
+full_df %>%
+  filter(county == "los_angeles") %>%
+  filter(book_num %in% c("5957969", "5901904", "5896123", "5896123"))%>%
+  select(book_num, local_id, book_date, release_date, file_date, pretrial_end_date, court_case_id, court_docket_id)
+
+court_df %>%
+  filter(grepl("LAX0AR1154401", court_docket_id))
+
+book_df %>%
+  filter(book_num == 5702599)
+  
+court_df %>%
+  select(local_id)
+
+book_df %>%
+  filter(cii == "0025789724")
+```
+
+# San Mateo check
+```{sql connection = con, output.var = sm_snow}
+
+SELECT County, Booking_Key, Public_Case_Number, Booking_Date, Assessment_Date, Release_Date, Case_Filed_Date, Arraignment_Date, Pretrial_Period_End_Date, Failure_To_Appear_Date, Is_Release_Eligible, Is_Released_Pretrial, Recidivism_Date, Has_New_Criminal_Activity
+FROM "41_SANMATEO-DWH_UAT"."SECURE_SHARE"."AGG_PRETRIAL_KPI"
+WHERE County = 'San Mateo'
+AND Is_Release_Eligible = 'Yes';
+
+```
+
+```{r}
+sm_cjs <- full_df %>%
+  filter(county == "san_mateo") %>%
+  filter(new_arrest_flag == 1) %>%
+  filter(book_date >= "2018-07-01", 
+         book_date <= "2020-12-31") %>%
+  mutate(release_elig_flag = if_else(new_arrest_flag == 1 & (is.na(pretrial_end_date)  | !pretrial_end_date < book_date), 1, 0),
+         pretrial_release_flag = if_else(new_arrest_flag == 1 & (!is.na(release_date) & is.na(pretrial_end_date) & !is.na(court_charge_original) | release_date < pretrial_end_date), 1, 0)) %>%
+  select(book_num, court_docket_id, book_date, assessment_date, release_date, file_date, arraignment_date, pretrial_end_date, fta_date, release_elig_flag, pretrial_release_flag, cii)
+
+
+sm_cjs <- full_df %>%
+  filter(county == "san_mateo") %>%
+  filter(new_arrest_flag == 1) %>%
+  filter(is.na(pretrial_end_date) | !pretrial_end_date < book_date) %>%
+  #filter(!is.na(pretrial_end_date)) %>%
+  filter(book_date > "2018-07-01", 
+       book_date <= "2020-12-31") %>%
+  filter(is.na(pretrial_end_date) | year(pretrial_end_date) != 2021) %>%
+  mutate(pretrial_complete_flag = if_else(new_arrest_flag == 1 & !is.na(pretrial_end_date), 1, 0),
+         pretrial_release_flag = if_else(new_arrest_flag == 1 & (!is.na(release_date) & is.na(pretrial_end_date) & !is.na(court_charge_original) | release_date < pretrial_end_date), 1, 0)) %>%
+  select(book_num, court_case_id, court_docket_id, book_date, assessment_date, release_date, file_date, arraignment_date, pretrial_end_date, fta_date, pretrial_release_flag, cii, contains("recid"))
+
+
+
+sm_cjs %>%
+  mutate(book_num = as.numeric(book_num)) %>%
+  filter(!is.na(pretrial_end_date)) %>%
+  inner_join(sm_snow %>%
+               mutate(BOOKING_KEY = 100*as.numeric(BOOKING_KEY)), by = c("book_num" = "BOOKING_KEY")) %>%
+  filter(HAS_NEW_CRIMINAL_ACTIVITY == "Yes" & (is.na(recid_arrested_flag | recid_arrested_flag == 0))) 
+
+  filter(!is.na(court_case_id) & is.na(PUBLIC_CASE_NUMBER))
+  filter(court_docket_id != PUBLIC_CASE_NUMBER) %>%
+  filter(court_docket_id != "NULL") %>%
+  filter(pretrial_end_date >=book_date) %>%
+  select(court_docket_id, PUBLIC_CASE_NUMBER, pretrial_end_date, PRETRIAL_PERIOD_END_DATE, book_date, book_num, everything())
+
+  filter(IS_RELEASED_PRETRIAL == "Yes") %>%
+  filter(is.na(pretrial_release_flag) | pretrial_release_flag == 0)
+
+sm_cjs %>%
+  count(pretrial_end_date < book_date)
+
+sm_cjs %>%
+  count(pretrial_release_flag)
+
+sm_cjs %>%
+  count(IS_RELEASED_PRETRIAL)
+
+sm_snow %>%
+  mutate(BOOKING_KEY = 100*as.numeric(BOOKING_KEY)) %>%
+  anti_join(sm_cjs %>%
+               mutate(book_num = as.numeric(book_num)), by = c("BOOKING_KEY" = "book_num"))
+  count(IS_RELEASED_PRETRIAL)
+
+full_df %>%
+  filter(county == "san_mateo") %>%
+  count(year(book_date), month(book_date))
+  filter(grepl("0007065579", cii)) %>%
+  select(book_num, book_date, release_date, pretrial_end_date, court_case_id, disposition_date, disposition_type, sentence_date, pretrial_end_date, pretrial_end_date_doj) %>%
+  arrange(book_date)
+  
+sm_snow %>%
+  filter(HAS_NEW_CRIMINAL_ACTIVITY == "Yes") %>%
+  #filter(is.na(PRETRIAL_PERIOD_END_DATE)) %>%
+  #count(RECIDIVISM_DATE > BOOKING_DATE)
+  #count(RECIDIVISM_DATE > BOOKING_DATE)
+  #count(is.na(PRETRIAL_PERIOD_END_DATE), RECIDIVISM_DATE < PRETRIAL_PERIOD_END_DATE)
+  count(IS_RELEASED_PRETRIAL, HAS_NEW_CRIMINAL_ACTIVITY, is.na(PRETRIAL_PERIOD_END_DATE))
+```
+
+# Santa Barbara check
+```{sql connection = con, output.var = sb_snow}
+
+SELECT County, Booking_Key, Public_Case_Number, Booking_Date, Assessment_Date, Release_Date, Case_Filed_Date, Arraignment_Date, Pretrial_Period_End_Date, Failure_To_Appear_Date, Is_Release_Eligible, Is_Released_Pretrial
+FROM "42_SANTABARBARA-DWH_UAT"."SECURE_SHARE"."AGG_PRETRIAL_KPI"
+WHERE County = 'Santa Barbara'
+AND year(Booking_Date) = 2020;
+
+```
+
+```{r}
+sb_cjs <- full_df %>%
+  filter(county == "santa_barbara") %>%
+  #filter(new_arrest_flag == 1) %>%
+  filter(year(book_date) == 2020) %>%
+  mutate(release_elig_flag = if_else(new_arrest_flag == 1 & (is.na(pretrial_end_date)  | !pretrial_end_date < book_date), 1, 0),
+         pretrial_release_flag = if_else(new_arrest_flag == 1 & (!is.na(release_date) & is.na(pretrial_end_date) & !is.na(court_charge_original) | release_date < pretrial_end_date), 1, 0)) %>%
+  select(book_num, court_docket_id, court_case_id, book_date, assessment_date, release_date, file_date, arraignment_date, pretrial_end_date, fta_date, release_elig_flag, pretrial_release_flag) %>%
+  filter(!grepl("\\.", book_num))#santa barbara has messed up book_nums, filter these out
+
+
+sb_cjs %>%
+  inner_join(sb_snow, by = c("book_num" = "BOOKING_KEY")) %>%
+  filter(court_docket_id != PUBLIC_CASE_NUMBER) %>%
+  filter(court_docket_id != "NULL") %>%
+  filter(pretrial_end_date >=book_date) %>%
+  select(court_docket_id, PUBLIC_CASE_NUMBER, pretrial_end_date, PRETRIAL_PERIOD_END_DATE, book_date, book_num, everything())
+
+  filter(IS_RELEASED_PRETRIAL == "Yes") %>%
+  filter(is.na(pretrial_release_flag) | pretrial_release_flag == 0)
+```
+
+#Tuolumne check
+```{sql connection = con, output.var = tu_snow}
+
+SELECT County, Booking_Key, Public_Case_Number, Booking_Date, Assessment_Date, Release_Date, Case_Filed_Date, Arraignment_Date, Pretrial_Period_End_Date, Failure_To_Appear_Date, Is_Release_Eligible, Is_Released_Pretrial, Recidivism_Date, Has_New_Criminal_Activity
+FROM "55_TUOLUMNE-DWH_UAT"."SECURE_SHARE"."AGG_PRETRIAL_KPI"
+WHERE County = 'Tuolumne';
+
+```
+
+```{r}
+tu_cjs <- full_df %>%
+  filter(county == "tuolumne") %>%
+  filter(new_arrest_flag == 1) %>%
+  filter(is.na(pretrial_end_date) | !pretrial_end_date < book_date) %>%
+  #filter(!is.na(pretrial_end_date)) %>%
+  filter(book_date > "2018-07-01", 
+       book_date <= "2020-12-31") %>%
+  filter(is.na(pretrial_end_date) | year(pretrial_end_date) != 2021) %>%
+  mutate(pretrial_complete_flag = if_else(new_arrest_flag == 1 & !is.na(pretrial_end_date), 1, 0),
+         pretrial_release_flag = if_else(new_arrest_flag == 1 & (!is.na(release_date) & is.na(pretrial_end_date) & !is.na(court_charge_original) | release_date < pretrial_end_date), 1, 0)) %>%
+  select(book_num, court_case_id, court_docket_id, book_date, assessment_date, release_date, file_date, arraignment_date, pretrial_end_date, fta_date, pretrial_release_flag, cii, contains("recid"))
+
+
+
+
+tu_cjs %>%
+  inner_join(tu_snow, by = c("book_num" = "BOOKING_KEY")) %>%
+  filter(!is.na(pretrial_end_date), is.na(PRETRIAL_PERIOD_END_DATE)) %>%
+  #filter(court_case_id == "CRF58202" | court_docket_id == "CRF58202")
+  filter(book_num == "B0110819")
+  
+full_df %>%
+  filter(county == "tuolumne") %>%
+  filter(court_case_id == "" & !is.na(court_docket_id)) %>%
+  count(is.na(pretrial_end_date))
+  filter(book_num == "B0110819") %>%
+  select(book_num, court_case_id, court_docket_id)
+  filter(cii == "0027912064") %>%
+  filter(county == "tuolumne") %>%
+  arrange(book_date)
+```
+
+
+```{r}
+filter(!is.na(court_case_id) & is.na(PUBLIC_CASE_NUMBER))
+  filter(court_docket_id != PUBLIC_CASE_NUMBER) %>%
+  filter(court_docket_id != "NULL") %>%
+  filter(pretrial_end_date >=book_date) %>%
+  select(court_docket_id, PUBLIC_CASE_NUMBER, pretrial_end_date, PRETRIAL_PERIOD_END_DATE, book_date, book_num, everything())
+
+  filter(IS_RELEASED_PRETRIAL == "Yes") %>%
+  filter(is.na(pretrial_release_flag) | pretrial_release_flag == 0)
+
+sm_cjs %>%
+  count(pretrial_end_date < book_date)
+
+sm_cjs %>%
+  count(pretrial_release_flag)
+
+sm_cjs %>%
+  count(IS_RELEASED_PRETRIAL)
+
+sm_snow %>%
+  mutate(BOOKING_KEY = 100*as.numeric(BOOKING_KEY)) %>%
+  anti_join(sm_cjs %>%
+               mutate(book_num = as.numeric(book_num)), by = c("BOOKING_KEY" = "book_num"))
+  count(IS_RELEASED_PRETRIAL)
+
+full_df %>%
+  filter(county == "san_mateo") %>%
+  count(year(book_date), month(book_date))
+  filter(grepl("0007065579", cii)) %>%
+  select(book_num, book_date, release_date, pretrial_end_date, court_case_id, disposition_date, disposition_type, sentence_date, pretrial_end_date, pretrial_end_date_doj) %>%
+  arrange(book_date)
+  
+sm_snow %>%
+  filter(HAS_NEW_CRIMINAL_ACTIVITY == "Yes") %>%
+  #filter(is.na(PRETRIAL_PERIOD_END_DATE)) %>%
+  #count(RECIDIVISM_DATE > BOOKING_DATE)
+  #count(RECIDIVISM_DATE > BOOKING_DATE)
+  #count(is.na(PRETRIAL_PERIOD_END_DATE), RECIDIVISM_DATE < PRETRIAL_PERIOD_END_DATE)
+  count(IS_RELEASED_PRETRIAL, HAS_NEW_CRIMINAL_ACTIVITY, is.na(PRETRIAL_PERIOD_END_DATE))
+```
+
+
+#Napa check
+```{sql connection = con, output.var = na_snow}
+
+SELECT County, Booking_Key, Booking_ID, Public_Case_Number, Booking_Date, Assessment_Date, Release_Date, Case_Filed_Date, Arraignment_Date, Pretrial_Period_End_Date, Failure_To_Appear_Date, Is_Release_Eligible, Is_Released_Pretrial, Recidivism_Date, Has_New_Criminal_Activity
+FROM "28_NAPA-DWH_UAT"."SECURE_SHARE"."AGG_PRETRIAL_KPI"
+WHERE County = 'Napa';
+
+```
+
+```{r}
+tu_cjs <- full_df %>%
+  filter(county == "tuolumne") %>%
+  filter(new_arrest_flag == 1) %>%
+  filter(is.na(pretrial_end_date) | !pretrial_end_date < book_date) %>%
+  #filter(!is.na(pretrial_end_date)) %>%
+  filter(book_date > "2018-07-01", 
+       book_date <= "2020-12-31") %>%
+  filter(is.na(pretrial_end_date) | year(pretrial_end_date) != 2021) %>%
+  mutate(pretrial_complete_flag = if_else(new_arrest_flag == 1 & !is.na(pretrial_end_date), 1, 0),
+         pretrial_release_flag = if_else(new_arrest_flag == 1 & (!is.na(release_date) & is.na(pretrial_end_date) & !is.na(court_charge_original) | release_date < pretrial_end_date), 1, 0)) %>%
+  select(book_num, court_case_id, court_docket_id, book_date, assessment_date, release_date, file_date, arraignment_date, pretrial_end_date, fta_date, pretrial_release_flag, cii, contains("recid"))
+
+
+
+
+tu_cjs %>%
+  inner_join(tu_snow, by = c("book_num" = "BOOKING_KEY")) %>%
+  filter(!is.na(pretrial_end_date), is.na(PRETRIAL_PERIOD_END_DATE)) %>%
+  #filter(court_case_id == "CRF58202" | court_docket_id == "CRF58202")
+  filter(book_num == "B0110819")
+  
+full_df %>%
+  filter(county == "tuolumne") %>%
+  filter(court_case_id == "" & !is.na(court_docket_id)) %>%
+  count(is.na(pretrial_end_date))
+  filter(book_num == "B0110819") %>%
+  select(book_num, court_case_id, court_docket_id)
+  filter(cii == "0027912064") %>%
+  filter(county == "tuolumne") %>%
+  arrange(book_date)
+```
+
+
+```{r}
+filter(!is.na(court_case_id) & is.na(PUBLIC_CASE_NUMBER))
+  filter(court_docket_id != PUBLIC_CASE_NUMBER) %>%
+  filter(court_docket_id != "NULL") %>%
+  filter(pretrial_end_date >=book_date) %>%
+  select(court_docket_id, PUBLIC_CASE_NUMBER, pretrial_end_date, PRETRIAL_PERIOD_END_DATE, book_date, book_num, everything())
+
+  filter(IS_RELEASED_PRETRIAL == "Yes") %>%
+  filter(is.na(pretrial_release_flag) | pretrial_release_flag == 0)
+
+sm_cjs %>%
+  count(pretrial_end_date < book_date)
+
+sm_cjs %>%
+  count(pretrial_release_flag)
+
+sm_cjs %>%
+  count(IS_RELEASED_PRETRIAL)
+
+sm_snow %>%
+  mutate(BOOKING_KEY = 100*as.numeric(BOOKING_KEY)) %>%
+  anti_join(sm_cjs %>%
+               mutate(book_num = as.numeric(book_num)), by = c("BOOKING_KEY" = "book_num"))
+  count(IS_RELEASED_PRETRIAL)
+
+full_df %>%
+  filter(county == "san_mateo") %>%
+  count(year(book_date), month(book_date))
+  filter(grepl("0007065579", cii)) %>%
+  select(book_num, book_date, release_date, pretrial_end_date, court_case_id, disposition_date, disposition_type, sentence_date, pretrial_end_date, pretrial_end_date_doj) %>%
+  arrange(book_date)
+  
+sm_snow %>%
+  filter(HAS_NEW_CRIMINAL_ACTIVITY == "Yes") %>%
+  #filter(is.na(PRETRIAL_PERIOD_END_DATE)) %>%
+  #count(RECIDIVISM_DATE > BOOKING_DATE)
+  #count(RECIDIVISM_DATE > BOOKING_DATE)
+  #count(is.na(PRETRIAL_PERIOD_END_DATE), RECIDIVISM_DATE < PRETRIAL_PERIOD_END_DATE)
+  count(IS_RELEASED_PRETRIAL, HAS_NEW_CRIMINAL_ACTIVITY, is.na(PRETRIAL_PERIOD_END_DATE))
+```
 
 # Old
 ```{r}
