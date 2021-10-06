@@ -477,42 +477,48 @@ sm_snow %>%
 ```{sql connection = con, output.var = na_snow}
 
 SELECT County, Booking_Key, Booking_ID, Public_Case_Number, Booking_Date, Assessment_Date, Release_Date, Case_Filed_Date, Arraignment_Date, Pretrial_Period_End_Date, Failure_To_Appear_Date, Is_Release_Eligible, Is_Released_Pretrial, Recidivism_Date, Has_New_Criminal_Activity
-FROM "28_NAPA-DWH_UAT"."SECURE_SHARE"."AGG_PRETRIAL_KPI"
+FROM "28_NAPA-DWH_QA"."SECURE_SHARE"."AGG_PRETRIAL_KPI"
 WHERE County = 'Napa';
 
 ```
 
 ```{r}
-tu_cjs <- full_df %>%
-  filter(county == "tuolumne") %>%
-  filter(new_arrest_flag == 1) %>%
-  filter(is.na(pretrial_end_date) | !pretrial_end_date < book_date) %>%
+na_cjs <- full_df %>%
+  filter(county == "napa") %>%
+  #filter(new_arrest_flag == 1) %>%
+  #filter(is.na(pretrial_end_date) | !pretrial_end_date < book_date) %>%
   #filter(!is.na(pretrial_end_date)) %>%
   filter(book_date > "2018-07-01", 
        book_date <= "2020-12-31") %>%
   filter(is.na(pretrial_end_date) | year(pretrial_end_date) != 2021) %>%
   mutate(pretrial_complete_flag = if_else(new_arrest_flag == 1 & !is.na(pretrial_end_date), 1, 0),
          pretrial_release_flag = if_else(new_arrest_flag == 1 & (!is.na(release_date) & is.na(pretrial_end_date) & !is.na(court_charge_original) | release_date < pretrial_end_date), 1, 0)) %>%
-  select(book_num, court_case_id, court_docket_id, book_date, assessment_date, release_date, file_date, arraignment_date, pretrial_end_date, fta_date, pretrial_release_flag, cii, contains("recid"))
+  select(book_num, court_case_id, court_docket_id, book_date, assessment_date, release_date, file_date, arraignment_date, pretrial_end_date, fta_date, pretrial_release_flag, cii, contains("recid"), new_arrest_flag)
+
+na_snow %>%
+  inner_join(na_cjs, by = c("BOOKING_ID" = "book_num")) %>%
+  filter(!is.na(PRETRIAL_PERIOD_END_DATE) & is.na(pretrial_end_date)) %>%
+  filter(court_case_id == PUBLIC_CASE_NUMBER) %>%
+  filter(year(PRETRIAL_PERIOD_END_DATE) != 2021) %>%
+  pull(court_case_id)
 
 
+court_charge %>%
+  filter(court_case_id %in% ids) %>%
+  count(is.na(disposition_date))
 
-
-tu_cjs %>%
-  inner_join(tu_snow, by = c("book_num" = "BOOKING_KEY")) %>%
-  filter(!is.na(pretrial_end_date), is.na(PRETRIAL_PERIOD_END_DATE)) %>%
-  #filter(court_case_id == "CRF58202" | court_docket_id == "CRF58202")
-  filter(book_num == "B0110819")
+na_snow %>%
+  inner_join(na_cjs, by = c("BOOKING_ID" = "book_num")) %>%
+  filter(!is.na(ASSESSMENT_DATE) & is.na(assessment_date))
   
-full_df %>%
-  filter(county == "tuolumne") %>%
-  filter(court_case_id == "" & !is.na(court_docket_id)) %>%
-  count(is.na(pretrial_end_date))
-  filter(book_num == "B0110819") %>%
-  select(book_num, court_case_id, court_docket_id)
-  filter(cii == "0027912064") %>%
-  filter(county == "tuolumne") %>%
-  arrange(book_date)
+na_snow %>%
+  filter(BOOKING_DATE > "2018-07-01", 
+       BOOKING_DATE <= "2020-12-31") %>%
+  anti_join(na_cjs, by = c("BOOKING_ID" = "book_num")) %>%
+  filter(!is.na(ASSESSMENT_DATE))
+
+na_cjs %>%
+  count(is.na(assessment_date), new_arrest_flag)
 ```
 
 

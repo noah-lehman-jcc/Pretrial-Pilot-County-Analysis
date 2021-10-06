@@ -1604,6 +1604,34 @@ full_df %>%
 na_snow %>%
   #filter(PUBLIC_CASE_NUMBER == "CR182608")
   filter(BOOKING_ID == "110214")
+
+full_df %>%
+  filter(county == "napa") %>%
+  #filter(new_arrest_flag == 1) %>%
+  #filter(year(book_date) == 2020) %>%
+  filter(book_date > "2018-07-01", 
+         book_date <= "2020-12-31") %>%
+  mutate(pts_release_flag = if_else(new_arrest_flag == 1 & release_decision == "Monitor", 1, 0)) %>%
+  filter(pts_release_flag == 1) %>%
+  arrange(book_date) %>%
+  pull(book_num)
+
+full_df %>%
+  filter(county == "napa") %>%
+  #filter(new_arrest_flag == 1) %>%
+  #filter(year(book_date) == 2020) %>%
+  filter(book_date > "2018-07-01", 
+         book_date <= "2020-12-31") %>%
+  mutate(pts_release_flag = if_else(new_arrest_flag == 1 & release_decision == "Monitor", 1, 0)) %>%
+  # filter(book_num %in% c("110217","110231","110341","110532","110886","110925","110927","110922","111094","111125","111386","111576","111950","112018","112074","112955","113148","113565","115004","129122","129165","134054","134695","134696","135485","135487","135583","135646","135647","135698","135833","135838","136488")) %>%
+  filter(book_num %in% c("135583","135646","135647","135833","135838","136488")) %>%
+  select(book_num, pts_release_flag, release_decision, assessment_date, book_date, release_date, release_type, release_type_original)
+
+
+full_df %>%
+  filter(county == "napa") %>%
+  #filter(year(assessment_date) == 2019) %>%
+  count(year(assessment_date), month(assessment_date), day(assessment_date))
 ```
 
 
