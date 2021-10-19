@@ -461,7 +461,7 @@ sm_snow %>%
 # Santa Barbara check
 ```{sql connection = con, output.var = sb_snow}
 
-SELECT County, Booking_Key, Public_Case_Number, Booking_Date, Assessment_Date, Release_Date, Case_Filed_Date, Arraignment_Date, Pretrial_Period_End_Date, Failure_To_Appear_Date, Is_Release_Eligible, Is_Released_Pretrial, Recidivism_Date, Has_New_Criminal_Activity, Has_Failure_To_Appear
+SELECT County, Booking_Key, Public_Case_Number, Booking_Date, Assessment_Date, Release_Date, Case_Filed_Date, Arraignment_Date, Pretrial_Period_End_Date, Failure_To_Appear_Date, Is_Release_Eligible, Is_Released_Pretrial, Recidivism_Date, Has_New_Criminal_Activity, Has_Failure_To_Appear, Is_Released_To_Pretrial_Services
 FROM "42_SANTABARBARA-DWH_UAT"."SECURE_SHARE"."AGG_PRETRIAL_KPI"
 WHERE County = 'Santa Barbara';
 
@@ -475,8 +475,10 @@ sb_cjs <- full_df %>%
   filter(book_date > "2018-07-01",
          book_date <= "2020-12-31") %>%
   mutate(release_elig_flag = if_else(new_arrest_flag == 1 & (is.na(pretrial_end_date)  | !pretrial_end_date < book_date), 1, 0),
-         pretrial_release_flag = if_else(new_arrest_flag == 1 & (!is.na(release_date) & is.na(pretrial_end_date) & !is.na(court_charge_original) | release_date < pretrial_end_date), 1, 0)) %>%
-  select(book_num, court_docket_id, court_case_id, book_date, assessment_date, release_date, file_date, arraignment_date, pretrial_end_date, fta_date, release_elig_flag, pretrial_release_flag) %>%
+         pretrial_release_flag = if_else(new_arrest_flag == 1 & (!is.na(release_date) & is.na(pretrial_end_date) & !is.na(court_charge_original) | release_date < pretrial_end_date), 1, 0),
+         pts_release_flag = if_else(new_arrest_flag == 1 & release_decision == "Monitor", 1, 0),
+         recid_arrested_flag = if_else(pretrial_release_flag ==1, recid_arrested_flag, 0)) %>%
+  select(book_num, court_docket_id, court_case_id, book_date, assessment_date, release_date, release_type, file_date, arraignment_date, pretrial_end_date, fta_date, release_elig_flag, pretrial_release_flag, pts_release_flag, release_decision, release_decision_original, recid_arrested_flag) %>%
   filter(!grepl("\\.", book_num))#santa barbara has messed up book_nums, filter these out
 
 
@@ -493,6 +495,33 @@ sb_cjs %>%
   
 full_df %>%
   count(county)
+
+sb_cjs %>%
+  inner_join(sb_snow, by = c("book_num" = "BOOKING_KEY")) %>%
+  filter(HAS_NEW_CRIMINAL_ACTIVITY == "Yes", recid_arrested_flag == 0) %>%
+  select(book_num, BOOKING_DATE, book_date, release_date, release_type, RELEASE_DATE, pretrial_end_date, PRETRIAL_PERIOD_END_DATE, RECIDIVISM_DATE) %>%
+  filter(pretrial_end_date < RECIDIVISM_DATE) %>%
+  count(release_type)
+
+
+
+```
+
+```{r}
+sb_cjs %>%
+  inner_join(sb_snow, by = c("book_num" = "BOOKING_KEY")) %>%
+  filter(pts_release_flag == 0, IS_RELEASED_TO_PRETRIAL_SERVICES == "Yes")
+
+sb_cjs %>%
+  inner_join(sb_snow, by = c("book_num" = "BOOKING_KEY")) %>%
+  filter(IS_RELEASED_TO_PRETRIAL_SERVICES == "Yes") %>%
+  count(IS_RELEASED_PRETRIAL)
+
+sb_cjs %>%
+  inner_join(sb_snow, by = c("book_num" = "BOOKING_KEY")) %>%
+  filter(pts_release_flag == 1) %>%
+  mutate(pretrial_release_flag = if_else(is.na(pretrial_release_flag), 0, pretrial_release_flag)) %>%
+  count(pretrial_release_flag)
 ```
 
 #Tuolumne check
