@@ -714,12 +714,13 @@ son_cjs <- full_df %>%
   filter(new_arrest_flag == 1) %>%
   filter(is.na(pretrial_end_date) | !pretrial_end_date < book_date) %>%
   #filter(!is.na(pretrial_end_date)) %>%
-  filter(book_date > "O2018-07-01", 
+  filter(book_date > "2018-07-01", 
        book_date <= "2020-12-31") %>%
   filter(is.na(pretrial_end_date) | year(pretrial_end_date) != 2021) %>%
   mutate(pretrial_complete_flag = if_else(new_arrest_flag == 1 & !is.na(pretrial_end_date), 1, 0),
-         pretrial_release_flag = if_else(new_arrest_flag == 1 & ((!is.na(release_date) & is.na(pretrial_end_date) & !is.na(court_charge_original)) | release_date < pretrial_end_date), 1, 0)) %>%
-  select(book_num, court_case_id, court_docket_id, court_charge_original, book_date, book_type, assessment_date, release_date, release_type, release_type_original, file_date, arraignment_date, pretrial_end_date, fta_date, pretrial_release_flag, cii, contains("recid"))
+         pretrial_release_flag = if_else(new_arrest_flag == 1 & ((!is.na(release_date) & is.na(pretrial_end_date) & !is.na(court_charge_original)) | release_date < pretrial_end_date), 1, 0),
+         pts_release_flag = if_else(new_arrest_flag == 1 & release_decision == "Monitor", 1, 0)) %>%
+  select(book_num, court_case_id, court_docket_id, court_charge_original, book_date, book_type, assessment_date, release_date, release_type, release_type_original, file_date, arraignment_date, pretrial_end_date, fta_date, pretrial_release_flag, cii, contains("recid"), pts_release_flag, court_charge_original)
 
 
 
@@ -741,6 +742,17 @@ son_snow %>%
 court_disposition %>%
   filter(disposition_date > "2018-07-01", 
        disposition_date <= "2020-12-31")
+
+son_cjs %>%
+  inner_join(son_snow, by = c("book_num" = "BOOKING_ID")) %>%
+  filter(pts_release_flag == 1 & IS_RELEASED_TO_PRETRIAL_SERVICES == "No") %>%
+  select(book_num)
+
+
+son_cjs %>%
+  filter(book_num == "10216370")
+  inner_join(son_snow, by = c("book_num" = "BOOKING_ID")) %>%
+  filter(pts_release_flag == 1 & IS_RELEASED_TO_PRETRIAL_SERVICES == "No") %>%
 ```
 
 
