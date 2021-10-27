@@ -654,7 +654,10 @@ full_df %>%
 #with updated definition of pretrial release to include individuals who were released, have no pretrial end date but do have a court case
 full_df %>%
   filter(county == "san_joaquin") %>%
-  filter(new_arrest_flag == 1) %>%
+  #filter(new_arrest_flag == 1) %>%
+  #filter(year(book_date) == 2020) %>%
+  filter(book_date > "2018-07-01",
+         book_date <= "2020-12-31") %>%
   filter(is.na(pretrial_end_date) | !pretrial_end_date < book_date) %>%
   mutate(pretrial_complete_flag = if_else(new_arrest_flag == 1 & !is.na(pretrial_end_date), 1, 0),
          pretrial_release_flag = if_else(new_arrest_flag == 1 & (!is.na(release_date) & is.na(pretrial_end_date) & !is.na(court_charge_original) | release_date < pretrial_end_date), 1, 0),
@@ -678,11 +681,16 @@ full_df %>%
             nca_count = sum(recid_arrested_flag, na.rm = T),
             violation_count = sum(violation_flag, na.rm = T),
             success_count = sum(no_violation_flag, na.rm = T))
+```
 
+
+```{r}
 #pretrial complete only
 full_df %>%
   filter(county == "san_joaquin") %>%
   filter(new_arrest_flag == 1) %>%
+  filter(book_date > "2018-07-01",
+         book_date <= "2020-12-31") %>%
   filter(is.na(pretrial_end_date) | !pretrial_end_date < book_date) %>%
   filter(!is.na(pretrial_end_date)) %>%
   filter(year(pretrial_end_date) != 2021) %>%
@@ -708,7 +716,10 @@ full_df %>%
             nca_count = sum(recid_arrested_flag, na.rm = T),
             violation_count = sum(violation_flag, na.rm = T),
             success_count = sum(no_violation_flag, na.rm = T))
+```
 
+
+```{r}
 load("G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/San Joaquin Join Collapse.RData")
 
 san_joaquin_collapse %>%
@@ -1513,6 +1524,20 @@ full_df %>%
             nca_count = sum(recid_arrested_flag, na.rm = T),
             violation_count = sum(violation_flag, na.rm = T),
             success_count = sum(no_violation_flag, na.rm = T))
+
+
+court_war %>%
+  arrange(war_date) %>%
+  group_by(court_case_id) %>%
+  mutate(court_fta_flag = max(court_fta_flag),
+         court_fta_flag_count = sum(court_fta_flag),
+         court_sup_vio_post_flag = max(court_sup_vio_post_flag),
+         court_sup_vio_post_flag_count = sum(court_sup_vio_post_flag)) %>%
+  ungroup() %>%
+  distinct(court_case_id, .keep_all = T) %>%
+   filter(war_date >= "2018-07-01", 
+         war_date <= "2020-12-31") %>%
+  count(court_fta_flag)
 ```
 
 
