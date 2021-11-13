@@ -547,6 +547,17 @@ tularesb36 %>%
   summarise(earliest_assess = min(assessment_date), latest_assess = max(assessment_date))
 ```
 
+```{r}
+eval_df %>%
+  filter(county == "alameda") %>%
+  filter(!is.na(assessment_date)) %>%
+  filter(!is.na(cii))
+  count(is.na(vprair_risk_score))
+  
+
+```
+
+
 # modoc
 ```{r}
 #with updated definition of pretrial release to include individuals who were released, have no pretrial end date but do have a court case
@@ -682,6 +693,16 @@ full_df %>%
             violation_count = sum(violation_flag, na.rm = T),
             success_count = sum(no_violation_flag, na.rm = T))
 ```
+```{r}
+book_df %>%
+  filter(book_date > "2018-07-01",
+         book_date <= "2020-12-31") %>%
+  distinct(book_num, book_date, .keep_all = T) %>%
+  add_count(book_num) %>%
+  filter(n>1) %>%
+arrange(book_num) %>%
+  select(book_num, first_name, last_name, arrest_date, book_date, release_date, book_type_original, release_type_original, court_docket_id)
+```
 
 
 ```{r}
@@ -738,7 +759,7 @@ san_joaquin_collapse %>%
 san_joaquin_collapse %>%
   count(release_authorization_postarraignment)
 
-
+book_df
 ```
 
 
@@ -1755,5 +1776,172 @@ full_df %>%
   pull(book_num)
 ```
 
+Nevada only
+```{r}
+full_df %>%
+  filter(county == "nevada") %>%
+  filter(is.na(county_sierra)) %>%
+  filter(book_date > "2018-07-01",
+         book_date <= "2020-12-31") %>%
+  #filter(is.na(pretrial_end_date) | !pretrial_end_date < book_date) %>%
+  mutate(pretrial_complete_flag = if_else(new_arrest_flag == 1 & !is.na(pretrial_end_date), 1, 0),
+         pretrial_release_flag = if_else(new_arrest_flag == 1 & (!is.na(release_date) & is.na(pretrial_end_date) & !is.na(court_charge_original) | release_date < pretrial_end_date), 1, 0),
+         pts_release_flag = if_else(new_arrest_flag == 1 & release_decision == "Monitor", 1, 0),
+         pre_arr_release = if_else(new_arrest_flag == 1 & pretrial_release_flag == 1 & release_date < arraignment_date, 1, 0),
+         no_court_case = if_else(new_arrest_flag == 1 & is.na(court_charge_original), 1, 0),
+         has_case = if_else(new_arrest_flag == 1 & !is.na(court_charge_original), 1, 0),
+         fta_flag = if_else(pretrial_release_flag ==1 & (fta_flag == 1|arrest_fta_flag == 1|court_fta_flag == 1), 1, 0),
+         recid_arrested_flag = if_else(pretrial_release_flag ==1, recid_arrested_flag, 0),
+         #violation_flag = if_else(fta_flag == 1 | recid_arrested_flag == 1, 1, 0),
+         #no_violation_flag = if_else(pretrial_release_flag == 1 & violation_flag != 1, 1, 0),
+         release_elig_flag = if_else(new_arrest_flag == 1 & (is.na(pretrial_end_date)  | !pretrial_end_date < book_date), 1, 0)) %>%
+  summarize(bookings_count = n(),
+            fresh_arrest_count = sum(new_arrest_flag, na.rm = T),
+            release_eligible_count = sum(release_elig_flag, na.rm = T),
+            pretrial_release_count = sum(pretrial_release_flag, na.rm = T),
+            assessments_count = sum(!is.na(assessment_date)),
+            pts_release_count = sum(pts_release_flag, na.rm = T), 
+            pre_arr_release_count = sum(pre_arr_release, na.rm = T),
+            unmatched_count = sum(no_court_case, na.rm = T),
+            matched_count = sum(has_case, na.rm = T),
+            fta_count = sum(fta_flag, na.rm = T),
+            nca_count = sum(recid_arrested_flag, na.rm = T),
+            #violation_count = sum(violation_flag, na.rm = T),
+            #success_count = sum(no_violation_flag, na.rm = T)
+            )
 
+
+```
+
+
+Sierra only
+```{r}
+full_df %>%
+  filter(county == "nevada") %>%
+  filter(county_sierra == 1) %>%
+  filter(book_date > "2018-07-01",
+         book_date <= "2020-12-31") %>%
+  #filter(is.na(pretrial_end_date) | !pretrial_end_date < book_date) %>%
+  mutate(pretrial_complete_flag = if_else(new_arrest_flag == 1 & !is.na(pretrial_end_date), 1, 0),
+         pretrial_release_flag = if_else(new_arrest_flag == 1 & (!is.na(release_date) & is.na(pretrial_end_date) & !is.na(court_charge_original) | release_date < pretrial_end_date), 1, 0),
+         pts_release_flag = if_else(new_arrest_flag == 1 & release_decision == "Monitor", 1, 0),
+         pre_arr_release = if_else(new_arrest_flag == 1 & pretrial_release_flag == 1 & release_date < arraignment_date, 1, 0),
+         no_court_case = if_else(new_arrest_flag == 1 & is.na(court_charge_original), 1, 0),
+         has_case = if_else(new_arrest_flag == 1 & !is.na(court_charge_original), 1, 0),
+         fta_flag = if_else(pretrial_release_flag ==1 & (fta_flag == 1|arrest_fta_flag == 1|court_fta_flag == 1), 1, 0),
+         recid_arrested_flag = if_else(pretrial_release_flag ==1, recid_arrested_flag, 0),
+         #violation_flag = if_else(fta_flag == 1 | recid_arrested_flag == 1, 1, 0),
+         #no_violation_flag = if_else(pretrial_release_flag == 1 & violation_flag != 1, 1, 0),
+         release_elig_flag = if_else(new_arrest_flag == 1 & (is.na(pretrial_end_date)  | !pretrial_end_date < book_date), 1, 0)) %>%
+  summarize(bookings_count = n(),
+            fresh_arrest_count = sum(new_arrest_flag, na.rm = T),
+            release_eligible_count = sum(release_elig_flag, na.rm = T),
+            pretrial_release_count = sum(pretrial_release_flag, na.rm = T),
+            assessments_count = sum(!is.na(assessment_date)),
+            pts_release_count = sum(pts_release_flag, na.rm = T), 
+            pre_arr_release_count = sum(pre_arr_release, na.rm = T),
+            unmatched_count = sum(no_court_case, na.rm = T),
+            matched_count = sum(has_case, na.rm = T),
+            fta_count = sum(fta_flag, na.rm = T),
+            nca_count = sum(recid_arrested_flag, na.rm = T),
+            #violation_count = sum(violation_flag, na.rm = T),
+            #success_count = sum(no_violation_flag, na.rm = T)
+            )
+
+full_df %>%
+  filter(county == "nevada") %>%
+  filter(county_sierra == 1) %>%
+  filter(file_date < book_date) %>%
+  select(book_num, court_case_id, book_date, file_date, pretrial_end_date)
+  pull(book_num)
+  count(year(book_date), month(book_date))
+  summarise(mind = min(book_date, na.rm = T), maxd = max(book_date, na.rm = T))
+  
+book_df %>%
+  filter(county == "Sierra County") %>%
+  filter(book_date > "2018-07-01",
+         book_date <= "2020-12-31") %>%
+  count(book_type)
+
+```
+
+# Calaveras
+```{r}
+#with updated definition of pretrial release to include individuals who were released, have no pretrial end date but do have a court case
+full_df %>%
+  filter(county == "calaveras") %>%
+  filter(book_date > "2018-07-01", 
+         book_date <= "2020-12-31") %>%
+  mutate(pretrial_complete_flag = if_else(new_arrest_flag == 1 & !is.na(pretrial_end_date), 1, 0),
+         pretrial_release_flag = if_else(new_arrest_flag == 1 & (!is.na(release_date) & is.na(pretrial_end_date) & !is.na(court_charge_original) | release_date < pretrial_end_date), 1, 0),
+         pts_release_flag = if_else(new_arrest_flag == 1 & release_decision == "Monitor", 1, 0),
+         pre_arr_release = if_else(new_arrest_flag == 1 & pretrial_release_flag == 1 & release_date < arraignment_date, 1, 0),
+         no_court_case = if_else(new_arrest_flag == 1 & is.na(court_charge_original), 1, 0),
+         has_case = if_else(new_arrest_flag == 1 & !is.na(court_charge_original), 1, 0),
+         fta_flag = if_else(pretrial_release_flag ==1 & (fta_flag == 1|arrest_fta_flag == 1|court_fta_flag == 1), 1, 0),
+         recid_arrested_flag = if_else(pretrial_release_flag ==1, recid_arrested_flag, 0),
+         violation_flag = if_else(fta_flag == 1 | recid_arrested_flag == 1, 1, 0),
+         no_violation_flag = if_else(pretrial_release_flag == 1 & violation_flag != 1, 1, 0),
+         release_elig_flag = if_else(new_arrest_flag == 1 & (is.na(pretrial_end_date)  | !pretrial_end_date < book_date), 1, 0)) %>%
+  summarize(bookings_count = n(),
+            fresh_arrest_count = sum(new_arrest_flag, na.rm = T),
+            release_eligible_count = sum(release_elig_flag, na.rm = T),
+            pretrial_release_count = sum(pretrial_release_flag, na.rm = T),
+            assessments_count = sum(!is.na(assessment_date)),
+            pts_release_count = sum(pts_release_flag, na.rm = T), 
+            pre_arr_release_count = sum(pre_arr_release, na.rm = T),
+            unmatched_count = sum(no_court_case, na.rm = T),
+            matched_count = sum(has_case, na.rm = T),
+            fta_count = sum(fta_flag, na.rm = T),
+            nca_count = sum(recid_arrested_flag, na.rm = T),
+            violation_count = sum(violation_flag, na.rm = T),
+            success_count = sum(no_violation_flag, na.rm = T))
+
+
+```
+```{r}
+full_df %>%
+  filter(county == "calaveras") %>%
+  filter(book_date > "2018-07-01", 
+         book_date <= "2020-12-31") %>%
+  filter(new_arrest_flag == 1) %>%
+  count(is.na(pretrial_end_date))
+```
+
+
+```{r}
+#pretrial complete only
+full_df %>%
+  filter(county == "calaveras") %>%
+  filter(new_arrest_flag == 1) %>%
+  filter(is.na(pretrial_end_date) | !pretrial_end_date < book_date) %>%
+  filter(!is.na(pretrial_end_date)) %>%
+  filter(book_date > "2018-07-01", 
+       book_date <= "2020-12-31") %>%
+  filter(year(pretrial_end_date) != 2021) %>%
+  mutate(pretrial_complete_flag = if_else(new_arrest_flag == 1 & !is.na(pretrial_end_date), 1, 0),
+         pretrial_release_flag = if_else(new_arrest_flag == 1 & (!is.na(release_date) & is.na(pretrial_end_date) & !is.na(court_charge_original) | release_date < pretrial_end_date), 1, 0),
+         pts_release_flag = if_else(new_arrest_flag == 1 & release_decision == "Monitor", 1, 0),
+         pre_arr_release = if_else(new_arrest_flag == 1 & pretrial_release_flag == 1 & release_date < arraignment_date, 1, 0),
+         no_court_case = if_else(new_arrest_flag == 1 & is.na(court_charge_original), 1, 0),
+         has_case = if_else(new_arrest_flag == 1 & !is.na(court_charge_original), 1, 0),
+         fta_flag = if_else(pretrial_release_flag ==1 & (fta_flag == 1|arrest_fta_flag == 1|court_fta_flag == 1), 1, 0),
+         fta_before_booking = if_else(pretrial_release_flag == 1 & fta_date < book_date, 1, 0),
+         recid_arrested_flag = if_else(pretrial_release_flag ==1, recid_arrested_flag, 0),
+         violation_flag = if_else(fta_flag == 1 | recid_arrested_flag == 1, 1, 0),
+         no_violation_flag = if_else(pretrial_release_flag == 1 & violation_flag != 1, 1, 0)) %>%
+  summarize(bookings_count = n(),
+            release_eligible_count = sum(new_arrest_flag, na.rm = T),
+            pretrial_release_count = sum(pretrial_release_flag, na.rm = T),
+            assessments_count = sum(!is.na(assessment_date)),
+            pts_release_count = sum(pts_release_flag, na.rm = T), 
+            pre_arr_release_count = sum(pre_arr_release, na.rm = T),
+            unmatched_count = sum(no_court_case, na.rm = T),
+            matched_count = sum(has_case, na.rm = T),
+            fta_count = sum(fta_flag, na.rm = T),
+            fta_before_booking_count = sum(fta_before_booking, na.rm = T),
+            nca_count = sum(recid_arrested_flag, na.rm = T),
+            violation_count = sum(violation_flag, na.rm = T),
+            success_count = sum(no_violation_flag, na.rm = T))
+```
 
