@@ -1127,6 +1127,158 @@ full_df %>%
 
 
 
+
+# Yuba check
+```{sql connection = con, output.var = yub_snow}
+
+SELECT County, Booking_Key, Booking_ID, Public_Case_Number, Booking_Date, Assessment_Date, Release_Date, Case_Filed_Date, Arraignment_Date, Pretrial_Period_End_Date, Failure_To_Appear_Date, Is_Release_Eligible, Is_Released_Pretrial, Is_Released_To_Pretrial_Services, Recidivism_Date, Has_New_Criminal_Activity, Release_Type
+FROM "58_YUBA-DWH_DEV"."SECURE_SHARE"."AGG_PRETRIAL_KPI"
+WHERE County = 'Yuba';
+
+```
+
+```{r}
+yub_cjs <- full_df %>%
+  filter(county == "yuba") %>%
+  #filter(new_arrest_flag == 1) %>%
+  #filter(is.na(pretrial_end_date) | !pretrial_end_date < book_date) %>%
+  #filter(!is.na(pretrial_end_date)) %>%
+  filter(book_date > "2018-07-01", 
+       book_date <= "2020-12-31") %>%
+  filter(is.na(pretrial_end_date) | year(pretrial_end_date) != 2021) %>%
+   mutate(release_elig_flag = if_else(new_arrest_flag == 1 & (is.na(pretrial_end_date)  | !pretrial_end_date < book_date), 1, 0),
+         pretrial_release_flag = if_else(new_arrest_flag == 1 & (!is.na(release_date) & is.na(pretrial_end_date) & !is.na(court_charge_original) | release_date < pretrial_end_date), 1, 0),
+         pts_release_flag = if_else(new_arrest_flag == 1 & release_decision == "Monitor", 1, 0),
+         fta_flag = if_else(pretrial_release_flag ==1 & (fta_flag == 1|arrest_fta_flag == 1|court_fta_flag == 1), 1, 0),
+         recid_arrested_flag = if_else(pretrial_release_flag ==1, recid_arrested_flag, 0)) %>%
+  select(book_num, court_docket_id, court_case_id, court_charge_original, book_date, assessment_date, release_date, release_type, file_date, arraignment_date, pretrial_end_date, fta_flag, fta_date, release_elig_flag, pretrial_release_flag, pts_release_flag, release_decision, release_decision_original, recid_arrested_flag)
+
+
+```
+
+```{r}
+yub_snow %>%
+  inner_join(yub_cjs, by = c("BOOKING_KEY" = "book_num")) %>%
+  filter(court_case_id != "", is.na(PUBLIC_CASE_NUMBER)) %>%
+  #filter(!is.na(PRETRIAL_PERIOD_END_DATE) & is.na(pretrial_end_date)) %>%
+  select(BOOKING_KEY, BOOKING_DATE, PUBLIC_CASE_NUMBER, court_case_id, court_charge_original, CASE_FILED_DATE, file_date, PRETRIAL_PERIOD_END_DATE) %>%
+  filter(!is.na(court_charge_original)) %>%
+  filter(file_date > "2018-07-01", 
+         file_date <= "2020-12-31") 
+
+yub_cjs %>%
+  filter(court_case_id != "") %>%
+  select(court_case_id, file_date)
+  count(is.na(file_date))
+```
+
+```{r}
+yub_snow %>%
+  inner_join(yub_cjs, by = c("BOOKING_KEY" = "book_num")) %>%
+  filter(is.na(PRETRIAL_PERIOD_END_DATE) & !is.na(pretrial_end_date)) %>%
+  select(BOOKING_KEY, PUBLIC_CASE_NUMBER, court_case_id, CASE_FILED_DATE, file_date, PRETRIAL_PERIOD_END_DATE)
+```
+
+
+
+
+# Kings check
+```{sql connection = con, output.var = kin_snow}
+
+SELECT County, Booking_Key, Booking_ID, Public_Case_Number, Booking_Date, Assessment_Date, Release_Date, Case_Filed_Date, Arraignment_Date, Pretrial_Period_End_Date, Failure_To_Appear_Date, Is_Release_Eligible, Is_Released_Pretrial, Is_Released_To_Pretrial_Services, Recidivism_Date, Has_New_Criminal_Activity, Release_Type
+FROM "16_KINGS-DWH_QA"."SECURE_SHARE"."AGG_PRETRIAL_KPI"
+WHERE County = 'Kings';
+
+```
+
+```{r}
+kin_cjs <- full_df %>%
+  filter(county == "kings") %>%
+  #filter(new_arrest_flag == 1) %>%
+  filter(is.na(pretrial_end_date) | !pretrial_end_date < book_date) %>%
+  #filter(!is.na(pretrial_end_date)) %>%
+  filter(book_date > "2018-07-01", 
+       book_date <= "2020-12-31") %>%
+  filter(is.na(pretrial_end_date) | year(pretrial_end_date) != 2021) %>%
+   mutate(release_elig_flag = if_else(new_arrest_flag == 1 & (is.na(pretrial_end_date)  | !pretrial_end_date < book_date), 1, 0),
+         pretrial_release_flag = if_else(new_arrest_flag == 1 & (!is.na(release_date) & is.na(pretrial_end_date) & !is.na(court_charge_original) | release_date < pretrial_end_date), 1, 0),
+         pts_release_flag = if_else(new_arrest_flag == 1 & release_decision == "Monitor", 1, 0),
+         fta_flag = if_else(pretrial_release_flag ==1 & (fta_flag == 1|arrest_fta_flag == 1|court_fta_flag == 1), 1, 0),
+         recid_arrested_flag = if_else(pretrial_release_flag ==1, recid_arrested_flag, 0)) %>%
+  select(book_num, court_docket_id, court_case_id, book_date, assessment_date, release_date, release_type, file_date, arraignment_date, pretrial_end_date, fta_flag, fta_date, release_elig_flag, pretrial_release_flag, pts_release_flag, release_decision, release_decision_original, recid_arrested_flag)
+
+
+
+kin_cjs %>%
+  inner_join(kin_snow, by = c("book_num" = "BOOKING_ID")) %>%
+  filter(!is.na(court_case_id) & is.na(PUBLIC_CASE_NUMBER)) %>%
+  select(book_num, court_case_id)
+```
+
+
+
+
+
+
+# Ventura check
+```{sql connection = con, output.var = ven_snow}
+
+SELECT County, Booking_Key, Booking_ID, Public_Case_Number, Booking_Date, Assessment_Date, Release_Date, Case_Filed_Date, Arraignment_Date, Pretrial_Period_End_Date, Failure_To_Appear_Date, Is_Release_Eligible, Is_Released_Pretrial, Is_Released_To_Pretrial_Services, Recidivism_Date, Has_New_Criminal_Activity, Release_Type
+FROM "56_VENTURA-DWH_UAT"."SECURE_SHARE"."AGG_PRETRIAL_KPI"
+WHERE County = 'Ventura';
+
+```
+
+```{r}
+ven_cjs <- full_df %>%
+  filter(county == "ventura") %>%
+  #filter(new_arrest_flag == 1) %>%
+  filter(is.na(pretrial_end_date) | !pretrial_end_date < book_date) %>%
+  #filter(!is.na(pretrial_end_date)) %>%
+  filter(book_date > "2018-07-01", 
+       book_date <= "2020-12-31") %>%
+  filter(is.na(pretrial_end_date) | year(pretrial_end_date) != 2021) %>%
+   mutate(release_elig_flag = if_else(new_arrest_flag == 1 & (is.na(pretrial_end_date)  | !pretrial_end_date < book_date), 1, 0),
+         pretrial_release_flag = if_else(new_arrest_flag == 1 & (!is.na(release_date) & is.na(pretrial_end_date) & !is.na(court_charge_original) | release_date < pretrial_end_date), 1, 0),
+         pts_release_flag = if_else(new_arrest_flag == 1 & release_decision == "Monitor", 1, 0),
+         fta_flag = if_else(pretrial_release_flag ==1 & (fta_flag == 1|arrest_fta_flag == 1|court_fta_flag == 1), 1, 0),
+         recid_arrested_flag = if_else(pretrial_release_flag ==1, recid_arrested_flag, 0)) %>%
+  select(book_num, court_docket_id, court_case_id, court_charge_original, book_date, assessment_date, release_date, release_type, file_date, arraignment_date, pretrial_end_date, fta_flag, fta_date, release_elig_flag, pretrial_release_flag, pts_release_flag, release_decision, release_decision_original, recid_arrested_flag)
+
+
+
+ven_cjs %>%
+  inner_join(ven_snow, by = c("book_num" = "BOOKING_ID")) %>%
+  filter(is.na(court_case_id) & !is.na(PUBLIC_CASE_NUMBER)) %>%
+  select(book_num, PUBLIC_CASE_NUMBER, BOOKING_DATE, CASE_FILED_DATE)
+
+ven_cjs %>%
+  inner_join(ven_snow, by = c("book_num" = "BOOKING_ID")) %>%
+  filter(!is.na(pretrial_end_date) & is.na(PRETRIAL_PERIOD_END_DATE)) %>%
+  select(book_num, court_case_id, PUBLIC_CASE_NUMBER, book_date, CASE_FILED_DATE, pretrial_end_date, RELEASE_TYPE) 
+```
+```{r}
+court_df %>%
+  filter(court_case_id %in% c("2017010642", "2017040565", "2018022845")) %>%
+  select(court_case_id, filing_date, disposition_date, court_charge_original, sentence_date)
+  #filter(court_case_id == "2018022690")
+
+```
+
+```{r}
+book_df %>%
+  filter(book_num == "2049444") %>%
+  #filter(book_num %in% c("2049342", "2081216", "2098962")) %>%
+  select(book_num, court_case_id, book_date, release_date, release_type)
+```
+```{r}
+ven_cjs %>%
+  filter(book_num == "2081216")
+```
+
+
+
+
 # Old
 ```{r}
 mydata <- dbGetQuery(con,"SELECT * FROM \"54_TULARE-DWH_UAT\".\"SECURE_SHARE\".\"DIM_PLEA_DATE\"")

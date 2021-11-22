@@ -872,6 +872,11 @@ full_df %>%
   select(court_case_id, court_docket_id, court_charge_original, file_date, pretrial_end_date, disposition_date)
 ```
 
+```{r}
+full_df %>%
+  filter(county == "los_angeles") %>%
+  count(year(book_date), month(book_date))
+```
 
 
 # sonoma
@@ -1870,8 +1875,9 @@ book_df %>%
 #with updated definition of pretrial release to include individuals who were released, have no pretrial end date but do have a court case
 full_df %>%
   filter(county == "calaveras") %>%
-  filter(book_date > "2018-07-01", 
-         book_date <= "2020-12-31") %>%
+  # filter(book_date > "2018-07-01", 
+  #        book_date <= "2020-12-31") %>%
+  filter(year(book_date) == "2020") %>%
   mutate(pretrial_complete_flag = if_else(new_arrest_flag == 1 & !is.na(pretrial_end_date), 1, 0),
          pretrial_release_flag = if_else(new_arrest_flag == 1 & (!is.na(release_date) & is.na(pretrial_end_date) & !is.na(court_charge_original) | release_date < pretrial_end_date), 1, 0),
          pts_release_flag = if_else(new_arrest_flag == 1 & release_decision == "Monitor", 1, 0),
@@ -1996,6 +2002,91 @@ full_df %>%
 #pretrial complete only
 full_df %>%
   filter(county == "yuba") %>%
+  #filter(new_arrest_flag == 1) %>%
+  filter(is.na(pretrial_end_date) | !pretrial_end_date < book_date) %>%
+  filter(!is.na(pretrial_end_date)) %>%
+  filter(book_date > "2018-07-01", 
+       book_date <= "2020-12-31") %>%
+  filter(year(pretrial_end_date) != 2021) %>%
+  mutate(pretrial_complete_flag = if_else(!is.na(pretrial_end_date), 1, 0),
+         pretrial_release_flag = if_else((!is.na(release_date) & is.na(pretrial_end_date) & !is.na(court_charge_original) | release_date < pretrial_end_date), 1, 0),
+         pts_release_flag = if_else(release_decision == "Monitor", 1, 0),
+         pre_arr_release = if_else(pretrial_release_flag == 1 & release_date < arraignment_date, 1, 0),
+         no_court_case = if_else(is.na(court_charge_original), 1, 0),
+         has_case = if_else(!is.na(court_charge_original), 1, 0),
+         fta_flag = if_else(pretrial_release_flag ==1 & (fta_flag == 1|arrest_fta_flag == 1|court_fta_flag == 1), 1, 0),
+         recid_arrested_flag = if_else(pretrial_release_flag ==1, recid_arrested_flag, 0),
+         violation_flag = if_else(fta_flag == 1 | recid_arrested_flag == 1, 1, 0),
+         no_violation_flag = if_else(pretrial_release_flag == 1 & violation_flag != 1, 1, 0),
+         release_elig_flag = if_else((is.na(pretrial_end_date)  | !pretrial_end_date < book_date), 1, 0)) %>%
+  summarize(bookings_count = n(),
+            #fresh_arrest_count = sum(new_arrest_flag, na.rm = T),
+            release_eligible_count = sum(release_elig_flag, na.rm = T),
+            pretrial_release_count = sum(pretrial_release_flag, na.rm = T),
+            assessments_count = sum(!is.na(assessment_date)),
+            pts_release_count = sum(pts_release_flag, na.rm = T), 
+            pre_arr_release_count = sum(pre_arr_release, na.rm = T),
+            unmatched_count = sum(no_court_case, na.rm = T),
+            matched_count = sum(has_case, na.rm = T),
+            fta_count = sum(fta_flag, na.rm = T),
+            nca_count = sum(recid_arrested_flag, na.rm = T),
+            violation_count = sum(violation_flag, na.rm = T),
+            success_count = sum(no_violation_flag, na.rm = T))
+
+```
+
+
+
+# Kings
+```{r}
+#with updated definition of pretrial release to include individuals who were released, have no pretrial end date but do have a court case
+full_df %>%
+  filter(county == "kings") %>%
+  filter(book_date > "2018-07-01", 
+         book_date <= "2020-12-31") %>%
+  mutate(new_arrest_flag = if_else(book_type == "Bench_Warrant", 1, new_arrest_flag)) %>%  # modify to match snowflake's definition to check other numbers
+  mutate(pretrial_complete_flag = if_else(new_arrest_flag == 1 & !is.na(pretrial_end_date), 1, 0),
+         pretrial_release_flag = if_else(new_arrest_flag == 1 & (!is.na(release_date) & is.na(pretrial_end_date) & !is.na(court_charge_original) | release_date < pretrial_end_date), 1, 0),
+         pts_release_flag = if_else(new_arrest_flag == 1 & release_decision == "Monitor", 1, 0),
+         pre_arr_release = if_else(new_arrest_flag == 1 & pretrial_release_flag == 1 & release_date < arraignment_date, 1, 0),
+         no_court_case = if_else(new_arrest_flag == 1 & is.na(court_charge_original), 1, 0),
+         has_case = if_else(new_arrest_flag == 1 & !is.na(court_charge_original), 1, 0),
+         fta_flag = if_else(pretrial_release_flag ==1 & (fta_flag == 1|arrest_fta_flag == 1|court_fta_flag == 1), 1, 0),
+         recid_arrested_flag = if_else(pretrial_release_flag ==1, recid_arrested_flag, 0),
+         violation_flag = if_else(fta_flag == 1 | recid_arrested_flag == 1, 1, 0),
+         no_violation_flag = if_else(pretrial_release_flag == 1 & violation_flag != 1, 1, 0),
+         release_elig_flag = if_else(new_arrest_flag == 1 & (is.na(pretrial_end_date)  | !pretrial_end_date < book_date), 1, 0)) %>%
+  summarize(bookings_count = n(),
+            fresh_arrest_count = sum(new_arrest_flag, na.rm = T),
+            release_eligible_count = sum(release_elig_flag, na.rm = T),
+            pretrial_release_count = sum(pretrial_release_flag, na.rm = T),
+            assessments_count = sum(!is.na(assessment_date)),
+            pts_release_count = sum(pts_release_flag, na.rm = T), 
+            pre_arr_release_count = sum(pre_arr_release, na.rm = T),
+            unmatched_count = sum(no_court_case, na.rm = T),
+            matched_count = sum(has_case, na.rm = T),
+            fta_count = sum(fta_flag, na.rm = T),
+            nca_count = sum(recid_arrested_flag, na.rm = T),
+            violation_count = sum(violation_flag, na.rm = T),
+            success_count = sum(no_violation_flag, na.rm = T))
+
+
+```
+```{r}
+full_df %>%
+  filter(county == "kings") %>%
+  filter(book_date > "2018-07-01", 
+         book_date <= "2020-12-31") %>%
+  count(new_arrest_flag, book_type, book_type_original)
+
+book_df
+```
+
+
+```{r}
+#pretrial complete only
+full_df %>%
+  filter(county == "kings") %>%
   filter(new_arrest_flag == 1) %>%
   filter(is.na(pretrial_end_date) | !pretrial_end_date < book_date) %>%
   filter(!is.na(pretrial_end_date)) %>%
@@ -2030,11 +2121,12 @@ full_df %>%
 
 
 
-# Kings
+
+# Ventura
 ```{r}
 #with updated definition of pretrial release to include individuals who were released, have no pretrial end date but do have a court case
 full_df %>%
-  filter(county == "kings") %>%
+  filter(county == "ventura") %>%
   filter(book_date > "2018-07-01", 
          book_date <= "2020-12-31") %>%
   mutate(pretrial_complete_flag = if_else(new_arrest_flag == 1 & !is.na(pretrial_end_date), 1, 0),
@@ -2065,14 +2157,20 @@ full_df %>%
 
 ```
 ```{r}
+assess_df %>%
+    filter(assessment_date > "2018-07-01", 
+         assessment_date <= "2020-12-31") %>%
+  distinct(assessment_id, book_num)
 
+book_df %>%
+  count(book_num)
 ```
 
 
 ```{r}
 #pretrial complete only
 full_df %>%
-  filter(county == "kings") %>%
+  filter(county == "ventura") %>%
   filter(new_arrest_flag == 1) %>%
   filter(is.na(pretrial_end_date) | !pretrial_end_date < book_date) %>%
   filter(!is.na(pretrial_end_date)) %>%
