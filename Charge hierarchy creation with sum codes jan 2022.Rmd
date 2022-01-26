@@ -483,7 +483,6 @@ save(charge_hier, file = "Complete Charge Code Hierarchy_SL.RData")
 #save(charge_hier, file = "G:/CrimJustice/PretrialAssessmentPilot/Complete Charge Code Hierarchy_SL.RData")
 #save(charge_hier, file = "G:/CrimJustice/PretrialAssessmentPilot/Complete Charge Code Hierarchy.RData")
 
-doj_hierarchy_2020
 ```
 
 Update with 2022 DOJ master charge code table
@@ -530,6 +529,18 @@ doj_hierarchy_2022sec <- doj_hierarchy_2022sec %>%
 
 doj_hierarchy_2022 <- doj_hierarchy_2022lei %>%
   left_join(doj_hierarchy_2022sec %>% select(-bcs_code, -master_charge_description), by = c("join_var", "charge_level", "charge_code", "charge")) 
+```
+
+Compare with previous version
+```{r}
+load("G:/CrimJustice/PretrialAssessmentPilot/Complete Charge Code Hierarchy_SL.RData")
+
+new_codes <- doj_hierarchy_2022 %>%
+  anti_join(charge_hier, by = "join_var")
+
+#2022 hierarchy has 415 new join_var values not found in previous charge hierarchy
+
+write.xlsx(new_codes, file = "G:/CrimJustice/PretrialAssessmentPilot/Charge Definitions and Hierarchy/New 2022 codes.xlsx", asTable = T, tableStyle = "TableStyleMedium1")
 ```
 
 Diagnostic

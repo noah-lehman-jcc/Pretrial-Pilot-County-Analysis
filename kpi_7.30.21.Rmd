@@ -557,6 +557,38 @@ eval_df %>%
 
 ```
 
+```{r}
+load("G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Alameda Join Collapse.RData")
+
+
+alameda_collapse %>%
+  filter(is.na(court_charge_original)) %>%
+  count(is.na(court_case_id))
+
+court_df %>%
+  filter(is.na(court_charge_original))
+
+court_df %>%
+  filter(court_charge_original == "")
+
+nrow(book_df %>%
+  semi_join(court_df, by = c("event_id"), na_matches = "never")) / nrow(book_df) * 100
+
+# Match rate when matching on court_case_id and local_id from court to booking data ~ 100%
+# No other matching strategies needed
+nrow(court_df %>%
+  semi_join(book_df, by = c("event_id"), na_matches = "never")) / nrow(court_df) * 100
+
+court_df %>%
+  filter(court_case_id %in% c("936245", "936250", "936259", "936283")) %>%
+  arrange(court_case_id)
+
+court_df %>%
+  filter(court_case_id %in% c("913508", "936666", "936804", "955948")) %>%
+  arrange(court_case_id)
+
+
+```
 
 # modoc
 ```{r}
@@ -658,6 +690,11 @@ full_df %>%
   select(book_num, book_date, release_date, assessment_date, pretrial_end_date, court_case_id, court_docket_id)
 
 
+```
+
+```{r}
+book_df %>%
+  count(book_type, book_type_original)
 ```
 
 # san joaquin
@@ -2035,6 +2072,45 @@ full_df %>%
 
 ```
 
+```{r}
+full_df %>%
+  filter(county == "yuba") %>%
+  filter(book_date > "2018-07-01", 
+         book_date <= "2020-12-31") %>%
+  filter(release_decision == "Monitor") %>%
+  count(release_type_original)
+
+court_df %>%
+  count(is.na(arraignment_date))
+
+load("G:/Crimjustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Yuba Join Collapse.RData")
+
+yuba_collapse 
+```
+
+
+```{r}
+court_fta_war %>%
+  summarise(earliest = min(fta_date, na.rm = T), latest = max(fta_date, na.rm = T))
+
+load("G:/Crimjustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Yuba Join Collapse.RData")
+
+yuba_collapse %>%
+  count(arraignment_date < book_date)
+
+yuba_collapse %>%
+  summarise(early = min(book_date, na.rm = T), late = max(book_date, na.rm = T))
+
+
+```
+
+```{r}
+table <- assess_df %>%
+  select(ref_status_original, ref_status_reason_original, pretrial_termination_outcome, pretrial_termination_reason, release_recommendation, release_decision) %>%
+  distinct()
+
+write.csv(table, "probation_mapping_for_Bob.csv")
+```
 
 
 # Kings
@@ -2203,4 +2279,12 @@ full_df %>%
             success_count = sum(no_violation_flag, na.rm = T))
 ```
 
+
+
+
+# Charge hierarchy
+```{r}
+charge_hier %>%
+  filter(grepl("261", charge))
+```
 

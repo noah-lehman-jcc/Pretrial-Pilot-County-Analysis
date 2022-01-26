@@ -10,9 +10,9 @@ library(openxlsx)
 library(readxl)
 library(lubridate)
 library(tidyverse)
-library(XML)
-library(xml2)
-library(xmltools)
+#library(XML)
+#library(xml2)
+#library(xmltools)
 library(fuzzyjoin)
 library(gsubfn)
 
@@ -212,7 +212,7 @@ charge_hier_special <- charge_hier_special %>%
 # anti_join(charge_hier_check, charge_hier_special)
 ```
 
-Missing Charges
+Missing Charges - used pilot data to identify charges that were not in the charge code table
 ```{r}
 #these have no summary codes or bcs codes
 

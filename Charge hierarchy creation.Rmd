@@ -23,12 +23,12 @@ library(fuzzyjoin)
 2020 DOJ Hieararchies
 ```{r, eval=FALSE, include=FALSE}
 #DOJ Crime Severity Ratings 2008
-doj_hierarchy_2020 <- fread("C:/Work/PretrialAssessmentPilot/Charge Definitions and Hierarchy/Master Charge Code Table 2020.csv")
-doj_hierarchy_2020_jbsis <- read_excel("C:/Work/PretrialAssessmentPilot/Charge Definitions and Hierarchy/2020_March04_DOJ_Offense_Table_JBSIS.xlsx")
+doj_hierarchy_2020 <- fread("G:/CrimJustice/PretrialAssessmentPilot/Charge Definitions and Hierarchy/Master Charge Code Table 2020.csv")
+doj_hierarchy_2020_jbsis <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Charge Definitions and Hierarchy/2020_March04_DOJ_Offense_Table_JBSIS.xlsx")
 
 
-names(doj_hierarchy_2020) <- c("offense_id", "cjis_code", "hierarchy", "charge_level", "charge", "charge_code", "master_charge_description", "sentence")
-names(doj_hierarchy_2020_jbsis) <- c("offense_id", "cjis_code", "hierarchy", "charge_level", "charge", "charge_code", "master_charge_description", "sentence", "jbsis_code")
+names(doj_hierarchy_2020) <- c("summary_code", "cjis_code", "hierarchy", "charge_level", "charge", "charge_code", "master_charge_description", "sentence")
+names(doj_hierarchy_2020_jbsis) <- c("summary_code", "cjis_code", "hierarchy", "charge_level", "charge", "charge_code", "master_charge_description", "sentence", "jbsis_code")
 
 doj_hierarchy_2020 <- left_join(doj_hierarchy_2020, doj_hierarchy_2020_jbsis)
 
@@ -39,14 +39,14 @@ doj_hierarchy_2020 <- doj_hierarchy_2020 %>%
          charge_code = if_else(!charge_code %in% c("PC", "VC", "HS", "BP", "WI", "US"), "Other", charge_code)) %>%
   distinct(charge, charge_code, charge_level, .keep_all = T) %>%
   unite(join_var, charge_level, charge_code, charge, remove = F) %>%
-  select(join_var, master_charge_description, hierarchy, charge_level, charge_code, charge, jbsis_code)
+  select(join_var, master_charge_description, hierarchy, charge_level, charge_code, charge, jbsis_code, summary_code)
 ```
 
 
 2017 DOJ Hieararchies
 ```{r, eval=FALSE, include=FALSE}
 #DOJ Crime Severity Ratings 2008
-doj_hierarchy_2017 <- read_excel("C:/Work/PretrialAssessmentPilot/Charge Definitions and Hierarchy/dojoffenses.xls")
+doj_hierarchy_2017 <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Charge Definitions and Hierarchy/dojoffenses.xls")
 
 doj_hierarchy_2017 <- doj_hierarchy_2017 %>%
   mutate(STATUTE2 = gsub("\\/|\\(|\\)| |\\.|\\.*","", STATUTE2)) %>%
@@ -82,10 +82,10 @@ doj_hierarchy_2017 %>%
 2008 DOJ Hierarchies
 ```{r}
 #DOJ Crime Severity Ratings 2008
-doj_hierarchy_2008 <- read_excel("C:/Work/PretrialAssessmentPilot/Charge Definitions and Hierarchy/DOJ Crime Severity Ratings May 2008.xls", col_names = FALSE, skip = 11)
+doj_hierarchy_2008 <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Charge Definitions and Hierarchy/DOJ Crime Severity Ratings May 2008.xls", col_names = FALSE, skip = 11)
 
 #Recreating Variables
-names(doj_hierarchy_2008) <- c("sum", "bcs", "hierarchy", "charge_level", "charge", "charge_code", "master_charge_description", "sentence")
+names(doj_hierarchy_2008) <- c("summary_code", "bcs", "hierarchy", "charge_level", "charge", "charge_code", "master_charge_description", "sentence")
 
 #collapsed codes for merger with Fresno
 doj_hierarchy_2008 <- doj_hierarchy_2008 %>% 
@@ -99,7 +99,7 @@ doj_hierarchy_2008 <- doj_hierarchy_2008 %>%
   distinct(charge_level, charge_code, charge, .keep_all = T)  %>%
   select(-c(sum, bcs, sentence)) %>%
   unite(join_var, charge_level, charge_code, charge, remove = F) %>%
-  select(join_var, master_charge_description, hierarchy, charge_level, charge_code, charge)
+  select(join_var, master_charge_description, hierarchy, charge_level, charge_code, charge, summary_code)
  
 ```
 
@@ -120,7 +120,7 @@ doj_hierarchy_2008 %>%
  Charge Code Table 
 ```{r}
 #--This chunk pulls the master charge code table and standardizes it. 
-mcct_2016 <- read_excel("C:/Work/PretrialAssessmentPilot/Charge Definitions and Hierarchy/Master Charge Code Table 2016.xlsx", guess_max = Inf)
+mcct_2016 <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Charge Definitions and Hierarchy/Master Charge Code Table 2016.xlsx", guess_max = Inf)
 
 mcct_2016 <- mcct_2016 %>%
   filter(!is.na(`CalDOJ HIERARCHY Code Informational only`))
@@ -130,7 +130,8 @@ mcct_2016 <- mcct_2016 %>%
          charge = `CODE SECTION (upper/lower case)`, 
          hierarchy = `CalDOJ HIERARCHY Code Informational only`,
          master_charge_description = `Offense Display (For AJIS and ISAB Departments)`,
-         charge_level = LEVEL) %>%
+         charge_level = LEVEL,
+         summary_code = `CalDOJ Summary Code`) %>%
   # mutate(charge = toupper(gsub("\\/|\\(|\\)| |\\.|\\.*|^[A-Z]*|\\\\.*|\\{|\\}","", charge))) %>%
   mutate(charge_level = if_else(!charge_level %in% c("F", "I", "M"), "Other", charge_level),
          charge = toupper(gsub("\\/|\\(|\\)| |\\.|\\.*|^[A-Z]*|\\\\.*|\\{|\\}|EX|\\+|","", charge)),
@@ -138,7 +139,7 @@ mcct_2016 <- mcct_2016 %>%
   distinct(charge_level, charge_code, charge, .keep_all = T) %>%
   mutate(hierarchy = as.numeric(hierarchy)) %>%
   unite(join_var, charge_level, charge_code, charge, remove = F) %>%
-  select(join_var, master_charge_description, hierarchy, charge_level, charge_code, charge)
+  select(join_var, master_charge_description, hierarchy, charge_level, charge_code, charge, summary_code)
 ```
 
  -Visualizes above chunk
@@ -158,7 +159,7 @@ mcct_2016 %>%
 JBSIS Hierarchies
 ```{r, eval=FALSE, include=FALSE}
 #JBSIS matched Charges
-charge_hier_jbsis <- read_excel("C:/Work/PretrialAssessmentPilot/Charge Definitions and Hierarchy/Copy of 2016_Nov21_DOJ_Offense_Table_JBSIS.xlsx") 
+charge_hier_jbsis <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Charge Definitions and Hierarchy/Copy of 2016_Nov21_DOJ_Offense_Table_JBSIS.xlsx") 
 
 names(charge_hier_jbsis) <- toupper(names(charge_hier_jbsis))
 
@@ -167,14 +168,15 @@ charge_hier_jbsis <- charge_hier_jbsis %>%
          charge_code = `CODE TYPE`,
          master_charge_description = `OFFENSE DESCRIPTION`,
          charge_level = `OFF LEVEL`,
-         hierarchy = HIERARCHY) %>%
+         hierarchy = HIERARCHY,
+         summary_code = `SUM CODE`) %>%
   # mutate(charge = toupper(gsub("\\/|\\(|\\)| |\\.|\\.*|^[A-Z]*|\\\\.*","", charge))) %>% 
   mutate(charge_level = if_else(!charge_level %in% c("F", "I", "M"), "Other", charge_level),
          charge = toupper(gsub("\\/|\\(|\\)| |\\.|\\.*|^[A-Z]*|\\\\.*|\\{|\\}|EX|\\+|","", charge)),
          charge_code = if_else(!charge_code %in% c("PC", "VC", "HS", "BP", "WI", "US"), "Other", charge_code)) %>%
   distinct(charge, charge_code, charge_level, .keep_all = T) %>%
   unite(join_var, charge_level, charge_code, charge, remove = F) %>%
-  select(join_var, master_charge_description, hierarchy, charge_level, charge_code, charge)
+  select(join_var, master_charge_description, hierarchy, charge_level, charge_code, charge, summary_code)
 ```
 
  -Visualizes above chunk
@@ -194,11 +196,11 @@ charge_hier_jbsis %>%
 
 Special Allegations--Hierarchies are Max
 ```{r}
-charge_hier_special <- fread("C:/Work/PretrialAssessmentPilot/Charge Definitions and Hierarchy/San_Mateo_Qualifier_Flags_Court_charges.csv", header = T)
-charge_hier_special2 <- fread("C:/Work/PretrialAssessmentPilot/Charge Definitions and Hierarchy/Yuba_Qualifier_Flags_Court_charges.csv", header = T)
-charge_hier_special3 <- read_excel("C:/Work/PretrialAssessmentPilot/Charge Definitions and Hierarchy/qualifier_codes_for_Noah_Kings_Court.xlsx")
-charge_hier_special4 <- read_excel("C:/Work/PretrialAssessmentPilot/Charge Definitions and Hierarchy/qualifier_codes_for_Noah_Napa_Court.xlsx")
-charge_hier_special5 <- read_excel("C:/Work/PretrialAssessmentPilot/Charge Definitions and Hierarchy/qualifier_codes_for_Noah_Sonoma_Court.xlsx")
+charge_hier_special <- fread("G:/CrimJustice/PretrialAssessmentPilot/Charge Definitions and Hierarchy/San_Mateo_Qualifier_Flags_Court_charges.csv", header = T)
+charge_hier_special2 <- fread("G:/CrimJustice/PretrialAssessmentPilot/Charge Definitions and Hierarchy/Yuba_Qualifier_Flags_Court_charges.csv", header = T)
+charge_hier_special3 <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Charge Definitions and Hierarchy/qualifier_codes_for_Noah_Kings_Court.xlsx")
+charge_hier_special4 <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Charge Definitions and Hierarchy/qualifier_codes_for_Noah_Napa_Court.xlsx")
+charge_hier_special5 <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Charge Definitions and Hierarchy/qualifier_codes_for_Noah_Sonoma_Court.xlsx")
 
 charge_hier_special6 <- tibble(join_var = c("M_VC_23578", "M_VC_231035", "F_PC_117012C1", "F_PC_120225A", "F_PC_1170H3", "F_PC_1170H", 
                                                "F_PC_120227A", "F_PC_120221", "F_PC_667A1", "F_PC_12022A1", "F_PC_12022B1", 
@@ -247,7 +249,7 @@ anti_join(charge_hier_check, charge_hier_special)
 
 Missing Charges
 ```{r}
-charge_hier_missing <- read_excel("C:/Work/PretrialAssessmentPilot/Charge Definitions and Hierarchy/Charges Missing from the Charge Code Tables original.xlsx", sheet = "Combined") 
+charge_hier_missing <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Charge Definitions and Hierarchy/Charges Missing from the Charge Code Tables original.xlsx", sheet = "Combined") 
 
 charge_hier_missing <- charge_hier_missing %>% 
   mutate(charge_level = if_else(!charge_level %in% c("F", "I", "M"), "Other", charge_level),
@@ -308,7 +310,7 @@ charge_hier %>%
 load("Complete Charge Code Hierarchy.RData")
 
 #Serious and Violent Felonies
-serious_violent_charges <- read_excel("C:/Work/PretrialAssessmentPilot/Charge Definitions and Hierarchy/Serious and Violent Charges.xlsx", 
+serious_violent_charges <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Charge Definitions and Hierarchy/Serious and Violent Charges.xlsx", 
     sheet = "Data") %>%
   # filter(Serious == T | Violent == T)
   select(charge, charge_level, serious_felony_flag = Serious, violent_felony_flag = Violent) %>%
@@ -333,7 +335,7 @@ charge_hier <- charge_hier %>%
 rm(serious_violent_charges)
 
 #Pretrial Violent Charges
-pretrial_violent <- read_excel("C:/Work/PretrialAssessmentPilot/Charge Definitions and Hierarchy/Pretrial Pilot Consensus on Violent Offense List - FINAL 2-3-20.xlsx")
+pretrial_violent <- read_excel("G:/CrimJustice/PretrialAssessmentPilot/Charge Definitions and Hierarchy/Pretrial Pilot Consensus on Violent Offense List - FINAL 2-3-20.xlsx")
 
 names(pretrial_violent) <- c("charge", "violent_description", "violent_psa_flag")
 
@@ -381,7 +383,7 @@ charge_hier <- charge_hier %>%
 
 save(charge_hier, file = "Complete Charge Code Hierarchy.RData")
 
-# write.xlsx(charge_hier, file = "C:/Work/PretrialAssessmentPilot/Charge Definitions and Hierarchy/Complete Charge Hieararchy with Flags.xlsx", asTable = T, tableStyle = "TableStyleMedium1")
+# write.xlsx(charge_hier, file = "G:/CrimJustice/PretrialAssessmentPilot/Charge Definitions and Hierarchy/Complete Charge Hieararchy with Flags.xlsx", asTable = T, tableStyle = "TableStyleMedium1")
 ```
 
   Flag Excel for Legal
@@ -465,7 +467,7 @@ write.xlsx(
   firstRow = T
   )
 
-serious_violent <- fread("C:/Work/PretrialAssessmentPilot/Charge Definitions and Hierarchy/Bail Deviation Exclusion List_for review by Pretrial Pilots - updated for research team 4-24-20.csv", header = T)
+serious_violent <- fread("G:/CrimJustice/PretrialAssessmentPilot/Charge Definitions and Hierarchy/Bail Deviation Exclusion List_for review by Pretrial Pilots - updated for research team 4-24-20.csv", header = T)
 
 names(serious_violent) <- c("charge", "master_charge_description", "serious_flag", "violent_flag", "remove", "remove2", "remove3")
 
@@ -489,7 +491,7 @@ serious_violent <- serious_violent %>%
 
 missing_df <- anti_join(serious_violent, charge_hier, by = "join_var") 
 
-write.xlsx(missing_df, file = "C:/Work/PretrialAssessmentPilot/Charge Definitions and Hierarchy/Missing Serious and Violent Charges.xlsx")
+write.xlsx(missing_df, file = "G:/CrimJustice/PretrialAssessmentPilot/Charge Definitions and Hierarchy/Missing Serious and Violent Charges.xlsx")
 ```
 
   

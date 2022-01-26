@@ -16,8 +16,8 @@ library(data.table)
 library(openxlsx)
 library(readxl)
 library(lubridate)
-library(XML)
-library(xml2)
+#library(XML)
+#library(xml2)
 # library(xmltools)o
 library(gsubfn)
 library(fuzzyjoin)
@@ -213,6 +213,21 @@ alameda_collapse %>%
   filter(year(book_date) == "2020") %>%
   #summarise(eligible = sum(new_arrest_flag, na.rm = T)) %>%
   count(new_arrest_flag,arrest_capital_flag, !is.na(vprair_risk_score))
+
+court_df %>%
+  select(contains("fta"))
+
+court_df %>%
+  count(court_fta_all_flag) %>%
+  mutate(perc = n/sum(n))
+
+load("G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Sacramento Join Collapse.RData")
+
+sacramento_collapse %>%
+    filter(book_date <= as_date("2020-12-31"),
+         book_date >= as_date("2018-07-01")) %>%
+  filter(new_arrest_flag == 1) %>%
+  filter(!is.na(pretrial_end_date)) 
 ```
 
 
