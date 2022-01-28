@@ -249,6 +249,22 @@ bcs<- bcs %>%
   filter(n==1) %>%
   select(-n)
 
+#save(bcs, file = "bcs and summary code mapping.RData")
+
+#map combinations of bcs code and jbsis code
+bcsj <- charge_hier %>%
+  select(jbsis_code, bcs_code) %>%
+  distinct()
+
+bcsj <- bcsj %>%
+  filter(!is.na(jbsis_code)) %>%
+  arrange(bcs_code) %>%
+  add_count(bcs_code) %>%
+  filter(n==1) %>%
+  select(-n)
+
+# save(bcsj, file = "bcs and jbsis code mapping.RData")
+
 #use bcs codes to match summary codes and use them when the original summary code was missing. this reduces the missing summary codes by about half
 charge_hier <- charge_hier %>%
   left_join(bcs, by = 'bcs_code') %>%
@@ -620,6 +636,7 @@ new_codes <- new_codes %>%
   left_join(jbsis_2021 %>% select(join_var, jbsis_code)) 
 
 
+#add flags
 new_codes <- new_codes %>%
   mutate(capital_flag = if_else(charge_code == "PC" & charge %in% c("37", "128", "206", "2095", "218", "2361C2", "273AB"), 1, 0),
          dv_flag = if_else(grepl("DOMESTIC|SPOUSE|PARTNER|COHABITANT", master_charge_description) &
@@ -658,4 +675,112 @@ new_codes <- new_codes %>%
 write.xlsx(new_codes, file = "G:/CrimJustice/PretrialAssessmentPilot/Charge Definitions and Hierarchy/New 2022 codes with incorrect flags.xlsx", asTable = T, tableStyle = "TableStyleMedium1")
 ```
 
+```{r}
+new_codes <- read.xlsx("G:/CrimJustice/PretrialAssessmentPilot/Charge Definitions and Hierarchy/New 2022 codes with incorrect flags.xlsx")
+
+new_codes %>%
+  select(contains("flag"))
+
+# need to add special_flag
+# remove sb10 flags
+# remove minor flag
+# add dv_possible_flag (maybe? why?)
+
+new_codes <- new_codes %>%
+  select(-contains("sb10"), -minor_flag) %>%
+  mutate(special_flag = 0,
+         dv_possible_flag = 0) %>%
+  mutate(charge_level = charge_level_orig,
+         charge_code = charge_code_orig,
+         charge = charge_orig) %>%
+  select(-contains("orig"))
+
+write.xlsx(new_codes, file = "G:/CrimJustice/PretrialAssessmentPilot/Charge Definitions and Hierarchy/New 2022 codes for lawyer review.xlsx", asTable = T, tableStyle = "TableStyleMedium1")
+
+new_codes_mf <- new_codes %>%
+  filter(charge_level != "I")
+
+write.xlsx(new_codes_mf, file = "G:/CrimJustice/PretrialAssessmentPilot/Charge Definitions and Hierarchy/New 2022 codes for lawyer review without infractions.xlsx", asTable = T, tableStyle = "TableStyleMedium1")
+
+```
+
+```{r}
+load("G:/CrimJustice/PretrialAssessmentPilot/Complete Charge Code Hierarchy_SL.RData")
+
+charge_hier %>%
+  bind_rows(new_codes) %>%
+  filter(is.na(jbsis_code) | jbsis_code == 1000)
+
+charge_hier %>%
+  select(contains("flag"))
+
+setdiff(names(new_codes_mf), names(charge_hier))
+
+
+```
+#fix missing summary codes using bcs codes
+```{r}
+load("bcs and summary code mapping.RData")
+load("bcs and jbsis code mapping.RData")
+
+
+bcs
+new_codes_mf %>%
+  count(is.na(summary_code))
+
+# add missing summary codes using bcs codes
+new_codesb <- new_codes_mf %>%
+  left_join(bcs, by = 'bcs_code') %>%
+  mutate(summary_code = if_else(!is.na(summary_code.x), summary_code.x, summary_code.y)) %>%
+  select(-summary_code.x, -summary_code.y) 
+
+new_codes_mf %>%
+  count(is.na(jbsis_code))
+
+# add missing jbsis codes using bcs codes
+new_codes_jb <- new_codesb %>%
+  left_join(bcsj, by = 'bcs_code') %>%
+  mutate(jbsis_code = if_else(!is.na(jbsis_code.x), jbsis_code.x, jbsis_code.y)) %>%
+  select(-jbsis_code.x, -jbsis_code.y) 
+
+#remove flags so we can re-add with the supplemented codes
+new_codes_jb <- new_codes_jb %>%
+  select(-contains("flag"))
+
+# re-create flags
+
+new_codes_flagged <- new_codes_jb %>%
+  mutate(capital_flag = if_else(charge_code == "PC" & charge %in% c("37", "128", "206", "2095", "218", "2361C2", "273AB"), 1, 0),
+         dv_flag = if_else(grepl("DOMESTIC|SPOUSE|PARTNER|COHABITANT", master_charge_description) &
+                             !grepl("MARRY|CRT ORD|COURT ORDER|FOREIGN|LAND|FAIL|SHELTER", master_charge_description), 1, 0),
+         #Attach Flags DV and Sup Vio Flags #Sup Vio Based on Charge Descriptions--Including Flash Incarceration
+         sup_vio_flag = if_else((grepl("^SUP| SUP |SUPERVISION|PROBATION|PAROLE", master_charge_description) &
+                                  !grepl("^AGG ARSON|SUPV/ETC PROSTITUTION|MENTALY DISORDERD|^SEXUAL ACTIVITY|^SUPPLY|^ADL|SEX|TRANSFER|PROSTITUTION",
+                                         master_charge_description))| charge %in% c("3454", "3455", "12032", "12032A"), 1, 0),
+         fta_flag = if_else(grepl("APPEAR|FTA", master_charge_description) & !grepl("^DEMAND|WITNESS", master_charge_description), 1, 0),
+         marijuana_flag = if_else(grepl("MARIJ|CANNA", master_charge_description), 1, 0),
+         sex_flag = if_else(grepl("SEX|COPULATION|RAPE|ORAL|PENETRATION|MOLLEST|LASCIVIOUS|INCEST", 
+                                  master_charge_description)|(charge_code == "PC" & charge %in% c("2434", "2641", "266H", "266I", "266J", "269", "272", "285", "286", "288",
+                                                           "288a", "2882", "2884", "2885", "2887", "289", "3111", "31111", "314",
+                                                           "6476", "653FC")), 1, 0),
+         dui_flag = if_else((charge_code == "VC" & charge %in% c("23546", "23153", "23578"))|(charge_code == "PC" & charge == "1915B"), 1, 0),
+         #sb10_dui_flag = if_else((charge_code == "VC" & charge %in% c("23546", "23153", "23578"))|(charge_code == "PC" & charge == "1915B"), 1, 0),
+         restrain_flag = if_else(charge_code == "PC" & charge %in% c("166C4", "166D1", "27365A", "6499B"), 1, 0),
+         property_flag = if_else(jbsis_code %in% c("220", "70"), 1, 0),
+         drug_flag = if_else(jbsis_code %in% c("230", "80"), 1, 0),
+         special_flag = 0,
+         dv_possible_flag = 0,
+         serious_felony_flag = 0,
+         violent_felony_flag = 0,
+         violent_psa_flag = 0) %>%
+  mutate_at(vars(contains("flag")), funs(if_else(is.na(.), 0, as.numeric(.))))
+
+new_codes_flagged
+
+write.xlsx(new_codes_flagged, file = "G:/CrimJustice/PretrialAssessmentPilot/Charge Definitions and Hierarchy/New 2022 codes for lawyer review.xlsx", asTable = T, tableStyle = "TableStyleMedium1")
+```
+
+```{r}
+
+```
 
