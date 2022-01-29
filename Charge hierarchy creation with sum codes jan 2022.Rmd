@@ -780,7 +780,63 @@ new_codes_flagged
 write.xlsx(new_codes_flagged, file = "G:/CrimJustice/PretrialAssessmentPilot/Charge Definitions and Hierarchy/New 2022 codes for lawyer review.xlsx", asTable = T, tableStyle = "TableStyleMedium1")
 ```
 
+Combine historical JBSIS doj files from Savet
 ```{r}
+jbsis_2021doj <- read.xlsx("G:/CrimJustice/PretrialAssessmentPilot/Charge Definitions and Hierarchy/2021_September07_DOJ_Offense_Table_JBSIS.xlsx")
+jbsis_2020doj <- read.xlsx("G:/CrimJustice/PretrialAssessmentPilot/Charge Definitions and Hierarchy/2020_March04_DOJ_Offense_Table_JBSIS.xlsx")
+jbsis_2019doj <- read.xlsx("G:/CrimJustice/PretrialAssessmentPilot/Charge Definitions and Hierarchy/2019_January14_DOJ_Offense_Table_JBSIS.xlsx")
+jbsis_2018doj <- read.xlsx("G:/CrimJustice/PretrialAssessmentPilot/Charge Definitions and Hierarchy/2018_March26_DOJ_Offense_Table_JBSIS.xlsx")
+jbsis_2016doj <- read.xlsx("G:/CrimJustice/PretrialAssessmentPilot/Charge Definitions and Hierarchy/Copy of 2016_Nov21_DOJ_Offense_Table_JBSIS.xlsx")
 
+jbsis_comb <- rbind(jbsis_2021doj, jbsis_2020doj, jbsis_2019doj, jbsis_2018doj, jbsis_2016doj)
+
+names(jbsis_comb) <- c("summary_code", "bcs_code", "hierarchy", "charge_level_orig", "charge_orig", "charge_code_orig", "description", "possible_sentence", "jbsis_code")
+
+jbsis_comb <- jbsis_comb %>%
+  mutate(charge_level = toupper(charge_level_orig),
+         charge_level = if_else(!charge_level %in% c("F", "I", "M"), "Other", charge_level),
+         charge = toupper(gsub("\\/|\\(|\\)| |\\.|\\.*|^[A-Z]*|\\\\.*|\\{|\\}|EX|\\+|","", charge_orig)),
+         charge_code = if_else(!charge_code_orig %in% c("PC", "VC", "HS", "BP", "WI", "US"), "Other", charge_code_orig)) %>%
+  distinct(charge, charge_code, charge_level, .keep_all = T) %>%
+  unite(join_var, charge_level, charge_code, charge, remove = F) %>%
+  select(join_var, description, charge_level, charge_code, charge, bcs_code, summary_code, jbsis_code, possible_sentence, charge_level_orig, charge_orig, charge_code_orig) %>%
+  mutate(summary_code = as.numeric(summary_code),
+         bcs_code = as.numeric(bcs_code),
+         jbsis_code = as.numeric(jbsis_code))
+
+jbsis_comb
+
+
+new_codes <- read.xlsx("G:/CrimJustice/PretrialAssessmentPilot/Charge Definitions and Hierarchy/New 2022 codes for lawyer review.xlsx")
+load("G:/CrimJustice/PretrialAssessmentPilot/Complete Charge Code Hierarchy_SL.RData")
+
+bind_rows(new_codes, charge_hier) %>%
+  distinct(join_var, .keep_all = T) %>%
+  anti_join(jbsis_comb, by = "join_var")
+
+missing_jbsis <- new_codes %>%
+  anti_join(jbsis_comb, by = "join_var") %>%
+  filter(is.na(jbsis_code))
+
+
+# match jbsis codes to charges with missing jbsis codes determined by the base charge, when there is no conflict of jbsis codes.
+# also match summary codes to charges with missing summary codes in the same way
+bind_rows(new_codes, charge_hier) %>%
+  mutate(charge_start = as.integer(parse_number(charge)),
+         jbsis_code = if_else(is.na(jbsis_code)|jbsis_code == 0, 1000, jbsis_code),
+         summary_code = if_else(is.na(summary_code)|summary_code == 0, 1000, summary_code)) %>%
+  group_by(charge_level, charge_code, charge_start) %>%
+  mutate(n = sum(!(unique(jbsis_code) %in% c(1000, 90, 250, 270))),
+         ns = sum(!unique(summary_code) %in% c(1000))) %>%
+  mutate(jbsis_code = if_else(jbsis_code == 1000 & n %in% 0:1, min(jbsis_code), jbsis_code),
+         summary_code = if_else(summary_code == 1000 & ns %in% 0:1, min(summary_code), summary_code)) %>%
+  ungroup() %>%
+  #Fixing property and drug flags to be off of summary codes
+  mutate(property_flag = if_else(summary_code %in% c(8:11, 24, 31:33, 64), 1, 0),
+         drug_flag = if_else(summary_code %in% c(12:15, 34:36), 1, 0)) %>%
+  select(-n, -ns, -charge_start) %>%
+  count(summary_code == 1000, jbsis_code == 1000)
+
+# need to go back and re-add bcs codes to the charge_hier if i want to use those for anything, they were removed
 ```
 
