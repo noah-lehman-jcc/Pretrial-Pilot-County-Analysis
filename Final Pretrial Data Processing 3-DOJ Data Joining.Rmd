@@ -143,7 +143,7 @@ doj_df <- doj_df %>%
 # charge_hier
 ```
 
-Flag Adds--Old Not Used
+XXXXXXXX Flag Adds--Old Not Used (flags now already in hierarchy)
 ```{r eval=FALSE, include=FALSE}
 #Adding dv and sup_vio flags to data.
 doj_df <- doj_df %>%
@@ -225,7 +225,7 @@ doj_df <- doj_df %>%
   #        DISP_DATE = if_else(STP_ORI_TYPE_DESCR == "Court" & DISP_DATE == "", STP_EVENT_DATE, DISP_DATE)) %>%
   group_by(CII_NUMBER, CYC_DATE) %>%
   mutate(arrest_date = min(STP_EVENT_DATE),
-         SENTENCE_DATE = max(SENTENCE_DATE),
+         SENTENCE_DATE = max(SENTENCE_DATE), # LOOK AT THIS -- should this be min instead of max????? ******************** (currently formatted as character, so if you take min it will mess it up, change format or otherwise deal with this)
          DISP_DATE = max(DISP_DATE)) %>%
   ungroup() %>%
   select(-c(SENT_ORDER:SENT_TIME_DESCR))
@@ -346,7 +346,7 @@ doj_df %>%
 ```
  
 
-Priors--Fix Later, NOT USED CURRENTLY
+XXXXXXXX Priors--Fix Later, NOT USED CURRENTLY
 ```{r eval=FALSE, include=FALSE}
 load("D:/DOJ Pretrial Pilot Data/Collapsed Pretrial DOJ Data.RData")
 
@@ -477,8 +477,8 @@ save(full_df, file = "Jail, RRF, Court, DOJ Joined.RData")
 # load("Jail, RRF, Court, DOJ Joined.RData")
 
 match_df <- full_df %>%
-  mutate(pretrial_end_date = if_else(is.na(pretrial_end_date), pretrial_end_date_doj, pretrial_end_date)) %>%
-  filter(!is.na(pretrial_end_date)) %>%
+  mutate(pretrial_end_date_doj = if_else(is.na(pretrial_end_date), pretrial_end_date_doj, pretrial_end_date)) %>% #changed this, used to be assigned to pretrial_end_date, need to fix variable names going forward ****************************************************
+  filter(!is.na(pretrial_end_date_doj)) %>%
   arrange(book_date) %>%
   # group_by(row_j, county) %>%
   # mutate(pretrial_dispo_date = max(pretrial_dispo_date)) %>%
@@ -493,10 +493,10 @@ save(match_df, file = "Court Collapsed Full Data.RData")
 # With county data unmatched with DOJ data for now.
 match_df <- match_df %>%
   filter(!is.na(release_date),
-         !is.na(pretrial_end_date)) %>%
+         !is.na(pretrial_end_date_doj)) %>%
   filter(pretrial_end_date - as_date(release_date) > 0) %>%
   mutate(start = as.numeric(as_date(release_date)) + 1,
-         end = as.numeric(pretrial_end_date)) %>%
+         end = as.numeric(pretrial_end_date_doj)) %>%
   ungroup() %>%
   mutate(match_id = paste0(local_id, county)) %>%
   filter(end > start) %>%
@@ -561,6 +561,7 @@ eval_df <- eval_df %>%
 save(eval_df, file = "Final Failure Evaluation2.RData")
 
 shell.exec(getwd())
+
 ```
 
 Anonymized Data Set

@@ -573,7 +573,7 @@ sb_cjs %>%
   count(pretrial_release_flag)
 ```
 
-#Tuolumne check
+# Tuolumne check
 ```{sql connection = con, output.var = tu_snow}
 
 SELECT County, Booking_Key, Public_Case_Number, Booking_Date, Assessment_Date, Release_Date, Case_Filed_Date, Arraignment_Date, Pretrial_Period_End_Date, Failure_To_Appear_Date, Is_Release_Eligible, Is_Released_Pretrial, Recidivism_Date, Has_New_Criminal_Activity
@@ -658,7 +658,7 @@ sm_snow %>%
 ```
 
 
-#Napa check
+# Napa check
 ```{sql connection = con, output.var = na_snow}
 
 SELECT County, Booking_Key, Booking_ID, Public_Case_Number, Booking_Date, Assessment_Date, Release_Date, Case_Filed_Date, Arraignment_Date, Pretrial_Period_End_Date, Failure_To_Appear_Date, Is_Release_Eligible, Is_Released_Pretrial, Recidivism_Date, Has_New_Criminal_Activity
@@ -765,7 +765,40 @@ court_dispo %>%
 court_dispo
 ```
 
-#Sonoma check
+```{r}
+nrow(book_df %>%
+semi_join(court_df, by = c("court_case_id", "local_id"), na_matches = "never"))/nrow(book_df)
+
+nrow(court_df %>%
+semi_join(book_df, by = c("court_case_id", "local_id"), na_matches = "never"))/nrow(court_df)
+```
+```{r}
+court_df %>%
+  count(disposition_type_original) %>%
+  arrange(desc(n))
+
+court_df %>%
+  filter(grepl("NC", court_case_id))
+
+book_df %>%
+  distinct(court_case_id)
+
+book_df %>%
+  filter(release_type_original == "No Complaint") %>%
+  count(book_type_original) %>%
+  arrange(desc(n))
+```
+
+```{r}
+book_df %>%
+  count(release_type_original) %>%
+  arrange(desc(n))
+
+book_df %>%
+  filter(grepl("NC", court_case_id))
+```
+
+# Sonoma check
 ```{sql connection = con, output.var = son_snow}
 
 SELECT County, Booking_Key, Booking_ID, Public_Case_Number, Booking_Date, Assessment_Date, Release_Date, Case_Filed_Date, Arraignment_Date, Pretrial_Period_End_Date, Failure_To_Appear_Date, Is_Release_Eligible, Is_Released_Pretrial, Is_Released_To_Pretrial_Services, Recidivism_Date, Has_New_Criminal_Activity, Release_Type
@@ -1132,7 +1165,7 @@ full_df %>%
 ```{sql connection = con, output.var = yub_snow}
 
 SELECT County, Booking_Key, Booking_ID, Public_Case_Number, Booking_Date, Assessment_Date, Release_Date, Case_Filed_Date, Arraignment_Date, Pretrial_Period_End_Date, Failure_To_Appear_Date, Is_Release_Eligible, Is_Released_Pretrial, Is_Released_To_Pretrial_Services, Recidivism_Date, Has_New_Criminal_Activity, Release_Type
-FROM "58_YUBA-DWH_DEV"."SECURE_SHARE"."AGG_PRETRIAL_KPI"
+FROM "58_YUBA-DWH_UAT"."SECURE_SHARE"."AGG_PRETRIAL_KPI"
 WHERE County = 'Yuba';
 
 ```
@@ -1140,6 +1173,7 @@ WHERE County = 'Yuba';
 ```{r}
 yub_cjs <- full_df %>%
   filter(county == "yuba") %>%
+  mutate(new_arrest_flag = if_else(is.na(pretrial_end_date), 1, new_arrest_flag)) %>%
   #filter(new_arrest_flag == 1) %>%
   #filter(is.na(pretrial_end_date) | !pretrial_end_date < book_date) %>%
   #filter(!is.na(pretrial_end_date)) %>%
@@ -1151,7 +1185,7 @@ yub_cjs <- full_df %>%
          pts_release_flag = if_else(new_arrest_flag == 1 & release_decision == "Monitor", 1, 0),
          fta_flag = if_else(pretrial_release_flag ==1 & (fta_flag == 1|arrest_fta_flag == 1|court_fta_flag == 1), 1, 0),
          recid_arrested_flag = if_else(pretrial_release_flag ==1, recid_arrested_flag, 0)) %>%
-  select(book_num, court_docket_id, court_case_id, court_charge_original, book_date, assessment_date, release_date, release_type, file_date, arraignment_date, pretrial_end_date, fta_flag, fta_date, release_elig_flag, pretrial_release_flag, pts_release_flag, release_decision, release_decision_original, recid_arrested_flag)
+  select(book_num, court_docket_id, court_case_id, court_charge_original, book_date, assessment_date, release_date, release_type, file_date, arraignment_date, pretrial_end_date, fta_flag, fta_date, release_elig_flag, pretrial_release_flag, pts_release_flag, release_decision, release_decision_original, recid_arrested_flag, release_type_original, disposition_date, disposition_type, disposition_type_original, new_arrest_flag, book_type, book_type_original)
 
 
 ```
@@ -1179,7 +1213,31 @@ yub_snow %>%
   select(BOOKING_KEY, PUBLIC_CASE_NUMBER, court_case_id, CASE_FILED_DATE, file_date, PRETRIAL_PERIOD_END_DATE)
 ```
 
+```{r}
+yub_snow %>%
+  inner_join(yub_cjs, by = c("BOOKING_KEY" = "book_num")) %>%
+  filter(IS_RELEASED_PRETRIAL == "Yes") %>%
+  filter(pretrial_release_flag == 0) %>%
+  select(BOOKING_KEY, PUBLIC_CASE_NUMBER, court_case_id, PRETRIAL_PERIOD_END_DATE, pretrial_end_date, RELEASE_DATE, release_date, RELEASE_TYPE, release_type, disposition_date, disposition_type, disposition_type_original, file_date, new_arrest_flag, book_type, book_type_original) 
+  
 
+yub_cjs %>%
+  count(new_arrest_flag, is.na(pretrial_end_date))
+# new_arrest_flag is incorrectly set to 0 when pretrial end date is NA, for the moment just swapped it out in the sample pulled in here. code is fixed in final pretrial data processing 1 so it will parse correctly if it is run again.
+```
+```{r}
+book_df %>%
+  filter(book_num == "260148")
+```
+
+
+```{r}
+yub_snow %>%
+  inner_join(yub_cjs, by = c("BOOKING_KEY" = "book_num")) %>%
+  filter(!is.na(PRETRIAL_PERIOD_END_DATE)) %>%
+  filter(is.na(pretrial_end_date))
+  
+```
 
 
 # Kings check
@@ -1276,6 +1334,12 @@ ven_cjs %>%
   filter(book_num == "2081216")
 ```
 
+```{r}
+court_df2 %>%
+  filter(is.na(court_charge_original))
+
+court_df
+```
 
 
 
@@ -1292,5 +1356,20 @@ head(mydata)
 dbListTables(con)
 
 tbl(con, in_schema("SECURE_SHARE", "DIM_PLEA_DATE"))
+```
+
+
+
+# Pull dataframe column names
+```{r}
+df_names <- names(df)
+eval_df_names <- names(eval_df)
+join_df_names <- names(join_df)
+
+# write.csv(df_names, file = "G:/CrimJustice/PretrialAssessmentPilot/df_names.csv")
+# write.csv(eval_df_names, file = "G:/CrimJustice/PretrialAssessmentPilot/eval_df_names.csv")
+# write.csv(join_df_names, file = "G:/CrimJustice/PretrialAssessmentPilot/join_df_names.csv")
+
+
 ```
 

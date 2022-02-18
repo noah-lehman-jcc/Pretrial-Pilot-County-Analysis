@@ -4833,6 +4833,7 @@ write.xlsx(list(doj_cii, doj_court, doj_assess), file = "G:/CrimJustice/Pretrial
 Sonoma has their own documentation files included, they are quite good. Check them out.
 
 
+
 Jail Data
 ```{r}
 # Jail Bookings Data Import --- Sonoma 2015-01-01 to 2020-06-29
@@ -5617,7 +5618,6 @@ Court diagnostics
 
 Probation Data
 ```{r}
-
 # Probation Data Import--- Sonoma, 2015-01-01 to 2021-02-27
   ## prob_assess contains one row per pretrial risk assessment (SPRAT), with data for any pretrial release event pertaining to that SPRAT, and one row for any pretrial release event that was not associated to a SPRAT. The primary keys in this file are the sprat_id (unique identifier for each SPRAT assessment) and croa_key (unique identifier for each pretrial grant). 
   ##prob_cond includes the terms and conditions ordered by the Court that are associated with a pretrial grant. The file contains one row per condition, for each pretrial grant. The unique grant of pretrial can be identified by the croa_key field. 
@@ -5714,8 +5714,11 @@ prob_book <- prob_book %>%
                                            T ~ NA_character_)
   )
 
+prob_book
+```
 
 
+```{r}
 ####
 
 ## how should we treat the recommendation overrides?? ASK SONOMA
@@ -6694,6 +6697,81 @@ join2 <- join1 %>%
 ```{r}
 load("G:/CrimJustice/PretrialAssessmentPilot/County Flag Check.RData")
 flag_list$sonoma_collapse
+
+```
+
+
+
+# UNRELATED
+
+Random stuff for other thing
+```{r}
+join_df <- df %>% 
+  # mutate(arrest_charge_level = case_when(is.na(arrest_charge_level)|arrest_charge_level %in% c("Other", "I") ~"Other_Unknown",
+  #                                        arrest_charge_level == "F" ~ "Felony",
+  #                                        arrest_charge_level == "M" ~ "Misdemeanor")) %>%
+  filter(book_date <= as_date("2021-03-31"),
+         book_date >= as_date("2019-10-01"))
+
+arrest_charge_level_df <- join_df %>%
+  filter(!is.na(pretrial_end_date),
+         new_arrest_flag == 1)
+
+arrest_charge_level_df <- join_df %>%
+  filter(!is.na(pretrial_end_date),
+         new_arrest_flag == 1) %>%
+  mutate(pre_trial_release_flag = if_else(release_date >= pretrial_end_date|is.na(release_date), 0, 1)) %>%
+  mutate(two_day_release = case_when(
+    weekdays(book_date) == "Thursday" & release_date - book_date <= 4 ~ 1,
+    weekdays(book_date) == "Friday" & release_date - book_date <= 4 ~ 1,
+    weekdays(book_date) == "Saturday" & release_date - book_date <= 3 ~ 1,
+    !weekdays(book_date) %in% c("Thursday", "Friday", "Saturday") & release_date - book_date <= 2 ~ 1,
+    is.na(release_date) ~ 0,
+    T ~ 0)) %>%
+  mutate(pre_arraignment_flag = if_else(two_day_release == 1 & pre_trial_release_flag == 1, 1, 0),
+         closed_convicted_flag = if_else(two_day_release == 1 & pre_trial_release_flag == 0 & conviction_flag == 1, 1, 0),
+         closed_not_convicted_flag = if_else(two_day_release == 1 & pre_trial_release_flag == 0 & conviction_flag == 0, 1, 0)) %>%
+  group_by(County, arrest_charge_level) %>%
+  summarise(Total = n(),
+            `Two Day Release Rate` = paste(round(mean(two_day_release)*100), "%"), 
+            `Two Day Pretrial Release` = paste(round(mean(pre_arraignment_flag)*100), "%"),
+            `Two Day Case Closed, Convicted Release Rate` = paste(round(mean(closed_convicted_flag)*100), "%"),
+            `Two Day Case Closed, Not Convicted Release Rate` = paste(round(mean(closed_not_convicted_flag)*100), "%"),
+            `Total Pretrial Release Rate` = paste(round(mean(pre_trial_release_flag)*100), "%")) %>%
+    rename(arrest_charge_level = arrest_charge_level)
+
+join_df %>%
+  filter(!is.na(pretrial_end_date),
+         new_arrest_flag == 1,
+         is.na(race)|race == "Other") %>%
+  count(race_original) %>%
+  arrange(desc(n))
+
+join_df %>%
+  filter(!is.na(pretrial_end_date),
+         new_arrest_flag == 1) %>%
+  count(race) %>%
+  mutate(percent = n/sum(n))
+```
+
+Random Shelley thing 6.3.21
+```{r}
+
+
+join_df %>%
+  count(disposition_type)
+
+eval_df %>%
+  count(disposition_type)
+
+join_df %>%
+  count(sentence_type)
+
+eval_df %>%
+  count(sentence_type)
+
+join_df %>%
+  count(is.na(pretrial_end_date))
 
 ```
 
