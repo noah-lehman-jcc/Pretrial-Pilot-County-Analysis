@@ -1,0 +1,91 @@
+---
+title: "ciisfordoj2_17_2022"
+output: html_document
+issue:  Modoc changed Jail Management ystems and could not submit proper data for 1/15/2022 reporting, 
+instead they sent a list of CII, starting Sept 1 2021 through Dec 31, 2021. I need to reformat them to add them to the DOJ list
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Libraries
+```{r}
+library(data.table)
+library(openxlsx)
+library(readxl)
+library(lubridate)
+library(tidyverse)
+
+```
+
+##Read in data
+```{r}
+# this file should have 386 observations.  It had a wierd last line that said  "386 Records"  
+modocCII <- read_csv("C:/R Work/Append Modoc CIIs/CII.csv")
+
+modocCII <- modocCII %>%
+  rename(oldCII=CII);
+  
+#this snippet removed the weird last row  
+modocCII <- modocCII[-c(387), ]
+
+
+
+modocCII <- modocCII %>%
+  mutate(county="Modoc") %>%
+  mutate(cii = gsub("[^0-9]", "", oldCII)) %>%  
+  mutate(cii = case_when(nchar(cii) == 6 ~ paste0("0000", cii),
+                       nchar(cii) == 7 ~ paste0("000", cii),
+                       nchar(cii) == 8 ~ paste0("00", cii),
+                       nchar(cii) == 9 ~ paste0("0", cii),
+                       T ~ as.character(cii)),
+       cii = if_else(nchar(cii) != 10, NA_character_, (cii)));
+
+View(modocCII)
+```
+
+```{r}
+write.xlsx(modocCII, "C:/R Work/Append Modoc CIIs/modocCIIplus.xlsx")
+```
+
+```{r}
+sf <- fread(file = 'C:/R Work/Append Modoc CIIs/SnowflakeCIIs2_17_2022.tsv',  header = TRUE)
+
+```
+
+```{r}
+names(sf) <- ("cii")
+ 
+#SF starts with 729875 obs this snippet finds any observations that have a digit or any missing values in this case it finds ("A10707613" and "Unknown" and "")
+
+sf <- sf %>%
+  mutate(bad = if_else(grepl("\\D", cii) | cii=="", 1, 0)) %>%
+  filter(bad == "0") %>%
+  select(-bad)
+ 
+
+#bind Modoc and Snowflake CIIs
+#730258 obs then distinct and get 730110
+doj_cii_3_18_2022 <- bind_rows(sf %>% select(cii), modocCII %>% select(cii)) %>% distinct()
+
+ 
+
+
+doj_cii_3_18_2022$recordid=seq(from=100000000001, by=1, length = nrow(doj_cii_3_18_2022)) 
+
+```{r}
+doj_cii_3_18_2022 <- doj_cii_3_18_2022 %>%
+  mutate(recordid=as.character(recordid)) %>%
+  select(recordid, cii) 
+
+doj_cii_3_18_2022 <- doj_cii_3_18_2022 %>%
+  unite(idcii, c("recordid","cii"), sep="|", remove=T)
+
+
+```
+
+
+write.csv(doj_cii_3_18_2022, "C:/R Work/Append Modoc CIIs/doj_cii_3_18_2022.csv", row.names=F, quote=F)
+
+
