@@ -732,9 +732,54 @@ semi_join(book_df, by = c("book_num"), na_matches = "never"))/nrow(assess_df)
 join_df2 <- join_df %>%
 left_join(assess_df, by = c("book_num"), na_matches = "never") %>%
   select(-contains(".y")) %>%
-  rename_at(vars(contains(".x")), funs(gsub("\\.x", "", .))) 
+  rename_at(vars(contains(".x")), funs(gsub("\\.x", "", .)))
+```
 
+Diagnostic stuff -- Sal
+```{r}
+court_df %>%
+  select(court_docket_id) %>%
+  arrange(court_docket_id)
+  
+book_df %>%
+  select(court_docket_id) %>%
+  arrange(court_docket_id)
 
+book_df %>%
+  #select(court_docket_id)
+  count(court_docket_id %in% c("")) %>%
+  mutate(percent = round(n/sum(n)*100))
+  
+book_df %>%
+  mutate(missing = if_else(court_docket_id < 1, 1, 0)) %>%
+  count(missing) %>%
+  mutate(percent = n/sum(n))
+
+book_df %>%
+  filter(year(book_date) >=2017) %>%
+  anti_join(court_df, by = "court_docket_id") %>%
+  count(court_docket_id, release_type) %>%
+  arrange(desc(n))
+
+book_df %>%
+  count(year(book_date))
+
+court_df %>%
+  count(year(final_date))
+
+court_df %>%
+  select(contains("date"))
+
+nrow(book_df %>%
+       filter(year(book_date) >=2017) %>%
+semi_join(court_df, by = c("court_docket_id"), na_matches = "never"))/nrow(book_df %>% filter(year(book_date) >=2017))
+
+court_df %>%
+  count(cii) %>%
+  arrange(desc(n)) %>%
+  mutate(percent = round(n/sum(n)*100))
+
+names(court_df)
 ```
 
 Collapse

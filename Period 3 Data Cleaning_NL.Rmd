@@ -16,8 +16,8 @@ library(data.table)
 library(openxlsx)
 library(readxl)
 library(lubridate)
-library(XML)
-library(xml2)
+#library(XML)
+#library(xml2)
 # library(xmltools)o
 library(gsubfn)
 library(fuzzyjoin)
@@ -849,9 +849,29 @@ book_charge <- book_charge %>%
   left_join(charge_hier) %>%
   rename_at(vars(contains("flag")), funs(paste0("arrest_", .))) %>%
   mutate(arrest_felony_flag = if_else(arrest_charge_level == "F", 1, 0),
-         arrest_misd_flag = if_else(arrest_charge_level == "M", 1, 0)) 
-  
-charge_hier
+         arrest_misd_flag = if_else(arrest_charge_level == "M", 1, 0))
+```
+
+Exploratory
+```{r}
+book_df
+book_charge
+
+book_df %>%
+  group_by(event_id) %>%
+  mutate(n = nrow()) %>%
+  ungroup() %>%
+  filter(n>1) %>%
+  arrange(event_id)
+
+book_charge %>%
+  count(book_num, event_id, book_date)
+
+book_df %>%
+  distinct(event_id, book_date) %>%
+  add_count(event_id) %>%
+  filter(n>1) %>%
+  arrange(event_id)
 ```
   
   Jail Collapse
@@ -5218,7 +5238,7 @@ join_df <- bind_rows(join_df, join_df3)
 
 rm(join_df1, join_df2, join_df3)
 
-
+#97.6%
 nrow(assess_df %>%
   semi_join(join_df, by = c("book_num"), na_matches = "never")) / nrow(assess_df) * 100
 

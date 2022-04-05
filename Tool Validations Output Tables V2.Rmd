@@ -64,6 +64,35 @@ my_kable <- function(x){
 
 ```
 \newpage
+Exploratory
+```{r include = FALSE}
+eval_df %>%
+  filter(county == "Alameda") %>%
+  count(filed_flag, court_misd_flag, court_felony_flag)
+  count(release_type_original)
+  
+full_df %>%
+  filter(county == "Alameda") %>%
+  count(filed_flag, court_misd_flag, court_felony_flag, arrest_dis)
+
+full_df %>%
+  filter(!is.na(pretrial_end_date_doj)) %>%
+  count(disp_descr)
+
+full_df %>%
+  filter(county =="alameda") %>%
+  filter(!is.na(assessment_date),
+         !is.na(cii),
+         new_arrest_flag == 1) %>%
+  count(is.na(vprair_risk_score))
+
+df %>%
+  filter(county == "Alameda") %>%
+  count(is.na(assessment_date), is.na(vprair_risk_score))
+
+df %>%
+  count(County, county)
+```
 
 # Date Range
 ```{r}
@@ -118,9 +147,10 @@ drop_df2 <- drop_df %>%
                                        `Released Pretrial` >= 200 ~ "General Only",
                                        `Released Pretrial` < 200 ~ "Sample Too Small"),
          County = if_else(County == "Nevada", "Nevada/Sierra", County)) %>%
-  arrange(`Validation Type`) %>%
+  arrange(County) %>%
   ungroup() %>%
-  mutate(`Validation Type` = if_else(County == "Santa Barbara" & `Tool Name` == "VPRAI", "No longer in use", `Validation Type`)) #%>%
+  mutate(`Validation Type` = if_else(County == "Santa Barbara" & `Tool Name` == "VPRAI", "No longer in use", `Validation Type`)) %>%
+  select(County, `Tool Name`, everything())#%>%
   # rename(`Tool\nName` = `Tool Name`) %>%
   # rename(`Assessed\nBookings` = `Assessed Bookings`) %>%
   # rename(`Pretrial\nComplete` = `Pretrial Complete`) %>%
@@ -2619,7 +2649,7 @@ stargazer(list(m1,m2,m3,m4,m5,m6),
 ```
 \newpage
 
-VPRAI--With Interactions at score 6
+VPRAI--With Interactions at score 6 XXXXXXXX there is no VPRAI score 6, should have done this at score 5
 \newline
 ```{r results='asis'}
 m1 <- glm(family = binomial(),fta_flag ~ vprai_risk_score * race + release_to_pretrial_end, data = race_df %>% mutate(across(contains("score"), ~.x-6)))
@@ -2641,6 +2671,37 @@ stargazer(list(m1,m2,m3,m4,m5,m6),
           notes = c("*p<0.05; **p<0.01; ***p<.001"),
           notes.append = F, font.size = "small")
 
+```
+\newpage
+
+VPRAI--With Interactions at score 5
+\newline
+```{r results='asis'}
+m1 <- glm(family = binomial(),fta_flag ~ vprai_risk_score * race + release_to_pretrial_end, data = race_df %>% mutate(across(contains("score"), ~.x-5)))
+m2 <- glm(family = binomial(),recid_arrested_flag ~ vprai_risk_score * race + release_to_pretrial_end, data = race_df %>% mutate(across(contains("score"), ~.x-5)))
+m3 <- glm(family = binomial(),recid_filed_flag ~ vprai_risk_score * race + release_to_pretrial_end, data = race_df %>% mutate(across(contains("score"), ~.x-5)))
+m4 <- glm(family = binomial(),recid_convicted_flag ~ vprai_risk_score * race + release_to_pretrial_end, data = race_df %>% mutate(across(contains("score"), ~.x-5)))
+m5 <- glm(family = binomial(),recid_arrest_violent_psa_flag ~ vprai_risk_score * race + release_to_pretrial_end, data =
+            race_df %>% mutate(across(contains("score"), ~.x-5)))
+m6 <- glm(family = binomial(), any_pretrial_failure_flag ~ vprai_risk_score * race + release_to_pretrial_end, data = race_df %>% mutate(across(contains("score"), ~.x-5)))
+
+stargazer(list(m1,m2,m3,m4,m5,m6),
+          # type = "text",
+          dep.var.labels = c("FTA", "New Arrest", "New Filing", 
+                             "New Conviction", "New Violent Arrest", "FTA or New Arrest"), 
+          covariate.labels = c("VPRAI Risk Score", "Race:Black", "Race:Hispanic",
+                               "Days Released", "VPRAI*Black", "VPRAI*Hispanic"),
+          star.char = c("*", "**", "***"),
+          star.cutoffs = c(.05, .01, .001),
+          notes = c("*p<0.05; **p<0.01; ***p<.001"),
+          notes.append = F, font.size = "small")
+
+summary(m1)
+summary(m2)
+summary(m3)
+summary(m4)
+summary(m5)
+summary(m6)
 ```
 \newpage
 

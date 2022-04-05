@@ -28,8 +28,8 @@ full_df <- full_df %>%
                                          arrest_charge_level == "F" ~ "Felony",
                                          arrest_charge_level == "M" ~ "Misdemeanor")) %>%
   # filter(!is.na(assessment_date)) %>%
-  filter(book_date <= as_date("2021-03-31"),
-         book_date >= as_date("2019-10-01")) %>%
+  # filter(book_date <= as_date("2021-03-31"),
+  #        book_date >= as_date("2019-10-01")) %>%
   mutate(dob = as_date(dob)) %>%
   mutate(sex = case_when(sex == "F" ~ "Female",
                          sex == "M" ~ "Male",
@@ -114,6 +114,89 @@ full_df <- full_df %>%
 #   filter(release_type_original == "IDENTIFIED AND RELEASED") %>%
 #   count(release_type)
 ```
+SB 262 Amends stuff for Shelley
+```{r}
+#Filter out counties with bad match court/jail match rates
+
+full_df %>%
+  filter(!county %in% c("Calaveras", "Kings", "Modoc", "Nevada", "San Mateo", "Santa Barbara", "Sierra", "Tuolumne", "Yuba")) %>%
+  filter(!is.na(court_case_id)) %>%
+  group_by(county) %>%
+  count(missing_file_date = is.na(file_date)) %>%
+  mutate(perc = round(n/sum(n)*100)) %>%
+  mutate(n = sum(n)) %>%
+  pivot_wider(names_from = missing_file_date, values_from = perc) 
+
+#only LA and Napa had both good court/jail match rates and low missingness of filing date among court cases
+good_counties <- full_df %>%
+  filter(county %in% c("Los Angeles", "Napa")) %>%
+  mutate(fta_flag = if_else(county == "Napa", court_fta_all_flag, fta_flag))
+
+
+good_counties %>%
+  filter(!year(book_date) %in% c('2020', "2021")) %>%
+  filter(release_type == "Unknown_Bail") %>%
+  mutate(no_file = if_else(is.na(file_date), 1, 0),
+         late_file = if_else(file_date - book_date >= 60, 1, 0),
+         dism = if_else(disposition_type == "Dismissed", 1, 0),
+         no_fta = if_else(!is.na(pretrial_end_date) & fta_flag == 0, 1, 0)) %>%
+  mutate(across(c(no_file, late_file, dism, no_fta), ~if_else(is.na(.x), 0, .x))) %>%
+  mutate(all_eligible = if_else(no_file == 1 | late_file == 1 | dism == 1 | no_fta == 1, 1, 0)) %>%
+  group_by(county) %>%
+  count(all_eligible) %>%
+  mutate(perc = n/sum(n)*100) %>%
+  mutate(nn = sum(n))
+
+
+good_counties %>%
+  count(year(book_date), county)
+
+good_counties %>%
+  count(is.na(file_date), county)
+
+#using all counties with good match rates, most of these have a lot of missing filing dates
+moderate_counties <- full_df %>%
+  filter(!county %in% c("Calaveras", "Kings", "Modoc", "Nevada", "San Mateo", "Santa Barbara", "Sierra", "Tuolumne", "Yuba"))
+
+moderate_counties %>%
+  mutate(fta_flag = if_else(county == "Napa", court_fta_all_flag, fta_flag)) %>%
+  filter(!year(book_date) %in% c("2020", "2021")) %>%
+  filter(release_type %in% c("Non_Zero_Bail", "Unknown_Bail")) %>%
+  mutate(no_file = if_else(is.na(court_case_id), 1, 0),
+         late_file = if_else(file_date - book_date >= 60, 1, 0),
+         dism = if_else(disposition_type == "Dismissed", 1, 0),
+         no_fta = if_else(!is.na(pretrial_end_date) & fta_flag == 0, 1, 0)) %>%
+  mutate(across(c(no_file, late_file, dism, no_fta), ~if_else(is.na(.x), 0, .x))) %>%
+  mutate(all_eligible = if_else(no_file == 1 | late_file == 1 | dism == 1 | no_fta == 1, 1, 0)) %>%
+  group_by(county) %>%
+  count(all_eligible) %>%
+  mutate(perc = n/sum(n)*100) %>%
+  mutate(total = sum(n)) %>%
+  filter(all_eligible == 1)
+
+moderate_counties %>%
+  filter(!is.na(court_case_id)) %>%
+  count(county, na_file = is.na(file_date)) %>%
+  group_by(county) %>%
+  mutate(perc = round(n/sum(n)*100)) %>%
+  ungroup() %>%
+  filter(na_file == TRUE)
+```
+
+
+```{r}
+moderate_counties %>%
+  filter(!year(book_date) %in% c("2020", "2021")) %>%
+  filter(release_type %in% c("Non_Zero_Bail", "Unknown_Bail")) %>%
+  group_by(county) %>%
+  summarise(earliest_book = min(book_date), latest_book = max(book_date))
+
+moderate_counties %>%
+  filter(!year(book_date) %in% c("2020", "2021")) %>%
+  filter(release_type %in% c("Non_Zero_Bail", "Unknown_Bail")) %>%
+  group_by(county, year(book_date), month(book_date)) %>%
+  summarise(n = n())
+```
 
 ```{r}
 full_df %>%
@@ -131,6 +214,16 @@ full_df %>%
   filter(is.na(release_type)) %>%
   count(is.na(release_date))
   count(is.na(release_type), is.na(release_date))
+  
+sonoma_collapse %>%
+  filter(grepl("psa", assessment_id)) %>%
+  count(assessment_id)
+
+test <- names(eval_df)[259:ncol(eval_df)]
+write.csv(test, file = "doj variable names.csv")
+
+shell.exec("doj variable names.csv")
+shell.exec(getwd())
 ```
 
 Load and format eval_df
@@ -1150,5 +1243,208 @@ full_df %>%
 book_charge %>%
   filter(grepl("2020", OTD)) %>%
   filter(RegistryNumber == "9852483")
+```
+
+Fitted values from validation regressions for PJPI - PSA
+```{r}
+#PSA
+m1 <- glm(family = binomial(),fta_flag ~ psa_fta_risk_score + release_to_pretrial_end , data = eval_df)
+m2 <- glm(family = binomial(),recid_arrested_flag ~ psa_nca_risk_score, data = eval_df)
+m3 <- glm(family = binomial(),recid_filed_flag ~ psa_nca_risk_score + release_to_pretrial_end , data = eval_df)
+m4 <- glm(family = binomial(),recid_convicted_flag ~ psa_nca_risk_score + release_to_pretrial_end , data = eval_df)
+m5 <- glm(family = binomial(),recid_arrest_violent_psa_flag ~ psa_nvca_risk_score + release_to_pretrial_end , data = eval_df)
+
+fitted(m1)
+
+ggplot(eval_df, aes(x=psa_nca_risk_score, y=recid_arrested_flag)) + 
+  #geom_point(alpha=.5) +
+  stat_smooth(method="glm", se=FALSE, method.args = list(family=binomial))
+
+testplot <- data.frame(psa_nca_risk_score = seq(1, 6, by = 0.1))
+
+#use fitted model to predict values of vs
+testplot$new_arrest = predict(m2, testplot, type="response")
+
+#plot logistic regression curve
+plot(recid_arrested_flag ~ psa_nca_risk_score, data=eval_df, col="steelblue")
+lines(new_arrest ~ psa_nca_risk_score, testplot, lwd=2)
+
+testplot
+```
+Additional plots for PJPI - PSA gender New Arrest
+```{r}
+#PSA - gender
+risk_df <- eval_df %>%
+  filter(tool_name == "psa") %>%
+  group_by(psa_nca_risk_score, sex, county) %>%
+  select(recid_arrested_flag, recid_filed_flag, recid_convicted_flag) %>%
+  pivot_longer(recid_arrested_flag:recid_convicted_flag) 
+
+risk_df <- risk_df %>%
+  mutate(sex = factor(sex, levels = c("Male", "Female"))) %>%
+  filter(sex %in% c("Male", "Female")) %>%
+  mutate(name = case_when(name == "fta_flag" ~ "FTA",
+                          name == "recid_arrested_flag" ~ "New Arrest",
+                          name == "recid_filed_flag" ~ "New Filing",
+                          name == "recid_convicted_flag" ~ "New Conviction",
+                          name == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest"),
+         name = factor(name, levels = c("FTA", "New Arrest", "New Filing", "New Conviction", "New Violent Arrest"))) %>%
+  filter(county %in% c("Los Angeles", "Sacramento"))
+
+risk_df <- risk_df %>%
+  filter(name == "New Arrest")
+
+ggplot(risk_df) +
+  aes(x = psa_nca_risk_score, y = value, color = sex) +
+  geom_smooth(method = "glm", method.args = list(family=binomial), alpha = .2) +
+  theme_bw() +
+  coord_cartesian(ylim=c(0,1)) + #ylim(0,1) +
+  labs(x = "Risk Category", y = "Percent", color = "Gender") +
+  scale_x_continuous(breaks = 1:6) +
+  scale_y_continuous(labels = function(x) paste0(round(x*100,1), "%"), breaks = seq(0, 1, .1))
+
+
+ggsave(filename = "I:/PJPI validation/psa_gender_nca_graph.png", width = 11, height = 7)
+```
+Additional plots for PJPI - PSA gender New Filing
+```{r}
+#PSA - gender
+risk_df <- eval_df %>%
+  filter(tool_name == "psa") %>%
+  group_by(psa_nca_risk_score, sex, county) %>%
+  select(recid_arrested_flag, recid_filed_flag, recid_convicted_flag) %>%
+  pivot_longer(recid_arrested_flag:recid_convicted_flag) 
+
+risk_df <- risk_df %>%
+  mutate(sex = factor(sex, levels = c("Male", "Female"))) %>%
+  filter(sex %in% c("Male", "Female")) %>%
+  mutate(name = case_when(name == "fta_flag" ~ "FTA",
+                          name == "recid_arrested_flag" ~ "New Arrest",
+                          name == "recid_filed_flag" ~ "New Filing",
+                          name == "recid_convicted_flag" ~ "New Conviction",
+                          name == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest"),
+         name = factor(name, levels = c("FTA", "New Arrest", "New Filing", "New Conviction", "New Violent Arrest"))) %>%
+  filter(county %in% c("Los Angeles", "Sacramento"))
+
+risk_df <- risk_df %>%
+  filter(name == "New Filing")
+
+ggplot(risk_df) +
+  aes(x = psa_nca_risk_score, y = value, color = sex) +
+  geom_smooth(method = "glm", method.args = list(family=binomial), alpha = .2) +
+  theme_bw() +
+  coord_cartesian(ylim=c(0,1)) + #ylim(0,1) +
+  labs(x = "Risk Category", y = "Percent", color = "Gender") +
+  scale_x_continuous(breaks = 1:6) +
+  scale_y_continuous(labels = function(x) paste0(round(x*100,1), "%"), breaks = seq(0, 1, .1))
+
+
+ggsave(filename = "I:/PJPI validation/psa_gender_newfiling_graph.png", width = 11, height = 7)
+```
+
+Additional plots for PJPI - PSA race
+```{r}
+#PSA - race
+risk_df <- eval_df %>%
+  filter(tool_name == "psa") %>%
+  group_by(psa_nca_risk_score, race, county) %>%
+  select(recid_arrested_flag, recid_filed_flag, recid_convicted_flag) %>%
+  pivot_longer(recid_arrested_flag:recid_convicted_flag) 
+
+risk_df <- risk_df %>%
+  #mutate(sex = factor(sex, levels = c("Male", "Female"))) %>%
+  filter(race %in% c("Black", "Hispanic", "White")) %>%
+  mutate(name = case_when(name == "fta_flag" ~ "FTA",
+                          name == "recid_arrested_flag" ~ "New Arrest",
+                          name == "recid_filed_flag" ~ "New Filing",
+                          name == "recid_convicted_flag" ~ "New Conviction",
+                          name == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest"),
+         name = factor(name, levels = c("FTA", "New Arrest", "New Filing", "New Conviction", "New Violent Arrest"))) %>%
+  filter(county %in% c("Los Angeles", "Sacramento"))
+
+risk_df <- risk_df %>%
+  filter(name == "New Arrest")
+
+ggplot(risk_df) +
+  aes(x = psa_nca_risk_score, y = value, color = race) +
+  geom_smooth(method = "glm", method.args = list(family=binomial), alpha = .2) +
+  theme_bw() +
+  coord_cartesian(ylim=c(0,1)) + #ylim(0,1) +
+  labs(x = "Risk Category", y = "Percent", color = "Race") +
+  scale_x_continuous(breaks = 1:6) +
+  scale_y_continuous(labels = function(x) paste0(round(x*100,1), "%"), breaks = seq(0, 1, .1))
+
+
+ggsave(filename = "I:/PJPI validation/psa_race_nca_graph.png", width = 11, height = 7)
+```
+
+Additional plots for PJPI - VPRAI gender
+```{r}
+#VPRAI - gender
+risk_df <- eval_df %>%
+  filter(tool_name == "vprai") %>%
+  group_by(vprai_risk_score, sex, county) %>%
+  select(recid_arrested_flag, recid_filed_flag, recid_convicted_flag) %>%
+  pivot_longer(recid_arrested_flag:recid_convicted_flag) 
+
+risk_df <- risk_df %>%
+  mutate(sex = factor(sex, levels = c("Male", "Female"))) %>%
+  filter(sex %in% c("Male", "Female")) %>%
+  mutate(name = case_when(name == "fta_flag" ~ "FTA",
+                          name == "recid_arrested_flag" ~ "New Arrest",
+                          name == "recid_filed_flag" ~ "New Filing",
+                          name == "recid_convicted_flag" ~ "New Conviction",
+                          name == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest"),
+         name = factor(name, levels = c("FTA", "New Arrest", "New Filing", "New Conviction", "New Violent Arrest")))
+
+risk_df <- risk_df %>%
+  filter(name == "New Arrest")
+
+ggplot(risk_df) +
+  aes(x = vprai_risk_score, y = value, color = sex) +
+  geom_smooth(method = "glm", method.args = list(family=binomial), alpha = .2) +
+  theme_bw() +
+  coord_cartesian(ylim=c(0,1)) + #ylim(0,1) +
+  labs(x = "Risk Category", y = "Percent", color = "Gender") +
+  scale_x_continuous(breaks = 1:5) +
+  scale_y_continuous(labels = function(x) paste0(round(x*100,1), "%"), breaks = seq(0, 1, .1))
+
+
+ggsave(filename = "I:/PJPI validation/vprai_gender_nca_graph.png", width = 11, height = 7)
+
+
+```
+Additional plots for PJPI - VPRAI race
+```{r}
+#VPRAI - race
+risk_df <- eval_df %>%
+  filter(tool_name == "vprai") %>%
+  group_by(vprai_risk_score, race, county) %>%
+  select(recid_arrested_flag, recid_filed_flag, recid_convicted_flag) %>%
+  pivot_longer(recid_arrested_flag:recid_convicted_flag) 
+
+risk_df <- risk_df %>%
+  filter(race %in% c("Black", "Hispanic", "White")) %>%
+  mutate(name = case_when(name == "fta_flag" ~ "FTA",
+                          name == "recid_arrested_flag" ~ "New Arrest",
+                          name == "recid_filed_flag" ~ "New Filing",
+                          name == "recid_convicted_flag" ~ "New Conviction",
+                          name == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest"),
+         name = factor(name, levels = c("FTA", "New Arrest", "New Filing", "New Conviction", "New Violent Arrest")))
+
+risk_df <- risk_df %>%
+  filter(name == "New Arrest")
+
+ggplot(risk_df) +
+  aes(x = vprai_risk_score, y = value, color = race) +
+  geom_smooth(method = "glm", method.args = list(family=binomial), alpha = .2) +
+  theme_bw() +
+  coord_cartesian(ylim=c(0,1)) + #ylim(0,1) +
+  labs(x = "Risk Category", y = "Percent", color = "Race") +
+  scale_x_continuous(breaks = 1:6) +
+  scale_y_continuous(labels = function(x) paste0(round(x*100,1), "%"), breaks = seq(0, 1, .1))
+
+
+ggsave(filename = "I:/PJPI validation/vprai_race_nca_graph.png", width = 11, height = 7)
 ```
 

@@ -1,0 +1,131 @@
+---
+title: "Untitled"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+
+library(data.table)
+library(openxlsx)
+library(readxl)
+library(lubridate)
+library(tidyverse)
+library(gdata)
+```
+
+##Read in data
+
+```{r}
+# this file should have 386 observations. It had a wierd last line that said "386 Records"
+modocCII <- read_csv("G:/CrimJustice/PretrialAssessmentPilot/CII.csv")
+
+modocCII <- modocCII %>%
+  rename(oldCII=CII);
+#this snippet removed the weird last row
+
+modocCII <- modocCII[-c(387), ]modocCII <- modocCII %>%
+  mutate(county="Modoc") %>%
+  mutate(cii = gsub("[^0-9]", "", oldCII)) %>%
+  mutate(cii = case_when(nchar(cii) == 6 ~ paste0("0000", cii),
+              nchar(cii) == 7 ~ paste0("000", cii),
+              nchar(cii) == 8 ~ paste0("00", cii),
+              nchar(cii) == 9 ~ paste0("0", cii),
+              T ~ as.character(cii)),
+         cii = if_else(nchar(cii) != 10, NA_character_, (cii)));
+
+modocCII <- modocCII %>%
+  select(cii, DOB) %>%
+  mutate(DOB=mdy(DOB))
+#View(modocCII)
+```
+
+```{r}
+#write.xlsx(modocCII, "C:/R Work/Append Modoc CIIs/modocCIIplus.xlsx")
+modocCII <- read.xlsx("G:/CrimJustice/PretrialAssessmentPilot/CIIs for DOJ/CIIs for DOJ 3 21 2022/modocCIIplus.xlsx")
+
+modocCII <- modocCII %>%
+  mutate(DOB = mdy(DOB))
+```
+
+```{r}
+sf <- fread(file = 'G:/CrimJustice/PretrialAssessmentPilot/CIIs for DOJ/CIIs for DOJ 3 21 2022/SnowflakeCIIDOB 3 21 2022.csv', header = TRUE)
+
+```
+
+```{r}
+names(sf) <- c("cii", "DOB")
+#this snippet finds any observations that have a digit or any missing values in this case it finds ("A10707613" and "Unknown" and "")
+
+sf <- sf %>%
+  mutate(bad = if_else(grepl("\\D", cii) | cii=="", 1, 0)) %>%
+  filter(bad == "0") %>%
+  select(-bad)
+#bind Modoc and Snowflake CIIs
+
+doj_cii_3_21_2022 <- bind_rows(modocCII, sf) %>% 
+  distinct()
+
+doj_cii_3_21_2022 <- doj_cii_3_21_2022 %>%
+  mutate(DOBstring=format(DOB,"%Y%m%d")) %>%
+  mutate(spacer1=str_pad("",30), spacer2=str_pad("",30)) %>%
+  select(cii, spacer1,DOBstring, spacer2)
+
+
+doj_invalid_removed <- doj_cii_3_21_2022 %>%
+  mutate(remove = if_else(grepl("^00|^10|^30|^40|^32", cii), 0, 1))
+
+doj_invalid_removed <- doj_invalid_removed %>%
+  filter(remove ==0) %>%
+  select(-remove) %>%
+  distinct(cii, .keep_all = T)
+
+
+
+
+doj_invalid_removed %>%
+  add_count(cii) %>%
+  filter(n>1) %>%
+  arrange(cii)
+
+
+
+doj_single <- doj_invalid_removed %>%
+  unite("all", cii:spacer2, sep= "", remove = T)
+
+doj_single %>%
+  mutate(n = nchar(all))
+
+
+doj_single <- doj_single %>%
+  distinct()
+
+
+
+
+# no longer paert of DOJ process, we need
+#doj_cii_3_18_2022$recordid=seq(from=100000000001, by=1, length = nrow(doj_cii_3_18_2022))
+#doj_cii_3_18_2022 <- doj_cii_3_18_2022 %>%
+# mutate(recordid=as.character(recordid)) %>%
+# select(recordid, cii)#doj_cii_3_18_2022 <- doj_cii_3_18_2022 %>%
+#unite(idcii, c("recordid","cii"), sep="|", remove=T)
+
+
+```
+
+```{r}
+write.fwf(doj_single, file="senddoj_cii_3_22_2022.txt", sep="", na="NULL",
+rownames=FALSE, colnames=FALSE, justify="left",
+formatInfo=FALSE, quoteInfo=TRUE, width=78, eol="\r",
+scientific=FALSE)
+
+
+
+write.fwf(doj_single, file="G:/CrimJustice/PretrialAssessmentPilot/CIIs for DOJ/CIIs for DOJ 3 21 2022/senddoj_cii_3_22_2022.txt", sep="", na="NULL",
+rownames=FALSE, colnames=FALSE, justify="left",
+formatInfo=FALSE, quoteInfo=TRUE, width=78, eol="\r",
+scientific=FALSE)
+```
+
+```{r}
+#write.csv(doj_cii_3_18_2022, "C:/R Work/Append Modoc CIIs/doj_cii_3_18_2022.csv", row.names=F, quote=F)
+```
