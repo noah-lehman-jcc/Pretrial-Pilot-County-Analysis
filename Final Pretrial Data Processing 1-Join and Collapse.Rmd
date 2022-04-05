@@ -1138,7 +1138,6 @@ suppressWarnings(sacramento_collapse <- join_df2 %>%
 
   
 save(sacramento_collapse, file = "G:/CrimJustice/PretrialAssessmentPilot/Agency Collapse CSV Files/Sacramento Join Collapse.RData")
-
 ```
 
 # Sonoma

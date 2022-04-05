@@ -61,7 +61,7 @@ ORDER BY County, YEAR, MONTH;
 
 JCC KPIs by County/ JCC KPIs by County, Month, and Year
 ```{r}
-jcc_kpi <- read.xlsx("C:/Work/PretrialAssessmentPilot/Snowflake/kpi_from_CJS.xlsx", sheet = 1)
+jcc_kpi <- read.xlsx("G:/CrimJustice/PretrialAssessmentPilot/kpi_from_CJS.xlsx", sheet = 1)
 
 jcc_kpi <- jcc_kpi %>%
   mutate(county = gsub("_", " ", county),
@@ -71,7 +71,7 @@ names(jcc_kpi) <- c("COUNTY", "BOOKING_COUNT", "RELEASE_ELIGIBLE_COUNT", "BOOKIN
                     "OTHER_RELEASE_COUNT", "TWO_DAY_RELEASE_COUNT", "PRE_ARR_RELEASE_COUNT", "RELEASED_PRETRIAL_COUNT", "RELEASES_COUNT",
                     "FAILURE_TO_APPEAR_COUNT", "NEW_CRIMNAL_ACTIVITY_COUNT", "VIOLATION_COUNT", "PRETRIAL_COMPLETE_COUNT")
 
-jcc_kpi_month <- read.xlsx("C:/Work/PretrialAssessmentPilot/Snowflake/kpi_from_CJS.xlsx", sheet = 2)
+jcc_kpi_month <- read.xlsx("G:/CrimJustice/PretrialAssessmentPilot/kpi_from_CJS.xlsx", sheet = 2)
 
 jcc_kpi_month <- jcc_kpi_month %>%
   mutate(county = gsub("_", " ", county),
@@ -107,9 +107,9 @@ match_kpi2 <- left_join(jcc_kpi, sf_kpi, by = "COUNTY") %>%
 match_kpi2 <- match_kpi2 %>%
   select(COUNTY, order(names(match_kpi2)))
 
-write.xlsx(match_kpi2, file = "Match Rate Between Snowflake and JCC Pretrial Data.xlsx", as.table = T)
+write.xlsx(match_kpi2, file = "Match Rate Between Snowflake and JCC Pretrial Data.xlsx", asTable = T, tableStyle = "TableStyleMedium1")
 
-shell.exec(getwd())
+shell.exec("Match Rate Between Snowflake and JCC Pretrial Data.xlsx")
 ```
 
 County, Year, Month

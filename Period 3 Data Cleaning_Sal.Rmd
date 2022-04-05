@@ -3759,7 +3759,6 @@ court_sentence <- court_sentence %>%
 
 
 #ask Sac about court hearings. There is a huge drop off in matched hearings as the dates get closer to 2020. Also the hearing dates are mostly in 2014 and 2016, with weird patterns after that (barely any from 2018, but then a bunch in 2020)
-
 ```
 
 
