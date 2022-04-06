@@ -1,0 +1,1169 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+Libraries
+```{r setup}
+library(gsubfn)
+library(lubridate)
+library(openxlsx)
+library(readxl)
+library(fuzzyjoin)
+# library(pROC)
+library(tidyverse)
+#library(tools)
+library(data.table)
+```
+
+Loading in Full DOJ RRF Data
+```{r eval=FALSE, include=FALSE}
+#files <- list.files("D:/DOJ Pretrial Pilot Data/19-148/Output", full.names = T)
+files <- list.files("C:/temp files for transfer 3.30.22/Run 05/unzipped", full.names = T)
+
+#1st Partition
+doj_df <- lapply(files[2:38], function(x){
+  
+  df <- read.csv(x, colClasses = "character", header = F) %>%
+    select_if(function(x) !(all(is.na(x)) | all(x=="") | all(x=="#")))
+  
+  return(df)
+})
+
+doj_df <- doj_df %>% bind_rows()
+
+fwrite(doj_df, file = "1 of 2 CORI CII Pretrial Dataset.csv")
+rm(doj_df)
+
+#2nd Partition
+doj_df2 <- lapply(files[39:77], function(x){
+  
+  df <- read.csv(x, colClasses = "character", header = F) %>%
+    select_if(function(x) !(all(is.na(x)) | all(x=="") | all(x=="#")))
+  
+  return(df)
+})
+
+doj_df2 <- doj_df2 %>% bind_rows()
+
+fwrite(doj_df2, file = "2 of 2 CORI CII Pretrial Dataset.csv")
+rm(doj_df2)
+
+# Combinging First Partition with Headers
+doj_df <- fread("1 of 2 CORI CII Pretrial Dataset.csv", colClasses = "character")
+
+#Top with Headers, except this time they did not  give us headers
+top_doj <- read.csv(files[1], colClasses = "character", header = F)
+top_doj <- read_fwf(files[1])
+
+top_doj <- top_doj %>%
+  select_if(function(x) !(all(is.na(x)) | all(x=="") | all(x=="#")))
+
+names(doj_df) <- names(top_doj)
+
+doj_df <- bind_rows(top_doj, doj_df)
+
+doj_df <- doj_df %>%
+  filter(as_date(CYC_DATE) >= "2012-01-01")
+
+#Combining Second Partition
+doj_df2 <- fread("2 of 2 CORI CII Pretrial Dataset.csv", colClasses = "character")
+
+names(doj_df2) <- names(top_doj)
+
+doj_df2 <- doj_df2 %>%
+  filter(as_date(CYC_DATE) >= "2012-01-01")
+
+doj_df <- bind_rows(doj_df, doj_df2)
+
+fwrite(doj_df, file = "CORI CII Pretrial Dataset Post 2012.csv")
+
+rm(top_doj, doj_df2)
+
+# fread(files[1])
+
+# c(12, 2, 12, 1, 10, 30, 1, 8, 8, 9, 1, 10, 30, 1, 8, 9, 8, 8, 8, 9, 1, 1, 15, 3, 30, 3, 30, 3, 3, 1, 1, 2, 30, 8, 30, 1, 12, 8, 1, 12, 8, 2, 30, 1, 25, 9, 25, 2, 30, 1, 12, 8, 20, 5, 50, 1, 30, 5, 50, 1, 30, 12, 5, 50, 1, 30, 12, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 12, 4, 40, 1, 20, 1, 12, 2, 15, 3, 1, 15, 3, 1, 1, 150, 1)
+
+read_fwf(files[1], col_positions = fwf_widths(c(12, 2, 12, 1, 10, 30, 1, 8, 8, 9, 1, 10, 30, 1, 8, 9, 8, 8, 8, 9, 1, 1, 15, 3, 30, 3, 30, 3, 3, 1, 1, 2, 30, 8, 30, 1, 12, 8, 1, 12, 8, 2, 30, 1, 25, 9, 25, 2, 30, 1, 12, 8, 20, 5, 50, 1, 30, 5, 50, 1, 30, 12, 5, 50, 1, 30, 12, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 12, 4, 40, 1, 20, 1, 12, 2, 15, 3, 1, 15, 3, 1, 1, 150, 1), col_names = c("RECORD_ID", "SUBJECT_STATUS", "SUBJECT_ID",
+"REQ_SEG_SEP", "REQ_CII_NUMBER", "REQ_NAME", "REQ_GENDER", "REQ_DOB", "REQ_CDL", "REQ_SSN", "PII_SEG_SEP",
+"CII_NUMBER", "PRI_NAME", "GENDER", "PRI_DOB", "PRI_SSN", "PRI_CDL", "PRI_IDN", "PRI_INN", "FBI_NUMBER", "PDR_SEG_SEP",
+"RACE_CODE", "RACE_DESCR", "EYE_COLOR_CODE", "EYE_COLOR_DESCR", "HAIR_COLOR_CODE", "HAIR_COLOR_DESCR",
+"HEIGHT", "WEIGHT", "SINGLE_SOURCE", "MULTI_SOURCE", "POB_CODE", "POB_NAME", "POB_TYPE", "CITIZENSHIP_LIST",
+"CYC_SEG_SEP","CYC_ORDER", "CYC_DATE", "STP_SEG_SEP", "STP_ORDER", "STP_EVENT_DATE", "STP_TYPE_CODE", "STP_TYPE_DESCR",
+"STP_ORI_TYPE", "STP_ORI_TYPE_DESCR", "STP_ORI_CODE", "STP_ORI_DESCR", "STP_ORI_CNTY_CODE", "STP_ORI_CNTY_NAME",
+"CNT_SEG_SEP", "CNT_ORDER", "DISP_DATE", "OFN", "OFFENSE_CODE", "OFFENSE_DESCR", "OFFENSE_TOC", "OFFENSE_QUAL_LST",
+"DISP_OFFENSE_CODE", "DISP_OFFENSE_DESCR", "DISP_OFFENSE_TOC", "DISP_OFFENSE_QUAL_LST", "CONV_OFFENSE_ORDER", "CONV_OFFENSE_CODE", "CONV_OFFENSE_DESCR",
+"CONV_OFFENSE_TOC", "CONV_OFFENSE_QUAL_LST", "FE_NUM_ORDER", "FE_NUM_ARR_AGY", "FE_NUM_BNCH_WARR", "FE_NUM_CITE", "FE_NUM_DOCKET",
+"FE_NUM_INCIDENT", "FE_NUM_BOOKING", "FE_NUM_NUMBER", "FE_NUM_REMAND", "FE_NUM_OOS_INN", "FE_NUM_CRT_CASE", "FE_NUM_WARRANT",
+"DISP_ORDER", "DISP_CODE", "DISP_DESCR", "CONV_STAT_CODE", "CONV_STAT_DESCR", "SENT_SEG_SEP",
+"SENT_ORDER", "SENT_LOC_CODE", "SENT_LOC_DESCR", "SENT_LENGTH", "SENT_TIME_CODE", "SENT_TIME_DESCR", "CYC_AGE", "CII_TYPE", "CII_TYPE_ALPHA", "COMMENT_TEXT", "END_OF_REC")))
+
+# c("RECORD_ID", "SUBJECT_STATUS", "SUBJECT_ID",
+# "REQ_SEG_SEP",
+# "REQ_CII_NUMBER", "REQ_NAME", "REQ_GENDER", "REQ_DOB", "REQ_CDL", "REQ_SSN",
+# "PII_SEG_SEP",
+# "CII_NUMBER", "PRI_NAME", "GENDER", "PRI_DOB", "PRI_SSN", "PRI_CDL", "PRI_IDN", "PRI_INN", "FBI_NUMBER",
+# "PDR_SEG_SEP",
+# "RACE_CODE", "RACE_DESCR", "EYE_COLOR_CODE", "EYE_COLOR_DESCR", "HAIR_COLOR_CODE", "HAIR_COLOR_DESCR",
+# "HEIGHT", "WEIGHT", "SINGLE_SOURCE", "MULTI_SOURCE", "POB_CODE", "POB_NAME", "POB_TYPE", "CITIZENSHIP_LIST",
+# "CYC_SEG_SEP","CYC_ORDER", "CYC_DATE",
+# "STP_SEG_SEP",
+# "STP_ORDER", "STP_EVENT_DATE", "STP_TYPE_CODE", "STP_TYPE_DESCR",
+# "STP_ORI_TYPE", "STP_ORI_TYPE_DESCR", "STP_ORI_CODE", "STP_ORI_DESCR",
+# "STP_ORI_CNTY_CODE", "STP_ORI_CNTY_NAME",
+# "CNT_SEG_SEP",
+# "CNT_ORDER", "DISP_DATE", "OFN", "OFFENSE_CODE", "OFFENSE_DESCR", "OFFENSE_TOC", "OFFENSE_QUAL_LST",
+# "DISP_OFFENSE_CODE", "DISP_OFFENSE_DESCR", "DISP_OFFENSE_TOC", "DISP_OFFENSE_QUAL_LST",
+# "CONV_OFFENSE_ORDER", "CONV_OFFENSE_CODE", "CONV_OFFENSE_DESCR",
+# "CONV_OFFENSE_TOC", "CONV_OFFENSE_QUAL_LST",
+# "FE_NUM_ORDER", "FE_NUM_ARR_AGY", "FE_NUM_BNCH_WARR", "FE_NUM_CITE", "FE_NUM_DOCKET",
+# "FE_NUM_INCIDENT", "FE_NUM_BOOKING", "FE_NUM_NUMBER", "FE_NUM_REMAND", "FE_NUM_OOS_INN",
+# "FE_NUM_CRT_CASE", "FE_NUM_WARRANT",
+# "DISP_ORDER", "DISP_CODE", "DISP_DESCR", "CONV_STAT_CODE", "CONV_STAT_DESCR",
+# "SENT_SEG_SEP",
+# "SENT_ORDER", "SENT_LOC_CODE", "SENT_LOC_DESCR", "SENT_LENGTH", "SENT_TIME_CODE", "SENT_TIME_DESCR",
+# "CYC_AGE", "CII_TYPE", "CII_TYPE_ALPHA", "COMMENT_TEXT",
+# "END_OF_REC")
+```
+
+```{r}
+ct <- "ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+
+doj_df <- lapply(files, function(x){
+  
+  df <- read_fwf(x, 
+                 col_positions = fwf_widths(c(12, 2, 12, 1, 10, 30, 1, 8, 8, 9, 1, 10, 30, 1, 8, 9, 8, 8, 8, 9, 1, 1, 15, 3, 30, 3, 30, 3, 3, 1, 1, 2, 30, 8, 30, 1, 12, 8, 1, 12, 8, 2, 30, 1, 25, 9, 25, 2, 30, 1, 12, 8, 20, 5, 50, 1, 30, 5, 50, 1, 30, 12, 5, 50, 1, 30, 12, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 12, 4, 40, 1, 20, 1, 12, 2, 15, 3, 1, 15, 3, 1, 1, 150, 1), 
+                 col_names = c("RECORD_ID", "SUBJECT_STATUS", "SUBJECT_ID",
+"REQ_SEG_SEP", "REQ_CII_NUMBER", "REQ_NAME", "REQ_GENDER", "REQ_DOB", "REQ_CDL", "REQ_SSN", "PII_SEG_SEP",
+"CII_NUMBER", "PRI_NAME", "GENDER", "PRI_DOB", "PRI_SSN", "PRI_CDL", "PRI_IDN", "PRI_INN", "FBI_NUMBER", "PDR_SEG_SEP",
+"RACE_CODE", "RACE_DESCR", "EYE_COLOR_CODE", "EYE_COLOR_DESCR", "HAIR_COLOR_CODE", "HAIR_COLOR_DESCR",
+"HEIGHT", "WEIGHT", "SINGLE_SOURCE", "MULTI_SOURCE", "POB_CODE", "POB_NAME", "POB_TYPE", "CITIZENSHIP_LIST",
+"CYC_SEG_SEP","CYC_ORDER", "CYC_DATE", "STP_SEG_SEP", "STP_ORDER", "STP_EVENT_DATE", "STP_TYPE_CODE", "STP_TYPE_DESCR",
+"STP_ORI_TYPE", "STP_ORI_TYPE_DESCR", "STP_ORI_CODE", "STP_ORI_DESCR", "STP_ORI_CNTY_CODE", "STP_ORI_CNTY_NAME",
+"CNT_SEG_SEP", "CNT_ORDER", "DISP_DATE", "OFN", "OFFENSE_CODE", "OFFENSE_DESCR", "OFFENSE_TOC", "OFFENSE_QUAL_LST",
+"DISP_OFFENSE_CODE", "DISP_OFFENSE_DESCR", "DISP_OFFENSE_TOC", "DISP_OFFENSE_QUAL_LST", "CONV_OFFENSE_ORDER", "CONV_OFFENSE_CODE", "CONV_OFFENSE_DESCR",
+"CONV_OFFENSE_TOC", "CONV_OFFENSE_QUAL_LST", "FE_NUM_ORDER", "FE_NUM_ARR_AGY", "FE_NUM_BNCH_WARR", "FE_NUM_CITE", "FE_NUM_DOCKET",
+"FE_NUM_INCIDENT", "FE_NUM_BOOKING", "FE_NUM_NUMBER", "FE_NUM_REMAND", "FE_NUM_OOS_INN", "FE_NUM_CRT_CASE", "FE_NUM_WARRANT",
+"DISP_ORDER", "DISP_CODE", "DISP_DESCR", "CONV_STAT_CODE", "CONV_STAT_DESCR", "SENT_SEG_SEP",
+"SENT_ORDER", "SENT_LOC_CODE", "SENT_LOC_DESCR", "SENT_LENGTH", "SENT_TIME_CODE", "SENT_TIME_DESCR", "CYC_AGE", "CII_TYPE", "CII_TYPE_ALPHA", "COMMENT_TEXT", "END_OF_REC")),
+                col_types = ct) 
+  
+  return(df)
+})
+
+doj_d <- doj_df %>% bind_rows() %>%
+    select_if(function(x) !(all(is.na(x)) | all(x=="") | all(x=="#"))) %>%
+    filter(as_date(CYC_DATE) >= "2012-01-01") #fix this with more appropriate date cutoff
+
+fwrite(doj_d, file = "CORI CII Pretrial Dataset Post 2012 4.5.22.csv")
+
+```
+
+
+Cleaning--Only looking at 2016-11-08+ for now.
+```{r}
+doj_d <- fread("CORI CII Pretrial Dataset Post 2012.csv", colClasses = "character")
+
+doj_df <- doj_d %>%
+  #Earliest assessment
+  filter(as_date(CYC_DATE) >= "2016-11-08")
+
+doj_df <- doj_df %>%
+  ungroup() %>%
+  select(4,6:7, 21:24,26,28,32,34:38,48,50,52:59, DISP_CODE, DISP_DESCR) %>%
+  mutate(DISP_CODE = as.numeric(DISP_CODE)) %>%
+  mutate(arrested_flag = if_else(grepl("ARREST", STP_TYPE_DESCR), 1, 0),
+       filed_flag = if_else(grepl("COURT", STP_TYPE_DESCR), 1, 0),
+       convicted_flag = if_else(DISP_CODE %in% c(2500:2799), 1, 0),
+       dismissed_flag = if_else(DISP_CODE %in% c(50:299, 450:549, 550:599, 1000:1299, 1900:2199, 2800:3099), 1, 0),
+       acquitted_flag = if_else(DISP_CODE %in% c(3100:3399), 1, 0),
+       non_final_disp_flag = if_else(DISP_CODE %in% c(0:50, 300:449, 600:999, 1300:1899, 2200:2499, 3400:5000), 1, 0),
+       arrest_disp_flag = if_else(DISP_CODE %in% c(50:299, 1000:1299), 1, 0),
+       pros_disp_flag = if_else(DISP_CODE %in% c(450:549, 1900:2199), 1, 0),
+       court_disp_flag = if_else(DISP_CODE %in% c(550:599, 2500:3399), 1, 0)) %>% # disposition code list provided by DOJ
+  mutate(SENTENCE_DATE = if_else(SENT_ORDER != "", STP_EVENT_DATE, ""),
+         DISP_DATE = if_else(!is.na(DISP_CODE) & DISP_DATE == "", STP_EVENT_DATE , DISP_DATE),
+         DISP_DATE = if_else(non_final_disp_flag == 1, "" , DISP_DATE)) %>%
+  filter(!grepl("ADDITIONAL ACTION", STP_TYPE_DESCR)) %>%
+  separate(OFFENSE_DESCR, c("charge","doj_charge_description"), sep = "-") %>%
+  separate(charge, c("charge", "charge_code"), sep = " " ) %>%
+  mutate(charge_original = charge) %>%
+  mutate(charge = toupper(gsub("\\/|\\(|\\)| |\\.|\\.*|^[A-Z]*|\\\\.*|\\{|\\}","", charge))) %>%
+  rename(charge_level = OFFENSE_TOC) %>%
+  unite(join_var, charge_level, charge_code, charge, remove = T)
+
+
+  
+save(doj_df, file = "CORI CII Pretrial Dataset Post 2018 4.6.22.RData")
+
+```
+
+Hierarchy
+```{r}
+# doj_df <- doj_df %>%
+#   select(-c(OFFENSE_TOC, charge, code_type)) %>%
+#   rename(doj_charge_description = desc)
+
+load("Complete Charge Code Hierarchy.RData")
+
+doj_df <- left_join(doj_df, charge_hier) 
+
+doj_df <- doj_df %>%
+  ungroup() %>%
+  mutate(felony_flag = if_else(charge_level == "F", 1, 0),
+         misd_flag = if_else(charge_level == "M", 1, 0)) %>%
+  mutate_if(is.numeric, funs(if_else(is.na(.), 0, .))) %>%
+  mutate(hierarchy = if_else(hierarchy == 0, 1e6, hierarchy)) 
+ 
+# ?mutate_if
+# charge_list <- doj_df %>%
+#   count(charge, desc) %>%
+#   arrange(desc(n))
+# 
+# write.xlsx(charge_list, file = "All DOJ Charges.csv")
+# 
+# charge_hier
+```
+
+XXXXXXXX Flag Adds--Old Not Used (flags now already in hierarchy)
+```{r eval=FALSE, include=FALSE}
+#Adding dv and sup_vio flags to data.
+doj_df <- doj_df %>%
+  select(-charge_level) %>%
+  rename(charge_level = OFFENSE_TOC) %>%
+  mutate(dv_flag = if_else(grepl("DOMESTIC|SPOUSE|PARTNER|COHABITANT", desc), 1, 0),
+         sup_vio_flag = if_else(grepl("^SUP| SUP |SUPERVISION|PROBATION|PAROLE|SUPV ", desc), 1, 0),
+         fta_flag = if_else(grepl("APPEAR|FTA", desc), 1, 0),
+         enhancement_flag = if_else(grepl("ENHANCE", desc), 1, 0),
+         marijuana_flag = if_else(grepl("MARIJUANA|HASH|CANNAB", desc), 1, 0),
+         #Disorderly Conduct, Driving without a Licencse, Contempt, Posession of Controlled Substance, Paraphenlia, Under Influence, False ID, 
+         #Possess Burg Tools, Fail to prove financial responsibility, LIc Suspended, Pos Marijuna for Sale, Vandalism less than $400
+         #Under Influence, Possession w/out prescriptioin, Reg of cntrl sub, App lost property, Poss canabis, Poss hyp needle, Furnish MJ, No REJ Vehicle
+         #Flash Incarceration, Noise, Plan Marijuana
+         minor_flag = if_else(charge %in% c("647F", "12500A", "146011A", "146012A", "166A4", "11377A", 
+                                            "11354A", "11364A", "11550A", "1489A", "466", "16028A", 
+                                            "146015A", "11359", "594B2A", "11550", "4060", "11590", "11375B2",
+                                            "485", "11357A", "4140", "11360A", "4000A", "3454", "4152", "11358"), 1, 0),
+         misd_flag = if_else(charge_level == "M" & sup_vio_flag == 0 & fta_flag == 0 & minor_flag == 0, 1, 0),
+         felony_flag = if_else(charge_level == "F" & sup_vio_flag == 0 & fta_flag == 0 & minor_flag == 0, 1, 0)) 
+
+#Serious and Violent
+serious_violent_charges <- read_excel("Serious and Violent Charges.xlsx", sheet = "Data") %>%
+  select(charge, charge_level, serious = Serious, violent = Violent) %>%
+  filter(serious == 1 | violent == 1) %>%
+  mutate(charge = toupper(gsub("\\/|\\(|\\)| |\\.|\\.*|\\\\.*|\\{|\\}","", charge))) %>%
+  mutate(charge = gsub("HSC", "HS_", charge),
+         charge = gsub("PEN", "PC_", charge),
+         charge = gsub("VEH", "VC_", charge)) %>%
+  unite(join_var, charge_level, charge) %>%
+  mutate(serious = if_else(serious == T, 1, 0),
+         violent = if_else(violent == T, 1, 0)) %>%
+  mutate_all(funs(ifelse(is.na(.), 0, .))) %>%
+  distinct(join_var, .keep_all = T)
+
+doj_df <- doj_df %>%
+  left_join(serious_violent_charges, by = "join_var") %>%
+  mutate_at(vars(serious, violent), funs(if_else(is.na(.), 0, .))) %>%
+  ungroup() %>%
+  mutate(hierarchy = if_else(is.na(hierarchy), 1e6, as.numeric(hierarchy))) %>%
+  select(-c(OFFENSE_QUAL_LST, DISP_ORDER, CONV_STAT_DESCR, SENT_LOC_CODE, SENT_TIME_CODE, CYC_AGE))
+
+sf_violent_df <- read_csv("Final cleaned SF Violent Charges.csv") %>%
+  select(-X1)
+
+attributes(sf_violent_df)$spec <- NULL
+sf_violent_df <- tibble(join_var = as.character(sf_violent_df$join_var), sf_violent = as.numeric(sf_violent_df$sf_violent))
+
+doj_df <- doj_df %>%
+  left_join(sf_violent_df, by = "join_var") %>%
+  mutate(sf_violent = if_else(is.na(sf_violent), 0, sf_violent))
+
+# SF Violent
+# sf_violent_df <- read_csv("Cleaned SF Violent Charges.csv")
+# 
+# sf_violent_df <- sf_violent_df %>%
+#   mutate(sf_violent = 1) %>%
+#   unite(join_var, charge_level, code_type, charge, remove = F) %>%
+#   distinct(join_var, sf_violent)
+# 
+# sf_violent_df <- as.tibble(sf_violent_df)
+
+# write.csv(sf_violent_df, file = "Final cleaned SF Violent Charges.csv")
+
+save(doj_df, file = "Cleaned Full Matched DOJ Data.RData")
+```
+
+Collapse to Booking and Court
+```{r}
+# doj_df <- fread("CORI CII Pretrial Dataset Post 2012.csv", colClasses = "character")
+
+# court_dispo is an intermediate flag to make sure dispostion is only related to court actions 
+doj_df <- doj_df %>%
+  rename(CII_NUMBER = REQ_CII_NUMBER) %>%
+  # mutate(court_dispo_flag = if_else(STP_ORI_TYPE_DESCR == "Court", 1, 0),
+  #        dispo_flag = if_else(court_dispo_flag == 1 | DISP_DESCR != "", 1, 0)) %>%
+  # mutate(SENTENCE_DATE = if_else(SENT_ORDER != "", STP_EVENT_DATE, ""),
+  #        DISP_DATE = if_else(DISP_DESCR != "" & DISP_DATE == "", STP_EVENT_DATE, DISP_DATE),
+  #        DISP_DATE = if_else(STP_ORI_TYPE_DESCR == "Court" & DISP_DATE == "", STP_EVENT_DATE, DISP_DATE)) %>%
+  group_by(CII_NUMBER, CYC_DATE) %>%
+  mutate(arrest_date = min(STP_EVENT_DATE),
+         SENTENCE_DATE = max(SENTENCE_DATE), # LOOK AT THIS -- should this be min instead of max????? ******************** (currently formatted as character, so if you take min it will mess it up, change format or otherwise deal with this)
+         DISP_DATE = max(DISP_DATE)) %>%
+  ungroup() %>%
+  select(-c(SENT_ORDER:SENT_TIME_DESCR))
+
+#save(doj_df, file = "Cleaned uncollapsed DOJ Data 4.6.22.RData")
+
+# load("Cleaned uncollapsed DOJ Data 4.6.22.RData")
+
+
+coll_df <- doj_df %>%
+  mutate(CYC_DATE = ymd(CYC_DATE),
+         STP_EVENT_DATE = ymd(STP_EVENT_DATE),
+         DISP_DATE = ymd(DISP_DATE),
+         SENTENCE_DATE = ymd(SENTENCE_DATE),
+         arrest_date = ymd(arrest_date)) %>% 
+  mutate_at(vars(special_flag:dv_possible_flag, -hierarchy), funs("arrest" = if_else(. == 1 & STP_ORI_TYPE_DESCR == "Arrest", 1, 0))) %>%
+  mutate_at(vars(special_flag:dv_possible_flag, -hierarchy), funs("court" = if_else(. == 1 & STP_ORI_TYPE_DESCR == "Court", 1, 0))) %>%
+  mutate_at(vars(special_flag:dv_possible_flag, -hierarchy), funs("conviction" = if_else(. == 1 & convicted_flag == 1, 1, 0))) %>%
+  rename_at(vars(ends_with("arrest")), funs(paste0("arrest_", gsub("_arrest", "", .)))) %>%
+  rename_at(vars(ends_with("court")), funs(paste0("court_", gsub("_court", "", .)))) %>%
+  rename_at(vars(ends_with("conviction")), funs(paste0("conviction_", gsub("_conviction", "", .)))) %>%
+  mutate(pretrial_end_date = if_else(DISP_DATE <= SENTENCE_DATE | is.na(SENTENCE_DATE), DISP_DATE, SENTENCE_DATE)) %>%
+  group_by(CII_NUMBER, CYC_DATE) %>%
+  mutate_at(vars(contains("flag")), max) %>%
+  # mutate(pretrial_dispo_date = if_else(convicted == 1|dismissed == 1, max(STP_EVENT_DATE[convicted == 1|dismissed == 1]), as_date(NA))) %>%
+  # mutate(max_hier = min(hierarchy),
+  #        max_charge = charge[hierarchy == max_hier][1],
+  #        max_descrip = off_descrip[hierarchy == max_hier][1]) %>%
+  # mutate(max_conv_charge = charge[grepl("^CONVICTED", DISP_DESCR)][1],
+  #        max_conv_descrip = off_descrip[grepl("^CONVICTED", DISP_DESCR)][1],
+  #        max_conv_hier = hierarchy[max_conv_charge == charge][1]) %>%
+  # mutate_at(vars(dv_flag:violent), funs(max(.))) %>%
+  mutate(join_var = paste(join_var, collapse = " ")) %>%  
+  filter(hierarchy == min(hierarchy)) %>%
+         # SENT_LOC_DESCR = paste(unique(SENT_LOC_DESCR), collapse = ", "),
+         # SENT_LENGTH = paste(unique(SENT_LENGTH), collapse = ", "),
+         # SENT_TIME_DESCR = paste(unique(SENT_TIME_DESCR), collapse = ", ")) %>%
+  # filter(hierarchy == min(hierarchy)) %>%
+  ungroup() %>%
+  distinct(CII_NUMBER, CYC_DATE, .keep_all = T) 
+  # mutate(pretrial_end_date = if_else(is.na(DISP_DATE), SENTENCE_DATE, pretrial_end_date))
+
+# coll_df <- coll_df %>%
+#   mutate(max_conv_hier = if_else(max_conv_charge == "", 1e6, max_conv_hier)) %>%
+#   mutate_at(vars(DISP_DESCR, desc), funs(gsub("^,", "", .)))
+
+#save(coll_df, file = "Collapsed Pretrial DOJ Data 4.6.22.RData")
+
+```
+
+Checks
+```{r eval=FALSE, include=FALSE}
+sort(table(doj_df$DISP_DESCR), decreasing = T)
+
+#42.3% Have a court action old
+#~38.7% court action 4.6.22
+doj_df %>%
+  mutate(dispo = if_else(grepl("Court", STP_ORI_TYPE_DESCR), 1, 0)) %>%
+  group_by(CII_NUMBER, CYC_DATE) %>%
+  summarise(dispo = max(dispo)) %>%
+  ungroup() %>%
+  count(dispo)
+    
+grepl("DISCH|ACQUIT|DISMISSED", dispdescr)  
+
+doj_df %>%
+  filter(DISP_DESCR == "")
+
+coll_df %>%
+  group_by(dispoed) %>%
+  count()
+
+coll_df %>%
+  filter(CYC_DATE <= as_date("2017-06-30")) %>%
+         # charge_level %in% c("F", "M")) %>%
+         
+  count(filed, STP_ORI_CNTY_NAME) %>%
+  spread(STP_ORI_CNTY_NAME)
+  # group_by(charge_level) %>%
+  mutate(n/sum(n))
+
+  group_by(DISP_DESCR) %>%
+  count() %>%
+  arrange(desc(n)) %>%
+  View()
+  
+df <- tibble(group = rep(c("A", "B"), each = 4), x = c(1,0,0,0,0,0,0,0))
+
+df %>%
+  group_by(group) %>%
+  mutate(tot = if_else(sum(x) >= 1, 1, 0))
+
+doj_df %>%
+  filter(DISP_DESCR == "DISPO SEE MATCH ARR/DET/CITE NUMB(FDSMN)")
+  count(DISP_DESCR) %>%
+  arrange(desc(n))
+  
+coll_df %>%
+  filter(!is.na(charge_level)) %>%
+  count(charge_level)
+  
+coll_df %>%
+  count(filed) %>%
+  mutate(n/sum(n))
+
+coll_df %>%
+  count(filed_flag) %>%
+  mutate(n/sum(n))
+
+doj_df %>%
+  distinct(STP_ORI_TYPE_DESCR) 
+
+sort(table(doj_df$DISP_DESCR[doj_df$STP_ORI_TYPE_DESCR == "Arrest"]), decreasing = T)
+
+doj_df[doj_df$STP_ORI_TYPE_DESCR == "Arrest",]
+
+doj_df %>%
+  group_by(CII_NUMBER, CYC_ORDER)
+
+
+coll_df %>%
+  count(RACE_CODE) %>%
+  mutate(perc = n/sum(n)*100)
+
+names(coll_df)
+```
+ 
+
+XXXXXXXX Priors--Fix Later, NOT USED CURRENTLY
+```{r eval=FALSE, include=FALSE}
+load("D:/DOJ Pretrial Pilot Data/Collapsed Pretrial DOJ Data.RData")
+
+coll_df <- coll_df %>%
+  group_by(CII_NUMBER) %>%
+  mutate_at(vars(contains("conviction")), funs(prior = lag(cumsum(.), default = 0))) %>%
+  ungroup() 
+  # filter(STP_TYPE_DESCR == "ARREST/DETAINED/CITED",
+  #        CYC_DATE >= as_date("2015-07-01")) 
+
+# save(coll_df, file = "Collapsed 2015 DOJ Data.RData")
+
+# load("Collapsed 2011 DOJ Data.RData")
+# 
+# rm(col_df)
+save(coll_df, file = "Collapsed Pretrial DOJ Data.RData")
+```
+
+Checks
+```{r eval=FALSE, include=FALSE}
+n_distinct(coll_df$CII_NUMBER, coll_df$CYC_ORDER)
+
+summary(coll_df)
+
+table(coll_df$STP_TYPE_DESCR)
+
+coll_df
+
+load("Court and County Joined Stats.RData")
+
+mis_all_dispo <- coll_df %>%
+  filter(felony_flag == 0) %>%
+  filter(cyc_date <= as_date("2018-03-31")) %>%
+  filter(stp_ori_cnty_name %in% c("FRESNO", "IMPERIAL", "ORANGE", "SOLANO")) %>%
+  count(stp_ori_cnty_name, dispo, year = year(cyc_date)) %>%
+  mutate(stp_ori_cnty_name = toTitleCase(tolower(stp_ori_cnty_name))) %>%
+  group_by(stp_ori_cnty_name, year) %>%
+  mutate(total = sum(n), n = round(n/total*100)) %>%
+  filter(dispo == 1) %>%
+  select(-dispo)
+
+fel_all_dispo <-coll_df %>%
+  filter(felony_flag == 1) %>%
+  filter(cyc_date <= as_date("2018-03-31")) %>%
+  filter(stp_ori_cnty_name %in% c("FRESNO", "IMPERIAL", "ORANGE", "SOLANO")) %>%
+  count(stp_ori_cnty_name, dispo, year = year(cyc_date)) %>%
+  mutate(stp_ori_cnty_name = toTitleCase(tolower(stp_ori_cnty_name))) %>%
+  group_by(stp_ori_cnty_name, year) %>%
+  mutate(total = sum(n), n = round(n/total*100)) %>%
+  filter(dispo == 1) %>%
+  select(-dispo)
+
+mis_court_dispo <- coll_df %>%
+  filter(felony_flag == 0) %>%
+  filter(cyc_date <= as_date("2018-03-31")) %>%
+  filter(stp_ori_cnty_name %in% c("FRESNO", "IMPERIAL", "ORANGE", "SOLANO")) %>%
+  count(stp_ori_cnty_name, court_dispo, year = year(cyc_date)) %>%
+  mutate(stp_ori_cnty_name = toTitleCase(tolower(stp_ori_cnty_name))) %>%
+  group_by(stp_ori_cnty_name, year) %>%
+  mutate(total = sum(n), n = round(n/total*100)) %>%
+  filter(court_dispo == 1) %>%
+  select(-court_dispo)
+
+fel_court_dispo <-coll_df %>%
+  filter(felony_flag == 1) %>%
+  filter(cyc_date <= as_date("2018-03-31")) %>%
+  filter(stp_ori_cnty_name %in% c("FRESNO", "IMPERIAL", "ORANGE", "SOLANO")) %>%
+  count(stp_ori_cnty_name, court_dispo, year = year(cyc_date)) %>%
+  mutate(stp_ori_cnty_name = toTitleCase(tolower(stp_ori_cnty_name))) %>%
+  group_by(stp_ori_cnty_name, year) %>%
+  mutate(total = sum(n), n = round(n/total*100)) %>%
+  filter(court_dispo == 1) %>%
+  select(-court_dispo)
+
+dispo_list <- list(mis_all_dispo, fel_all_dispo, mis_court_dispo, fel_court_dispo)
+
+save(dispo_list, file = "Percent of DOJ Data with Dispositions.RData")
+```
+
+Load and format Snowflake extract
+```{r}
+load("D:/DOJ Pretrial Pilot Data/Collapsed Pretrial DOJ Data 4.6.22.RData")
+#load("Pre-DOJ Combined County Pretrial Data.RData")
+# load("Unmatched Court Data.RData")
+# G:\CrimJustice\PretrialAssessmentPilot\CIIs for DOJ\CIIs for DOJ 3 21 2022
+files <- list.files("G:/CrimJustice/PretrialAssessmentPilot/CIIs for DOJ/CIIs for DOJ 3 21 2022/snowflake extract with joining fields", full.names = T)
+
+#1st Partition
+sf_df <- lapply(files[2:16], function(x){
+  
+  df <- fread(x, colClasses = "character")
+  
+  return(df)
+})
+
+#2nd partition
+sf_dfhead <- fread(files[1], colClasses = "character")
+
+sf_df <- sf_df %>% bind_rows()
+names(sf_df) <- names(sf_dfhead)
+
+sf_df <- sf_dfhead %>%
+  bind_rows(sf_df)
+
+
+sf_df <- sf_df %>%
+  mutate(across(contains("DATE"), ~ymd(.x)))
+
+#save(sf_df, file = "Snowflake extract for joining 4.6.22.RData")
+```
+
+Standardizing names in doj data
+```{r}
+names(coll_df) <- tolower(names(coll_df))
+
+coll_df <- coll_df %>%
+  rename(cii = cii_number)
+
+#standardizing cii and then race variable names.
+#names(coll_df)[1:3] <- c("cii", "sex", "race")
+
+names(sf_df) <- tolower(names(sf_df))
+
+names(sf_df)
+```
+
+Primary Joining
+```{r}
+# coll_df <- coll_df %>%
+  # Flags are currently off
+  # filter(filed_flag == 1)
+  # select(-c(race, cyc_order, stp_order, stp_type_descr, stp_ori_type_descr, offense_code, charge_original), -(dv_flag:sf_violent), everything(),
+  #        sentence_date) %>%
+  # mutate(pretrial_dispo_date = if_else(is.na(disp_date), sentence_date, pretrial_dispo_date)) %>%
+  # mutate(start = as.numeric(cyc_date),
+  #        end = start) %>%
+  # ungroup() %>%
+  # filter(charge_level %in% c("F", "M")) %>%
+  # mutate(row_doj = row_number())
+
+dispo_df <- coll_df %>%
+  mutate(start = as.numeric(cyc_date),
+         end = start) %>%
+  select(cii, arrest_date, start, end, sentence_date, disp_date, pretrial_end_date, disp_descr, filed_flag, convicted_flag, court_disp_flag, matches("court_.*_flag"), matches("conviction_.*_flag"))
+
+ 
+# full_df <- df %>%
+#   mutate(start = as.numeric(if_else(is.na(arrest_date), book_date - 2, arrest_date)),
+#          end = as.numeric(if_else(is.na(arrest_date), book_date, arrest_date)),
+#          row_m = row_number()) 
+
+full_df <- sf_df %>%
+  filter(!is.na(booking_date)) %>%
+  mutate(start = as.numeric(booking_date -2),
+         end = as.numeric(booking_date),
+         row_m = row_number())
+
+full_df %>%
+  filter(is.na(start))
+
+sf_df %>%
+  #filter(is.na(booking_date)) %>%
+  count(county)
+```
+
+
+```{r}
+full_df <- genome_left_join(full_df, dispo_df, by = c("cii", "start", "end"))
+
+full_df <- full_df %>%
+  rename_all(funs(gsub("\\.y$", "_doj", .))) %>%
+  rename_all(funs(gsub("\\.x$", "", .))) %>%
+  mutate(match_dif = abs(as.numeric(booking_date) - start_doj)) %>%
+  group_by(county, row_m) %>%
+  filter(match_dif == min(match_dif)|is.na(match_dif)) %>%
+  ungroup() %>%
+  distinct(row_m, .keep_all = T)
+ 
+
+full_df <- full_df %>%
+  rename(pretrial_period_end_date_doj = pretrial_end_date) 
+
+save(full_df, file = "SF DOJ Joined 4.6.22.RData")
+
+```
+
+
+```{r}
+# load("Jail, RRF, Court, DOJ Joined.RData")
+
+match_df <- full_df %>%
+  mutate(pretrial_end_date_doj = if_else(is.na(pretrial_period_end_date), pretrial_period_end_date_doj, pretrial_period_end_date)) %>% #changed this, used to be assigned to pretrial_end_date, need to fix variable names going forward ****************************************************
+  filter(!is.na(pretrial_period_end_date_doj)) %>%
+  arrange(booking_date) %>%
+  # group_by(row_j, county) %>%
+  # mutate(pretrial_dispo_date = max(pretrial_dispo_date)) %>%
+  ungroup() 
+  # distinct(local_id, pretrial_dispo_date, .keep_all = T)
+#
+
+save(match_df, file = "Match df 4.6.22.RData")
+
+# load("Court Collapsed Full Data.RData")
+
+# With county data unmatched with DOJ data for now.
+match_df <- match_df %>%
+  filter(!is.na(release_date),
+         !is.na(pretrial_period_end_date_doj)) %>%
+  filter(pretrial_period_end_date - as_date(release_date) > 0) %>%
+  mutate(start = as.numeric(as_date(release_date)) + 1,
+         end = as.numeric(pretrial_period_end_date_doj)) %>%
+  ungroup() %>%
+  mutate(match_id = paste0(cii, county)) %>%
+  filter(end > start) %>%
+  mutate(row_m = row_number()) 
+
+
+
+
+
+#With DOJ Data
+recid_df <- coll_df %>%
+  # filter(convicted_flag == 1) %>%
+  mutate(row_doj = row_number()) %>%
+  mutate(start = as.numeric(cyc_date),
+         end = start) %>%
+  # mutate(small_vio = if_else(max_charge %in% c("647F", "12500A", "146011A", "ARRM", "3056", "146012A", "166A4", "8537") |
+  #        grepl("PROBATION VIOL|^POST RELEASE|^VIO CRT ORD|CONTEMPT|FTA|FAILURE TO APPEAR|PRCS|BENCH WARRANT|FAIL APPEAR", "PAROLE",
+  #               "PROBATION|FAIL TO APPEA|DRIVE:SUSPENDED", desc), 1, 0),
+  #        recid = if_else(small_vio == 0, 1, 0),
+  #        violent_recid = if_else(grepl("INJ |BAT |BAT:|GBT|BATTERY|INJURY|ASSAULT|MURDER|ROBBERY|KIDNAPPING|BODILY INJURY|RAPE|SEX BATT|L&L W/CHILD|
+  #                                      SEX WITH MINOR:3|SEXUAL ABUSE", desc), 1, 0)) %>%
+  select(recid_date = cyc_date, cii, recid_join_var = join_var, recid_charge_description = doj_charge_description, arrested_flag, 
+         recid_filed_flag = filed_flag, recid_convicted_flag = convicted_flag, matches("convict|^arrest.*flag|^court.*flag"), start, end, row_doj) 
+
+names(recid_df) <- gsub("conviction", "recid_conviction", names(recid_df))
+names(recid_df) <- gsub("arrest", "recid_arrest", names(recid_df))
+names(recid_df) <- gsub("court", "recid_filed", names(recid_df))
+
+#With In-county data
+# recid_df <- full_df %>%
+#   filter(book_date >= as_date("2015-07-01"),
+#          book_type %in% c("Street", "Wart", "Owart")) %>%
+#   mutate(match_id = paste0(local_id, county)) %>%
+#   mutate(small_vio = if_else(max_charge %in% c("647F", "12500A", "146011A", "ARRM", "3056", "146012A", "166A4", "8537") |
+#          grepl("PROBATION VIOL|^POST RELEASE|^VIO CRT ORD|CONTEMPT|FTA|FAILURE TO APPEAR|PRCS|BENCH WARRANT|FAIL APPEAR", "PAROLE",
+#                 "PROBATION|FAIL TO APPEA|DRIVE:SUSPENDED", max_descrip), 1, 0),
+#          recid = if_else(small_vio == 0, 1, 0),
+#          violent_recid = if_else(grepl("INJ |BAT |BAT:|GBT|BATTERY|INJURY|ASSAULT|MURDER|ROBBERY|KIDNAPPING|BODILY INJURY|RAPE|SEX BATT|L&L W/CHILD|
+#                                        SEX WITH MINOR:3|SEXUAL ABUSE", max_descrip), 1, 0)) %>%
+#   select(match_id, book_type, book_date, max_descrip, hierarchy:tot_misd, small_vio:violent_recid) %>%
+#   mutate(start = as.numeric(book_date),
+#          end = start)
+
+
+eval_df <- genome_left_join(match_df, recid_df, by = c("cii", "start", "end"))
+
+save(eval_df, file = "Eval df 4.6.22.RData")
+ 
+eval_df <- eval_df %>%
+  mutate(recid_date = if_else(is.na(recid_date), as_date("2030-01-01"), recid_date)) %>%
+  mutate_at(vars(contains("flag")), funs(if_else(is.na(.), 0, .))) %>%
+  group_by(row_m) %>%
+  mutate_at(vars(filed_flag:recid_conviction_dv_possible_flag, -row_m), max) %>%
+  mutate(recid_date = min(recid_date)) %>%
+  ungroup() %>%
+  distinct(row_m, .keep_all = T) %>%
+  mutate(recid_date = if_else(recid_date == as_date("2030-01-01"), as_date(NA), recid_date)) %>%
+  select(-matches("^start"), -matches("^end")) %>%
+  rename(cii = cii.x) %>%
+  select(-cii.y)
+
+save(eval_df, file = "Eval df2 4.6.22.RData")
+
+shell.exec(getwd())
+
+eval_df %>%
+  count(county)
+```
+
+Anonymized Data Set
+```{r}
+
+# names(eval_df)
+
+anon_df <- eval_df %>%
+  select(-c(book_num, court_case_id, court_docket_id, cdl_id, fbi, cii, contains("name"), dob, matches("id$"), zip_code))
+
+write.csv(anon_df, file = "Anonymized Fabricated Data for Practice.csv")
+
+# load("Final Failure Evaluation.RData")
+
+eval_df <- eval_df %>%
+  rename_all(funs(gsub("\\.y$", "_r", .))) %>%
+  rename_all(funs(gsub("\\.x$", "", .))) %>%
+  # select(-charge_level_r) %>%
+  #Change Back tot_misd_r to actual match
+  mutate_at(vars(court_dispo:sf_violent_filing, -sentence_date), funs(if_else(is.na(.), 0, as.numeric(.)))) %>%
+  # mutate_at(vars(dv_flag_r:tot_misd_r, small_vio:violent_recid), funs(if_else(is.na(.), 0, as.numeric(.)))) %>%
+  group_by(row_m) %>%
+  mutate_at(vars(court_dispo:sf_violent_filing, -sentence_date, -row_m), sum) %>%
+  # mutate_at(vars(dv_flag_r:tot_misd_r, small_vio:violent_recid), sum) %>%
+  # mutate_at(vars(contains("prior")), max) %>%
+  filter(max_hier == min(max_hier)|is.na(max_hier)) %>%
+  ungroup() %>%
+  distinct(row_m, .keep_all = T) 
+
+save(eval_df, file = "Final Failure Evaluation 4.RData")
+# 
+# eval_df %>%
+#   # filter(as_date(pretrial_dispo_date) - cyc_date == 0)
+#   # mutate(dif = cyc_date - as_date(release_date)) %>%
+#   mutate(dif = pretrial_dispo_date - cyc_date) %>%
+#   ggplot() +
+#   aes(x = dif) +
+#   geom_density()
+# 
+# eval_df %>%
+#   filter(!is.na(match_id.y))
+# 
+# match_df %>%
+#   filter(match_id %in% unique(recid_df$match_id))
+# 
+# match_df %>%
+#   add_count()
+
+names(eval_df)
+```
+
+```{r}
+eval_df <- eval_df %>%
+  mutate(fta_warrant = if_else(fta_warrant == 0 & !is.na(fta_flag_r), fta_flag_r, as.numeric(fta_warrant))) %>%
+  mutate(recid_combined = if_else(fta_warrant == 1, 1, recid)) 
+# 
+# eval_df <- eval_df %>%
+#   filter(book_date >= as_date("2015-07-01"),
+#          # book_type == "Street",
+#          pretrial_dispo_date - as_date(release_date) > 0)
+
+eval_df %>%
+  count(county, recid, assessed_risk_level) %>%
+  group_by(county, assessed_risk_level) %>%
+  mutate(total = sum(n), n = n/total) %>%
+  filter(recid == 1) %>%
+  select(-total, -recid) %>%
+  spread(assessed_risk_level, n) %>%
+  select(county, low, med, high, unk, `<NA>`)
+
+eval_df %>%
+  count(county, fta_warrant, assessed_risk_level) %>%
+  group_by(county, assessed_risk_level) %>%
+  mutate(total = sum(n), n = n/total) %>%
+  filter(fta_warrant == 1) %>%
+  select(-total, -fta_warrant) %>%
+  spread(assessed_risk_level, n) %>%
+  select(county, low, med, high, unk, `<NA>`)
+
+eval_df %>%
+  count(county, recid_combined, assessed_risk_level) %>%
+  group_by(county, assessed_risk_level) %>%
+  mutate(total = sum(n), n = n/total) %>%
+  filter(recid_combined == 1) %>%
+  select(-total, -recid_combined) %>%
+  spread(assessed_risk_level, n) %>%
+  select(county, low, med, high, unk, `<NA>`)
+
+roc_df <- eval_df %>%
+  mutate(ra = case_when(assessed_risk_level == "low" ~ 0,
+            assessed_risk_level == "med" ~ 1,
+            assessed_risk_level == "high" ~ 2,
+            T ~ NA_real_)) %>%
+  filter(!is.na(ra))
+
+summary(glm(fta_warrant ~ as.factor(ra) + county, data = roc_df))
+
+sapply(unique(roc_df$county), function(i){
+  roc_df <- roc_df %>%
+    filter(county == i)
+  roc(roc_df$recid_combined ~ roc_df$ra)
+  })
+
+  
+eval_df %>%
+  select(start, end, start_r, end_r)
+
+check_df <- match_df %>%
+  # mutate(dif = as.numeric(book_date) - start_doj) %>%
+  mutate(dif = end - start) 
+  count(dif)
+  
+summary(check_df$dif)
+
+table(imp_df$book_type_original)
+```
+
+#Checks
+```{r}
+full_df %>%
+  filter(as_date(book_date) >= as_date("2015-07-01")) %>%
+  filter(is.na(pretrial_dispo_date), !is.na(pretrial_dispo_date_doj)) %>%
+  count(county)
+```
+
+```{r}
+load("All Data Combined.RData")
+
+join %>%
+  filter(!is.na(cii)) %>%
+  distinct(cii, court_id, court_id_j, court_id_c)
+
+table(join$book_type)
+
+coll_df %>%
+  group_by(cii, cyc_date) %>%
+  add_count() %>%
+  filter(n > 1)
+
+cycle <- full_join %>%
+  filter(as_date(book_date) + 60 >= stp_event_date) %>%
+  group_by(cii.x, court_id) %>%
+  mutate(recid_total = n() - 1) %>%
+  ungroup() %>%
+  mutate(recid = if_else(recid_total > 0, 1, 0)) %>%
+  distinct(cii.x, court_id, .keep_all = T)
+
+recid <- cycle %>%
+  filter(!county_j %in% c("Shasta", "Yuba"),
+         release_type %in% c("Bail", "OR")) %>%
+  mutate(release_type = if_else(is.na(assessed_risk_level), "Not Assesed", "Assessed")) %>%
+  group_by(county_j, recid, release_type) %>%
+  count()
+
+recid %>%
+  rename(n = nnn) %>%
+  ungroup() %>%
+  group_by(county_j, release_type) %>%
+  mutate(total = sum(n)) %>%
+  ungroup() %>%
+  dplyr::filter(recid == 1) %>%
+  mutate(n = round(n/total*100)) %>%
+  select(-recid, - total) %>%
+  spread(release_type, n)
+
+recid <- cycle %>%
+  filter(!county_j %in% c("Shasta", "Yuba")) %>%
+  # mutate(release_type = if_else(is.na(assessed_risk_level), release_type, "Assessed")) %>%
+  group_by(county_j, recid, assessed_risk_level) %>%
+  count()
+
+recid %>%
+  rename(n = nnn) %>%
+  ungroup() %>%
+  group_by(county_j, assessed_risk_level) %>%
+  mutate(total = sum(n)) %>%
+  ungroup() %>%
+  dplyr::filter(recid == 1) %>%
+  mutate(n = round(n/total*100)) %>%
+  select(-recid, - total) %>%
+  spread(assessed_risk_level, n)
+
+table(cycle$assessed_risk_level, useNA = "ifany")
+
+full_join %>%
+  group_by(county_j, cii.x) %>%
+  add_count() %>%
+  filter(nnn > 5) %>%
+  arrange(desc(n))
+
+cycle %>%
+  filter(is.na(court_id))
+
+sample(full_join$court_id, 100)
+
+cycle %>%
+  filter(court_id == "11NF0034")
+
+cycle <- cycle %>%
+  mutate(dif = pretrial_dispo_date - as_date(book_date))
+
+quantile(cycle$dif, c(.25, .75))
+
+join %>%
+  filter(book_type == "Street") 
+  
+cycle %>%
+  group_by(county_j) %>%
+  summarise(mean = mean(dif), med = median(dif))
+
+table(coll_df$stp_ori_type_descr)
+
+coll_df %>%
+  filter(tot_felony == 0 & tot_misd == 0)
+
+coll_df %>%
+  filter(charge_level %in% c("F", "M"))
+
+coll_df %>%
+  filter(cyc_date >= as_date("2015-07-01")) %>%
+  filter(!charge %in% c("647F", "12500A", "146011A", "ARRM", "3056", "146012A", "166A4", "8537"),
+         !grepl("PROBATION VIOL|^POST RELEASE|^VIO CRT ORD|CONTEMPT|FTA|FAILURE TO APPEAR|PRCS|BENCH WARRANT|FAIL APPEAR", "PAROLE", "PROBATION|FAIL TO APPEA|DRIVE:SUSPENDED", desc))
+  group_by(desc) %>%
+  count() %>%
+  arrange(desc(n))
+
+coll_df <- coll_df %>%
+  mutate(cii = parse_number(CII_NUMBER))
+  
+join %>%
+  semi_join(coll_df, by = "cii")
+
+coll_df$cii[1:100]
+```
+
+```{r}
+cumsum(c(1,1,1))-1
+
+names(coll_df) <- tolower(names(coll_df))
+
+sample(coll_df$cii, 100)
+
+coll_df %>%
+  count(nchar(cii))
+
+coll_df %>%
+  filter(grepl("^10", cii))
+
+sort(names(coll_df))
+sort(names(join))
+
+table(names(join))
+
+full_join %>%
+  mutate(arrest = 1,
+         cii = if_else(is.na(cii.x), cii.y, cii.x)) %>%
+  filter(!is.na(cii)) %>%
+  group_by(cii) %>%
+  arrange(stp_event_date) %>%
+  mutate(prev_arrest = cumsum(arrest) -1,
+         prev_violent = cumsum(violent_j) -1,
+         pretrial_recid = if_else())
+  distinct(cii.x, book_date)
+  group_by()
+  distinct(stp_event_date, cii.x)
+  
+df <- tibble(x = rep(c("group1", "group2"), each = 3), book_date = as_date(c("2015-01-01", "2015-01-15", "2015-03-01", "2015-04-01", "2015-05-01", "2015-06-01")), dispo_date = as_date(c("2015-02-01", "2015-03-01", "2015-04-01", "2015-05-01", "2015-06-01", "2015-07-01")))
+
+df %>%
+  group_by(x, dispo_date) %>%
+  mutate(recide = sum(book_date < dispo_date))
+```
+
+#Post 2011
+```{r}
+load("Post 2011 CORI CII Matched Dataset.RData")
+
+doj_df11 <- doj_df11 %>%
+  mutate(unique_id = paste0(REQ_CII_NUMBER, CYC_DATE))
+
+samp <- sample(doj_df11$unique_id, 1e5, replace = F)
+
+sample_df <- doj_df11 %>%
+  filter(unique_id %in% samp)
+
+load("Sample Post 2011 100K CORI CII Matched Dataset.RData")
+
+sample_df2 <- sample_df %>%
+  group_by(REQ_CII_NUMBER, CYC_DATE) %>%
+  mutate(DISP_DATE = max(DISP_DATE)) %>%
+  distinct(REQ_CII_NUMBER, CYC_DATE, .keep_all = T)
+
+sample_df2 %>%
+  filter(DISP_DATE == "")
+
+
+max("", "20071022")
+
+sample_df$DISP_OFFENSE_CODE[1]
+
+# sample_df <- sample_df %>%
+#   ungroup() %>%
+#   select(5:7, 21:24,26,28,32,34:38,48,50,52:59) %>%
+sample_df %>%
+  mutate(STP_EVENT_DATE = if_else(STP_EVENT_DATE == "" & grepl("COURT", STP_TYPE_DESCR), DISP_DATE, STP_EVENT_DATE)) %>%
+  separate(OFFENSE_DESCR, c("charge","desc"), sep = "-") %>%
+  separate(charge, c("charge", "code_type"), sep = " " )
+  
+
+
+sample_df %>%
+  filter(CII_NUMBER %in% CII_NUMBER[STP_EVENT_DATE != "" & DISP_DATE != "" & STP_EVENT_DATE != DISP_DATE]) %>%
+  View()
+
+table(sample_df$STP_TYPE_DESCR)
+
+?separate
+
+join %>%
+  ungroup() %>%
+  filter(book_type == "Street") %>%
+  group_by(cii, court_id, county_j) %>%
+  mutate(recid = n_distinct(book_num) - 1,
+         recid = if_else(recid > 0,1,0)) %>%
+  group_by(county_j, recid) %>%
+  count()
+
+join$county  
+```
+
+Group for Matching with Jail Data
+```{r}
+load("Post 2011 CORI CII Matched Dataset.RData")
+
+doj_sum <- doj_df11 %>%
+  # select(REQ_CII_NUMBER, CYC_DATE, DISP_DATE) %>%
+  group_by(REQ_CII_NUMBER, CYC_DATE) %>%
+  mutate(DISP_DATE = max(DISP_DATE)) %>%
+  distinct(REQ_CII_NUMBER, CYC_DATE, .keep_all = T)
+
+# save(doj_sum, file = "Three Variable DOJ Summary.RData")
+
+# rm(doj_df11)
+
+load("E:/Confidential Data/Jail Data/Unfinished Booking Level Collapse of Jail Data.RData")
+
+book_df <- full_df2 %>%
+  ungroup() %>%
+  select(cii, book_date, court_id)
+
+book_df %>%
+  group_by(cii) %>%
+  mutate(start = book_date,
+         end = lead(book_date))
+
+lead(c(0,1), default = 2)
+
+n_distinct(doj_sum$REQ_CII_NUMBER)
+
+
+#98% of CIIs matched 
+sum(unique(full_df2$cii) %in% unique(doj_sum$REQ_CII_NUMBER))/n_distinct(full_df2$cii)
+
+c(1,2) %in% 1
+
+doj_df11
+```
+
+```{r}
+doj_sum %>%
+  mutate(DISP_DATE_y = if_else(DISP_DATE == "", "No", "Yes")) %>%
+  group_by(DISP_DATE_y, STP_ORI_CNTY_NAME, OFFENSE_TOC) %>%
+  count()
+```
+
+
+#Sample examination
+```{r}
+sample_df %>%
+  group
+```
+
+#Tests
+```{r eval=FALSE, include=FALSE}
+read.csv(files, colClasses = "character", header = F)
+
+example <- read_lines("RR_19-004_JCC_Tafoya/20190314_RRC100_OUTPUT_RR_19-004_JCC_TAFOYA_01_00001.dat.gz")
+example2 <- read_lines("RR_19-004_JCC_Tafoya/20190314_RRC100_OUTPUT_RR_19-004_JCC_TAFOYA_01_00002.dat.gz")
+
+length(example[2] )
+
+str_count(example2[6], pattern = ",")
+
+example2[1]
+
+gzfile("RR_19-004_JCC_Tafoya/20190314_RRC100_OUTPUT_RR_19-004_JCC_TAFOYA_01_00001.dat.gz")
+
+read.table("RR_19-004_JCC_Tafoya/20190314_RRC100_OUTPUT_RR_19-004_JCC_TAFOYA_01_00002.dat.gz", sep = ",", header = F) %>%
+  View()
+
+read.pattern("RR_19-004_JCC_Tafoya/20190314_RRC100_OUTPUT_RR_19-004_JCC_TAFOYA_01_00002.dat.gz", pattern = ",", header = F)
+
+read.csv("RR_19-004_JCC_Tafoya/20190314_RRC100_OUTPUT_RR_19-004_JCC_TAFOYA_01_00001.dat.gz", colClasses = "character")
+
+files[-1]
+```
+
+
+#Post 2012 Included Variables Output for Joining
+```{r eval=FALSE, include=FALSE}
+doj_df <- fread("CORI CII Pretrial Dataset Post 2012.csv", colClasses = "character")
+
+doj_dates <- doj_df %>%
+  select(STP_ORI_CNTY_NAME, REQ_CII_NUMBER, CYC_ORDER, STP_EVENT_DATE, STP_TYPE_DESCR, DISP_DATE) %>%
+  group_by(REQ_CII_NUMBER, CYC_ORDER) %>%
+  mutate(DISP_DATE = max(DISP_DATE)) %>%
+  filter(STP_TYPE_DESCR %in% c("ARREST/DETAINED/CITED", "COURT ACTION")) %>%
+  distinct()
+  
+doj_dates <- doj_dates %>%
+  group_by(REQ_CII_NUMBER, CYC_ORDER, STP_TYPE_DESCR) %>%
+  filter(STP_EVENT_DATE == min(STP_EVENT_DATE)) %>%
+  ungroup()
+
+doj_dates <- doj_dates %>%
+  spread(STP_TYPE_DESCR, STP_EVENT_DATE) 
+
+names(doj_dates2) <- c("county", "cii", "cycle", "disposition_date", "arrest_date", "filing_date")
+
+doj_dates2 <- doj_dates2 %>%
+  mutate_at(vars(contains("date")), ymd)
+
+samp <- doj_dates2 %>%
+  sample_n(1000) 
+  
+doj_dates_list <- split.data.frame(doj_dates2, doj_dates2$county)
+
+lapply(doj_dates_list, function(i){
+  fwrite(i, file = paste("D:/DOJ Pretrial Pilot Data/County Join Dates/",i$county[1],"Join Dates.csv"))
+})
+
+names(doj_df)[order(names(doj_df))]
+
+doj_df[1:1000,] %>%
+  View()
+  count(STP_ORI_TYPE_DESCR, STP_TYPE_DESCR) %>%
+  arrange(desc(n)) %>%
+  View()
+  
+doj_df %>%
+  sample_n(1e6) %>%
+  count(SENT_LOC_DESCR)
+```
