@@ -452,6 +452,7 @@ coll_df <- coll_df %>%
 # 
 # rm(col_df)
 save(coll_df, file = "Collapsed Pretrial DOJ Data.RData")
+load("Collapsed Pretrial DOJ Data 4.6.22.RData")
 ```
 
 Checks
@@ -724,6 +725,8 @@ match_df_2022 <- full_df %>%
 #save(match_df_2022, file = "Match df 4.12.22.RData")
 
 # load("Court Collapsed Full Data.RData")
+#load("Match df 4.12.22.RData")
+
 
 # With county data unmatched with DOJ data for now.
 match_df_2022 <- match_df_2022 %>%
@@ -776,9 +779,8 @@ names(recid_df) <- gsub("court", "recid_filed", names(recid_df))
 #          end = start)
 
 
-eval_df <- genome_left_join(match_df, recid_df, by = c("cii", "start", "end"))
+eval_df <- genome_left_join(match_df_2022, recid_df, by = c("cii", "start", "end"))
 
-#save(eval_df, file = "Eval df 4.6.22.RData")
  
 eval_df <- eval_df %>%
   mutate(recid_date = if_else(is.na(recid_date), as_date("2030-01-01"), recid_date)) %>%
@@ -794,6 +796,7 @@ eval_df <- eval_df %>%
   select(-cii.y)
 
 #save(eval_df, file = "Eval df2 4.6.22.RData")
+#save(eval_df, file = "Eval df 4.12.22.RData")
 
 shell.exec(getwd())
 
