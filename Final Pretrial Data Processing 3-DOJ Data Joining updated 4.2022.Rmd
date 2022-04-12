@@ -576,6 +576,7 @@ Primary Joining
   # filter(charge_level %in% c("F", "M")) %>%
   # mutate(row_doj = row_number())
 
+
 dispo_df <- coll_df %>%
   mutate(start = as.numeric(cyc_date),
          end = start) %>%
@@ -586,6 +587,7 @@ dispo_df <- coll_df %>%
 #   mutate(start = as.numeric(if_else(is.na(arrest_date), book_date - 2, arrest_date)),
 #          end = as.numeric(if_else(is.na(arrest_date), book_date, arrest_date)),
 #          row_m = row_number()) 
+
 
 full_df <- sf_df %>%
   filter(!is.na(booking_date)) %>%
@@ -599,6 +601,77 @@ full_df %>%
 sf_df %>%
   #filter(is.na(booking_date)) %>%
   count(county)
+```
+
+Diagnostic
+```{r}
+dispo_df <- coll_df %>%
+  mutate(start = as.numeric(CYC_DATE),
+         end = start)
+
+dispo_df %>%
+  summarise(min_start = min(start), min_end = min(end), max_start = max(start), max_end = max(end))
+
+dispo_df %>%
+  summarise(min_cyc = min(CYC_DATE), max_cyc = max(CYC_DATE))
+  
+
+load("G:/CrimJustice/PretrialAssessmentPilot/temp files for transfer 3.30.22/processed/Snowflake extract for joining 4.6.22.RData")
+
+sf_df %>%
+  summarise(min(BOOKING_DATE, na.rm = T), max(BOOKING_DATE, na.rm = T), sum(is.na(BOOKING_DATE)))
+
+sf_df %>%
+  count(is.na(CII))
+
+sf_cii <- sf_df %>%
+  select(CII) %>%
+  distinct()
+
+coll_cii <- coll_df %>%
+  select(CII_NUMBER) %>%
+  distinct() %>%
+  rename(CII = CII_NUMBER)
+
+coll_cii %>%
+  semi_join(sf_cii)
+#584,959 matching CIIs
+
+sf_df %>%
+  filter(!is.na(BOOKING_DATE)) %>%
+  filter(BOOKING_DATE >= "2016-11-30") %>%
+  distinct(BOOKING_DATE) %>%
+  mutate(bdateminus = BOOKING_DATE -2) %>%
+  mutate(bdatenum = as.numeric(BOOKING_DATE)) %>%
+  mutate(bdatenumminus = as.numeric(bdateminus)) %>%
+  select(BOOKING_DATE, bdateminus, bdatenum, bdatenumminus) %>%
+  arrange(BOOKING_DATE)
+
+sf_df %>%
+  filter(!is.na(BOOKING_DATE)) %>%
+  mutate(start = as.numeric(BOOKING_DATE -2),
+         end = as.numeric(BOOKING_DATE),
+         row_m = row_number())
+
+coll_df %>%
+  filter(!is.na(CYC_DATE)) %>%
+  filter(CYC_DATE >= "2016-11-30") %>%
+  distinct(CYC_DATE) %>%
+  mutate(bdateminus = CYC_DATE -2) %>%
+  mutate(bdatenum = as.numeric(CYC_DATE)) %>%
+  mutate(bdatenumminus = as.numeric(bdateminus)) %>%
+  select(CYC_DATE, bdateminus, bdatenum, bdatenumminus) %>%
+  arrange(CYC_DATE)
+
+as.numeric(as.Date("2018-01-01"))
+as.numeric(as.Date("2018-01-03"))
+
+
+gen_anti <- genome_anti_join(full_df, dispo_df, by = c("cii", "start", "end"))
+
+#save(gen_anti, file = "anti genome join 4.7.22.RData")
+
+full_df
 ```
 
 
@@ -618,16 +691,28 @@ full_df <- full_df %>%
 full_df <- full_df %>%
   rename(pretrial_period_end_date_doj = pretrial_end_date) 
 
-save(full_df, file = "SF DOJ Joined 4.6.22.RData")
+#save(full_df, file = "SF DOJ Joined 4.6.22.RData")
 
+
+
+load("G:/CrimJustice/PretrialAssessmentPilot/temp files for transfer 3.30.22/processed/SF DOJ Joined 4.6.22.RData")
+
+full_df %>%
+  count(match_dif)
+
+full_df %>%
+  mutate(pretrial_end_date_doj = if_else(is.na(pretrial_period_end_date), pretrial_period_end_date_doj, pretrial_period_end_date)) %>%
+  mutate(start = as.numeric(as_date(release_date)) + 1,
+         end = as.numeric(pretrial_period_end_date_doj)) %>%
+  count(!is.na(pretrial_end_date_doj), !is.na(release_date), end > start)
 ```
 
 
 ```{r}
 # load("Jail, RRF, Court, DOJ Joined.RData")
 
-match_df <- full_df %>%
-  mutate(pretrial_end_date_doj = if_else(is.na(pretrial_period_end_date), pretrial_period_end_date_doj, pretrial_period_end_date)) %>% #changed this, used to be assigned to pretrial_end_date, need to fix variable names going forward ****************************************************
+match_df_2022 <- full_df %>%
+  mutate(pretrial_period_end_date_doj = if_else(is.na(pretrial_period_end_date), pretrial_period_end_date_doj, pretrial_period_end_date)) %>% #changed this, used to be assigned to pretrial_end_date, need to fix variable names going forward ****************************************************
   filter(!is.na(pretrial_period_end_date_doj)) %>%
   arrange(booking_date) %>%
   # group_by(row_j, county) %>%
@@ -636,15 +721,15 @@ match_df <- full_df %>%
   # distinct(local_id, pretrial_dispo_date, .keep_all = T)
 #
 
-save(match_df, file = "Match df 4.6.22.RData")
+#save(match_df_2022, file = "Match df 4.12.22.RData")
 
 # load("Court Collapsed Full Data.RData")
 
 # With county data unmatched with DOJ data for now.
-match_df <- match_df %>%
+match_df_2022 <- match_df_2022 %>%
   filter(!is.na(release_date),
          !is.na(pretrial_period_end_date_doj)) %>%
-  filter(pretrial_period_end_date - as_date(release_date) > 0) %>%
+  filter(pretrial_period_end_date_doj - as_date(release_date) > 0) %>%
   mutate(start = as.numeric(as_date(release_date)) + 1,
          end = as.numeric(pretrial_period_end_date_doj)) %>%
   ungroup() %>%
@@ -693,7 +778,7 @@ names(recid_df) <- gsub("court", "recid_filed", names(recid_df))
 
 eval_df <- genome_left_join(match_df, recid_df, by = c("cii", "start", "end"))
 
-save(eval_df, file = "Eval df 4.6.22.RData")
+#save(eval_df, file = "Eval df 4.6.22.RData")
  
 eval_df <- eval_df %>%
   mutate(recid_date = if_else(is.na(recid_date), as_date("2030-01-01"), recid_date)) %>%
@@ -708,13 +793,20 @@ eval_df <- eval_df %>%
   rename(cii = cii.x) %>%
   select(-cii.y)
 
-save(eval_df, file = "Eval df2 4.6.22.RData")
+#save(eval_df, file = "Eval df2 4.6.22.RData")
 
 shell.exec(getwd())
 
 eval_df %>%
   count(county)
 ```
+
+Diagnostic
+```{r}
+full_df %>%
+  count(!is.na(release_date), !is.na(pretrial_period_end_date), !is.na(pretrial_period_end_date_doj), release_date < pretrial_period_end_date, release_date < pretrial_period_end_date_doj)
+```
+
 
 Anonymized Data Set
 ```{r}
@@ -743,7 +835,7 @@ eval_df <- eval_df %>%
   ungroup() %>%
   distinct(row_m, .keep_all = T) 
 
-save(eval_df, file = "Final Failure Evaluation 4.RData")
+#save(eval_df, file = "Final Failure Evaluation 4.RData")
 # 
 # eval_df %>%
 #   # filter(as_date(pretrial_dispo_date) - cyc_date == 0)
