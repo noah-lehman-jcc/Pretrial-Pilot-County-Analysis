@@ -1,0 +1,507 @@
+---
+title: "2022 sb 36 tables 1-3"
+output: html_document
+---
+
+Install
+```{r}
+#install.packages(c("DBI", "dplyr","dbplyr","odbc"))
+install.packages("DBI")
+install.packages("xfun")
+install.packages("dplyr")
+```
+
+Libraries
+```{r setup}
+library(DBI)
+library(dplyr)
+library(dbplyr)
+library(odbc)
+library(tidyverse)
+library(openxlsx)
+library(lubridate)
+```
+
+Connection
+```{r eval=FALSE, include=FALSE}
+con <- dbConnect(odbc::odbc(), "snowflake_pretrial", uid ="Sal.Lempert@jud.ca.gov", pwd = .rs.askForPassword("Password"))
+```
+
+# Aggregate Data
+
+Pull Snowflake data
+```{sql connection = con, output.var = full_df}
+SELECT *
+FROM "DWH_PROD"."DATA_SCIENCE"."CJS_OUTCOME_STD"
+;
+```
+
+```{r}
+names(full_df) <- tolower(names(full_df))  
+
+full_df <- full_df %>%
+  mutate(county_orig = county) %>%
+   mutate(county = case_when(
+    # County %in% c("Sacramento", "Alameda", "Los Angeles") ~ "Large",
+    # County %in% c("Sonoma", "San Joaquin", "San Mateo", "Tulare", "Santa Barbara", "Ventura") ~ "Medium",
+    county_orig %in% c("Yuba", "Nevada", "Napa", "Kings") ~ "Small/Medium Counties",
+    county_orig %in% c("Sierra", "Modoc", "Calaveras", "Tuolumne") ~ "Small Counties",
+    T ~ county_orig)) %>% 
+  mutate(county = ordered(county),
+         county = fct_relevel(county, levels = c("Small Counties", "Small/Medium Counties")))
+
+full_df %>%
+  select(contains("sex"))
+
+full_df %>%
+  count(sex)
+```
+
+
+##Rates of Release by Gender - Fresh arrests
+```{r}
+#look at ppl who do not have completed pretrial periods
+#this may falsely represent pretrial releases for counties that have poor court data matching, because they may be released due to a disposition that we do not have a record of
+
+# release_type variable may not be a reliable indicator of pretrial release, but going to try to use it here anyway just to see
+
+gender_df <- full_df %>%
+  mutate(release_cat = case_when(release_type %in% c("Cite Release", "CiteR elease", "Bail Bond", "Own Recognizance", "Pretrial Monitor", "PreTrial Monitor", "Unknown_Bail", "Zero Bail") ~ "Pretrial release type",
+                                 release_type %in% c("Detain Only", "Detail only", "Dismissed", "Prison", "Time Served") ~ "Post-resolution release type",
+                                 release_type %in% c("Hold Release", "Hold Rlease", "Other", "Unknown") ~ "Unclear release type",
+                                 T ~ "Unclear release type")) %>%
+  filter(release_eligible_count == 1,
+         county != "Los Angeles") %>%
+  mutate(pre_trial_release_flag = if_else(release_cat == "Pretrial release type", 1, 0)) %>%
+  mutate(two_day_release = case_when(
+    weekdays(booking_date) == "Thursday" & release_date - booking_date <= 4 ~ 1,
+    weekdays(booking_date) == "Friday" & release_date - booking_date <= 4 ~ 1,
+    weekdays(booking_date) == "Saturday" & release_date - booking_date <= 3 ~ 1,
+    !weekdays(booking_date) %in% c("Thursday", "Friday", "Saturday") & release_date - booking_date <= 2 ~ 1,
+    is.na(release_date) ~ 0,
+    T ~ 0)) %>%
+  mutate(quick_pretrial_type_flag = if_else(two_day_release == 1 & release_cat == "Pretrial release type", 1, 0),
+         #quick_postres_type_flag = if_else(two_day_release == 1 & release_cat == "Post-resolution release type", 1, 0),
+         quick_bail_type_flag = if_else(two_day_release == 1 & release_type %in% c("Bail Bond"), 1, 0),
+         quick_zerobail_type_flag = if_else(two_day_release == 1 & release_type %in% c("Zero Bail"), 1, 0),
+         quick_cite_type_flag = if_else(two_day_release == 1 & release_type %in% c("Cite Release", "CiteR elease"), 1, 0),
+         quick_or_type_flag = if_else(two_day_release == 1 & release_type %in% c("Own Recognizance", "Pretrial Monitor", "PreTrial Monitor", "Pretrial Monitor", "PreTrial Monitor"), 1, 0),
+         quick_unknown_type_flag = if_else(two_day_release == 1 & release_cat == "Unclear release type", 1, 0),
+         convicted_flag = if_else(is.na(convicted_flag), 0, convicted_flag),
+         #conviction = if_else(conviction_felony_flag == 1 | conviction_misd_flag == 1 | conviction_flag == 1 | convicted_flag == 1, 1, 0),
+         closed_convicted_flag = if_else(two_day_release == 1 & release_type %in% c("Prison", "Time Served"), 1, 0),
+         closed_not_convicted_flag = if_else(two_day_release == 1 & release_type %in% c("Detain Only", "Detain only", "Dismissed"), 1, 0),
+         later_pretrial_type_flag = if_else(two_day_release == 0 & release_cat == "Pretrial release type", 1, 0),
+         later_bail_type_flag = if_else(two_day_release == 0 & release_type %in% c("Bail Bond"), 1, 0),
+         later_zerobail_type_flag = if_else(two_day_release == 0 & release_type %in% c("Zero Bail"), 1, 0),
+         later_cite_type_flag = if_else(two_day_release == 0 & release_type %in% c("Cite Release", "CiteR elease"), 1, 0),
+         later_or_type_flag = if_else(two_day_release == 0 & release_type %in% c("Own Recognizance", "Pretrial Monitor", "PreTrial Monitor"), 1, 0)) %>%
+  group_by(county, sex) %>%
+  summarise(Total = n(),
+            `Charges dropped or case dismissed within 2 court days` = mean(closed_not_convicted_flag),
+            `Convicted within 2 court days` = mean(closed_convicted_flag),
+            #`Released - (C) Pretrial release (OR or bail) within 2 court days` = mean(pre_arraignment_flag),
+            `Bail release type within 2 court days` = mean(quick_bail_type_flag),
+            `Zero bail release type within 2 court days` = mean(quick_zerobail_type_flag),
+            `Cite & Release release type within 2 court days` = mean(quick_cite_type_flag),
+            `OR release type within 2 court days` = mean(quick_or_type_flag),
+            #`Released - Post-resolution release type` = mean(quick_postres_type_flag),
+            `Unclear release type (post-resolution or pretrial) within 2 court days` = mean(quick_unknown_type_flag),
+            `TOTAL: Released within 2 court days` = mean(two_day_release), 
+            `Bail release type after 2 days` = mean(later_bail_type_flag),
+            `Zero bail release type after 2 days` = mean(later_zerobail_type_flag),
+            `Cite & Release release type after 2 days` = mean(later_cite_type_flag),
+            `OR release type after 2 days` = mean(later_or_type_flag)) %>%
+  filter(sex %in% c("Male", "Female")) %>%
+  rename(`Gender` = sex)
+
+write.xlsx(gender_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/2A Gender really.xlsx", asTable = F)
+
+# full_df %>%
+#   filter(release_eligible_count == 1) %>%
+#   filter(sex %in% c("Male", "Female")) %>%
+#   count()
+
+```
+\newpage
+
+##Rates of Release by race_standard - Fresh arrests
+```{r}
+#look at ppl who do not have completed pretrial periods
+#this may falsely represent pretrial releases for counties that have poor court data matching, because they may be released due to a disposition that we do not have a record of
+
+# release_type variable may not be a reliable indicator of pretrial release, but going to try to use it here anyway just to see
+
+race_standard_df <- full_df %>%
+  mutate(race_standard = if_else(race_standard %in% c("White", "Black", "Hispanic", "Asian"), race_standard, "Other/Unknown")) %>%
+  mutate(release_cat = case_when(release_type %in% c("Cite Release", "CiteR elease", "Bail Bond", "Own Recognizance", "Pretrial Monitor", "PreTrial Monitor", "Unknown_Bail", "Zero Bail") ~ "Pretrial release type",
+                                 release_type %in% c("Detain Only", "Detain only", "Dismissed", "Prison", "Time Served") ~ "Post-resolution release type",
+                                 release_type %in% c("Hold Release", "Other", "Unknown") ~ "Unclear release type",
+                                 T ~ "Unclear release type")) %>%
+  filter(release_eligible_count == 1,
+         county != "Los Angeles") %>%
+  mutate(pre_trial_release_flag = if_else(release_cat == "Pretrial release type", 1, 0)) %>%
+  mutate(two_day_release = case_when(
+    weekdays(booking_date) == "Thursday" & release_date - booking_date <= 4 ~ 1,
+    weekdays(booking_date) == "Friday" & release_date - booking_date <= 4 ~ 1,
+    weekdays(booking_date) == "Saturday" & release_date - booking_date <= 3 ~ 1,
+    !weekdays(booking_date) %in% c("Thursday", "Friday", "Saturday") & release_date - booking_date <= 2 ~ 1,
+    is.na(release_date) ~ 0,
+    T ~ 0)) %>%
+  mutate(quick_pretrial_type_flag = if_else(two_day_release == 1 & release_cat == "Pretrial release type", 1, 0),
+         #quick_postres_type_flag = if_else(two_day_release == 1 & release_cat == "Post-resolution release type", 1, 0),
+         quick_bail_type_flag = if_else(two_day_release == 1 & release_type %in% c("Bail Bond", "Unknown_Bail"), 1, 0),
+         quick_zerobail_type_flag = if_else(two_day_release == 1 & release_type %in% c("Zero Bail"), 1, 0),
+         quick_cite_type_flag = if_else(two_day_release == 1 & release_type %in% c("Cite Release", "CiteR elease"), 1, 0),
+         quick_or_type_flag = if_else(two_day_release == 1 & release_type %in% c("Own Recognizance", "Pretrial Monitor", "PreTrial Monitor"), 1, 0),
+         quick_unknown_type_flag = if_else(two_day_release == 1 & release_cat == "Unclear release type", 1, 0),
+         convicted_flag = if_else(is.na(convicted_flag), 0, convicted_flag),
+         #conviction = if_else(conviction_felony_flag == 1 | conviction_misd_flag == 1 | conviction_flag == 1 | convicted_flag == 1, 1, 0),
+         closed_convicted_flag = if_else(two_day_release == 1 & release_type %in% c("Prison", "Time Served"), 1, 0),
+         closed_not_convicted_flag = if_else(two_day_release == 1 & release_type %in% c("Detain Only", "Detain only", "Dismissed"), 1, 0),
+         later_pretrial_type_flag = if_else(two_day_release == 0 & release_cat == "Pretrial release type", 1, 0),
+         later_bail_type_flag = if_else(two_day_release == 0 & release_type %in% c("Bail Bond", "Unknown_Bail"), 1, 0),
+         later_zerobail_type_flag = if_else(two_day_release == 0 & release_type %in% c("Zero Bail"), 1, 0),
+         later_cite_type_flag = if_else(two_day_release == 0 & release_type %in% c("Cite Release", "CiteR elease"), 1, 0),
+         later_or_type_flag = if_else(two_day_release == 0 & release_type %in% c("Own Recognizance", "Pretrial Monitor", "PreTrial Monitor"), 1, 0)) %>%
+  group_by(county, race_standard) %>%
+  summarise(Total = n(),
+            `Charges dropped or case dismissed within 2 court days` = mean(closed_not_convicted_flag),
+            `Convicted within 2 court days` = mean(closed_convicted_flag),
+            #`Released - (C) Pretrial release (OR or bail) within 2 court days` = mean(pre_arraignment_flag),
+            `Bail release type within 2 court days` = mean(quick_bail_type_flag),
+            `Zero bail release type within 2 court days` = mean(quick_zerobail_type_flag),
+            `Cite & Release release type within 2 court days` = mean(quick_cite_type_flag),
+            `OR release type within 2 court days` = mean(quick_or_type_flag),
+            #`Released - Post-resolution release type` = mean(quick_postres_type_flag),
+            `Unclear release type (post-resolution or pretrial) within 2 court days` = mean(quick_unknown_type_flag),
+            `TOTAL: Released within 2 court days` = mean(two_day_release), 
+            `Bail release type after 2 days` = mean(later_bail_type_flag),
+            `Zero bail release type after 2 days` = mean(later_zerobail_type_flag),
+            `Cite & Release release type after 2 days` = mean(later_cite_type_flag),
+            `OR release type after 2 days` = mean(later_or_type_flag)) %>%
+  rename(`Race` = race_standard) 
+
+write.xlsx(race_standard_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/2A race_standard final.xlsx", asTable = F)
+
+# full_df %>%
+#   filter(release_eligible_count == 1) %>%
+#   filter(race_standard %in% c("White", "Black", "Hispanic")) %>%
+#   count()
+
+```
+\newpage
+
+
+\newpage
+## Rates of Release by Offense Type - Fresh arrests
+```{r}
+#look at ppl who do not have completed pretrial periods
+#this may falsely represent pretrial releases for counties that have poor court data matching, because they may be released due to a disposition that we do not have a record of
+
+# release_type variable may not be a reliable indicator of pretrial release, but going to try to use it here anyway just to see
+
+charge_level_df <- full_df %>%
+  mutate(charge_level = charge_level_standard) %>%
+  mutate(release_cat = case_when(release_type %in% c("Cite Release", "CiteR elease", "Bail Bond", "Own Recognizance", "Pretrial Monitor", "PreTrial Monitor", "Unknown_Bail", "Zero Bail") ~ "Pretrial release type",
+                                 release_type %in% c("Detain Only", "Detain only", "Dismissed", "Prison", "Time Served") ~ "Post-resolution release type",
+                                 release_type %in% c("Hold Release", "Other", "Unknown") ~ "Unclear release type",
+                                 T ~ "Unclear release type")) %>%
+  filter(release_eligible_count == 1,
+         county != "Los Angeles") %>%
+  mutate(pre_trial_release_flag = if_else(release_cat == "Pretrial release type", 1, 0)) %>%
+  mutate(two_day_release = case_when(
+    weekdays(booking_date) == "Thursday" & release_date - booking_date <= 4 ~ 1,
+    weekdays(booking_date) == "Friday" & release_date - booking_date <= 4 ~ 1,
+    weekdays(booking_date) == "Saturday" & release_date - booking_date <= 3 ~ 1,
+    !weekdays(booking_date) %in% c("Thursday", "Friday", "Saturday") & release_date - booking_date <= 2 ~ 1,
+    is.na(release_date) ~ 0,
+    T ~ 0)) %>%
+  mutate(quick_pretrial_type_flag = if_else(two_day_release == 1 & release_cat == "Pretrial release type", 1, 0),
+         #quick_postres_type_flag = if_else(two_day_release == 1 & release_cat == "Post-resolution release type", 1, 0),
+         quick_bail_type_flag = if_else(two_day_release == 1 & release_type %in% c("Bail Bond", "Unknown_Bail"), 1, 0),
+         quick_zerobail_type_flag = if_else(two_day_release == 1 & release_type %in% c("Zero Bail"), 1, 0),
+         quick_cite_type_flag = if_else(two_day_release == 1 & release_type %in% c("Cite Release", "CiteR elease"), 1, 0),
+         quick_or_type_flag = if_else(two_day_release == 1 & release_type %in% c("Own Recognizance", "Pretrial Monitor", "PreTrial Monitor"), 1, 0),
+         quick_unknown_type_flag = if_else(two_day_release == 1 & release_cat == "Unclear release type", 1, 0),
+         convicted_flag = if_else(is.na(convicted_flag), 0, convicted_flag),
+         #conviction = if_else(conviction_felony_flag == 1 | conviction_misd_flag == 1 | conviction_flag == 1 | convicted_flag == 1, 1, 0),
+         closed_convicted_flag = if_else(two_day_release == 1 & release_type %in% c("Prison", "Time Served"), 1, 0),
+         closed_not_convicted_flag = if_else(two_day_release == 1 & release_type %in% c("Detain Only", "Detain only", "Dismissed"), 1, 0),
+         later_pretrial_type_flag = if_else(two_day_release == 0 & release_cat == "Pretrial release type", 1, 0),
+         later_bail_type_flag = if_else(two_day_release == 0 & release_type %in% c("Bail Bond", "Unknown_Bail"), 1, 0),
+         later_zerobail_type_flag = if_else(two_day_release == 0 & release_type %in% c("Zero Bail"), 1, 0),
+         later_cite_type_flag = if_else(two_day_release == 0 & release_type %in% c("Cite Release", "CiteR elease"), 1, 0),
+         later_or_type_flag = if_else(two_day_release == 0 & release_type %in% c("Own Recognizance", "Pretrial Monitor", "PreTrial Monitor"), 1, 0)) %>%
+  group_by(county, charge_level) %>%
+  summarise(Total = n(),
+            `Charges dropped or case dismissed within 2 court days` = mean(closed_not_convicted_flag),
+            `Convicted within 2 court days` = mean(closed_convicted_flag),
+            #`Released - (C) Pretrial release (OR or bail) within 2 court days` = mean(pre_arraignment_flag),
+            `Bail release type within 2 court days` = mean(quick_bail_type_flag),
+            `Zero bail release type within 2 court days` = mean(quick_zerobail_type_flag),
+            `Cite & Release release type within 2 court days` = mean(quick_cite_type_flag),
+            `OR release type within 2 court days` = mean(quick_or_type_flag),
+            #`Released - Post-resolution release type` = mean(quick_postres_type_flag),
+            `Unclear release type (post-resolution or pretrial) within 2 court days` = mean(quick_unknown_type_flag),
+            `TOTAL: Released within 2 court days` = mean(two_day_release), 
+            `Bail release type after 2 days` = mean(later_bail_type_flag),
+            `Zero bail release type after 2 days` = mean(later_zerobail_type_flag),
+            `Cite & Release release type after 2 days` = mean(later_cite_type_flag),
+            `OR release type after 2 days` = mean(later_or_type_flag)) %>%
+  mutate(charge_level = case_when(charge_level %in% c("M", "Misdemeanor") ~ "Misdemeanor",
+                                  charge_level %in% c("F", "Felony") ~ "Felony",
+                                  T ~ "Other")) %>%
+  filter(charge_level %in% c("Felony", "Misdemeanor")) %>%
+  rename(`Arrest Charge Level` = charge_level) %>%
+  arrange(desc(`Arrest Charge Level`))
+
+write.xlsx(charge_level_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/2A Offense Type really.xlsx", asTable = F)
+
+# full_df %>%
+#   filter(release_eligible_count == 1) %>%
+#   filter(charge_level %in% c("Felony", "Misdemeanor")) %>%
+#   count()
+
+# full_df %>%
+#   count(county, book_type_original, release_eligible_count)
+# 
+# full_df %>%
+#   count(county, book_type, book_type_original, release_eligible_count)
+# 
+# full_df %>%
+#   filter(county == "Modoc") %>%
+#   count(release_eligible_count)
+# 
+# eval_df %>%
+#   count()
+
+# full_df %>%
+#   filter(release_type == "Zero Bail") %>%
+#   count(county)
+
+# full_df %>%
+#   count(county, county)
+```
+
+
+##Rates of Release by Gender -- LA
+```{r}
+#look at ppl who do not have completed pretrial periods
+#this may falsely represent pretrial releases for counties that have poor court data matching, because they may be released due to a disposition that we do not have a record of
+
+# release_type variable may not be a reliable indicator of pretrial release, but going to try to use it here anyway just to see
+
+gender_df <- full_df %>%
+  mutate(release_cat = case_when(release_type %in% c("Cite Release", "CiteR elease", "Bail Bond", "Own Recognizance", "Pretrial Monitor", "PreTrial Monitor", "Unknown_Bail", "Zero Bail") ~ "Pretrial release type",
+                                 release_type %in% c("Detain Only", "Detain only", "Dismissed", "Prison", "Time Served") ~ "Post-resolution release type",
+                                 release_type %in% c("Hold Release", "Other", "Unknown") ~ "Unclear release type",
+                                 T ~ "Unclear release type")) %>%
+  filter(county == "Los Angeles") %>%
+  mutate(pre_trial_release_flag = if_else(release_cat == "Pretrial release type", 1, 0)) %>%
+  mutate(two_day_release = case_when(
+    weekdays(booking_date) == "Thursday" & release_date - booking_date <= 4 ~ 1,
+    weekdays(booking_date) == "Friday" & release_date - booking_date <= 4 ~ 1,
+    weekdays(booking_date) == "Saturday" & release_date - booking_date <= 3 ~ 1,
+    !weekdays(booking_date) %in% c("Thursday", "Friday", "Saturday") & release_date - booking_date <= 2 ~ 1,
+    is.na(release_date) ~ 0,
+    T ~ 0)) %>%
+  mutate(quick_pretrial_type_flag = if_else(two_day_release == 1 & release_cat == "Pretrial release type", 1, 0),
+         #quick_postres_type_flag = if_else(two_day_release == 1 & release_cat == "Post-resolution release type", 1, 0),
+         quick_bail_type_flag = if_else(two_day_release == 1 & release_type %in% c("Bail Bond", "Unknown_Bail"), 1, 0),
+         quick_zerobail_type_flag = if_else(two_day_release == 1 & release_type %in% c("Zero Bail"), 1, 0),
+         quick_cite_type_flag = if_else(two_day_release == 1 & release_type %in% c("Cite Release", "CiteR elease"), 1, 0),
+         quick_or_type_flag = if_else(two_day_release == 1 & release_type %in% c("Own Recognizance", "Pretrial Monitor", "PreTrial Monitor"), 1, 0),
+         quick_unknown_type_flag = if_else(two_day_release == 1 & release_cat == "Unclear release type", 1, 0),
+         convicted_flag = if_else(is.na(convicted_flag), 0, convicted_flag),
+         #conviction = if_else(conviction_felony_flag == 1 | conviction_misd_flag == 1 | conviction_flag == 1 | convicted_flag == 1, 1, 0),
+         closed_convicted_flag = if_else(two_day_release == 1 & release_type %in% c("Prison", "Time Served"), 1, 0),
+         closed_not_convicted_flag = if_else(two_day_release == 1 & release_type %in% c("Detain Only", "Detain only", "Dismissed"), 1, 0),
+         later_pretrial_type_flag = if_else(two_day_release == 0 & release_cat == "Pretrial release type", 1, 0),
+         later_bail_type_flag = if_else(two_day_release == 0 & release_type %in% c("Bail Bond", "Unknown_Bail"), 1, 0),
+         later_zerobail_type_flag = if_else(two_day_release == 0 & release_type %in% c("Zero Bail"), 1, 0),
+         later_cite_type_flag = if_else(two_day_release == 0 & release_type %in% c("Cite Release", "CiteR elease"), 1, 0),
+         later_or_type_flag = if_else(two_day_release == 0 & release_type %in% c("Own Recognizance", "Pretrial Monitor", "PreTrial Monitor"), 1, 0)) %>%
+  group_by(county, sex) %>%
+  summarise(Total = n(),
+            `Charges dropped or case dismissed within 2 court days` = mean(closed_not_convicted_flag),
+            `Convicted within 2 court days` = mean(closed_convicted_flag),
+            #`Released - (C) Pretrial release (OR or bail) within 2 court days` = mean(pre_arraignment_flag),
+            `Bail release type within 2 court days` = mean(quick_bail_type_flag),
+            `Zero bail release type within 2 court days` = mean(quick_zerobail_type_flag),
+            `Cite & Release release type within 2 court days` = mean(quick_cite_type_flag),
+            `OR release type within 2 court days` = mean(quick_or_type_flag),
+            #`Released - Post-resolution release type` = mean(quick_postres_type_flag),
+            `Unclear release type (post-resolution or pretrial) within 2 court days` = mean(quick_unknown_type_flag),
+            `TOTAL: Released within 2 court days` = mean(two_day_release), 
+            `Bail release type after 2 days` = mean(later_bail_type_flag),
+            `Zero bail release type after 2 days` = mean(later_zerobail_type_flag),
+            `Cite & Release release type after 2 days` = mean(later_cite_type_flag),
+            `OR release type after 2 days` = mean(later_or_type_flag)) %>%
+  filter(sex %in% c("Male", "Female")) %>%
+  rename(`Gender` = sex)
+
+write.xlsx(gender_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/2A Gender LA.xlsx", asTable = F)
+
+# full_df %>%
+#   filter(release_eligible_count == 1) %>%
+#   filter(sex %in% c("Male", "Female")) %>%
+#   count()
+
+```
+\newpage
+
+##Rates of Release by race_standard -- LA
+```{r}
+#look at ppl who do not have completed pretrial periods
+#this may falsely represent pretrial releases for counties that have poor court data matching, because they may be released due to a disposition that we do not have a record of
+
+# release_type variable may not be a reliable indicator of pretrial release, but going to try to use it here anyway just to see
+
+race_standard_df <- full_df %>%
+  mutate(race_standard = if_else(race_standard %in% c("White", "Black", "Hispanic", "Asian"), race_standard, "Other/Unknown")) %>%
+  mutate(release_cat = case_when(release_type %in% c("Cite Release", "CiteR elease", "Bail Bond", "Own Recognizance", "Pretrial Monitor", "PreTrial Monitor", "Unknown_Bail", "Zero Bail") ~ "Pretrial release type",
+                                 release_type %in% c("Detain Only", "Detain only", "Dismissed", "Prison", "Time Served") ~ "Post-resolution release type",
+                                 release_type %in% c("Hold Release", "Other", "Unknown") ~ "Unclear release type",
+                                 T ~ "Unclear release type")) %>%
+  filter(county == "Los Angeles") %>%
+  mutate(pre_trial_release_flag = if_else(release_cat == "Pretrial release type", 1, 0)) %>%
+  mutate(two_day_release = case_when(
+    weekdays(booking_date) == "Thursday" & release_date - booking_date <= 4 ~ 1,
+    weekdays(booking_date) == "Friday" & release_date - booking_date <= 4 ~ 1,
+    weekdays(booking_date) == "Saturday" & release_date - booking_date <= 3 ~ 1,
+    !weekdays(booking_date) %in% c("Thursday", "Friday", "Saturday") & release_date - booking_date <= 2 ~ 1,
+    is.na(release_date) ~ 0,
+    T ~ 0)) %>%
+  mutate(quick_pretrial_type_flag = if_else(two_day_release == 1 & release_cat == "Pretrial release type", 1, 0),
+         #quick_postres_type_flag = if_else(two_day_release == 1 & release_cat == "Post-resolution release type", 1, 0),
+         quick_bail_type_flag = if_else(two_day_release == 1 & release_type %in% c("Bail Bond", "Unknown_Bail"), 1, 0),
+         quick_zerobail_type_flag = if_else(two_day_release == 1 & release_type %in% c("Zero Bail"), 1, 0),
+         quick_cite_type_flag = if_else(two_day_release == 1 & release_type %in% c("Cite Release", "CiteR elease"), 1, 0),
+         quick_or_type_flag = if_else(two_day_release == 1 & release_type %in% c("Own Recognizance", "Pretrial Monitor", "PreTrial Monitor"), 1, 0),
+         quick_unknown_type_flag = if_else(two_day_release == 1 & release_cat == "Unclear release type", 1, 0),
+         convicted_flag = if_else(is.na(convicted_flag), 0, convicted_flag),
+         #conviction = if_else(conviction_felony_flag == 1 | conviction_misd_flag == 1 | conviction_flag == 1 | convicted_flag == 1, 1, 0),
+         closed_convicted_flag = if_else(two_day_release == 1 & release_type %in% c("Prison", "Time Served"), 1, 0),
+         closed_not_convicted_flag = if_else(two_day_release == 1 & release_type %in% c("Detain Only", "Detain only", "Dismissed"), 1, 0),
+         later_pretrial_type_flag = if_else(two_day_release == 0 & release_cat == "Pretrial release type", 1, 0),
+         later_bail_type_flag = if_else(two_day_release == 0 & release_type %in% c("Bail Bond", "Unknown_Bail"), 1, 0),
+         later_zerobail_type_flag = if_else(two_day_release == 0 & release_type %in% c("Zero Bail"), 1, 0),
+         later_cite_type_flag = if_else(two_day_release == 0 & release_type %in% c("Cite Release", "CiteR elease"), 1, 0),
+         later_or_type_flag = if_else(two_day_release == 0 & release_type %in% c("Own Recognizance", "Pretrial Monitor", "PreTrial Monitor"), 1, 0)) %>%
+  group_by(county, race_standard) %>%
+  summarise(Total = n(),
+            `Charges dropped or case dismissed within 2 court days` = mean(closed_not_convicted_flag),
+            `Convicted within 2 court days` = mean(closed_convicted_flag),
+            #`Released - (C) Pretrial release (OR or bail) within 2 court days` = mean(pre_arraignment_flag),
+            `Bail release type within 2 court days` = mean(quick_bail_type_flag),
+            `Zero bail release type within 2 court days` = mean(quick_zerobail_type_flag),
+            `Cite & Release release type within 2 court days` = mean(quick_cite_type_flag),
+            `OR release type within 2 court days` = mean(quick_or_type_flag),
+            #`Released - Post-resolution release type` = mean(quick_postres_type_flag),
+            `Unclear release type (post-resolution or pretrial) within 2 court days` = mean(quick_unknown_type_flag),
+            `TOTAL: Released within 2 court days` = mean(two_day_release), 
+            `Bail release type after 2 days` = mean(later_bail_type_flag),
+            `Zero bail release type after 2 days` = mean(later_zerobail_type_flag),
+            `Cite & Release release type after 2 days` = mean(later_cite_type_flag),
+            `OR release type after 2 days` = mean(later_or_type_flag)) %>%
+  rename(`Race` = race_standard) 
+
+write.xlsx(race_standard_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/2A race_standard LA final.xlsx", asTable = F)
+
+# full_df %>%
+#   filter(release_eligible_count == 1) %>%
+#   filter(race_standard %in% c("White", "Black", "Hispanic")) %>%
+#   count()
+
+```
+\newpage
+
+
+\newpage
+## Rates of Release by Offense Type -- LA
+```{r}
+#look at ppl who do not have completed pretrial periods
+#this may falsely represent pretrial releases for counties that have poor court data matching, because they may be released due to a disposition that we do not have a record of
+
+# release_type variable may not be a reliable indicator of pretrial release, but going to try to use it here anyway just to see
+
+charge_level_df <- full_df %>%
+  mutate(charge_level = charge_level_standard) %>%
+  mutate(release_cat = case_when(release_type %in% c("Cite Release", "CiteR elease", "Bail Bond", "Own Recognizance", "Pretrial Monitor", "PreTrial Monitor", "Unknown_Bail", "Zero Bail") ~ "Pretrial release type",
+                                 release_type %in% c("Detain Only", "Detain only", "Dismissed", "Prison", "Time Served") ~ "Post-resolution release type",
+                                 release_type %in% c("Hold Release", "Other", "Unknown") ~ "Unclear release type",
+                                 T ~ "Unclear release type")) %>%
+  filter(county == "Los Angeles") %>%
+  mutate(pre_trial_release_flag = if_else(release_cat == "Pretrial release type", 1, 0)) %>%
+  mutate(two_day_release = case_when(
+    weekdays(booking_date) == "Thursday" & release_date - booking_date <= 4 ~ 1,
+    weekdays(booking_date) == "Friday" & release_date - booking_date <= 4 ~ 1,
+    weekdays(booking_date) == "Saturday" & release_date - booking_date <= 3 ~ 1,
+    !weekdays(booking_date) %in% c("Thursday", "Friday", "Saturday") & release_date - booking_date <= 2 ~ 1,
+    is.na(release_date) ~ 0,
+    T ~ 0)) %>%
+  mutate(quick_pretrial_type_flag = if_else(two_day_release == 1 & release_cat == "Pretrial release type", 1, 0),
+         #quick_postres_type_flag = if_else(two_day_release == 1 & release_cat == "Post-resolution release type", 1, 0),
+         quick_bail_type_flag = if_else(two_day_release == 1 & release_type %in% c("Bail Bond", "Unknown_Bail"), 1, 0),
+         quick_zerobail_type_flag = if_else(two_day_release == 1 & release_type %in% c("Zero Bail"), 1, 0),
+         quick_cite_type_flag = if_else(two_day_release == 1 & release_type %in% c("Cite Release", "CiteR elease"), 1, 0),
+         quick_or_type_flag = if_else(two_day_release == 1 & release_type %in% c("Own Recognizance", "Pretrial Monitor", "PreTrial Monitor"), 1, 0),
+         quick_unknown_type_flag = if_else(two_day_release == 1 & release_cat == "Unclear release type", 1, 0),
+         convicted_flag = if_else(is.na(convicted_flag), 0, convicted_flag),
+         #conviction = if_else(conviction_felony_flag == 1 | conviction_misd_flag == 1 | conviction_flag == 1 | convicted_flag == 1, 1, 0),
+         closed_convicted_flag = if_else(two_day_release == 1 & release_type %in% c("Prison", "Time Served"), 1, 0),
+         closed_not_convicted_flag = if_else(two_day_release == 1 & release_type %in% c("Detain Only", "Detain only", "Dismissed"), 1, 0),
+         later_pretrial_type_flag = if_else(two_day_release == 0 & release_cat == "Pretrial release type", 1, 0),
+         later_bail_type_flag = if_else(two_day_release == 0 & release_type %in% c("Bail Bond", "Unknown_Bail"), 1, 0),
+         later_zerobail_type_flag = if_else(two_day_release == 0 & release_type %in% c("Zero Bail"), 1, 0),
+         later_cite_type_flag = if_else(two_day_release == 0 & release_type %in% c("Cite Release", "CiteR elease"), 1, 0),
+         later_or_type_flag = if_else(two_day_release == 0 & release_type %in% c("Own Recognizance", "Pretrial Monitor", "PreTrial Monitor"), 1, 0)) %>%
+  group_by(county, charge_level) %>%
+  summarise(Total = n(),
+            `Charges dropped or case dismissed within 2 court days` = mean(closed_not_convicted_flag),
+            `Convicted within 2 court days` = mean(closed_convicted_flag),
+            #`Released - (C) Pretrial release (OR or bail) within 2 court days` = mean(pre_arraignment_flag),
+            `Bail release type within 2 court days` = mean(quick_bail_type_flag),
+            `Zero bail release type within 2 court days` = mean(quick_zerobail_type_flag),
+            `Cite & Release release type within 2 court days` = mean(quick_cite_type_flag),
+            `OR release type within 2 court days` = mean(quick_or_type_flag),
+            #`Released - Post-resolution release type` = mean(quick_postres_type_flag),
+            `Unclear release type (post-resolution or pretrial) within 2 court days` = mean(quick_unknown_type_flag),
+            `TOTAL: Released within 2 court days` = mean(two_day_release), 
+            `Bail release type after 2 days` = mean(later_bail_type_flag),
+            `Zero bail release type after 2 days` = mean(later_zerobail_type_flag),
+            `Cite & Release release type after 2 days` = mean(later_cite_type_flag),
+            `OR release type after 2 days` = mean(later_or_type_flag)) %>%
+  mutate(charge_level = case_when(charge_level %in% c("M", "Misdemeanor") ~ "Misdemeanor",
+                                  charge_level %in% c("F", "Felony") ~ "Felony",
+                                  T ~ "Other")) %>%
+  filter(charge_level %in% c("Felony", "Misdemeanor")) %>%
+  rename(`Arrest Charge Level` = charge_level) %>%
+  arrange(desc(`Arrest Charge Level`))
+
+write.xlsx(charge_level_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/2A Offense Type LA final.xlsx", asTable = F)
+
+# full_df %>%
+#   filter(release_eligible_count == 1) %>%
+#   filter(charge_level %in% c("Felony", "Misdemeanor")) %>%
+#   count()
+
+# full_df %>%
+#   count(county, book_type_original, release_eligible_count)
+# 
+# full_df %>%
+#   count(county, book_type, book_type_original, release_eligible_count)
+# 
+# full_df %>%
+#   filter(county == "Modoc") %>%
+#   count(release_eligible_count)
+# 
+# eval_df %>%
+#   count()
+
+# full_df %>%
+#   filter(release_type == "Zero Bail") %>%
+#   count(county)
+
+```
