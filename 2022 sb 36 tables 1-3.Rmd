@@ -55,6 +55,19 @@ full_df %>%
 
 full_df %>%
   count(sex)
+
+#alternate
+full_df <- full_df %>%
+   mutate(county_cat = case_when(
+    # County %in% c("Sacramento", "Alameda", "Los Angeles") ~ "Large",
+    # County %in% c("Sonoma", "San Joaquin", "San Mateo", "Tulare", "Santa Barbara", "Ventura") ~ "Medium",
+    county %in% c("Yuba", "Nevada", "Napa", "Kings") ~ "Small/Medium Counties",
+    county %in% c("Sierra", "Modoc", "Calaveras", "Tuolumne") ~ "Small Counties",
+    T ~ county)) %>% 
+  mutate(county_cat = ordered(county_cat),
+         county_cat = fct_relevel(county_cat, levels = c("Small Counties", "Small/Medium Counties")))
+
+
 ```
 
 
@@ -233,7 +246,7 @@ charge_level_df <- full_df %>%
          later_zerobail_type_flag = if_else(two_day_release == 0 & release_type %in% c("Zero Bail"), 1, 0),
          later_cite_type_flag = if_else(two_day_release == 0 & release_type %in% c("Cite Release", "CiteR elease"), 1, 0),
          later_or_type_flag = if_else(two_day_release == 0 & release_type %in% c("Own Recognizance", "Pretrial Monitor", "PreTrial Monitor"), 1, 0)) %>%
-  group_by(county, charge_level) %>%
+  group_by(county_cat, charge_level) %>%
   summarise(Total = n(),
             `Charges dropped or case dismissed within 2 court days` = mean(closed_not_convicted_flag),
             `Convicted within 2 court days` = mean(closed_convicted_flag),
@@ -256,7 +269,7 @@ charge_level_df <- full_df %>%
   rename(`Arrest Charge Level` = charge_level) %>%
   arrange(desc(`Arrest Charge Level`))
 
-write.xlsx(charge_level_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/2A Offense Type really.xlsx", asTable = F)
+write.xlsx(charge_level_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/2A Offense Type final.xlsx", asTable = F)
 
 # full_df %>%
 #   filter(release_eligible_count == 1) %>%

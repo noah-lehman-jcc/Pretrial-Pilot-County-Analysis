@@ -65,6 +65,9 @@ full_df <- full_df %>%
          oras_risk_score = if_else(tool_name == "ORAS", risk_score_raw, NULL),
          vprai_risk_score = if_else(tool_name == "VPRAI", risk_score_raw, NULL),
          vprair_risk_score = if_else(tool_name == "VPRAIR", risk_score_raw, NULL),
+         psa_fta_risk_score = score_failure_to_appear,
+         psa_nca_risk_score = score_new_criminal_activity,
+         psa_nvca_risk_score = score_new_criminal_violent_activity,
          pretrial_period_end_date = if_else(is.na(pretrial_period_end_date), as.Date(pretrial_period_end_date_doj), as.Date(pretrial_period_end_date)))%>%
   mutate(recid_filed_flag = recid_filed_flag_doj, 
          recid_convicted_flag = recid_convicted_flag_doj, 
@@ -430,7 +433,8 @@ PSA
 \newline
 ```{r}
 risk_df <- eval_df %>%
-  filter(tool_name == "psa") %>%
+  filter(tool_name == "PSA",
+         !is.na(psa_fta_risk_score)) %>%
   group_by(psa_fta_risk_score) %>%
   summarise(across(c(fta_flag),
                    ~round(mean(.x)*100, 1)), Total = n()) %>%
@@ -439,7 +443,8 @@ risk_df <- eval_df %>%
 names(risk_df)[1] <- "psa_risk_score"
 
 risk_df2 <- eval_df %>%
-  filter(tool_name == "psa") %>%
+  filter(tool_name == "PSA",
+         !is.na(psa_nca_risk_score)) %>%
   group_by(psa_nca_risk_score) %>%
   summarise(across(c(recid_arrested_flag, recid_filed_flag, recid_convicted_flag),
                    ~round(mean(.x)*100, 1)), Total = n()) %>%
@@ -448,7 +453,7 @@ risk_df2 <- eval_df %>%
 names(risk_df2)[1] <- "psa_risk_score"
 
 risk_df3 <- eval_df %>%
-  filter(tool_name == "psa", !is.na(psa_nvca_risk_score)) %>%
+  filter(tool_name == "PSA", !is.na(psa_nvca_risk_score)) %>%
   group_by(psa_nvca_risk_score) %>%
   summarise(across(c(recid_arrest_violent_psa_flag),
                    ~round(mean(.x)*100, 1)), Total = n()) %>%
@@ -602,7 +607,7 @@ Los Angeles
 \newline
 ```{r}
 risk_df <- eval_df %>%
-  filter(tool_name == "psa", county == "Los Angeles") %>%
+  filter(tool_name == "PSA", county == "Los Angeles") %>%
   group_by(psa_fta_risk_score) %>%
   summarise(across(c(fta_flag),
                    ~round(mean(.x)*100, 1)), Total = n()) %>%
@@ -611,7 +616,7 @@ risk_df <- eval_df %>%
 names(risk_df)[1] <- "psa_risk_score"
 
 risk_df2 <- eval_df %>%
-  filter(tool_name == "psa", county == "Los Angeles") %>%
+  filter(tool_name == "PSA", county == "Los Angeles") %>%
   group_by(psa_nca_risk_score) %>%
   summarise(across(c(recid_arrested_flag, recid_filed_flag, recid_convicted_flag),
                    ~round(mean(.x)*100, 1)), Total = n()) %>%
@@ -620,7 +625,7 @@ risk_df2 <- eval_df %>%
 names(risk_df2)[1] <- "psa_risk_score"
 
 risk_df3 <- eval_df %>%
-  filter(tool_name == "psa", !is.na(psa_nvca_risk_score), county == "Los Angeles") %>%
+  filter(tool_name == "PSA", !is.na(psa_nvca_risk_score), county == "Los Angeles") %>%
   group_by(psa_nvca_risk_score) %>%
   summarise(across(c(recid_arrest_violent_psa_flag),
                    ~round(mean(.x)*100, 1)), Total = n()) %>%
@@ -716,7 +721,7 @@ Sacramento
 \newline
 ```{r}
 risk_df <- eval_df %>%
-  filter(tool_name == "psa", county == "Sacramento") %>%
+  filter(tool_name == "PSA", county == "Sacramento") %>%
   group_by(psa_fta_risk_score) %>%
   summarise(across(c(fta_flag),
                    ~round(mean(.x)*100, 1)), Total = n()) %>%
@@ -725,7 +730,7 @@ risk_df <- eval_df %>%
 names(risk_df)[1] <- "psa_risk_score"
 
 risk_df2 <- eval_df %>%
-  filter(tool_name == "psa", county == "Sacramento") %>%
+  filter(tool_name == "PSA", county == "Sacramento") %>%
   group_by(psa_nca_risk_score) %>%
   summarise(across(c(recid_arrested_flag, recid_filed_flag, recid_convicted_flag),
                    ~round(mean(.x)*100, 1)), Total = n()) %>%
@@ -734,7 +739,7 @@ risk_df2 <- eval_df %>%
 names(risk_df2)[1] <- "psa_risk_score"
 
 risk_df3 <- eval_df %>%
-  filter(tool_name == "psa", !is.na(psa_nvca_risk_score), county == "Sacramento") %>%
+  filter(tool_name == "PSA", !is.na(psa_nvca_risk_score), county == "Sacramento") %>%
   group_by(psa_nvca_risk_score) %>%
   summarise(across(c(recid_arrest_violent_psa_flag),
                    ~round(mean(.x)*100, 1)), Total = n()) %>%
@@ -934,7 +939,7 @@ Sonoma
 \newline
 ```{r}
 risk_df <- eval_df %>%
-  filter(tool_name == "psa", county == "Sonoma") %>%
+  filter(tool_name == "PSA", county == "Sonoma") %>%
   group_by(psa_fta_risk_score) %>%
   summarise(across(c(fta_flag),
                    ~round(mean(.x)*100, 1)), Total = n()) %>%
@@ -943,7 +948,7 @@ risk_df <- eval_df %>%
 names(risk_df)[1] <- "psa_risk_score"
 
 risk_df2 <- eval_df %>%
-  filter(tool_name == "psa", county == "Sonoma") %>%
+  filter(tool_name == "PSA", county == "Sonoma") %>%
   group_by(psa_nca_risk_score) %>%
   summarise(across(c(recid_arrested_flag, recid_filed_flag, recid_convicted_flag),
                    ~round(mean(.x)*100, 1)), Total = n()) %>%
@@ -952,7 +957,7 @@ risk_df2 <- eval_df %>%
 names(risk_df2)[1] <- "psa_risk_score"
 
 risk_df3 <- eval_df %>%
-  filter(tool_name == "psa", !is.na(psa_nvca_risk_score), county == "Sonoma") %>%
+  filter(tool_name == "PSA", !is.na(psa_nvca_risk_score), county == "Sonoma") %>%
   group_by(psa_nvca_risk_score) %>%
   summarise(across(c(recid_arrest_violent_psa_flag),
                    ~round(mean(.x)*100, 1)), Total = n()) %>%
@@ -1365,7 +1370,7 @@ stargazer(list(m1,m2,m3,m4,m5,m6),
 
 # AUCs
 ```{r include=FALSE}
-auc_df <- read.xlsx("G:/CrimJustice/PretrialAssessmentPilot/AUCs by Demographic Category.xlsx")
+#auc_df <- read.xlsx("G:/CrimJustice/PretrialAssessmentPilot/AUCs by Demographic Category.xlsx")
 ```
 
 VPRAI
@@ -1433,7 +1438,7 @@ PSA
 \newline
 ```{r}
 tool_df <- auc_df %>%
-  filter(tool_name == "psa", race == "All", sex == "All", county == "All") %>%
+  filter(tool_name == "PSA", race == "All", sex == "All", county == "All") %>%
   select(risk_score, outcome, AUC, CI, n) %>%
   mutate(risk_score = c("PSA FTA", rep("PSA NCA",3), "PSA NVCA"),
          outcome = c("FTA", "New Arrest", "New Filing", "New Conviction", "New Violent Arrest"))
@@ -1474,7 +1479,7 @@ Los Angeles
 \newline
 ```{r}
 tool_df <- auc_df %>%
-  filter(tool_name == "psa", race == "All", sex == "All", county == "Los Angeles") %>%
+  filter(tool_name == "PSA", race == "All", sex == "All", county == "Los Angeles") %>%
   select(risk_score, outcome, AUC, CI, n) %>%
   mutate(risk_score = c("PSA FTA", rep("PSA NCA",3), "PSA NVCA"),
          outcome = c("FTA", "New Arrest", "New Filing", "New Conviction", "New Violent Arrest"))
@@ -1495,7 +1500,7 @@ Sacramento
 \newline
 ```{r}
 tool_df <- auc_df %>%
-  filter(tool_name == "psa", race == "All", sex == "All", county == "Sacramento") %>%
+  filter(tool_name == "PSA", race == "All", sex == "All", county == "Sacramento") %>%
   select(risk_score, outcome, AUC, CI, n) %>%
   mutate(risk_score = c("PSA FTA", rep("PSA NCA",3), "PSA NVCA"),
          outcome = c("FTA", "New Arrest", "New Filing", "New Conviction", "New Violent Arrest"))
@@ -1557,7 +1562,7 @@ Sonoma
 \newline
 ```{r}
 tool_df <- auc_df %>%
-  filter(tool_name == "psa", race == "All", sex == "All", county == "Sonoma") %>%
+  filter(tool_name == "PSA", race == "All", sex == "All", county == "Sonoma") %>%
   select(risk_score, outcome, AUC, CI, n) %>%
   mutate(risk_score = c("PSA FTA", rep("PSA NCA",3), "PSA NVCA"),
          outcome = c("FTA", "New Arrest", "New Filing", "New Conviction", "New Violent Arrest"))
@@ -1597,7 +1602,7 @@ kable(tool_df %>% select(-starts_with("N")), booktabs = T, format.args = list(bi
 # Race Table
 ```{r include=FALSE}
 race_df <- eval_df %>%
-  mutate(race = factor(race, levels = c("White", "Black", "Hispanic", "Other_Unknown"))) %>%
+  mutate(race = factor(race, levels = c("White", "Black", "Hispanic", "Asian", "Other_Unknown"))) %>%
   filter(race != "Other_Unknown")
 ```
 
@@ -1734,7 +1739,7 @@ PSA
 \newline
 ```{r, fig.height = 7, fig.widith = 3}
 risk_df <- race_df %>%
-  filter(tool_name == "psa") %>%
+  filter(tool_name == "PSA") %>%
   group_by(race, psa_fta_risk_score) %>%
   summarise(across(c(fta_flag),
                    ~round(mean(.x)*100, 1)), Total = n()) %>%
@@ -1743,7 +1748,7 @@ risk_df <- race_df %>%
 names(risk_df)[2] <- "psa_risk_score"
 
 risk_df2 <- race_df %>%
-  filter(tool_name == "psa") %>%
+  filter(tool_name == "PSA") %>%
   group_by(race, psa_nca_risk_score) %>%
   summarise(across(c(recid_arrested_flag, recid_filed_flag, recid_convicted_flag),
                    ~round(mean(.x)*100, 1)), Total = n()) %>%
@@ -1752,7 +1757,7 @@ risk_df2 <- race_df %>%
 names(risk_df2)[2] <- "psa_risk_score"
 
 risk_df3 <- race_df %>%
-  filter(tool_name == "psa", !is.na(psa_nvca_risk_score)) %>%
+  filter(tool_name == "PSA", !is.na(psa_nvca_risk_score)) %>%
   group_by(race, psa_nvca_risk_score) %>%
   summarise(across(c(recid_arrest_violent_psa_flag),
                    ~round(mean(.x)*100, 1)), Total = n()) %>%
@@ -1880,7 +1885,7 @@ Los Angeles
 \newline
 ```{r, fig.height = 7, fig.widith = 3}
 risk_df <- race_df %>%
-  filter(tool_name == "psa", county == "Los Angeles") %>%
+  filter(tool_name == "PSA", county == "Los Angeles") %>%
   group_by(race, psa_fta_risk_score) %>%
   summarise(across(c(fta_flag),
                    ~round(mean(.x)*100, 1)), Total = n()) %>%
@@ -1889,7 +1894,7 @@ risk_df <- race_df %>%
 names(risk_df)[2] <- "psa_risk_score"
 
 risk_df2 <- race_df %>%
-  filter(tool_name == "psa", county == "Los Angeles") %>%
+  filter(tool_name == "PSA", county == "Los Angeles") %>%
   group_by(race, psa_nca_risk_score) %>%
   summarise(across(c(recid_arrested_flag, recid_filed_flag, recid_convicted_flag),
                    ~round(mean(.x)*100, 1)), Total = n()) %>%
@@ -1898,7 +1903,7 @@ risk_df2 <- race_df %>%
 names(risk_df2)[2] <- "psa_risk_score"
 
 risk_df3 <- race_df %>%
-  filter(tool_name == "psa", !is.na(psa_nvca_risk_score), county == "Los Angeles") %>%
+  filter(tool_name == "PSA", !is.na(psa_nvca_risk_score), county == "Los Angeles") %>%
   group_by(race, psa_nvca_risk_score) %>%
   summarise(across(c(recid_arrest_violent_psa_flag),
                    ~round(mean(.x)*100, 1)), Total = n()) %>%
@@ -1982,7 +1987,7 @@ Sacramento
 \newline
 ```{r, fig.height = 7, fig.widith = 3}
 risk_df <- race_df %>%
-  filter(tool_name == "psa", county == "Sacramento") %>%
+  filter(tool_name == "PSA", county == "Sacramento") %>%
   group_by(race, psa_fta_risk_score) %>%
   summarise(across(c(fta_flag),
                    ~round(mean(.x)*100, 1)), Total = n()) %>%
@@ -1991,7 +1996,7 @@ risk_df <- race_df %>%
 names(risk_df)[2] <- "psa_risk_score"
 
 risk_df2 <- race_df %>%
-  filter(tool_name == "psa", county == "Sacramento") %>%
+  filter(tool_name == "PSA", county == "Sacramento") %>%
   group_by(race, psa_nca_risk_score) %>%
   summarise(across(c(recid_arrested_flag, recid_filed_flag, recid_convicted_flag),
                    ~round(mean(.x)*100, 1)), Total = n()) %>%
@@ -2000,7 +2005,7 @@ risk_df2 <- race_df %>%
 names(risk_df2)[2] <- "psa_risk_score"
 
 risk_df3 <- race_df %>%
-  filter(tool_name == "psa", !is.na(psa_nvca_risk_score), county == "Sacramento") %>%
+  filter(tool_name == "PSA", !is.na(psa_nvca_risk_score), county == "Sacramento") %>%
   group_by(race, psa_nvca_risk_score) %>%
   summarise(across(c(recid_arrest_violent_psa_flag),
                    ~round(mean(.x)*100, 1)), Total = n()) %>%
@@ -2167,7 +2172,7 @@ Sonoma
 \newline
 ```{r, fig.height = 7, fig.widith = 3}
 risk_df <- race_df %>%
-  filter(tool_name == "psa", county == "Sonoma") %>%
+  filter(tool_name == "PSA", county == "Sonoma") %>%
   group_by(race, psa_fta_risk_score) %>%
   summarise(across(c(fta_flag),
                    ~round(mean(.x)*100, 1)), Total = n()) %>%
@@ -2176,7 +2181,7 @@ risk_df <- race_df %>%
 names(risk_df)[2] <- "psa_risk_score"
 
 risk_df2 <- race_df %>%
-  filter(tool_name == "psa", county == "Sonoma") %>%
+  filter(tool_name == "PSA", county == "Sonoma") %>%
   group_by(race, psa_nca_risk_score) %>%
   summarise(across(c(recid_arrested_flag, recid_filed_flag, recid_convicted_flag),
                    ~round(mean(.x)*100, 1)), Total = n()) %>%
@@ -2185,7 +2190,7 @@ risk_df2 <- race_df %>%
 names(risk_df2)[2] <- "psa_risk_score"
 
 risk_df3 <- race_df %>%
-  filter(tool_name == "psa", !is.na(psa_nvca_risk_score), county == "Sonoma") %>%
+  filter(tool_name == "PSA", !is.na(psa_nvca_risk_score), county == "Sonoma") %>%
   group_by(race, psa_nvca_risk_score) %>%
   summarise(across(c(recid_arrest_violent_psa_flag),
                    ~round(mean(.x)*100, 1)), Total = n()) %>%
@@ -2343,11 +2348,47 @@ ggplot(risk_df) +
 ```
 \newpage
 
+ORAS
+\newline
+```{r fig.height=6, fig.width=10, dpi=1200}
+risk_df <- eval_df %>%
+  mutate(race = factor(race, levels = c("White", "Black", "Hispanic", "Asian", "Other_Unknown"))) %>%
+  filter(tool_name == "ORAS", !is.na(oras_risk_score)) %>%
+  group_by(oras_risk_score, race) %>%
+  select(oras_risk_score, race, fta_flag, recid_arrested_flag, recid_filed_flag, recid_convicted_flag,
+         any_pretrial_failure_flag, recid_arrest_violent_psa_flag) %>%
+  pivot_longer(fta_flag:recid_arrest_violent_psa_flag) %>%
+  mutate(name = case_when(name == "fta_flag" ~ "FTA",
+                          name == "recid_arrested_flag" ~ "New Arrest",
+                          name == "recid_filed_flag" ~ "New Filing",
+                          name == "recid_convicted_flag" ~ "New Conviction",
+                          name == "any_pretrial_failure_flag" ~ "FTA or New Arrest",
+                          name == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest"),
+         name = factor(name, levels = c("FTA or New Arrest", "FTA", "New Arrest", "New Filing", "New Conviction", "New Violent Arrest"))) %>%
+  filter(race %in% c("White", "Black", "Hispanic")) 
+  # filter(county %in% c("Los Angeles", "Sacramento"))
+
+ggplot(risk_df) +
+  aes(x = oras_risk_score, y = value, color = race) +
+  geom_smooth(method = "glm", method.args = list(family=binomial), alpha = .2) +
+  # geom_line() +
+  # geom_point() +
+  theme_bw() +
+  # ylim(0,100) +
+  facet_wrap(~name, scales = "free") +
+  labs(x = "Risk Category", y = "Percent", title = "Comparison of Racial Differences in Logistic Regression Curves--ORAS") +
+  scale_x_continuous(breaks = 1:9)
+
+
+```
+\newpage
+
+
 PSA
 \newline
 ```{r fig.height=6, fig.width=10, dpi=1200}
 risk_df <- eval_df %>%
-  filter(tool_name == "psa") %>%
+  filter(tool_name == "PSA") %>%
   group_by(psa_fta_risk_score, race, county) %>%
   select(fta_flag) %>%
   pivot_longer(fta_flag) 
@@ -2355,7 +2396,7 @@ risk_df <- eval_df %>%
 names(risk_df)[1] <- "psa_risk_score"
 
 risk_df2 <- eval_df %>%
-  filter(tool_name == "psa") %>%
+  filter(tool_name == "PSA") %>%
   group_by(psa_nca_risk_score, race, county) %>%
   select(recid_arrested_flag, recid_filed_flag, recid_convicted_flag) %>%
   pivot_longer(recid_arrested_flag:recid_convicted_flag) 
@@ -2363,7 +2404,7 @@ risk_df2 <- eval_df %>%
 names(risk_df2)[1] <- "psa_risk_score"
 
 risk_df3 <- eval_df %>%
-  filter(tool_name == "psa", !is.na(psa_nvca_risk_score)) %>%
+  filter(tool_name == "PSA", !is.na(psa_nvca_risk_score)) %>%
   group_by(psa_nvca_risk_score, race, county) %>%
   select(recid_arrest_violent_psa_flag) %>%
   pivot_longer(recid_arrest_violent_psa_flag) 
@@ -2375,8 +2416,8 @@ risk_df <- bind_rows(risk_df, risk_df2, risk_df3)
 rm(risk_df2, risk_df3)
 
 risk_df <- risk_df %>%
-  mutate(race = factor(race, levels = c("White", "Black", "Hispanic", "Other_Unknown"))) %>%
-  filter(race %in% c("White", "Black", "Hispanic")) %>%
+  mutate(race = factor(race, levels = c("White", "Black", "Hispanic", "Asian", "Other_Unknown"))) %>%
+  filter(race %in% c("White", "Black", "Hispanic", "Asian")) %>%
   mutate(name = case_when(name == "fta_flag" ~ "FTA",
                           name == "recid_arrested_flag" ~ "New Arrest",
                           name == "recid_filed_flag" ~ "New Filing",
@@ -2398,7 +2439,7 @@ ggplot(risk_df) +
   scale_x_continuous(breaks = 1:6)
 
 # eval_df %>%
-#   filter(tool_name == "psa") %>%
+#   filter(tool_name == "PSA") %>%
 #   count(county)
 ```
 \newpage
@@ -2446,7 +2487,7 @@ Los Angeles
 ```{r fig.height=6, fig.width=10, dpi=1200}
 risk_df <- eval_df %>%
   filter(county == "Los Angeles") %>%
-  filter(tool_name == "psa") %>%
+  filter(tool_name == "PSA") %>%
   group_by(psa_fta_risk_score, race, county) %>%
   select(fta_flag) %>%
   pivot_longer(fta_flag) 
@@ -2455,7 +2496,7 @@ names(risk_df)[1] <- "psa_risk_score"
 
 risk_df2 <- eval_df %>%
   filter(county == "Los Angeles") %>%
-  filter(tool_name == "psa") %>%
+  filter(tool_name == "PSA") %>%
   group_by(psa_nca_risk_score, race, county) %>%
   select(recid_arrested_flag, recid_filed_flag, recid_convicted_flag) %>%
   pivot_longer(recid_arrested_flag:recid_convicted_flag) 
@@ -2464,7 +2505,7 @@ names(risk_df2)[1] <- "psa_risk_score"
 
 risk_df3 <- eval_df %>%
   filter(county == "Los Angeles") %>%
-  filter(tool_name == "psa", !is.na(psa_nvca_risk_score)) %>%
+  filter(tool_name == "PSA", !is.na(psa_nvca_risk_score)) %>%
   group_by(psa_nvca_risk_score, race, county) %>%
   select(recid_arrest_violent_psa_flag) %>%
   pivot_longer(recid_arrest_violent_psa_flag) 
@@ -2499,7 +2540,7 @@ ggplot(risk_df) +
   scale_x_continuous(breaks = 1:6)
 
 # eval_df %>%
-#   filter(tool_name == "psa") %>%
+#   filter(tool_name == "PSA") %>%
 #   count(county)
 ```
 \newpage
@@ -2509,7 +2550,7 @@ Sacramento
 ```{r fig.height=6, fig.width=10, dpi=1200}
 risk_df <- eval_df %>%
   filter(county == "Sacramento") %>%
-  filter(tool_name == "psa") %>%
+  filter(tool_name == "PSA") %>%
   group_by(psa_fta_risk_score, race, county) %>%
   select(fta_flag) %>%
   pivot_longer(fta_flag) 
@@ -2518,7 +2559,7 @@ names(risk_df)[1] <- "psa_risk_score"
 
 risk_df2 <- eval_df %>%
   filter(county == "Sacramento") %>%
-  filter(tool_name == "psa") %>%
+  filter(tool_name == "PSA") %>%
   group_by(psa_nca_risk_score, race, county) %>%
   select(recid_arrested_flag, recid_filed_flag, recid_convicted_flag) %>%
   pivot_longer(recid_arrested_flag:recid_convicted_flag) 
@@ -2527,7 +2568,7 @@ names(risk_df2)[1] <- "psa_risk_score"
 
 risk_df3 <- eval_df %>%
   filter(county == "Sacramento") %>%
-  filter(tool_name == "psa", !is.na(psa_nvca_risk_score)) %>%
+  filter(tool_name == "PSA", !is.na(psa_nvca_risk_score)) %>%
   group_by(psa_nvca_risk_score, race, county) %>%
   select(recid_arrest_violent_psa_flag) %>%
   pivot_longer(recid_arrest_violent_psa_flag) 
@@ -2561,8 +2602,10 @@ ggplot(risk_df) +
   scale_x_continuous(breaks = 1:6)
 
 # eval_df %>%
-#   filter(tool_name == "psa") %>%
+#   filter(tool_name == "PSA") %>%
 #   count(county)
+
+
 ```
 \newpage
 
@@ -2931,7 +2974,7 @@ PSA
 \newline
 ```{r}
 tool_df <- auc_df %>%
-  filter(tool_name == "psa", race != "All", sex == "All", county == "All") %>%
+  filter(tool_name == "PSA", race != "All", sex == "All", county == "All") %>%
   select(race, risk_score, outcome, AUC, CI, n) %>%
   mutate(risk_score = rep(c("PSA FTA", rep("PSA NCA",3), "PSA NVCA"),3),
          outcome = rep(c("FTA", "New Arrest", "New Filing", "New Conviction", "New Violent Arrest"),3))
@@ -2988,7 +3031,7 @@ Los Angeles
 \newline
 ```{r}
 tool_df <- auc_df %>%
-  filter(tool_name == "psa", race != "All", sex == "All", county == "Los Angeles") %>%
+  filter(tool_name == "PSA", race != "All", sex == "All", county == "Los Angeles") %>%
   select(race, risk_score, outcome, AUC, CI, n) %>%
   mutate(risk_score = rep(c("PSA FTA", rep("PSA NCA",3), "PSA NVCA"),3),
          outcome = rep(c("FTA", "New Arrest", "New Filing", "New Conviction", "New Violent Arrest"),3))
@@ -3016,7 +3059,7 @@ Sacramento
 \newline
 ```{r}
 tool_df <- auc_df %>%
-  filter(tool_name == "psa", race != "All", sex == "All", county == "Sacramento") %>%
+  filter(tool_name == "PSA", race != "All", sex == "All", county == "Sacramento") %>%
   select(race, risk_score, outcome, AUC, CI, n) %>%
   mutate(risk_score = rep(c("PSA FTA", rep("PSA NCA",3), "PSA NVCA"),3),
          outcome = rep(c("FTA", "New Arrest", "New Filing", "New Conviction", "New Violent Arrest"),3))
@@ -3182,7 +3225,7 @@ PSA
 ```{r fig.height=7}
 
 risk_df <- sex_df %>%
-  filter(tool_name == "psa") %>%
+  filter(tool_name == "PSA") %>%
   group_by(sex, psa_fta_risk_score) %>%
   summarise(across(c(fta_flag),
                    ~round(mean(.x)*100, 1)), Total = n()) %>%
@@ -3191,7 +3234,7 @@ risk_df <- sex_df %>%
 names(risk_df)[2] <- "psa_risk_score"
 
 risk_df2 <- sex_df %>%
-  filter(tool_name == "psa") %>%
+  filter(tool_name == "PSA") %>%
   group_by(sex, psa_nca_risk_score) %>%
   summarise(across(c(recid_arrested_flag, recid_filed_flag, recid_convicted_flag),
                    ~round(mean(.x)*100, 1)), Total = n()) %>%
@@ -3200,7 +3243,7 @@ risk_df2 <- sex_df %>%
 names(risk_df2)[2] <- "psa_risk_score"
 
 risk_df3 <- sex_df %>%
-  filter(tool_name == "psa", !is.na(psa_nvca_risk_score)) %>%
+  filter(tool_name == "PSA", !is.na(psa_nvca_risk_score)) %>%
   group_by(sex, psa_nvca_risk_score) %>%
   summarise(across(c(recid_arrest_violent_psa_flag),
                    ~round(mean(.x)*100, 1)), Total = n()) %>%
@@ -3328,7 +3371,7 @@ Los Angeles
 \newline
 ```{r fig.height=7}
 risk_df <- sex_df %>%
-  filter(tool_name == "psa", county == "Los Angeles") %>%
+  filter(tool_name == "PSA", county == "Los Angeles") %>%
   group_by(sex, psa_fta_risk_score) %>%
   summarise(across(c(fta_flag),
                    ~round(mean(.x)*100, 1)), Total = n()) %>%
@@ -3337,7 +3380,7 @@ risk_df <- sex_df %>%
 names(risk_df)[2] <- "psa_risk_score"
 
 risk_df2 <- sex_df %>%
-  filter(tool_name == "psa", county == "Los Angeles") %>%
+  filter(tool_name == "PSA", county == "Los Angeles") %>%
   group_by(sex, psa_nca_risk_score) %>%
   summarise(across(c(recid_arrested_flag, recid_filed_flag, recid_convicted_flag),
                    ~round(mean(.x)*100, 1)), Total = n()) %>%
@@ -3346,7 +3389,7 @@ risk_df2 <- sex_df %>%
 names(risk_df2)[2] <- "psa_risk_score"
 
 risk_df3 <- sex_df %>%
-  filter(tool_name == "psa", !is.na(psa_nvca_risk_score), county == "Los Angeles") %>%
+  filter(tool_name == "PSA", !is.na(psa_nvca_risk_score), county == "Los Angeles") %>%
   group_by(sex, psa_nvca_risk_score) %>%
   summarise(across(c(recid_arrest_violent_psa_flag),
                    ~round(mean(.x)*100, 1)), Total = n()) %>%
@@ -3431,7 +3474,7 @@ Sacramento
 \newline
 ```{r fig.height=7}
 risk_df <- sex_df %>%
-  filter(tool_name == "psa", county == "Sacramento") %>%
+  filter(tool_name == "PSA", county == "Sacramento") %>%
   group_by(sex, psa_fta_risk_score) %>%
   summarise(across(c(fta_flag),
                    ~round(mean(.x)*100, 1)), Total = n()) %>%
@@ -3440,7 +3483,7 @@ risk_df <- sex_df %>%
 names(risk_df)[2] <- "psa_risk_score"
 
 risk_df2 <- sex_df %>%
-  filter(tool_name == "psa", county == "Sacramento") %>%
+  filter(tool_name == "PSA", county == "Sacramento") %>%
   group_by(sex, psa_nca_risk_score) %>%
   summarise(across(c(recid_arrested_flag, recid_filed_flag, recid_convicted_flag),
                    ~round(mean(.x)*100, 1)), Total = n()) %>%
@@ -3449,7 +3492,7 @@ risk_df2 <- sex_df %>%
 names(risk_df2)[2] <- "psa_risk_score"
 
 risk_df3 <- sex_df %>%
-  filter(tool_name == "psa", !is.na(psa_nvca_risk_score), county == "Sacramento") %>%
+  filter(tool_name == "PSA", !is.na(psa_nvca_risk_score), county == "Sacramento") %>%
   group_by(sex, psa_nvca_risk_score) %>%
   summarise(across(c(recid_arrest_violent_psa_flag),
                    ~round(mean(.x)*100, 1)), Total = n()) %>%
@@ -3617,7 +3660,7 @@ Sonoma
 \newline
 ```{r fig.height=7}
 risk_df <- sex_df %>%
-  filter(tool_name == "psa", county == "Sonoma") %>%
+  filter(tool_name == "PSA", county == "Sonoma") %>%
   group_by(sex, psa_fta_risk_score) %>%
   summarise(across(c(fta_flag),
                    ~round(mean(.x)*100, 1)), Total = n()) %>%
@@ -3626,7 +3669,7 @@ risk_df <- sex_df %>%
 names(risk_df)[2] <- "psa_risk_score"
 
 risk_df2 <- sex_df %>%
-  filter(tool_name == "psa", county == "Sonoma") %>%
+  filter(tool_name == "PSA", county == "Sonoma") %>%
   group_by(sex, psa_nca_risk_score) %>%
   summarise(across(c(recid_arrested_flag, recid_filed_flag, recid_convicted_flag),
                    ~round(mean(.x)*100, 1)), Total = n()) %>%
@@ -3635,7 +3678,7 @@ risk_df2 <- sex_df %>%
 names(risk_df2)[2] <- "psa_risk_score"
 
 risk_df3 <- sex_df %>%
-  filter(tool_name == "psa", !is.na(psa_nvca_risk_score), county == "Sonoma") %>%
+  filter(tool_name == "PSA", !is.na(psa_nvca_risk_score), county == "Sonoma") %>%
   group_by(sex, psa_nvca_risk_score) %>%
   summarise(across(c(recid_arrest_violent_psa_flag),
                    ~round(mean(.x)*100, 1)), Total = n()) %>%
@@ -3801,7 +3844,7 @@ PSA
 \newline
 ```{r fig.height=6, fig.width=10, dpi=1200}
 risk_df <- eval_df %>%
-  filter(tool_name == "psa") %>%
+  filter(tool_name == "PSA") %>%
   group_by(psa_fta_risk_score, sex, county) %>%
   select(fta_flag) %>%
   pivot_longer(fta_flag) 
@@ -3809,7 +3852,7 @@ risk_df <- eval_df %>%
 names(risk_df)[1] <- "psa_risk_score"
 
 risk_df2 <- eval_df %>%
-  filter(tool_name == "psa") %>%
+  filter(tool_name == "PSA") %>%
   group_by(psa_nca_risk_score, sex, county) %>%
   select(recid_arrested_flag, recid_filed_flag, recid_convicted_flag) %>%
   pivot_longer(recid_arrested_flag:recid_convicted_flag) 
@@ -3817,7 +3860,7 @@ risk_df2 <- eval_df %>%
 names(risk_df2)[1] <- "psa_risk_score"
 
 risk_df3 <- eval_df %>%
-  filter(tool_name == "psa", !is.na(psa_nvca_risk_score)) %>%
+  filter(tool_name == "PSA", !is.na(psa_nvca_risk_score)) %>%
   group_by(psa_nvca_risk_score, sex, county) %>%
   select(recid_arrest_violent_psa_flag) %>%
   pivot_longer(recid_arrest_violent_psa_flag) 
@@ -3852,7 +3895,7 @@ ggplot(risk_df) +
   scale_x_continuous(breaks = 1:6)
 
 # eval_df %>%
-#   filter(tool_name == "psa") %>%
+#   filter(tool_name == "PSA") %>%
 #   count(county)
 ```
 \newpage
@@ -3900,7 +3943,7 @@ Los Angeles
 ```{r fig.height=6, fig.width=10, dpi=1200}
 risk_df <- eval_df %>%
   filter(county == "Los Angeles") %>%
-  filter(tool_name == "psa") %>%
+  filter(tool_name == "PSA") %>%
   group_by(psa_fta_risk_score, sex, county) %>%
   select(fta_flag) %>%
   pivot_longer(fta_flag) 
@@ -3909,7 +3952,7 @@ names(risk_df)[1] <- "psa_risk_score"
 
 risk_df2 <- eval_df %>%
   filter(county == "Los Angeles") %>%
-  filter(tool_name == "psa") %>%
+  filter(tool_name == "PSA") %>%
   group_by(psa_nca_risk_score, sex, county) %>%
   select(recid_arrested_flag, recid_filed_flag, recid_convicted_flag) %>%
   pivot_longer(recid_arrested_flag:recid_convicted_flag) 
@@ -3918,7 +3961,7 @@ names(risk_df2)[1] <- "psa_risk_score"
 
 risk_df3 <- eval_df %>%
   filter(county == "Los Angeles") %>%
-  filter(tool_name == "psa", !is.na(psa_nvca_risk_score)) %>%
+  filter(tool_name == "PSA", !is.na(psa_nvca_risk_score)) %>%
   group_by(psa_nvca_risk_score, sex, county) %>%
   select(recid_arrest_violent_psa_flag) %>%
   pivot_longer(recid_arrest_violent_psa_flag) 
@@ -3959,7 +4002,7 @@ Sacramento
 ```{r fig.height=6, fig.width=10, dpi=1200}
 risk_df <- eval_df %>%
   filter(county == "Sacramento") %>%
-  filter(tool_name == "psa") %>%
+  filter(tool_name == "PSA") %>%
   group_by(psa_fta_risk_score, sex, county) %>%
   select(fta_flag) %>%
   pivot_longer(fta_flag) 
@@ -3968,7 +4011,7 @@ names(risk_df)[1] <- "psa_risk_score"
 
 risk_df2 <- eval_df %>%
   filter(county == "Sacramento") %>%
-  filter(tool_name == "psa") %>%
+  filter(tool_name == "PSA") %>%
   group_by(psa_nca_risk_score, sex, county) %>%
   select(recid_arrested_flag, recid_filed_flag, recid_convicted_flag) %>%
   pivot_longer(recid_arrested_flag:recid_convicted_flag) 
@@ -3977,7 +4020,7 @@ names(risk_df2)[1] <- "psa_risk_score"
 
 risk_df3 <- eval_df %>%
   filter(county == "Sacramento") %>%
-  filter(tool_name == "psa", !is.na(psa_nvca_risk_score)) %>%
+  filter(tool_name == "PSA", !is.na(psa_nvca_risk_score)) %>%
   group_by(psa_nvca_risk_score, sex, county) %>%
   select(recid_arrest_violent_psa_flag) %>%
   pivot_longer(recid_arrest_violent_psa_flag) 
@@ -4012,7 +4055,7 @@ ggplot(risk_df) +
   scale_x_continuous(breaks = 1:6)
 
 # eval_df %>%
-#   filter(tool_name == "psa") %>%
+#   filter(tool_name == "PSA") %>%
 #   count(county)
 ```
 \newpage
@@ -4302,7 +4345,7 @@ PSA
 \newline
 ```{r}
 tool_df <- auc_df %>%
-  filter(tool_name == "psa", race == "All", sex != "All", county == "All") %>%
+  filter(tool_name == "PSA", race == "All", sex != "All", county == "All") %>%
   select(sex, risk_score, outcome, AUC, CI, n) %>%
   arrange(sex) %>%
   mutate(risk_score = rep(c("PSA FTA", rep("PSA NCA",3), "PSA NVCA"),2),
@@ -4359,7 +4402,7 @@ Los Angeles
 \newline
 ```{r}
 tool_df <- auc_df %>%
-  filter(tool_name == "psa", race == "All", sex != "All", county == "Los Angeles") %>%
+  filter(tool_name == "PSA", race == "All", sex != "All", county == "Los Angeles") %>%
   select(sex, risk_score, outcome, AUC, CI, n) %>%
   arrange(sex) %>%
   mutate(
@@ -4389,7 +4432,7 @@ Sacramento
 \newline
 ```{r}
 tool_df <- auc_df %>%
-  filter(tool_name == "psa", race == "All", sex != "All", county == "Sacramento") %>%
+  filter(tool_name == "PSA", race == "All", sex != "All", county == "Sacramento") %>%
   select(sex, risk_score, outcome, AUC, CI, n) %>%
   arrange(sex) %>%
   mutate(risk_score = rep(c("PSA FTA", rep("PSA NCA",3), "PSA NVCA"),2),
@@ -4641,7 +4684,7 @@ PSA -- looking by release type (judge vs bail vs ?)
 \newline
 ```{r eval=FALSE, include=FALSE}
 risk_df <- eval_df %>%
-  filter(tool_name == "psa") %>%
+  filter(tool_name == "PSA") %>%
   group_by(psa_fta_risk_score, release_type, county) %>%
   select(fta_flag) %>%
   pivot_longer(fta_flag) 
@@ -4649,7 +4692,7 @@ risk_df <- eval_df %>%
 names(risk_df)[1] <- "psa_risk_score"
 
 risk_df2 <- eval_df %>%
-  filter(tool_name == "psa") %>%
+  filter(tool_name == "PSA") %>%
   group_by(psa_nca_risk_score, release_type, county) %>%
   select(recid_arrested_flag, recid_filed_flag, recid_convicted_flag) %>%
   pivot_longer(recid_arrested_flag:recid_convicted_flag) 
@@ -4657,7 +4700,7 @@ risk_df2 <- eval_df %>%
 names(risk_df2)[1] <- "psa_risk_score"
 
 risk_df3 <- eval_df %>%
-  filter(tool_name == "psa", !is.na(psa_nvca_risk_score)) %>%
+  filter(tool_name == "PSA", !is.na(psa_nvca_risk_score)) %>%
   group_by(psa_nvca_risk_score, release_type, county) %>%
   select(recid_arrest_violent_psa_flag) %>%
   pivot_longer(recid_arrest_violent_psa_flag) 
@@ -4692,7 +4735,7 @@ ggplot(risk_df) +
   scale_x_continuous(breaks = 1:6)
 
 # eval_df %>%
-#   filter(tool_name == "psa") %>%
+#   filter(tool_name == "PSA") %>%
 #   count(county)
 
 risk_df %>%
