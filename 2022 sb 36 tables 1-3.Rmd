@@ -518,3 +518,187 @@ write.xlsx(charge_level_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot P
 #   count(county)
 
 ```
+
+
+## Table 4
+```{r}
+fta_df <- eval_df %>%
+  # filter(tool_name %in% c(""))
+  filter(charge_level %in% c("M", "F")) %>%
+  mutate(risk_level = case_when(
+    vprai_risk_score %in% 5:9|vprair_risk_score %in% 9:14|oras_risk_score %in% 6:9|
+      psa_fta_risk_score %in% 5:6 ~ "Higher Scores",
+    vprai_risk_score %in% 3:4|vprair_risk_score %in% 5:8|oras_risk_score %in% 3:5|
+      psa_fta_risk_score %in% 3:4 ~ "Middle Scores",
+    vprai_risk_score %in% 0:2|vprair_risk_score %in% 0:4|oras_risk_score %in% 0:2|
+      psa_fta_risk_score %in% 1:2 ~ "Lower Scores",
+    T ~ "Other_Unknown")) %>%
+  mutate(release_type = if_else(!release_type %in% c("Zero Bail", "Bail Bond") & !is.na(assessment_date), 
+                                "Assessed_Release", release_type)) %>%
+  filter(release_type %in% c("Zero Bail", "Bail Bond", "Assessed_Release")) %>%
+  
+  mutate(risk_level = if_else(risk_level %in% c("Other", "Unknown")|is.na(risk_level), "Other_Unknown", risk_level),
+         risk_level = if_else(release_type %in% c("Zero Bail", "Bail Bond"), release_type, risk_level)) %>%
+  group_by(county, risk_level, charge_level) %>%
+  summarise(Total = n(), `Court Appearance Rate` = paste(round(100-mean(fta_flag)*100), "%")) %>%
+  mutate(risk_level = factor(risk_level, levels =  c("Lower Scores", "Middle Scores", "Higher Scores", "Other_Unknown", "Zero Bail", "Bail Bond" ))) %>%
+  arrange(county, charge_level, risk_level) %>%
+  mutate(across(matches("Total|Count$|Rate|Perc"), ~if_else(Total < 30 & Total >= 1, "< 30", as.character(.x))))
+
+names(fta_df) <- c("County", "Release Type/Risk Level", "Offense Type", "Total", "Court Appearance Rate")
+  
+write.xlsx(fta_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/2022 SB 36 Static Output Tables/2B.xlsx", asTable = T)
+
+# Aggregated
+fta_df <- eval_df %>%
+  # filter(tool_name %in% c(""))
+  filter(charge_level %in% c("M", "F")) %>%
+  mutate(risk_level = case_when(
+    vprai_risk_score %in% 5:9|vprair_risk_score %in% 9:14|oras_risk_score %in% 6:9|
+      psa_fta_risk_score %in% 5:6 ~ "Higher Scores",
+    vprai_risk_score %in% 3:4|vprair_risk_score %in% 5:8|oras_risk_score %in% 3:5|
+      psa_fta_risk_score %in% 3:4 ~ "Middle Scores",
+    vprai_risk_score %in% 0:2|vprair_risk_score %in% 0:4|oras_risk_score %in% 0:2|
+      psa_fta_risk_score %in% 1:2 ~ "Lower Scores",
+    T ~ "Other_Unknown")) %>%
+  mutate(release_type = if_else(!release_type %in% c("Zero Bail", "Bail Bond" ) & !is.na(assessment_date), 
+                                "Assessed_Release", release_type)) %>%
+  filter(release_type %in% c("Zero Bail", "Bail Bond" , "Assessed_Release")) %>%
+  
+  mutate(risk_level = if_else(risk_level %in% c("Other", "Unknown")|is.na(risk_level), "Other_Unknown", risk_level),
+         risk_level = if_else(release_type %in% c("Zero Bail", "Bail Bond" ), release_type, risk_level)) %>%
+  group_by(risk_level, charge_level) %>%
+  summarise(Total = n(), `Court Appearance Rate` = paste(round(100-mean(fta_flag)*100), "%")) %>%
+  mutate(risk_level = factor(risk_level, levels =  c("Lower Scores", "Middle Scores", "Higher Scores", "Other_Unknown", "Zero Bail", "Bail Bond" ))) %>%
+  arrange(charge_level, risk_level)
+
+names(fta_df) <- c("Release Type/Risk Level", "Offense Type", "Total", "Court Appearance Rate")
+ 
+write.xlsx(fta_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/2022 SB 36 Static Output Tables/2B Aggregated.xlsx", asTable = T)
+
+
+# For PPT
+eval_df %>%
+  # filter(tool_name %in% c(""))
+  mutate(risk_level = case_when(
+    vprai_risk_score %in% 5:9|vprair_risk_score %in% 9:14|oras_risk_score %in% 6:9|
+      psa_fta_risk_score %in% 5:6 ~ "Higher Scores",
+    vprai_risk_score %in% 3:4|vprair_risk_score %in% 5:8|oras_risk_score %in% 3:5|
+      psa_fta_risk_score %in% 3:4 ~ "Middle Scores",
+    vprai_risk_score %in% 0:2|vprair_risk_score %in% 0:4|oras_risk_score %in% 0:2|
+      psa_fta_risk_score %in% 1:2 ~ "Lower Scores",
+    T ~ "Other_Unknown")) %>%
+  mutate(release_type = if_else(!release_type %in% c("Zero Bail", "Bail Bond" ) & !is.na(assessment_date), 
+                                "Assessed_Release", release_type)) %>%
+  filter(release_type %in% c("Zero Bail", "Bail Bond" , "Assessed_Release")) %>%
+  
+  mutate(risk_level = if_else(risk_level %in% c("Other", "Unknown")|is.na(risk_level), "Other_Unknown", risk_level),
+         risk_level = if_else(release_type %in% c("Zero Bail", "Bail Bond" ), release_type, risk_level)) %>%
+  group_by(county, risk_level) %>%
+  summarise(Total = n(), `Court Appearance Rate` = paste(round(100-mean(fta_flag)*100), "%")) %>%
+  mutate(risk_level = factor(risk_level, levels =  c("Lower Scores", "Middle Scores", "Higher Scores", "Other_Unknown", "Zero Bail", "Bail Bond" ))) %>%
+  arrange(county, risk_level) %>%
+  unite(key, c(`Court Appearance Rate`, Total), sep = "--") %>%
+  pivot_wider(names_from = "risk_level", values_from = c("key"), values_fill = "-") %>%
+  View()
+
+eval_df %>%
+  count(tool_name)
+  filter(release_type == "Unknown_Bail") %>%
+  count(county)
+```
+
+## Table 5 
+```{r}
+new_charge_df <- eval_df %>%
+  # filter(tool_name %in% c(""))
+  mutate(risk_level = case_when(
+    vprai_risk_score %in% 5:9|vprair_risk_score %in% 9:14|oras_risk_score %in% 6:9|
+      psa_nca_risk_score %in% 5:6 ~ "Higher Scores",
+    vprai_risk_score %in% 3:4|vprair_risk_score %in% 5:8|oras_risk_score %in% 3:5|
+      psa_nca_risk_score %in% 3:4 ~ "Middle Scores",
+    vprai_risk_score %in% 0:2|vprair_risk_score %in% 0:4|oras_risk_score %in% 0:2|
+      psa_nca_risk_score %in% 1:2 ~ "Lower Scores",
+    T ~ "Other_Unknown")) %>%
+  mutate(release_type = if_else(!release_type %in% c("Zero Bail", "Bail Bond" ) & !is.na(assessment_date), 
+                                "Assessed_Release", release_type)) %>%
+  filter(release_type %in% c("Zero Bail", "Bail Bond" , "Assessed_Release")) %>%
+  # mutate(charge_level = case_when(is.na(charge_level)|charge_level %in% c("Other", "I") ~"Other_Unknown",
+  #                                        charge_level == "F" ~ "Felony",
+  #                                        charge_level == "M" ~ "Misdemeanor")) %>%
+  mutate(risk_level = if_else(risk_level %in% c("Other", "Unknown")|is.na(risk_level), "Other_Unknown", risk_level),
+         risk_level = if_else(release_type %in% c("Zero Bail", "Bail Bond" ), release_type, risk_level)) %>%
+  group_by(county, risk_level, charge_level) %>%
+  summarise(Total = n(), `No New Charge Rate` = paste(round(100-mean(recid_filed_flag)*100), "%")) %>%
+  mutate(risk_level = factor(risk_level, levels =  c("Lower Scores", "Middle Scores", "Higher Scores", "Other_Unknown", "Zero Bail", "Bail Bond" ))) %>%
+  arrange(county, charge_level, risk_level) %>%
+  mutate(across(matches("Total|Count$|Rate|Perc"), ~if_else(Total < 30 & Total >=1, "< 30", as.character(.x))))
+
+names(new_charge_df) <- c("county", "Release Type/Risk Level", "Offense Type", "Total", "No New Charge Rate")
+  
+write.xlsx(new_charge_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/2022 SB 36 Static Output Tables/2C.xlsx", asTable = T)
+
+# Aggregated
+new_charge_df <- eval_df %>%
+  # filter(tool_name %in% c(""))
+  mutate(risk_level = case_when(
+    vprai_risk_score %in% 5:9|vprair_risk_score %in% 9:14|oras_risk_score %in% 6:9|
+      psa_nca_risk_score %in% 5:6 ~ "Higher Scores",
+    vprai_risk_score %in% 3:4|vprair_risk_score %in% 5:8|oras_risk_score %in% 3:5|
+      psa_nca_risk_score %in% 3:4 ~ "Middle Scores",
+    vprai_risk_score %in% 0:2|vprair_risk_score %in% 0:4|oras_risk_score %in% 0:2|
+      psa_nca_risk_score %in% 1:2 ~ "Lower Scores",
+    T ~ "Other_Unknown")) %>%
+  mutate(release_type = if_else(!release_type %in% c("Zero Bail", "Bail Bond" ) & !is.na(assessment_date), 
+                                "Assessed_Release", release_type)) %>%
+  filter(release_type %in% c("Zero Bail", "Bail Bond" , "Assessed_Release")) %>%
+  # mutate(charge_level = case_when(is.na(charge_level)|charge_level %in% c("Other", "I") ~"Other_Unknown",
+  #                                        charge_level == "F" ~ "Felony",
+  #                                        charge_level == "M" ~ "Misdemeanor")) %>%
+  mutate(risk_level = if_else(risk_level %in% c("Other", "Unknown")|is.na(risk_level), "Other_Unknown", risk_level),
+         risk_level = if_else(release_type %in% c("Zero Bail", "Bail Bond" ), release_type, risk_level)) %>%
+  group_by(risk_level, charge_level) %>%
+  summarise(Total = n(), `No New Charge Rate` = paste(round(100-mean(recid_filed_flag)*100), "%")) %>%
+  mutate(risk_level = factor(risk_level, levels =  c("Lower Scores", "Middle Scores", "Higher Scores", "Other_Unknown", "Zero Bail", "Bail Bond" ))) %>%
+  arrange(charge_level, risk_level)
+
+names(new_charge_df) <- c("Release Type/Risk Level", "Offense Type", "Total", "No New Charge Rate")
+
+write.xlsx(new_charge_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/2022 SB 36 Static Output Tables/2C Aggregated.xlsx", asTable = T)
+
+# For PPT
+eval_df %>%
+  # filter(!is.na(cii),
+  #        pretrial_end_date - release_date >= 60) %>%
+  mutate(risk_level = case_when(
+    vprai_risk_score %in% 5:9|vprair_risk_score %in% 9:14|oras_risk_score %in% 6:9|
+      psa_nca_risk_score %in% 5:6 ~ "Higher Scores",
+    vprai_risk_score %in% 3:4|vprair_risk_score %in% 5:8|oras_risk_score %in% 3:5|
+      psa_nca_risk_score %in% 3:4 ~ "Middle Scores",
+    vprai_risk_score %in% 0:2|vprair_risk_score %in% 0:4|oras_risk_score %in% 0:2|
+      psa_nca_risk_score %in% 1:2 ~ "Lower Scores",
+    T ~ "Other_Unknown")) %>%
+  mutate(release_type = if_else(!release_type %in% c("Zero Bail", "Bail Bond" ) & !is.na(assessment_date), 
+                                "Assessed_Release", release_type)) %>%
+  filter(release_type %in% c("Zero Bail", "Bail Bond" , "Assessed_Release")) %>%
+  mutate(charge_level = case_when(is.na(charge_level)|charge_level %in% c("Other", "I") ~"Other_Unknown",
+                                         charge_level == "F" ~ "Felony",
+                                         charge_level == "M" ~ "Misdemeanor")) %>%
+  mutate(risk_level = if_else(risk_level %in% c("Other", "Unknown")|is.na(risk_level), "Other_Unknown", risk_level),
+         risk_level = if_else(release_type %in% c("Zero Bail", "Bail Bond" ), release_type, risk_level)) %>%
+  group_by(county, risk_level) %>%
+  summarise(Total = n(), `No New Charge Rate` = paste(round(100- mean(recid_arrested_flag)*100), "%")) %>%
+  mutate(risk_level = factor(risk_level, levels =  c("Lower Scores", "Middle Scores", "Higher Scores", "Other_Unknown", "Zero Bail", "Bail Bond" ))) %>%
+  arrange(county, risk_level) %>%
+  unite(key, c(`No New Charge Rate`, Total), sep = "--") %>%
+  pivot_wider(names_from = "risk_level", values_from = c("key"), values_fill = "-")  %>%
+  View()
+
+# eval_df %>%
+#   filter(!is.na(cii)) %>%
+#   mutate(recid_filed_flag = if_else(!is.na(recid_date), 1, 0)) %>%
+#   summarise(recid_filed_flag = mean(recid_filed_flag))
+#   select(contains("recid")) %>%
+#   View()
+#   summarise(across(c(recid_arrested_flag, recid_filed_flag, recid_convicted_flag), mean))
+```
