@@ -4,6 +4,7 @@ author: "Sal Lempert"
 date: "5/10/2022"
 output:
   pdf_document: default
+
 ---
 
 # Settup and Library
@@ -13,7 +14,7 @@ knitr::opts_chunk$set(
 	message = FALSE,
 	warning = FALSE
 )
-knitr::opts_knit$set(root.dir = "G:/CrimJustice/PretrialAssessmentPilot/2022")
+knitr::opts_knit$set(root.dir = "C:/PretrialPilot/Pretrial-Pilot-County-Analysis")
 
 # library(rlang)
 library(tidyverse)
@@ -32,23 +33,35 @@ library(stargazer)
 library(DBI)
 library(dbplyr)
 library(odbc)
+library(tinytex)
+library(gt)
 
 # shell.exec(getwd())
 ```
 
 Connection
-```{r eval=FALSE, include=FALSE}
+```{r}
+#con <- dbConnect(odbc::odbc(), "snowflake_pretrial", uid ="Sal.Lempert@jud.ca.gov", pwd = "")
+
 con <- dbConnect(odbc::odbc(), "snowflake_pretrial", uid ="Sal.Lempert@jud.ca.gov", pwd = .rs.askForPassword("Password"))
+# con <- dbConnect(odbc::odbc(), "snowflake_pretrial", uid ="Sal.Lempert@jud.ca.gov", pwd = params$pwd)
+
+# params:
+#   pwd:
+#     label: "Enter the Password, please!"
+#     value: ""
+#     input: password
 ```
 
 Pull snowflake data -- cjs_outcome_std 
-```{sql connection = con, output.var = full_df}
+```{sql, connection = con, output.var = full_df}
 SELECT *
 FROM "DWH_PROD"."DATA_SCIENCE"."CJS_OUTCOME_STD"
 ;
 ```
 
-Load data
+
+Format data
 ```{r warning=FALSE, include=FALSE}
 names(full_df) <- tolower(names(full_df))
 
@@ -119,8 +132,12 @@ kable(date_df, booktabs = T, format.args = list(big.mark = ","),
         # table.attr = "style = \"color: black;\"",
         format = "latex") %>%
     kable_styling(position = "center", full_width = F, 
-                  bootstrap_options = c("striped", "hover"), stripe_color = "gray", font_size = 14, latex_options = "hold_position") 
+                  bootstrap_options = c("striped", "hover"), stripe_color = "gray", font_size = 14, latex_options = "hold_position") %>%
+  save_kable(file = "C:/PretrialPilot/Pretrial-Pilot-County-Analysis/date_range.tex")
 
+tinytex::pdflatex('C:/PretrialPilot/Pretrial-Pilot-County-Analysis/date_range.tex')
+
+latexmk('C:/PretrialPilot/Pretrial-Pilot-County-Analysis/date_range.tex')
 ```
 
 # Total Assessments by Tool 
