@@ -3,9 +3,9 @@ title: "Tool Validations Output Table"
 author: "Sal Lempert"
 date: "5/10/2022"
 output:
+  pdf_document: default
   html_document:
     df_print: paged
-  pdf_document: default
 ---
 
 # Settup and Library
@@ -42,10 +42,10 @@ library(gt)
 
 Connection
 ```{r}
-#con <- dbConnect(odbc::odbc(), "snowflake_pretrial", uid ="Sal.Lempert@jud.ca.gov", pwd = "")
+con <- dbConnect(odbc::odbc(), "snowflake_pretrial", uid ="Sal.Lempert@jud.ca.gov", pwd = "")
 
-con <- dbConnect(odbc::odbc(), "snowflake_pretrial", uid ="Sal.Lempert@jud.ca.gov", pwd = .rs.askForPassword("Password"))
-# con <- dbConnect(odbc::odbc(), "snowflake_pretrial", uid ="Sal.Lempert@jud.ca.gov", pwd = params$pwd)
+#con <- dbConnect(odbc::odbc(), "snowflake_pretrial", uid ="Sal.Lempert@jud.ca.gov", pwd = .rs.askForPassword("Password"))
+#con <- dbConnect(odbc::odbc(), "snowflake_pretrial", uid ="Sal.Lempert@jud.ca.gov", pwd = params$pwd)
 
 # params:
 #   pwd:
@@ -55,7 +55,7 @@ con <- dbConnect(odbc::odbc(), "snowflake_pretrial", uid ="Sal.Lempert@jud.ca.go
 ```
 
 Pull snowflake data -- cjs_outcome_std 
-```{sql, connection = con, output.var = full_df}
+```{sql, connection = con, output.var = 'full_df'}
 SELECT *
 FROM "DWH_PROD"."DATA_SCIENCE"."CJS_OUTCOME_STD"
 ;
@@ -133,12 +133,12 @@ kable(date_df, booktabs = T, format.args = list(big.mark = ","),
         # table.attr = "style = \"color: black;\"",
         format = "latex") %>%
     kable_styling(position = "center", full_width = F, 
-                  bootstrap_options = c("striped", "hover"), stripe_color = "gray", font_size = 14, latex_options = "hold_position") %>%
-  save_kable(file = "C:/PretrialPilot/Pretrial-Pilot-County-Analysis/date_range.tex")
+                  bootstrap_options = c("striped", "hover"), stripe_color = "gray", font_size = 14, latex_options = "hold_position")# %>%
+ # save_kable(file = "C:/PretrialPilot/Pretrial-Pilot-County-Analysis/date_range.tex")
 
-tinytex::pdflatex('C:/PretrialPilot/Pretrial-Pilot-County-Analysis/date_range.tex')
+#tinytex::pdflatex('C:/PretrialPilot/Pretrial-Pilot-County-Analysis/date_range.tex')
 
-latexmk('C:/PretrialPilot/Pretrial-Pilot-County-Analysis/date_range.tex')
+#latexmk('C:/PretrialPilot/Pretrial-Pilot-County-Analysis/date_range.tex')
 ```
 
 # Total Assessments by Tool 
@@ -564,6 +564,12 @@ kable(nvca_df, booktabs = T, format.args = list(big.mark = ","),
 
 ```
 \newpage
+
+
+```{r}
+knitr::knit_exit()
+```
+
 
 Alameda
 \newline
