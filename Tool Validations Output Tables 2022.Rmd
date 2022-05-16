@@ -3,8 +3,9 @@ title: "Tool Validations Output Table"
 author: "Sal Lempert"
 date: "5/10/2022"
 output:
+  html_document:
+    df_print: paged
   pdf_document: default
-
 ---
 
 # Settup and Library
