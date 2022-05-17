@@ -183,13 +183,6 @@ date_range <- eval_df %>%
 
 write.xlsx(date_range, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/Assessments with outcomes, date ranges by county.xlsx", asTable = F)
 
-eval_df %>%
-  filter(county == "San Joaquin",
-         !is.na(assessment_date),
-         new_arrest_flag == 1) %>%
-  arrange(assessment_date) %>%
-  select(assessment_date, book_date)
-  count(County, tool_name)
 ```
 
 # Introduction
