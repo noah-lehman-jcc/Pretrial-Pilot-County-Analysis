@@ -81,7 +81,11 @@ df <- df %>%
   mutate(tool_name_orig = tool_name,
          tool_name = tool_name_standard,
          county = county_name,
-         County = county,
+         County = case_when(county %in% c("Calaveras", "Modoc", "Tuolumne", "Yuba") ~ "Small Counties",
+                            county %in% c("Kings", "Napa", "Nevada", "Sierra") ~ "Small/Medium Counties",
+                            T ~ county),
+         County = ordered(County),
+         County = fct_relevel(County, levels = c("Small Counties", "Small/Medium Counties")),
          charge_level_orig = charge_level,
          charge_level = charge_level_standard,
          arrest_charge_level = charge_level,
@@ -97,12 +101,12 @@ df <- df %>%
          psa_fta_risk_score = score_failure_to_appear,
          psa_nca_risk_score = score_new_criminal_activity,
          psa_nvca_risk_score = score_new_criminal_violent_activity,
-         monitor_level = if_else(monitoring_level_grouped %in% c("Lowest Levels", "Medium Levels", "Highest Levels"), monitoring_level_grouped, "Other/Unknown"))
+         monitor_level = if_else(monitoring_level_grouped %in% c("Lowest Levels", "Medium Levels", "Highest Levels"), monitoring_level_grouped, "Other/Unknown")) %>%
+  arrange(County) 
 
 ```
 
 \newpage
-
 
 Format full_df, join_df, and eval_df
 ```{r warning=FALSE, include=FALSE}
@@ -114,7 +118,11 @@ full_df <- full_df %>%
   mutate(book_date = booking_date,
          race_orig = race,
          race = race_standard,
-         County = county,
+         County = case_when(county %in% c("Calaveras", "Modoc", "Tuolumne", "Yuba") ~ "Small Counties",
+                            county %in% c("Kings", "Napa", "Nevada", "Sierra") ~ "Small/Medium Counties",
+                            T ~ county),
+         County = ordered(County),
+         County = fct_relevel(County, levels = c("Small Counties", "Small/Medium Counties")),
          new_arrest_flag = release_eligible_count,
          charge_level_orig = charge_level,
          charge_level = charge_level_standard,
@@ -140,7 +148,8 @@ full_df <- full_df %>%
          recid_arrest_violent_psa_flag = recid_arrest_violent_psa_flag_doj,
          recid_filed_violent_psa_flag = recid_filed_violent_psa_flag_doj,
          any_pretrial_failure_flag = if_else(recid_arrested_flag == 1 | fta_flag == 1, 1, 0)) %>% ## update this when we get county data on these
-  mutate(across(contains("_flag"), ~if_else(is.na(.x), 0, as.numeric(.x))))  
+  mutate(across(contains("_flag"), ~if_else(is.na(.x), 0, as.numeric(.x)))) %>%
+  arrange(County) 
 
 join_df <- full_df 
 
