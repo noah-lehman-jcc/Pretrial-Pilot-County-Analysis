@@ -7,6 +7,7 @@ output: pdf_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE)
 
+library(DBI)
 library(janitor)
 library(tidyverse)
 library(lubridate)
@@ -46,9 +47,9 @@ my_kable <- function(x){
 ```
 Connection
 ```{r}
-#con <- dbConnect(odbc::odbc(), "snowflake_pretrial", uid ="Sal.Lempert@jud.ca.gov", pwd = "")
+con <- dbConnect(odbc::odbc(), "snowflake_pretrial", uid ="jeffrey.wu@jud.ca.gov", pwd = "")
 
-con <- dbConnect(odbc::odbc(), "snowflake_pretrial", uid ="Sal.Lempert@jud.ca.gov", pwd = .rs.askForPassword("Password"))
+# con <- dbConnect(odbc::odbc(), "snowflake_pretrial", uid ="Sal.Lempert@jud.ca.gov", pwd = .rs.askForPassword("Password"))
 #con <- dbConnect(odbc::odbc(), "snowflake_pretrial", uid ="Sal.Lempert@jud.ca.gov", pwd = params$pwd)
 
 # params:
@@ -93,17 +94,16 @@ df <- df %>%
          sex_orig = sex,
          sex = if_else(sex %in% c("Male", "Female"), sex, "Other/Unknown"),
          race_orig = race,
-         race = race_standard,
+         race = if_else(race_standard == "American Indian", "Other/Unknown", race_standard),
          oras_risk_score = if_else(tool_name == "ORAS", risk_score_raw, NULL),
          vprai_risk_score = if_else(tool_name == "VPRAI", risk_score_raw, NULL),
-         vprair_risk_score = if_else(tool_name == "VPRAIR", risk_score_raw, NULL),
-         vpraio_risk_score = if_else(tool_name == "VPRAIO", risk_score_raw, NULL),
+         vprair_risk_score = if_else(tool_name == "VPRAI-R", risk_score_raw, NULL),
+         vpraio_risk_score = if_else(tool_name == "VPRAI-O", risk_score_raw, NULL),
          psa_fta_risk_score = score_failure_to_appear,
          psa_nca_risk_score = score_new_criminal_activity,
          psa_nvca_risk_score = score_new_criminal_violent_activity,
          monitor_level = if_else(monitoring_level_grouped %in% c("Lowest Levels", "Medium Levels", "Highest Levels"), monitoring_level_grouped, "Other/Unknown")) %>%
-  arrange(County) 
-
+  arrange(County)
 ```
 
 \newpage
@@ -117,7 +117,7 @@ names(full_df) <- tolower(names(full_df))
 full_df <- full_df %>%
   mutate(book_date = booking_date,
          race_orig = race,
-         race = race_standard,
+         race = if_else(race_standard == "American Indian", "Other/Unknown", race_standard),
          County = case_when(county %in% c("Calaveras", "Modoc", "Tuolumne", "Yuba") ~ "Small Counties",
                             county %in% c("Kings", "Napa", "Nevada", "Sierra") ~ "Small/Medium Counties",
                             T ~ county),
@@ -748,7 +748,18 @@ fta_df <- eval_df %>%
   arrange(County, arrest_charge_level, risk_level) %>%
   mutate(across(matches("Total|Count$|Rate|Perc"), ~if_else(Total < 30 & Total >= 1, "< 30", as.character(.x))))
 
-names(fta_df) <- c("County", "Release Type/Risk Level", "Offense Type", "Total", "Court Appearance Rate")
+# add sorting variable for Power BI
+fta_df <- fta_df %>%
+  mutate(risk_level_sort = case_when(
+    risk_level == "Lower Scores" ~ 1,
+    risk_level == "Middle Scores" ~ 2,
+    risk_level == "Higher Scores" ~ 3,
+    risk_level == "Bail Bond" ~ 4,
+    risk_level == "Zero Bail" ~ 5,
+    risk_level == "Other_Unknown" ~ 6
+  ))
+
+names(fta_df) <- c("County", "Release Type/Risk Level", "Offense Type", "Total", "Court Appearance Rate", "Sort")
   
 write.xlsx(fta_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/2B.xlsx", asTable = T)
 
@@ -774,7 +785,18 @@ fta_df <- eval_df %>%
   mutate(risk_level = factor(risk_level, levels =  c("Lower Scores", "Middle Scores", "Higher Scores", "Other_Unknown", "Zero Bail", "Bail Bond", "Unknown_Bail"))) %>%
   arrange(arrest_charge_level, risk_level)
 
-names(fta_df) <- c("Release Type/Risk Level", "Offense Type", "Total", "Court Appearance Rate")
+# add sorting variable for Power BI
+fta_df <- fta_df %>%
+  mutate(risk_level_sort = case_when(
+    risk_level == "Lower Scores" ~ 1,
+    risk_level == "Middle Scores" ~ 2,
+    risk_level == "Higher Scores" ~ 3,
+    risk_level == "Bail Bond" ~ 4,
+    risk_level == "Zero Bail" ~ 5,
+    risk_level == "Other_Unknown" ~ 6
+  ))
+
+names(fta_df) <- c("Release Type/Risk Level", "Offense Type", "Total", "Court Appearance Rate", "Sort")
  
 write.xlsx(fta_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/2B Aggregated.xlsx", asTable = T)
 
@@ -839,7 +861,18 @@ new_charge_df <- eval_df %>%
   arrange(County, arrest_charge_level, risk_level) %>%
   mutate(across(matches("Total|Count$|Rate|Perc"), ~if_else(Total < 30 & Total >= 1, "< 30", as.character(.x))))
 
-names(new_charge_df) <- c("County", "Release Type/Risk Level", "Offense Type", "Total", "No New Charge Rate")
+# add sorting variable for Power BI
+new_charge_df <- new_charge_df %>%
+  mutate(risk_level_sort = case_when(
+    risk_level == "Lower Scores" ~ 1,
+    risk_level == "Middle Scores" ~ 2,
+    risk_level == "Higher Scores" ~ 3,
+    risk_level == "Bail Bond" ~ 4,
+    risk_level == "Zero Bail" ~ 5,
+    risk_level == "Other_Unknown" ~ 6
+  ))
+
+names(new_charge_df) <- c("County", "Release Type/Risk Level", "Offense Type", "Total", "No New Charge Rate", "Sort")
   
 write.xlsx(new_charge_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/2C.xlsx", asTable = T)
 
@@ -867,7 +900,18 @@ new_charge_df <- eval_df %>%
   mutate(risk_level = factor(risk_level, levels =  c("Lower Scores", "Middle Scores", "Higher Scores", "Other_Unknown", "Zero Bail", "Bail Bond", "Unknown_Bail"))) %>%
   arrange(arrest_charge_level, risk_level)
 
-names(new_charge_df) <- c("Release Type/Risk Level", "Offense Type", "Total", "No New Charge Rate")
+# add sorting variable for Power BI
+new_charge_df <- new_charge_df %>%
+  mutate(risk_level_sort = case_when(
+    risk_level == "Lower Scores" ~ 1,
+    risk_level == "Middle Scores" ~ 2,
+    risk_level == "Higher Scores" ~ 3,
+    risk_level == "Bail Bond" ~ 4,
+    risk_level == "Zero Bail" ~ 5,
+    risk_level == "Other_Unknown" ~ 6
+  ))
+
+names(new_charge_df) <- c("Release Type/Risk Level", "Offense Type", "Total", "No New Charge Rate", "Sort")
 
 write.xlsx(new_charge_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/2C Aggregated.xlsx", asTable = T)
 
@@ -917,6 +961,14 @@ PC 1320.35 (f)(2)
 ## The Number of Assessed Individuals by Age
 ```{r}
 age_df <- df %>%
+  mutate(age = case_when(
+    individual_age >= 18 & individual_age <= 25 ~ "18-25",
+    individual_age >= 26 & individual_age <= 35 ~ "26-35",
+    individual_age >= 36 & individual_age <= 45 ~ "36-45",
+    individual_age >= 46 & individual_age <= 55 ~ "46-55",
+    individual_age >= 56 ~ "56+",
+    T ~ "Other_Unknown"
+  )) %>%
   count(County, age) %>%
   group_by(County) %>%
   mutate(Total = sum(n))
@@ -927,6 +979,14 @@ write.xlsx(age_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB
 
 # Aggregated
 age_df <- df %>%
+  mutate(age = case_when(
+    individual_age >= 18 & individual_age <= 25 ~ "18-25",
+    individual_age >= 26 & individual_age <= 35 ~ "26-35",
+    individual_age >= 36 & individual_age <= 45 ~ "36-45",
+    individual_age >= 46 & individual_age <= 55 ~ "46-55",
+    individual_age >= 56 ~ "56+",
+    T ~ "Other_Unknown"
+  )) %>%
   count(age) %>%
   mutate(Total = sum(n)) 
 
@@ -973,7 +1033,14 @@ write.xlsx(gender_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program
 ## The Number of Assessed Individuals by Race
 ```{r}
 race_df <- df %>%
-  count(County, race) %>%
+  mutate(race_sort = case_when(
+           race == "Asian" ~ 1,
+           race == "Black" ~ 2,
+           race == "Hispanic" ~ 3,
+           race == "White" ~ 4,
+           race == "Other/Unknown" ~ 5,
+         )) %>%
+  count(County, race, race_sort) %>%
   group_by(County) %>%
   mutate(Total = sum(n)) 
 
@@ -983,7 +1050,14 @@ write.xlsx(race_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/S
 
 # Aggregated
 race_df <- df %>%
-  count(race) %>%
+  mutate(race_sort = case_when(
+           race == "Asian" ~ 1,
+           race == "Black" ~ 2,
+           race == "Hispanic" ~ 3,
+           race == "White" ~ 4,
+           race == "Other/Unknown" ~ 5,
+         )) %>%
+  count(race, race_sort) %>%
   # group_by(County) %>%
   mutate(Total = sum(n)) 
 
@@ -1011,7 +1085,13 @@ assess_df <- df %>%
       psa_nca_risk_score %in% 1:2 ~ "Lower Scores",
     T ~ "Other_Unknown")) %>%
   count(County, risk_level) %>%
-  mutate(risk_level = factor(risk_level, levels = c("Lower Scores", "Middle Scores", "Higher Scores", "Other_Unknown"))) %>%
+  mutate(risk_level = factor(risk_level, levels = c("Lower Scores", "Middle Scores", "Higher Scores", "Other_Unknown")),
+         risk_level_sort = case_when(
+           risk_level == "Lower Scores" ~ 1,
+           risk_level == "Middle Scores" ~ 2,
+           risk_level == "Higher Scores" ~ 3,
+           risk_level == "Other_Unknown" ~4,
+         )) %>%
   arrange(County, risk_level)
 
 write.xlsx(assess_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/2E Risk Level.xlsx", asTable = T)
@@ -1027,7 +1107,13 @@ assess_df <- df %>%
       psa_nca_risk_score %in% 1:2 ~ "Lower Scores",
     T ~ "Other_Unknown")) %>%
   count(risk_level) %>%
-  mutate(risk_level = factor(risk_level, levels = c("Lower Scores", "Middle Scores", "Higher Scores", "Other_Unknown"))) %>%
+  mutate(risk_level = factor(risk_level, levels = c("Lower Scores", "Middle Scores", "Higher Scores", "Other_Unknown")),
+         risk_level_sort = case_when(
+           risk_level == "Lower Scores" ~ 1,
+           risk_level == "Middle Scores" ~ 2,
+           risk_level == "Higher Scores" ~ 3,
+           risk_level == "Other_Unknown" ~4,
+         )) %>%
   arrange(risk_level)
 
 write.xlsx(assess_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/2E Risk Level Aggregated.xlsx", asTable = T)
@@ -1356,7 +1442,13 @@ write.xlsx(monitor_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Progra
 # Aggregated
 monitor_df <- df %>%
   filter(release_decision_prearraignment == "Monitor" | release_decision_arraignment == "Monitor") %>%
-  count(monitor_level) 
+  count(monitor_level) %>%
+  mutate(monitor_level_sort = case_when(
+    monitor_level == "Lowest Levels" ~ 1,
+    monitor_level == "Medium Levels" ~ 2,
+    monitor_level == "Highest Levels" ~ 3,
+    monitor_level == "Other/Unknown" ~ 4
+  ))
   # group_by(County) %>%
   # mutate(Total = sum(n), n = paste0(round(n = n/Total*100), "%", " ", n)) %>%
   # pivot_wider(names_from =  monitor_level, values_from =  n, values_fill = "0") %>%
@@ -1575,7 +1667,16 @@ risk_df_vprair <- eval_df %>%
                         `Non FTA Rate` = paste(round(100 - mean(fta_flag)*100), "%"),
                         `Non New Charge Rate` = paste(round(100 - mean(recid_filed_flag)*100), "%")) %>%
               mutate(vprair_risk_score = "Total")) %>%
-  mutate(across(matches("Total|Count$|Rate|Perc"), ~if_else(Total < 30 & Total >= 1, "< 30", as.character(.x))))
+  mutate(across(matches("Total|Count$|Rate|Perc"), ~if_else(Total < 30 & Total >= 1, "< 30", as.character(.x))),
+         risk_score_sort = case_when(
+           vprair_risk_score == "Scores 0-2" ~ 1,
+           vprair_risk_score == "Scores 3-4" ~ 2,
+           vprair_risk_score == "Scores 5-6" ~ 3,
+           vprair_risk_score == "Scores 7-8" ~ 4,
+           vprair_risk_score == "Scores 9-10" ~ 5,
+           vprair_risk_score == "Scores 11-14" ~ 6,
+           vprair_risk_score == "Total" ~ 7
+         ))
 
 
 write.xlsx(risk_df_vprair, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/3A VpraiR categories.xlsx", asTable = T) 
@@ -1761,20 +1862,68 @@ write.xlsx(list(race_vprai, gender_vprai, offense_type_vprai,  release_vprai), f
 ## (VPRAIR)
 ```{r}
 race_vprair <- df %>%
-  filter(tool_name == "VPRAIR",
+  filter(tool_name == "VPRAI-R",
          !is.na(vprair_risk_score)) %>%
-  mutate(race = if_else(race == "Other", "Other_Unknown", race)) %>%
-  count(vprair_risk_score, race) 
+  mutate(race = if_else(race == "Other", "Other_Unknown", race),
+         vprair_risk_score = case_when(
+           vprair_risk_score %in% 0:2 ~ "Scores 0-2",
+           vprair_risk_score %in% 3:4 ~ "Scores 3-4",
+           vprair_risk_score %in% 5:6 ~ "Scores 5-6",
+           vprair_risk_score %in% 7:8 ~ "Scores 7-8",
+           vprair_risk_score %in% 9:10 ~ "Scores 9-10",
+           vprair_risk_score %in% 11:14 ~ "Scores 11-14",
+         ),
+         risk_score_sort = case_when(
+           vprair_risk_score == "Scores 0-2" ~ 1,
+           vprair_risk_score == "Scores 3-4" ~ 2,
+           vprair_risk_score == "Scores 5-6" ~ 3,
+           vprair_risk_score == "Scores 7-8" ~ 4,
+           vprair_risk_score == "Scores 9-10" ~ 5,
+           vprair_risk_score == "Scores 11-14" ~ 6
+         )) %>%
+  count(vprair_risk_score, race, risk_score_sort) 
 
 gender_vprair <- df %>%
-  filter(tool_name == "VPRAIR",
+  filter(tool_name == "VPRAI-R",
          !is.na(vprair_risk_score)) %>%
-  count(vprair_risk_score, sex) 
+  mutate(vprair_risk_score = case_when(
+           vprair_risk_score %in% 0:2 ~ "Scores 0-2",
+           vprair_risk_score %in% 3:4 ~ "Scores 3-4",
+           vprair_risk_score %in% 5:6 ~ "Scores 5-6",
+           vprair_risk_score %in% 7:8 ~ "Scores 7-8",
+           vprair_risk_score %in% 9:10 ~ "Scores 9-10",
+           vprair_risk_score %in% 11:14 ~ "Scores 11-14",
+         ),
+         risk_score_sort = case_when(
+           vprair_risk_score == "Scores 0-2" ~ 1,
+           vprair_risk_score == "Scores 3-4" ~ 2,
+           vprair_risk_score == "Scores 5-6" ~ 3,
+           vprair_risk_score == "Scores 7-8" ~ 4,
+           vprair_risk_score == "Scores 9-10" ~ 5,
+           vprair_risk_score == "Scores 11-14" ~ 6
+         )) %>%
+  count(vprair_risk_score, sex, risk_score_sort) 
 
 offense_type_vprair <- join_df %>%
   filter(tool_name == "VPRAIR",
          !is.na(vprair_risk_score)) %>%
-  count(vprair_risk_score, arrest_charge_level) 
+  mutate(vprair_risk_score = case_when(
+           vprair_risk_score %in% 0:2 ~ "Scores 0-2",
+           vprair_risk_score %in% 3:4 ~ "Scores 3-4",
+           vprair_risk_score %in% 5:6 ~ "Scores 5-6",
+           vprair_risk_score %in% 7:8 ~ "Scores 7-8",
+           vprair_risk_score %in% 9:10 ~ "Scores 9-10",
+           vprair_risk_score %in% 11:14 ~ "Scores 11-14",
+         ),
+         risk_score_sort = case_when(
+           vprair_risk_score == "Scores 0-2" ~ 1,
+           vprair_risk_score == "Scores 3-4" ~ 2,
+           vprair_risk_score == "Scores 5-6" ~ 3,
+           vprair_risk_score == "Scores 7-8" ~ 4,
+           vprair_risk_score == "Scores 9-10" ~ 5,
+           vprair_risk_score == "Scores 11-14" ~ 6
+         )) %>%
+  count(vprair_risk_score, arrest_charge_level, risk_score_sort) 
 
 # zipcode_vprair <- join_df %>%
 #   filter(tool_name == "VPRAIR",
@@ -1786,8 +1935,24 @@ release_vprair <- join_df %>%
          !is.na(vprair_risk_score)) %>%
   mutate(release_decision = case_when(release_decision_arraignment %in% c("Monitor", "Own Recognizance") | release_decision_prearraignment %in% c("Monitor", "Own Recognizance") ~ "Granted Program Release", 
                                       release_decision_arraignment %in% c("Deny Release") | release_decision_arraignment %in% c("Deny Release") ~ "Denied Program Release", 
-                                      T ~ "Other")) %>%
-  count(vprair_risk_score, release_decision)
+                                      T ~ "Other"),
+         vprair_risk_score = case_when(
+           vprair_risk_score %in% 0:2 ~ "Scores 0-2",
+           vprair_risk_score %in% 3:4 ~ "Scores 3-4",
+           vprair_risk_score %in% 5:6 ~ "Scores 5-6",
+           vprair_risk_score %in% 7:8 ~ "Scores 7-8",
+           vprair_risk_score %in% 9:10 ~ "Scores 9-10",
+           vprair_risk_score %in% 11:14 ~ "Scores 11-14",
+         ),
+         risk_score_sort = case_when(
+           vprair_risk_score == "Scores 0-2" ~ 1,
+           vprair_risk_score == "Scores 3-4" ~ 2,
+           vprair_risk_score == "Scores 5-6" ~ 3,
+           vprair_risk_score == "Scores 7-8" ~ 4,
+           vprair_risk_score == "Scores 9-10" ~ 5,
+           vprair_risk_score == "Scores 11-14" ~ 6
+         )) %>%
+  count(vprair_risk_score, release_decision, risk_score_sort)
 
 write.xlsx(list(race_vprair, gender_vprair, offense_type_vprair, release_vprair), file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/3B VPRAIR.xlsx", asTable = T, sheetName = c("Race", "Gender", "Offense Type",  "Release"))
 ```
@@ -1795,13 +1960,13 @@ write.xlsx(list(race_vprair, gender_vprair, offense_type_vprair, release_vprair)
 ## (VPRAIO)
 ```{r}
 race_vpraio <- df %>%
-  filter(tool_name == "VPRAIO",
+  filter(tool_name == "VPRAI-O",
          !is.na(vpraio_risk_score)) %>%
   mutate(race = if_else(race == "Other", "Other_Unknown", race)) %>%
   count(vpraio_risk_score, race) 
 
 gender_vpraio <- df %>%
-  filter(tool_name == "VPRAIO",
+  filter(tool_name == "VPRAI-O",
          !is.na(vpraio_risk_score)) %>%
   count(vpraio_risk_score, sex) 
 
@@ -2198,7 +2363,15 @@ risk_df_vprair_gender <- eval_df %>%
             `Non New Charge Rate` = paste(round(100 - mean(recid_filed_flag)*100), "%")) %>%
   mutate(vprair_risk_score = as.character(vprair_risk_score)) %>%
   arrange(sex, vprair_risk_score) %>%
-  mutate(across(matches("Total|Count$|Rate|Perc"), ~if_else(Total < 30 & Total >= 1, "< 30", as.character(.x)))) 
+  mutate(across(matches("Total|Count$|Rate|Perc"), ~if_else(Total < 30 & Total >= 1, "< 30", as.character(.x))),
+         risk_score_sort = case_when(
+           vprair_risk_score == "Scores 0-2" ~ 1,
+           vprair_risk_score == "Scores 3-4" ~ 2,
+           vprair_risk_score == "Scores 5-6" ~ 3,
+           vprair_risk_score == "Scores 7-8" ~ 4,
+           vprair_risk_score == "Scores 9-10" ~ 5,
+           vprair_risk_score == "Scores 11-14" ~ 6
+         )) 
 
 risk_df_vprair_race <- eval_df %>%
   filter(tool_name == "VPRAIR",
@@ -2217,7 +2390,15 @@ risk_df_vprair_race <- eval_df %>%
             `Non New Charge Rate` = paste(round(100 - mean(recid_filed_flag)*100), "%")) %>%
   mutate(vprair_risk_score = as.character(vprair_risk_score)) %>% 
   arrange(race, vprair_risk_score) %>%
-  mutate(across(matches("Total|Count$|Rate|Perc"), ~if_else(Total < 30 & Total >= 1, "< 30", as.character(.x)))) 
+  mutate(across(matches("Total|Count$|Rate|Perc"), ~if_else(Total < 30 & Total >= 1, "< 30", as.character(.x))),
+         risk_score_sort = case_when(
+           vprair_risk_score == "Scores 0-2" ~ 1,
+           vprair_risk_score == "Scores 3-4" ~ 2,
+           vprair_risk_score == "Scores 5-6" ~ 3,
+           vprair_risk_score == "Scores 7-8" ~ 4,
+           vprair_risk_score == "Scores 9-10" ~ 5,
+           vprair_risk_score == "Scores 11-14" ~ 6
+         )) 
 
 risk_df_vprair_offense <- eval_df %>%
   filter(tool_name == "VPRAIR",
@@ -2236,7 +2417,15 @@ risk_df_vprair_offense <- eval_df %>%
             `Non New Charge Rate` = paste(round(100 - mean(recid_filed_flag)*100), "%")) %>%
   mutate(vprair_risk_score = as.character(vprair_risk_score)) %>%
   arrange(arrest_charge_level, vprair_risk_score) %>%
-  mutate(across(matches("Total|Count$|Rate|Perc"), ~if_else(Total < 30 & Total >= 1, "< 30", as.character(.x)))) 
+  mutate(across(matches("Total|Count$|Rate|Perc"), ~if_else(Total < 30 & Total >= 1, "< 30", as.character(.x))),
+         risk_score_sort = case_when(
+           vprair_risk_score == "Scores 0-2" ~ 1,
+           vprair_risk_score == "Scores 3-4" ~ 2,
+           vprair_risk_score == "Scores 5-6" ~ 3,
+           vprair_risk_score == "Scores 7-8" ~ 4,
+           vprair_risk_score == "Scores 9-10" ~ 5,
+           vprair_risk_score == "Scores 11-14" ~ 6
+         )) 
 
 write.xlsx(list(risk_df_vprair_gender, risk_df_vprair_race, risk_df_vprair_offense), file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/3C VPRAIR categories.xlsx", asTable = T, sheetName = c("Gender", "Race", "Offense Type")) 
 ```
