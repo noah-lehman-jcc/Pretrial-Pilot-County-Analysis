@@ -1487,6 +1487,12 @@ outcome_df <- sup_df %>%
 
 write.xlsx(outcome_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/2G Supervision Level.xlsx", asTable = T) 
 
+outcome_per_df <- outcome_df %>%
+  mutate(FTA_percent = as.numeric(FTA_Count) / as.numeric(Total),
+         New_Arrest_Percent = as.numeric(New_Arrest_Count) / as.numeric(Total))
+
+write.xlsx(outcome_per_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/2G Supervision Level Percent.xlsx", asTable = T)
+
 #Aggregated 
 
 outcome_df <- sup_df %>%
@@ -1495,7 +1501,11 @@ outcome_df <- sup_df %>%
 
 write.xlsx(outcome_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/2G Supervision Level Aggregated.xlsx", asTable = T) 
 
+outcome_per_df <- outcome_df %>%
+  mutate(FTA_percent = FTA / Total,
+         New_Arrest_Percent = New_Arrest / Total)
 
+write.xlsx(outcome_per_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/2G Supervision Level Aggregated Percent.xlsx", asTable = T)
 ```
 
 Notes: 'Unspecified Supervision' includes individuals in counties which do not categorize supervision conditions into discrete levels. For counties which use discrete supervision levels, supervision levels were collapsed into 'Basic', 'Moderate', and 'Enhanced' supervision, though what each of these supervision levels mean varies widely across counties.
@@ -1789,18 +1799,33 @@ Source: Pretrial Pilot Program Probation Data (10-01-2019 through 03-31-2021) fr
 race_oras <- df %>%
   filter(tool_name == "ORAS",
          !is.na(oras_risk_score)) %>%
-  mutate(race = if_else(race == "Other", "Other_Unknown", race)) %>%
-  count(oras_risk_score, race) 
+  mutate(race = if_else(race == "Other", "Other_Unknown", race),
+         risk_category = case_when(
+           oras_risk_score >= 0 & oras_risk_score <= 2 ~ "Scores 0-2",
+           oras_risk_score >= 3 & oras_risk_score <= 5 ~ "Scores 3-5",
+           oras_risk_score >= 6 & oras_risk_score <= 9 ~ "Scores 6-9"
+         )) %>%
+  count(oras_risk_score, race, risk_category) 
 
 gender_oras <- df %>%
   filter(tool_name == "ORAS",
          !is.na(oras_risk_score)) %>%
-  count(oras_risk_score, sex) 
+  mutate(risk_category = case_when(
+           oras_risk_score >= 0 & oras_risk_score <= 2 ~ "Scores 0-2",
+           oras_risk_score >= 3 & oras_risk_score <= 5 ~ "Scores 3-5",
+           oras_risk_score >= 6 & oras_risk_score <= 9 ~ "Scores 6-9"
+         )) %>%
+  count(oras_risk_score, sex, risk_category) 
 
 offense_type_oras <- join_df %>%
   filter(tool_name == "ORAS",
          !is.na(oras_risk_score)) %>%
-  count(oras_risk_score, arrest_charge_level) 
+  mutate(risk_category = case_when(
+           oras_risk_score >= 0 & oras_risk_score <= 2 ~ "Scores 0-2",
+           oras_risk_score >= 3 & oras_risk_score <= 5 ~ "Scores 3-5",
+           oras_risk_score >= 6 & oras_risk_score <= 9 ~ "Scores 6-9"
+         )) %>%
+  count(oras_risk_score, arrest_charge_level, risk_category) 
 
 # zipcode_oras <- join_df %>%
 #   filter(tool_name == "ORAS",
@@ -1817,8 +1842,13 @@ release_oras <- join_df %>%
          !is.na(oras_risk_score)) %>%
   mutate(release_decision = case_when(release_decision_arraignment %in% c("Monitor", "Own Recognizance") | release_decision_prearraignment %in% c("Monitor", "Own Recognizance") ~ "Granted Program Release", 
                                       release_decision_arraignment %in% c("Deny Release") | release_decision_arraignment %in% c("Deny Release") ~ "Denied Program Release", 
-                                      T ~ "Other")) %>%
-  count(oras_risk_score, release_decision)
+                                      T ~ "Other"),
+         risk_category = case_when(
+           oras_risk_score >= 0 & oras_risk_score <= 2 ~ "Scores 0-2",
+           oras_risk_score >= 3 & oras_risk_score <= 5 ~ "Scores 3-5",
+           oras_risk_score >= 6 & oras_risk_score <= 9 ~ "Scores 6-9"
+         )) %>%
+  count(oras_risk_score, release_decision, risk_category)
 
 write.xlsx(list(race_oras, gender_oras, offense_type_oras, release_oras), file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/3B ORAS.xlsx", asTable = T, sheetName = c("Race", "Gender", "Offense Type",  "Release"))
 ```
@@ -2649,7 +2679,7 @@ override_df <- df %>%
          release_decision = if_else(release_decision_arraignment %in% c("Monitor", "Own Recognizance") | release_decision_prearraignment %in% c("Monitor", "Own Recognizance"), "Release", "Deny Release")) %>%
   mutate(override_flag = if_else(release_recommendation == release_decision, 0, 1)) %>%
   group_by(tool_name) %>%
-  summarise(override_percent = round(100*mean(override_flag)), Total = n())
+  summarise(override_percent = mean(override_flag), Total = n())
 
 override_df2 <- df %>%
   filter(release_recommendation %in% c("Deny Release", "Monitor", "Own Recognizance"),
@@ -2660,7 +2690,7 @@ override_df2 <- df %>%
   group_by(tool_name, release_recommendation, release_decision) %>%
   count() %>%
   group_by(tool_name) %>%
-  mutate(prop = round(100*n/sum(n)))
+  mutate(prop = n/sum(n))
 
 write.xlsx(list(override_df, override_df2), file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/3D.xlsx", asTable = T, sheetName = c("Overrides", "Supplementary")) 
 
