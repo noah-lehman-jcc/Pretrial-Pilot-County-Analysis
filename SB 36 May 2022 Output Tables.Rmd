@@ -962,10 +962,10 @@ PC 1320.35 (f)(2)
 ```{r}
 age_df <- df %>%
   mutate(age = case_when(
-    individual_age >= 18 & individual_age <= 25 ~ "18-25",
-    individual_age >= 26 & individual_age <= 35 ~ "26-35",
-    individual_age >= 36 & individual_age <= 45 ~ "36-45",
-    individual_age >= 46 & individual_age <= 55 ~ "46-55",
+    individual_age %in% 18:25 ~ "18-25",
+    individual_age %in% 26:35 ~ "26-35",
+    individual_age %in% 36:45 ~ "36-45",
+    individual_age %in% 46:55 ~ "46-55",
     individual_age >= 56 ~ "56+",
     T ~ "Other_Unknown"
   )) %>%
@@ -980,10 +980,10 @@ write.xlsx(age_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB
 # Aggregated
 age_df <- df %>%
   mutate(age = case_when(
-    individual_age >= 18 & individual_age <= 25 ~ "18-25",
-    individual_age >= 26 & individual_age <= 35 ~ "26-35",
-    individual_age >= 36 & individual_age <= 45 ~ "36-45",
-    individual_age >= 46 & individual_age <= 55 ~ "46-55",
+    individual_age %in% 18:25 ~ "18-25",
+    individual_age %in% 26:35 ~ "26-35",
+    individual_age %in% 36:45 ~ "36-45",
+    individual_age %in% 46:55 ~ "46-55",
     individual_age >= 56 ~ "56+",
     T ~ "Other_Unknown"
   )) %>%
@@ -1801,9 +1801,9 @@ race_oras <- df %>%
          !is.na(oras_risk_score)) %>%
   mutate(race = if_else(race == "Other", "Other_Unknown", race),
          risk_category = case_when(
-           oras_risk_score >= 0 & oras_risk_score <= 2 ~ "Scores 0-2",
-           oras_risk_score >= 3 & oras_risk_score <= 5 ~ "Scores 3-5",
-           oras_risk_score >= 6 & oras_risk_score <= 9 ~ "Scores 6-9"
+           oras_risk_score %in% 0:2 ~ "Scores 0-2",
+           oras_risk_score %in% 3:5 ~ "Scores 3-5",
+           oras_risk_score %in% 6-9 ~ "Scores 6-9"
          )) %>%
   count(oras_risk_score, race, risk_category) 
 
@@ -1811,9 +1811,9 @@ gender_oras <- df %>%
   filter(tool_name == "ORAS",
          !is.na(oras_risk_score)) %>%
   mutate(risk_category = case_when(
-           oras_risk_score >= 0 & oras_risk_score <= 2 ~ "Scores 0-2",
-           oras_risk_score >= 3 & oras_risk_score <= 5 ~ "Scores 3-5",
-           oras_risk_score >= 6 & oras_risk_score <= 9 ~ "Scores 6-9"
+           oras_risk_score %in% 0:2 ~ "Scores 0-2",
+           oras_risk_score %in% 3:5 ~ "Scores 3-5",
+           oras_risk_score %in% 6-9 ~ "Scores 6-9"
          )) %>%
   count(oras_risk_score, sex, risk_category) 
 
@@ -1821,9 +1821,9 @@ offense_type_oras <- join_df %>%
   filter(tool_name == "ORAS",
          !is.na(oras_risk_score)) %>%
   mutate(risk_category = case_when(
-           oras_risk_score >= 0 & oras_risk_score <= 2 ~ "Scores 0-2",
-           oras_risk_score >= 3 & oras_risk_score <= 5 ~ "Scores 3-5",
-           oras_risk_score >= 6 & oras_risk_score <= 9 ~ "Scores 6-9"
+           oras_risk_score %in% 0:2 ~ "Scores 0-2",
+           oras_risk_score %in% 3:5 ~ "Scores 3-5",
+           oras_risk_score %in% 6-9 ~ "Scores 6-9"
          )) %>%
   count(oras_risk_score, arrest_charge_level, risk_category) 
 
@@ -1844,9 +1844,9 @@ release_oras <- join_df %>%
                                       release_decision_arraignment %in% c("Deny Release") | release_decision_arraignment %in% c("Deny Release") ~ "Denied Program Release", 
                                       T ~ "Other"),
          risk_category = case_when(
-           oras_risk_score >= 0 & oras_risk_score <= 2 ~ "Scores 0-2",
-           oras_risk_score >= 3 & oras_risk_score <= 5 ~ "Scores 3-5",
-           oras_risk_score >= 6 & oras_risk_score <= 9 ~ "Scores 6-9"
+           oras_risk_score %in% 0:2 ~ "Scores 0-2",
+           oras_risk_score %in% 3:5 ~ "Scores 3-5",
+           oras_risk_score %in% 6-9 ~ "Scores 6-9"
          )) %>%
   count(oras_risk_score, release_decision, risk_category)
 
@@ -1858,18 +1858,60 @@ write.xlsx(list(race_oras, gender_oras, offense_type_oras, release_oras), file =
 race_vprai <- df %>%
   filter(tool_name == "VPRAI",
          !is.na(vprai_risk_score)) %>%
-  mutate(race = if_else(race == "Other", "Other_Unknown", race)) %>%
-  count(vprai_risk_score, race) 
+  mutate(race = if_else(race == "Other", "Other_Unknown", race),
+         risk_category = case_when(
+           vprai_risk_score %in% 0:1 ~ "Scores 0-1",
+           vprai_risk_score == 2 ~ "Score 2",
+           vprai_risk_score == 3 ~ "Score 3",
+           vprai_risk_score == 4 ~ "Score 4",
+           vprai_risk_score %in% 5:9 ~ "Scores 5-9"
+         ),
+         risk_score_sort = case_when(
+           risk_category == "Scores 0-1" ~ 1,
+           risk_category == "Score 2" ~ 2,
+           risk_category == "Score 3" ~ 3,
+           risk_category == "Score 4" ~ 4,
+           risk_category == "Scores 5-9" ~ 5,
+         )) %>%
+  count(vprai_risk_score, race, risk_category, risk_score_sort) 
 
 gender_vprai <- df %>%
   filter(tool_name == "VPRAI",
          !is.na(vprai_risk_score)) %>%
-  count(vprai_risk_score, sex) 
+  mutate(risk_category = case_when(
+           vprai_risk_score %in% 0:1 ~ "Scores 0-1",
+           vprai_risk_score == 2 ~ "Score 2",
+           vprai_risk_score == 3 ~ "Score 3",
+           vprai_risk_score == 4 ~ "Score 4",
+           vprai_risk_score %in% 5:9 ~ "Scores 5-9"
+         ),
+         risk_score_sort = case_when(
+           risk_category == "Scores 0-1" ~ 1,
+           risk_category == "Score 2" ~ 2,
+           risk_category == "Score 3" ~ 3,
+           risk_category == "Score 4" ~ 4,
+           risk_category == "Scores 5-9" ~ 5,
+         )) %>%
+  count(vprai_risk_score, sex, risk_category, risk_score_sort) 
 
 offense_type_vprai <- join_df %>%
   filter(tool_name == "VPRAI",
          !is.na(vprai_risk_score)) %>%
-  count(vprai_risk_score, arrest_charge_level) 
+  mutate(risk_category = case_when(
+           vprai_risk_score %in% 0:1 ~ "Scores 0-1",
+           vprai_risk_score == 2 ~ "Score 2",
+           vprai_risk_score == 3 ~ "Score 3",
+           vprai_risk_score == 4 ~ "Score 4",
+           vprai_risk_score %in% 5:9 ~ "Scores 5-9"
+         ),
+         risk_score_sort = case_when(
+           risk_category == "Scores 0-1" ~ 1,
+           risk_category == "Score 2" ~ 2,
+           risk_category == "Score 3" ~ 3,
+           risk_category == "Score 4" ~ 4,
+           risk_category == "Scores 5-9" ~ 5,
+         )) %>%
+  count(vprai_risk_score, arrest_charge_level, risk_category, risk_score_sort) 
 
 # zipcode_vprai <- join_df %>%
 #   filter(tool_name == "VPRAI",
@@ -1881,8 +1923,22 @@ release_vprai <- join_df %>%
          !is.na(vprai_risk_score)) %>%
  mutate(release_decision = case_when(release_decision_arraignment %in% c("Monitor", "Own Recognizance") | release_decision_prearraignment %in% c("Monitor", "Own Recognizance") ~ "Granted Program Release", 
                                       release_decision_arraignment %in% c("Deny Release") | release_decision_arraignment %in% c("Deny Release") ~ "Denied Program Release", 
-                                      T ~ "Other")) %>%
-  count(vprai_risk_score, release_decision)
+                                      T ~ "Other"),
+        risk_category = case_when(
+           vprai_risk_score %in% 0:1 ~ "Scores 0-1",
+           vprai_risk_score == 2 ~ "Score 2",
+           vprai_risk_score == 3 ~ "Score 3",
+           vprai_risk_score == 4 ~ "Score 4",
+           vprai_risk_score %in% 5:9 ~ "Scores 5-9"
+         ),
+        risk_score_sort = case_when(
+           risk_category == "Scores 0-1" ~ 1,
+           risk_category == "Score 2" ~ 2,
+           risk_category == "Score 3" ~ 3,
+           risk_category == "Score 4" ~ 4,
+           risk_category == "Scores 5-9" ~ 5,
+         )) %>%
+  count(vprai_risk_score, release_decision, risk_category, risk_score_sort)
 
 
 
@@ -1901,7 +1957,7 @@ race_vprair <- df %>%
            vprair_risk_score %in% 5:6 ~ "Scores 5-6",
            vprair_risk_score %in% 7:8 ~ "Scores 7-8",
            vprair_risk_score %in% 9:10 ~ "Scores 9-10",
-           vprair_risk_score %in% 11:14 ~ "Scores 11-14",
+           vprair_risk_score %in% 11:14 ~ "Scores 11-14"
          ),
          risk_score_sort = case_when(
            vprair_risk_score == "Scores 0-2" ~ 1,
@@ -1922,7 +1978,7 @@ gender_vprair <- df %>%
            vprair_risk_score %in% 5:6 ~ "Scores 5-6",
            vprair_risk_score %in% 7:8 ~ "Scores 7-8",
            vprair_risk_score %in% 9:10 ~ "Scores 9-10",
-           vprair_risk_score %in% 11:14 ~ "Scores 11-14",
+           vprair_risk_score %in% 11:14 ~ "Scores 11-14"
          ),
          risk_score_sort = case_when(
            vprair_risk_score == "Scores 0-2" ~ 1,
@@ -1943,7 +1999,7 @@ offense_type_vprair <- join_df %>%
            vprair_risk_score %in% 5:6 ~ "Scores 5-6",
            vprair_risk_score %in% 7:8 ~ "Scores 7-8",
            vprair_risk_score %in% 9:10 ~ "Scores 9-10",
-           vprair_risk_score %in% 11:14 ~ "Scores 11-14",
+           vprair_risk_score %in% 11:14 ~ "Scores 11-14"
          ),
          risk_score_sort = case_when(
            vprair_risk_score == "Scores 0-2" ~ 1,
@@ -1972,7 +2028,7 @@ release_vprair <- join_df %>%
            vprair_risk_score %in% 5:6 ~ "Scores 5-6",
            vprair_risk_score %in% 7:8 ~ "Scores 7-8",
            vprair_risk_score %in% 9:10 ~ "Scores 9-10",
-           vprair_risk_score %in% 11:14 ~ "Scores 11-14",
+           vprair_risk_score %in% 11:14 ~ "Scores 11-14"
          ),
          risk_score_sort = case_when(
            vprair_risk_score == "Scores 0-2" ~ 1,
@@ -1992,17 +2048,35 @@ write.xlsx(list(race_vprair, gender_vprair, offense_type_vprair, release_vprair)
 race_vpraio <- df %>%
   filter(tool_name == "VPRAI-O",
          !is.na(vpraio_risk_score)) %>%
-  mutate(race = if_else(race == "Other", "Other_Unknown", race)) %>%
-  count(vpraio_risk_score, race) 
+  mutate(race = if_else(race == "Other", "Other_Unknown", race),
+         risk_category = case_when(
+           vpraio_risk_score == 2 ~ "Score 2",
+           vpraio_risk_score == 3 ~ "Score 3",
+           vpraio_risk_score == 4 ~ "Score 4",
+           vpraio_risk_score %in% 5:10 ~ "Scores 5-10"
+         )) %>%
+  count(vpraio_risk_score, race, risk_category) 
 
 gender_vpraio <- df %>%
   filter(tool_name == "VPRAI-O",
          !is.na(vpraio_risk_score)) %>%
-  count(vpraio_risk_score, sex) 
+  mutate(risk_category = case_when(
+           vpraio_risk_score == 2 ~ "Score 2",
+           vpraio_risk_score == 3 ~ "Score 3",
+           vpraio_risk_score == 4 ~ "Score 4",
+           vpraio_risk_score %in% 5:10 ~ "Scores 5-10"
+         )) %>%
+  count(vpraio_risk_score, sex, risk_category) 
 
 offense_type_vpraio <- join_df %>%
   filter(tool_name == "VPRAIO",
          !is.na(vpraio_risk_score)) %>%
+  mutate(risk_category = case_when(
+           vpraio_risk_score == 2 ~ "Score 2",
+           vpraio_risk_score == 3 ~ "Score 3",
+           vpraio_risk_score == 4 ~ "Score 4",
+           vpraio_risk_score %in% 5:10 ~ "Scores 5-10"
+         )) %>%
   count(vpraio_risk_score, arrest_charge_level) 
 
 # zipcode_vpraio <- join_df %>%
@@ -2015,7 +2089,13 @@ release_vpraio <- join_df %>%
          !is.na(vpraio_risk_score)) %>%
   mutate(release_decision = case_when(release_decision_arraignment %in% c("Monitor", "Own Recognizance") | release_decision_prearraignment %in% c("Monitor", "Own Recognizance") ~ "Granted Program Release", 
                                       release_decision_arraignment %in% c("Deny Release") | release_decision_arraignment %in% c("Deny Release") ~ "Denied Program Release", 
-                                      T ~ "Other")) %>%
+                                      T ~ "Other"),
+         risk_category = case_when(
+           vpraio_risk_score == 2 ~ "Score 2",
+           vpraio_risk_score == 3 ~ "Score 3",
+           vpraio_risk_score == 4 ~ "Score 4",
+           vpraio_risk_score %in% 5:10 ~ "Scores 5-10"
+         )) %>%
   count(vpraio_risk_score, release_decision)
 
 write.xlsx(list(race_vpraio, gender_vpraio, offense_type_vpraio,  release_vpraio), file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/3B VPRAIO.xlsx", asTable = T, sheetName = c("Race", "Gender", "Offense Type",  "Release"))
