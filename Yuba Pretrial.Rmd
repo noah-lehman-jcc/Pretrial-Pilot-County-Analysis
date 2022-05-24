@@ -1,0 +1,59 @@
+---
+title: "Yuba Pretrial"
+output: html_notebook
+---
+
+# library
+```{r}
+library(tidyverse)
+```
+
+# import data
+```{r}
+df <- read_csv("2022-03-31-Jail_yuba.csv", col_types = "c")
+release <- read_csv("Yuba release types.csv", col_types = "c")
+```
+
+# clean data
+```{r}
+df <- df %>%
+  mutate(release_type = gsub("[0-9]+/.*|[0-9]+-.*", "", RESUMX),
+         n = nchar(as.numeric(gsub(".*?([0-9]+).*", "\\1", release_type))),
+         release_type = if_else(n < 5 | is.na(n), release_type, gsub("[0-9]+.*", "", release_type)),
+         p = str_extract(release_type, "[[:punct:]]+$"),
+         release_type = if_else(grepl(")", p) | is.na(p), release_type, gsub("[[:punct:]]+$", "", release_type)),
+         release_type = gsub("@.*", "", release_type),
+         release_type = trimws(release_type),
+         release_type_std = case_when(
+    grepl("RELEASED TO PROGRAM|RELEASE TO PROGRAM|RE-BOOKED ON YCPD WARRANT|BOOKED ON LOCAL CHARGES|RELEASED DUE TO EVACUATION|ERROR", RESUMX) ~ "Other",
+    grepl("ICE|G4-?[S3]|RELEASED? TO INS| I C E|ICE BOND|MARSHALLS|RELEASE PER INS|BORDER PATROL", RESUMX) ~ "Fed",
+    grepl("B/?B|(BAIL(ED)?([ /]?BONDS?)?|BOND) ?(OUT|POST(ED)?|TO APP[.(EAR)]?)?|B\\.B|B/P", RESUMX) ~ "Bail Bond",
+    grepl("^(CT |CRT |COURT |CT\\.?[ /]?|RELEASED (- )?)?O(\\.|/)?R\\.?[ '/:\\|(TO APPEAR)]|O\\.?R\\.?( CT ?)?$|^(PROMISE )?(TO )?APPEAR|ALMADOR|APPER|O'R|O R|O\\. R|TO APP|TO AOPPEAR|TO APEAR|TO APPAR", RESUMX) ~ "Own Recognizance",
+    RESUMX %in% c("BOOK AND RELEASE") ~ "Administrative",
+    grepl("INTOX|DETOX|SOBERING|849|647|INTO ONLY", RESUMX) ~ "Detain Only",
+    # ~ "Pretrial_Sup",
+    RESUMX %in% c("CASE DISMISSED", "COMPLAINT DENIED", "COMPLAINT DENIED PER DA", "COMPLAINT DENIED BY DA", "WARRANT RECALLED")  ~ "Dismissed",
+    grepl("NOT ARR|REFUSED|CASE DISMISS CLR X5|COMPLAINT DENIED|DISMISS|DISMISED|NO PC|DID NOT GO TO CT IN TIME|DID NOT GO TO CT ON TIME|DID NOT GO TO COURT ON TIME", RESUMX) ~ "Dismissed",
+    grepl("(RELEASED )?TIMED? ?SERE?VER?D?|T/S|TIME-SERVED|TIME SREVED|TIMER|TIME/SERVED|TIME  SERVED|TIME SERVD", RESUMX) ~ "Time Served",
+    RESUMX %in% c("PER COURTS ORDER", "COURT ORDERED RELEASE", "COURT ORDER RELEASE") ~ "Court Order",
+    grepl("PRISON|CDCR|DVI|TO S/P|RCCC|R-CCC|CCWF|CHOW|NKSP|D.V.I|CDC", RESUMX) ~ "Prison",
+    grepl("(RELEASED? TO|PICK(ED)? UP BY|P/U BY|TRANSPORTED TO|RETURNED TO) (YCPD|YUBA CITY( PD)?|(SAC|SUTTER|PLACER|BUTTE|NEVADA|COLUSA) CO(UNTY)?|PAROLE|RCCC)|HO?LD (REMOVED|DROP(PED)?)|PAROLE REMOVED CLR X5|RELEASED TO SUTTER|DROP HOLD|REL TO YCPD ON THEIR WRNT|DETAINER|RELEASED TO PROBATION|P/U|PICKED UP|TRANS TO", RESUMX) ~ "Hold Release",
+    # ~ "Sent_Cap",
+    # ~ "Unsent_Cap",
+    # ~ "Unspec_Cap",
+    # ~ "Cite_Release",
+    # ~ "OR_Conditions",
+    grepl("^ *$", RESUMX) | RESUMX %in% c("") ~ "Unknown",
+    T ~ "Other"
+  )) %>%
+  select(-c(n, p))
+
+# df %>%
+#   count(release_type, release_type_std) %>%
+#   arrange(desc(n)) %>%
+#   write_csv("Yuba Release Types.csv")
+# 
+# df %>%
+#   write_csv("Yuba Pretrial.csv")
+```
+
