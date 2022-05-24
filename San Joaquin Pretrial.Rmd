@@ -1,0 +1,62 @@
+---
+title: "San Joaquin Pretrial"
+output: html_notebook
+---
+
+# library
+```{r}
+library(lubridate)
+library(tidyverse)
+```
+
+# import data
+```{r}
+jb <- read_csv("Jail_Booking1.24.2022.csv", col_types = "c")
+ji <- read_csv("Jail_Individual1.24.2022.csv", col_types = "c")
+pa <- read_csv("Pretrial_Assessment1.24.2022.csv", col_types = "c")
+tr <- read_csv("Pretrial_VPRAI_Tool_Responses_Details1.24.2022.csv", col_types = "c")
+```
+
+# clean data
+```{r}
+# common variables
+  # jail booking and jail individual
+    # Individual Key
+  # jail booking and pretrial assessment
+    # Booking Key
+  # jail individual and tool responses
+    # Name and DOB
+  # pretrial assessment and tool responses
+    # Assessment Date
+
+# 1.	Standardize booking key in Booking and Assessment.
+# 2.	Use names and DOB to match Detail to Individual and grab individual key from Individual and booking key from Booking to put into Detail.
+# 3.	Use individual key and assessment date to match Detail to Assessment.
+
+# Booking Key
+jb <- jb %>%
+  arrange(Booking_ID) %>%
+  mutate(Booking_Key = gsub("-.*", "", Booking_Key)) %>%
+  distinct(Booking_Key, .keep_all = T)
+
+pa <- pa %>%
+  distinct() %>%
+  mutate(Booking_Key = gsub("^(..)-", "\\1", Booking_Key),
+         Booking_Key = if_else(!grepl("-", Booking_Key) & !is.na(Booking_Key), paste0(Booking_Key, "-00"), Booking_Key))
+
+# Name and DOB
+tr <- tr %>%
+  select(Individual_Name) %>%
+  separate(Individual_Name, c("Last_Name", "First_Name"), ",") %>%
+  mutate(First_Name = trimws(First_Name)) %>%
+  separate(First_Name, c("First_Name", "Middle_Name"), "^\\S*\\K\\s+") %>%
+  mutate(Middle_Name = if_else(is.na(Middle_Name), "NULL", Middle_Name))
+
+# Diagnostic
+```
+
+# join data
+```{r}
+
+```
+
