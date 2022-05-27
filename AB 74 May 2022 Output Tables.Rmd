@@ -45,7 +45,11 @@ my_kable <- function(x){
 
 Connection
 ```{r}
+<<<<<<< HEAD
 con <- dbConnect(odbc::odbc(), "snowflake_pretrial", uid ="Sal.Lempert@jud.ca.gov", pwd = "")
+=======
+con <- dbConnect(odbc::odbc(), "snowflake_pretrial", uid ="Sal.Lempert@jud.ca.gov", pwd = "Roosterbean5155")
+>>>>>>> 4d49cba97c667bc5828d8b03480517668fd06de6
 
 # con <- dbConnect(odbc::odbc(), "snowflake_pretrial", uid ="Sal.Lempert@jud.ca.gov", pwd = .rs.askForPassword("Password"))
 #con <- dbConnect(odbc::odbc(), "snowflake_pretrial", uid ="Sal.Lempert@jud.ca.gov", pwd = params$pwd)
@@ -80,6 +84,7 @@ df <- df %>%
   mutate(tool_name_orig = tool_name,
          tool_name = tool_name_standard,
          county = county_name,
+<<<<<<< HEAD
          # County = case_when(county %in% c("Calaveras", "Modoc", "Tuolumne", "Yuba") ~ "Small Counties",
          #                    county %in% c("Kings", "Napa", "Nevada", "Sierra") ~ "Small/Medium Counties",
          #                    T ~ county),
@@ -92,6 +97,13 @@ df <- df %>%
          County = ordered(County),
          # County = fct_relevel(County, levels = c("Small Counties", "Small/Medium Counties")),
          County = fct_relevel(County, levels = c("Small Counties", "Small/Medium Counties", "Medium Counties", "Large Counties")),
+=======
+         County = case_when(county %in% c("Calaveras", "Modoc", "Tuolumne", "Yuba") ~ "Small Counties",
+                            county %in% c("Kings", "Napa", "Nevada", "Sierra") ~ "Small/Medium Counties",
+                            T ~ county),
+         County = ordered(County),
+         County = fct_relevel(County, levels = c("Small Counties", "Small/Medium Counties")),
+>>>>>>> 4d49cba97c667bc5828d8b03480517668fd06de6
          charge_level_orig = charge_level,
          charge_level = charge_level_standard,
          arrest_charge_level = charge_level,
@@ -126,6 +138,7 @@ full_df <- full_df %>%
   mutate(book_date = booking_date,
          race_orig = race,
          race = if_else(race_standard == "American Indian", "Other/Unknown", race_standard),
+<<<<<<< HEAD
          # County = case_when(county %in% c("Calaveras", "Modoc", "Tuolumne", "Yuba") ~ "Small Counties",
          #                    county %in% c("Kings", "Napa", "Nevada", "Sierra") ~ "Small/Medium Counties",
          #                    T ~ county),
@@ -139,6 +152,13 @@ full_df <- full_df %>%
                             T ~ county),
          County = ordered(County),
          County = fct_relevel(County, levels = c("Small Counties", "Small/Medium Counties", "Medium Counties", "Large Counties")),
+=======
+         County = case_when(county %in% c("Calaveras", "Modoc", "Tuolumne", "Yuba") ~ "Small Counties",
+                            county %in% c("Kings", "Napa", "Nevada", "Sierra") ~ "Small/Medium Counties",
+                            T ~ county),
+         County = ordered(County),
+         County = fct_relevel(County, levels = c("Small Counties", "Small/Medium Counties")),
+>>>>>>> 4d49cba97c667bc5828d8b03480517668fd06de6
          new_arrest_flag = release_eligible_count,
          charge_level_orig = charge_level,
          charge_level = charge_level_standard,
@@ -224,7 +244,11 @@ Note: Counties appearing twice used two tools during the collection period.
 ```{r include=FALSE}
 df <- df %>%
   mutate_if(is.character, funs(if_else(. == "Other_Unknown", "Other", .))) %>%
+<<<<<<< HEAD
   mutate(la_flag = if_else(county == "Los Angeles", 1, 0)) %>%
+=======
+  mutate(la_flag = if_else(County == "Los Angeles", 1, 0)) %>%
+>>>>>>> 4d49cba97c667bc5828d8b03480517668fd06de6
   mutate(age = case_when(age <= 25 & age >= 18 ~ "18-25",
                          age <= 35 & age >= 26 ~ "26-35",
                          age <= 45 & age >= 36 ~ "36-45",
@@ -518,9 +542,15 @@ charge_level_df <- join_df %>%
   # filter(arrest_charge_level != "I") %>%
   mutate(arrest_charge_level = case_when(is.na(arrest_charge_level)|arrest_charge_level %in% c("Other", "Infraction") ~"Other_Unknown",
                                          T ~ arrest_charge_level)) %>%
+<<<<<<< HEAD
   count(County, arrest_charge_level) %>%
   #mutate(county = tools::toTitleCase(gsub("_", " ", county))) %>%
   #rename(County = county) %>%
+=======
+  count(county, arrest_charge_level) %>%
+  mutate(county = tools::toTitleCase(gsub("_", " ", county))) %>%
+  rename(County = county) %>%
+>>>>>>> 4d49cba97c667bc5828d8b03480517668fd06de6
   group_by(County) %>%
   mutate(Total = sum(n)) %>%
   pivot_wider(names_from =  arrest_charge_level, values_from =  n, values_fill = 0) %>%
@@ -532,7 +562,19 @@ charge_level_df <- join_df %>%
               mutate(Total = sum(n)) %>%
               pivot_wider(names_from =  arrest_charge_level, values_from =  n, values_fill = 0) %>%
               mutate(County = "Total") %>%
+<<<<<<< HEAD
               select(County, Felony, Misdemeanor, Other_Unknown, Total)) 
+=======
+              select(County, Felony, Misdemeanor, Other_Unknown, Total)) %>%
+  mutate(County = case_when(
+    County %in% c("Sacramento", "Alameda", "Los Angeles") ~ "Large",
+    County %in% c("Sonoma", "San Joaquin", "San Mateo", "Tulare", "Santa Barbara", "Ventura") ~ "Medium",
+    County %in% c("Yuba", "Nevada", "Napa", "Kings") ~ "Small/Medium",
+    County %in% c("Sierra", "Modoc", "Calaveras", "Tuolumne") ~ "Small",
+    T ~ County))%>% 
+  mutate(County = ordered(County, levels = c("Small", "Small/Medium", "Medium", "Large"))) %>%
+  arrange(County)
+>>>>>>> 4d49cba97c667bc5828d8b03480517668fd06de6
 # 
 my_kable(charge_level_df)
 
