@@ -4,17 +4,21 @@ output: html_notebook
 ---
 
 # library
-```{r}
+```{r setup}
 library(lubridate)
 library(tidyverse)
+setwd("G:/CrimJustice/Pretrial/San Joaquin Match Rate")
 ```
 
 # import data
 ```{r}
-jb <- read_csv("Jail_Booking1.24.2022.csv", col_types = "c")
-ji <- read_csv("Jail_Individual1.24.2022.csv", col_types = "c")
-pa <- read_csv("Pretrial_Assessment1.24.2022.csv", col_types = "c")
-tr <- read_csv("Pretrial_VPRAI_Tool_Responses_Details1.24.2022.csv", col_types = "c")
+setwd("G:/CrimJustice/Pretrial/San Joaquin Match Rate")
+jb <- read_csv("G:/CrimJustice/Pretrial/San Joaquin Match Rate/Jail_Booking1.24.2022.csv", col_types = "c")
+ji <- read_csv("G:/CrimJustice/Pretrial/San Joaquin Match Rate/Jail_Individual1.24.2022.csv", col_types = "c")
+pa <- read_csv("G:/CrimJustice/Pretrial/San Joaquin Match Rate/Pretrial_Assessment1.24.2022.csv", col_types = "c")
+tr <- read_csv("G:/CrimJustice/Pretrial/San Joaquin Match Rate/Pretrial_VPRAI_Tool_Responses_Details1.24.2022.csv", col_types = "c")
+
+
 ```
 
 # clean data
@@ -36,7 +40,7 @@ tr <- read_csv("Pretrial_VPRAI_Tool_Responses_Details1.24.2022.csv", col_types =
 # Booking Key
 jb <- jb %>%
   arrange(Booking_ID) %>%
-  mutate(Booking_Key = gsub("-.*", "", Booking_Key)) %>%
+  #mutate(Booking_Key = gsub("-.*", "", Booking_Key)) %>%
   distinct(Booking_Key, .keep_all = T)
 
 pa <- pa %>%
@@ -46,7 +50,7 @@ pa <- pa %>%
 
 # Name and DOB
 tr <- tr %>%
-  select(Individual_Name) %>%
+  #select(Individual_Name) %>%
   separate(Individual_Name, c("Last_Name", "First_Name"), ",") %>%
   mutate(First_Name = trimws(First_Name)) %>%
   separate(First_Name, c("First_Name", "Middle_Name"), "^\\S*\\K\\s+") %>%
@@ -57,6 +61,68 @@ tr <- tr %>%
 
 # join data
 ```{r}
+# common variables
+  # jail booking and jail individual
+    # Individual Key
+  # jail booking and pretrial assessment
+    # Booking Key
+  # jail individual and tool responses
+    # Name and DOB
+  # pretrial assessment and tool responses
+    # Assessment Date
+
+
+# goal: link pretrial assessment with vprai detail
+pa # pa (pretrial assessment) -- booking key, assessment date
+tr # tr (vprai detail) -- name, dob, assessment date
+
+jb # jb (jail booking) -- booking key, individual key
+ji #ji (jail individual) -- individual key, name, dob
+
+# 1. turn name & dob in vprai detail into an individual key using jail individual
+# 2. use individual key to get booking keys to add to vprai detail
+# 3. use booking key and assessment date to join to pretrial assessment
+
+tr_ind <- tr %>%
+  left_join(ji %>% select(Individual_Key, First_Name, Last_Name, DOB), by = c("First_Name", "Last_Name", "Individual_DOB" = "DOB"))
+#34,251 rows
+# tr has 43,622 rows
+
+tool_response_with_key <- tr_ind %>%
+  select(-Pretrial_Assessment_Key, -VPRAIResponseKey) %>%
+  mutate(Individual_Key = as.numeric(Individual_Key)) %>%
+  mutate(Assessment_Date = mdy(VPRAI_Assessment_Date)) %>%
+  inner_join(jb %>% 
+               select(Individual_Key, Booking_Key), 
+             by = "Individual_Key") %>%
+  inner_join(pa %>% 
+               mutate(Assessment_Date = mdy(Assessment_Date)) %>% 
+               select(Booking_Key, Assessment_Date, Pretrial_Assessment_Key), 
+             by = c("Booking_Key", "Assessment_Date")) %>%
+  mutate(VPRAI_Tool_Response_Key = str_c(Booking_Key, "-", Pretrial_Assessment_Key)) %>%
+  distinct() %>%
+  select(-Booking_Key, -Last_Name, -First_Name, -Middle_Name, -Individual_DOB, -VPRAI_Assessment_Date, -Individual_Key, -Assessment_Date) %>%
+  select(Pretrial_Assessment_Key, VPRAI_Tool_Response_Key, everything())
+
+write.csv(tool_response_with_key, file = "G:/CrimJustice/Pretrial/San Joaquin Match Rate/san joaquin vprai tool response detail corrected 5.25.22.csv")
+  
+#12,766 rows
+#12,724 distinct on original columns (last name, first name, middle name, individual dob, vprai assessment date)
+```
+
+
+```{r}
+pa %>%
+  mutate(Assessment_Date = mdy(Assessment_Date)) %>%
+  select(Assessment_Date) %>%
+  filter(!is.na(Assessment_Date))
+
+tr_ind %>%
+  mutate(Assessment_Date = mdy(VPRAI_Assessment_Date)) %>%
+  select(Assessment_Date) %>%
+  filter(!is.na(Assessment_Date))
+
+
 
 ```
 

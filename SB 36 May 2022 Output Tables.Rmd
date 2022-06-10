@@ -47,16 +47,9 @@ my_kable <- function(x){
 ```
 Connection
 ```{r}
-con <- dbConnect(odbc::odbc(), "snowflake_pretrial", uid ="jeffrey.wu@jud.ca.gov", pwd = "")
 
-# con <- dbConnect(odbc::odbc(), "snowflake_pretrial", uid ="Sal.Lempert@jud.ca.gov", pwd = .rs.askForPassword("Password"))
-#con <- dbConnect(odbc::odbc(), "snowflake_pretrial", uid ="Sal.Lempert@jud.ca.gov", pwd = params$pwd)
+con <- dbConnect(odbc::odbc(), "snowflake_pretrial", uid ="Sal.Lempert@jud.ca.gov", pwd = rstudioapi::askForPassword("Password"))
 
-# params:
-#   pwd:
-#     label: "Enter the Password, please!"
-#     value: ""
-#     input: password
 ```
 
 Pull snowflake data -- cjs_df_std 
@@ -80,7 +73,10 @@ names(df) <- tolower(names(df))
 
 df <- df %>%
   mutate(tool_name_orig = tool_name,
-         tool_name = tool_name_standard,
+         tool_name = case_when(county_name == "Modoc" ~ "ORAS",
+                               county_name == "Yuba" ~ "ORAS",
+                               county_name == "San Joaquin" ~ "VPRAI",
+                               T ~ tool_name_standard),
          county = county_name,
          County = case_when(county %in% c("Calaveras", "Modoc", "Tuolumne", "Yuba") ~ "Small Counties",
                             county %in% c("Kings", "Napa", "Nevada", "Sierra") ~ "Small/Medium Counties",
@@ -98,12 +94,18 @@ df <- df %>%
          oras_risk_score = if_else(tool_name == "ORAS", risk_score_raw, NULL),
          vprai_risk_score = if_else(tool_name == "VPRAI", risk_score_raw, NULL),
          vprair_risk_score = if_else(tool_name == "VPRAI-R", risk_score_raw, NULL),
-         vpraio_risk_score = if_else(tool_name == "VPRAI-O", risk_score_raw, NULL),
+         vpraio_risk_score = if_else(tool_name == "VPRAI-O", generic_tool_total_score_raw, NULL),
          psa_fta_risk_score = score_failure_to_appear,
          psa_nca_risk_score = score_new_criminal_activity,
          psa_nvca_risk_score = score_new_criminal_violent_activity,
+         scored_assessment = if_else(tool_name %in% c("ORAS", "VPRAI", "VPRAI-R") & !is.na(risk_score_raw) |
+                                       tool_name == "PSA" & !is.na(score_new_criminal_activity) |
+                                       tool_name == "VPRAI-O" & !is.na(generic_tool_total_score_raw), 1, 0),
          monitor_level = if_else(monitoring_level_grouped %in% c("Lowest Levels", "Medium Levels", "Highest Levels"), monitoring_level_grouped, "Other/Unknown")) %>%
-  arrange(County)
+  arrange(County) %>%
+  filter(assessment_date >= as.Date("2019-10-01"),
+         assessment_date <= as.Date("2021-12-31")) %>%
+  filter(scored_assessment == 1)
 ```
 
 \newpage
@@ -135,13 +137,17 @@ full_df <- full_df %>%
          fta_flag = fta_county_or_doj,
          recid_arrested_flag = recid_county_or_doj,
          age = indiv_age,
+         tool_name = if_else(county == "Kings", "VPRAIO", tool_name),
          oras_risk_score = if_else(tool_name == "ORAS", risk_score_raw, NULL),
          vprai_risk_score = if_else(tool_name == "VPRAI", risk_score_raw, NULL),
          vprair_risk_score = if_else(tool_name == "VPRAIR", risk_score_raw, NULL),
-         vpraio_risk_score = if_else(tool_name == "VPRAIO", risk_score_raw, NULL),
+         vpraio_risk_score = if_else(tool_name == "VPRAIO", generic_tool_total_score_raw, NULL),
          psa_fta_risk_score = score_failure_to_appear,
          psa_nca_risk_score = score_new_criminal_activity,
          psa_nvca_risk_score = score_new_criminal_violent_activity,
+         scored_assessment = if_else(tool_name %in% c("ORAS", "VPRAI", "VPRAIR") & !is.na(risk_score_raw) |
+                                       tool_name == "PSA" & !is.na(score_new_criminal_activity) |
+                                       tool_name == "VPRAIO" & !is.na(generic_tool_total_score_raw), 1, 0),
          pretrial_period_end_date = if_else(is.na(pretrial_period_end_date), as.Date(pretrial_period_end_date_doj), as.Date(pretrial_period_end_date))) %>%
   mutate(recid_filed_flag = recid_filed_flag_doj, 
          recid_convicted_flag = recid_convicted_flag_doj, 
@@ -151,11 +157,14 @@ full_df <- full_df %>%
   mutate(across(contains("_flag"), ~if_else(is.na(.x), 0, as.numeric(.x)))) %>%
   arrange(County) 
 
-join_df <- full_df 
+join_df <- full_df  %>%
+  filter(booking_date >= as.Date("2019-10-01"),
+         booking_date <= as.Date("2021-12-31"))
 
 
 eval_df <- full_df %>%
   filter(booking_assessed_count == 1,
+         scored_assessment == 1,
          release_eligible_count ==1,
          released_pretrial_count == 1,
          pretrial_period_end_count == 1,
@@ -164,8 +173,7 @@ eval_df <- full_df %>%
          ) %>%
   mutate(release_to_pretrial_end = pretrial_period_end_date - release_date)
 
-full_df %>%
-  select(contains("race"))
+
 ```
 
 Date ranges
@@ -1803,7 +1811,7 @@ race_oras <- df %>%
          risk_category = case_when(
            oras_risk_score %in% 0:2 ~ "Scores 0-2",
            oras_risk_score %in% 3:5 ~ "Scores 3-5",
-           oras_risk_score %in% 6-9 ~ "Scores 6-9"
+           oras_risk_score %in% 6:9 ~ "Scores 6-9"
          )) %>%
   count(oras_risk_score, race, risk_category) 
 
@@ -1813,7 +1821,7 @@ gender_oras <- df %>%
   mutate(risk_category = case_when(
            oras_risk_score %in% 0:2 ~ "Scores 0-2",
            oras_risk_score %in% 3:5 ~ "Scores 3-5",
-           oras_risk_score %in% 6-9 ~ "Scores 6-9"
+           oras_risk_score %in% 6:9 ~ "Scores 6-9"
          )) %>%
   count(oras_risk_score, sex, risk_category) 
 
@@ -1823,7 +1831,7 @@ offense_type_oras <- join_df %>%
   mutate(risk_category = case_when(
            oras_risk_score %in% 0:2 ~ "Scores 0-2",
            oras_risk_score %in% 3:5 ~ "Scores 3-5",
-           oras_risk_score %in% 6-9 ~ "Scores 6-9"
+           oras_risk_score %in% 6:9 ~ "Scores 6-9"
          )) %>%
   count(oras_risk_score, arrest_charge_level, risk_category) 
 
@@ -1846,7 +1854,7 @@ release_oras <- join_df %>%
          risk_category = case_when(
            oras_risk_score %in% 0:2 ~ "Scores 0-2",
            oras_risk_score %in% 3:5 ~ "Scores 3-5",
-           oras_risk_score %in% 6-9 ~ "Scores 6-9"
+           oras_risk_score %in% 6:9 ~ "Scores 6-9"
          )) %>%
   count(oras_risk_score, release_decision, risk_category)
 
@@ -2050,6 +2058,7 @@ race_vpraio <- df %>%
          !is.na(vpraio_risk_score)) %>%
   mutate(race = if_else(race == "Other", "Other_Unknown", race),
          risk_category = case_when(
+           vpraio_risk_score %in% 0:1 ~ "Scores 0-1"
            vpraio_risk_score == 2 ~ "Score 2",
            vpraio_risk_score == 3 ~ "Score 3",
            vpraio_risk_score == 4 ~ "Score 4",
@@ -2061,6 +2070,7 @@ gender_vpraio <- df %>%
   filter(tool_name == "VPRAI-O",
          !is.na(vpraio_risk_score)) %>%
   mutate(risk_category = case_when(
+           vpraio_risk_score %in% 0:1 ~ "Scores 0-1"
            vpraio_risk_score == 2 ~ "Score 2",
            vpraio_risk_score == 3 ~ "Score 3",
            vpraio_risk_score == 4 ~ "Score 4",
@@ -2072,6 +2082,7 @@ offense_type_vpraio <- join_df %>%
   filter(tool_name == "VPRAIO",
          !is.na(vpraio_risk_score)) %>%
   mutate(risk_category = case_when(
+           vpraio_risk_score %in% 0:1 ~ "Scores 0-1"
            vpraio_risk_score == 2 ~ "Score 2",
            vpraio_risk_score == 3 ~ "Score 3",
            vpraio_risk_score == 4 ~ "Score 4",

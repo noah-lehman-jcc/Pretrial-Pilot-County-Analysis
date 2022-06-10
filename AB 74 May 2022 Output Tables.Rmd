@@ -6,10 +6,7 @@ output: pdf_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE)
-```
 
-
-```{r include=FALSE}
 library(DBI)
 library(janitor)
 library(tidyverse)
@@ -21,9 +18,8 @@ library(stargazer)
 library(data.table)
 library(ggthemes)
 library(openxlsx)
-
-#shell.exec(getwd())
 ```
+
 
 
 ```{r include=FALSE}
@@ -45,17 +41,8 @@ my_kable <- function(x){
 
 Connection
 ```{r}
-con <- dbConnect(odbc::odbc(), "snowflake_pretrial", uid ="Sal.Lempert@jud.ca.gov", pwd = "")
+con <- dbConnect(odbc::odbc(), "snowflake_pretrial", uid ="Sal.Lempert@jud.ca.gov", pwd = rstudioapi::askForPassword("Password"))
 
-
-# con <- dbConnect(odbc::odbc(), "snowflake_pretrial", uid ="Sal.Lempert@jud.ca.gov", pwd = .rs.askForPassword("Password"))
-#con <- dbConnect(odbc::odbc(), "snowflake_pretrial", uid ="Sal.Lempert@jud.ca.gov", pwd = params$pwd)
-
-# params:
-#   pwd:
-#     label: "Enter the Password, please!"
-#     value: ""
-#     input: password
 ```
 
 Pull snowflake data -- cjs_df_std 
@@ -79,7 +66,12 @@ names(df) <- tolower(names(df))
 
 df <- df %>%
   mutate(tool_name_orig = tool_name,
-         tool_name = tool_name_standard,
+         #tool_name = tool_name_standard,
+         # remove this once the tool name logic is fixed
+         tool_name = case_when(county_name == "Modoc" ~ "ORAS",
+                               county_name == "Yuba" ~ "ORAS",
+                               county_name == "San Joaquin" ~ "VPRAI",
+                               T ~ tool_name_standard),
          county = county_name,
          County = case_when(
                             county %in% c("Sacramento", "Alameda", "Los Angeles") ~ "Large Counties",
@@ -105,15 +97,41 @@ df <- df %>%
          oras_risk_score = if_else(tool_name == "ORAS", risk_score_raw, NULL),
          vprai_risk_score = if_else(tool_name == "VPRAI", risk_score_raw, NULL),
          vprair_risk_score = if_else(tool_name == "VPRAI-R", risk_score_raw, NULL),
-         vpraio_risk_score = if_else(tool_name == "VPRAI-O", risk_score_raw, NULL),
+         vpraio_risk_score = if_else(tool_name == "VPRAI-O", generic_tool_total_score_raw, NULL),
          psa_fta_risk_score = score_failure_to_appear,
          psa_nca_risk_score = score_new_criminal_activity,
          psa_nvca_risk_score = score_new_criminal_violent_activity,
+         scored_assessment = if_else(tool_name %in% c("ORAS", "VPRAI", "VPRAI-R") & !is.na(risk_score_raw) |
+                                       tool_name == "PSA" & !is.na(score_new_criminal_activity) |
+                                       tool_name == "VPRAI-O" & !is.na(generic_tool_total_score_raw), 1, 0),
          monitor_level = if_else(monitoring_level_grouped %in% c("Lowest Levels", "Medium Levels", "Highest Levels"), monitoring_level_grouped, "Other/Unknown")) %>%
-  arrange(County)
+  arrange(County) %>%
+  filter(assessment_date >= as.Date("2019-10-01")) %>%
+  filter(scored_assessment == 1)
 
 
+```
 
+Diagnostics
+```{r eval=FALSE, include=FALSE}
+df %>%
+  count(sex, sex_orig, county)
+
+df %>%
+  filter(is.na(age)) %>%
+  count(county)
+
+df %>%
+  count(county, tool_name)
+
+df %>%
+  filter(county == "San Joaquin") %>%
+  count(risk_score_raw)
+
+df %>%
+  filter(county == "Kings") %>%
+  select(risk_level) %>%
+  mutate(risk_level_part = parse_number(risk_level))
 ```
 
 \newpage
@@ -153,13 +171,17 @@ full_df <- full_df %>%
          fta_flag = fta_county_or_doj,
          recid_arrested_flag = recid_county_or_doj,
          age = indiv_age,
+         tool_name = if_else(county == "Kings", "VPRAIO", tool_name),
          oras_risk_score = if_else(tool_name == "ORAS", risk_score_raw, NULL),
          vprai_risk_score = if_else(tool_name == "VPRAI", risk_score_raw, NULL),
          vprair_risk_score = if_else(tool_name == "VPRAIR", risk_score_raw, NULL),
-         vpraio_risk_score = if_else(tool_name == "VPRAIO", risk_score_raw, NULL),
+         vpraio_risk_score = if_else(tool_name == "VPRAIO", generic_tool_total_score_raw, NULL),
          psa_fta_risk_score = score_failure_to_appear,
          psa_nca_risk_score = score_new_criminal_activity,
          psa_nvca_risk_score = score_new_criminal_violent_activity,
+         scored_assessment = if_else(tool_name %in% c("ORAS", "VPRAI", "VPRAIR") & !is.na(risk_score_raw) |
+                                       tool_name == "PSA" & !is.na(score_new_criminal_activity) |
+                                       tool_name == "VPRAIO" & !is.na(generic_tool_total_score_raw), 1, 0),
          pretrial_period_end_date = if_else(is.na(pretrial_period_end_date), as.Date(pretrial_period_end_date_doj), as.Date(pretrial_period_end_date))) %>%
   mutate(recid_filed_flag = recid_filed_flag_doj, 
          recid_convicted_flag = recid_convicted_flag_doj, 
@@ -167,13 +189,15 @@ full_df <- full_df %>%
          recid_filed_violent_psa_flag = recid_filed_violent_psa_flag_doj,
          any_pretrial_failure_flag = if_else(recid_arrested_flag == 1 | fta_flag == 1, 1, 0)) %>% ## update this when we get county data on these
   mutate(across(contains("_flag"), ~if_else(is.na(.x), 0, as.numeric(.x)))) %>%
-  arrange(County) 
+  arrange(County) %>%
+  filter(booking_date >= as.Date("2019-10-01"))
 
 join_df <- full_df 
 
 
 eval_df <- full_df %>%
   filter(booking_assessed_count == 1,
+         scored_assessment == 1,
          release_eligible_count ==1,
          released_pretrial_count == 1,
          pretrial_period_end_count == 1,
@@ -182,6 +206,27 @@ eval_df <- full_df %>%
          ) %>%
   mutate(release_to_pretrial_end = pretrial_period_end_date - release_date)
 
+
+```
+Dates for bookings
+```{r}
+date_range <- full_df %>%
+  group_by(county) %>%
+  summarise(Total = n(),
+            `Earliest book date` = min(book_date),
+            `Latest book date` = max(book_date))
+
+date_range
+```
+Dates for assessments
+```{r}
+date_range <- df %>%
+  group_by(county, tool_name) %>%
+  summarise(Total = n(),
+            `Earliest assessment date` = min(assessment_date, na.rm = T),
+            `Latest assessment date` = max(assessment_date, na.rm = T))
+
+date_range
 
 ```
 
@@ -252,7 +297,7 @@ Note: See ?XX? for definitions of small, small/medium, medium and large.
 # AB 74: Tables
 16. (a) The number of assessed individuals by age, gender, and race or ethnicity.
 \newpage
-
+\begin{landscape}
 ## The Number of Assessed Individuals by Age
 ```{r}
 age_df <- df %>%
@@ -271,6 +316,7 @@ age_df <- df %>%
 my_kable(age_df)
 ```
 Source: Pretrial Pilot Program Probation Data ?date range?.
+\end{landscape}
 \newpage
 
 ## The Number of Assessed Individuals by Gender
@@ -414,8 +460,8 @@ ggplot(risk_df_vpraio %>%
   geom_col(fill = "dark blue") +
   geom_text(nudge_y = 4, aes(label = n)) +
   theme_bw() +
-  labs(x = "Risk Score", y = "Assessments") 
-
+  labs(x = "Risk Score", y = "Assessments")  +
+  scale_x_discrete(limits = 1:10)
 
 ```
 Source: Pretrial Pilot Program Probation Data ?date range? from Kings.
@@ -514,25 +560,25 @@ Source: Pretrial Pilot Program Probation Data ?date range? from Calaveras, Los A
 Source: Pretrial Pilot Program Probation Data ?date range? from Sonoma.
 \newpage
 
-## The Number of Assessed Individuals by Booking Charge Level
+## The Number of Assessed Individuals by Booking Charge Level with df
 ```{r}
-charge_level_df <- join_df %>%
+charge_level_df <- df %>%
   # filter(arrest_charge_level != "I") %>%
-  mutate(arrest_charge_level = case_when(is.na(arrest_charge_level)|arrest_charge_level %in% c("Other", "Infraction") ~"Other_Unknown",
+  mutate(arrest_charge_level = case_when(is.na(arrest_charge_level)|arrest_charge_level %in% c("Other/Unknown", "I") ~"Other_Unknown",
                                          T ~ arrest_charge_level)) %>%
   count(County, arrest_charge_level) %>%
   group_by(County) %>%
   mutate(Total = sum(n)) %>%
   pivot_wider(names_from =  arrest_charge_level, values_from =  n, values_fill = 0) %>%
-  select(County, Felony, Misdemeanor, Other_Unknown, Total) %>%
-  bind_rows(join_df %>%
-              mutate(arrest_charge_level = case_when(is.na(arrest_charge_level)|arrest_charge_level %in% c("Other", "Infraction") ~"Other_Unknown",
+  select(County, 'F', 'M', Other_Unknown, Total) %>%
+  bind_rows(df %>%
+              mutate(arrest_charge_level = case_when(is.na(arrest_charge_level)|arrest_charge_level %in% c("Other/Unknown", "I") ~"Other_Unknown",
                                          T ~ arrest_charge_level)) %>%
               count(arrest_charge_level) %>%
               mutate(Total = sum(n)) %>%
               pivot_wider(names_from =  arrest_charge_level, values_from =  n, values_fill = 0) %>%
               mutate(County = "Total") %>%
-              select(County, Felony, Misdemeanor, Other_Unknown, Total)) 
+              select(County, 'F', 'M', Other_Unknown, Total)) 
 
 # 
 my_kable(charge_level_df)
@@ -541,8 +587,31 @@ my_kable(charge_level_df)
 #   # count(county)
 #   filter(county == "sacramento") %>%
 #   count(arrest_charge_level_original, arrest_charge_level, arrest_charge_original)
+```
 
+## The Number of Assessed Individuals by Booking Charge Level with join_df
+```{r}
+charge_level_df <- join_df %>%
+  filter(is_booking_assessed == "Yes"& scored_assessment == 1) %>%
+  mutate(arrest_charge_level = case_when(is.na(arrest_charge_level)|arrest_charge_level %in% c("Other/Unknown", "I") ~"Other_Unknown",
+                                         T ~ arrest_charge_level)) %>%
+  count(County, arrest_charge_level) %>%
+  group_by(County) %>%
+  mutate(Total = sum(n)) %>%
+  pivot_wider(names_from =  arrest_charge_level, values_from =  n, values_fill = 0) %>%
+  select(County, 'Felony', 'Misdemeanor', Other_Unknown, Total) %>%
+  bind_rows(join_df %>%
+              filter(is_booking_assessed == "Yes") %>%
+              mutate(arrest_charge_level = case_when(is.na(arrest_charge_level)|arrest_charge_level %in% c("Other/Unknown", "I") ~"Other_Unknown",
+                                         T ~ arrest_charge_level)) %>%
+              count(arrest_charge_level) %>%
+              mutate(Total = sum(n)) %>%
+              pivot_wider(names_from =  arrest_charge_level, values_from =  n, values_fill = 0) %>%
+              mutate(County = "Total") %>%
+              select(County, 'Felony', 'Misdemeanor', Other_Unknown, Total)) 
 
+# 
+my_kable(charge_level_df)
 ```
 Source:
 Notes: Booking charge level is reported in booking data, a seperate data source from assessment data. As a result, assessments that did not match booking data are not included in this table. 
@@ -585,6 +654,25 @@ my_kable(release_df) %>%
 Source: Pretrial Pilot Program Probation Data ?date range?--does this inlcude jail or court data?
 Notes: 'Release Denied' indicates individuals who judicial officers did not choose to release through the pretrial program. These individuals may still have gotten out on bail. 'Release Approved' includes individuals released on OR or monitoring. 
 
+\begin{landscape}
+Number with no arraignment release decision, without LA
+```{r}
+release_df <- df %>%
+  filter(la_flag == 0) %>%
+  mutate(release_decision = case_when(release_decision_arraignment == "Monitor" ~ "Own Recognizance", 
+                                      release_decision_arraignment %in% c("Deny Release", "Own Recognizance") ~release_decision_arraignment,
+                                      T ~ "Ineligible/Unknown")) %>%
+  count(County, release_decision) %>%
+  group_by(County) %>%
+  mutate(Total = sum(n)) %>%
+  pivot_wider(names_from =  release_decision, values_from =  n, values_fill = 0) %>%
+  select(County, Total, 'Ineligible/Unknown', 'Own Recognizance', 'Deny Release')
+
+names(release_df) <- c("Court Size", "Total", "Ineligible/Unknown", "Granted Program Release", "Denied Program Release")
+
+my_kable(release_df)
+```
+\end{landscape}
 \newpage
 
 ## The Number of Assessed Individuals by Pre-Arraignment Program Release Decision
@@ -631,6 +719,27 @@ names(release_df) <- c("County", "Granted Prearraignment Program Release",
 ```
 Source:
 Notes: 'Release Denied' indicates individuals who judicial officers did not choose to release through the pretrial program. These individuals may still have gotten out on bail. 'Release Approved' includes individuals released on OR or monitoring. 
+
+\begin{landscape}
+
+Number with no prearraignment decision, LA only
+```{r}
+release_df <- df %>%
+  filter(la_flag == 1) %>%
+  mutate(release_decision = case_when(release_decision_prearraignment == "Monitor" ~ "Own Recognizance", 
+                                      release_decision_prearraignment %in% c("Deny Release", "Own Recognizance") ~release_decision_prearraignment,
+                                      T ~ "Ineligible/Unknown")) %>%
+  count(County, release_decision) %>%
+  group_by(County) %>%
+  mutate(Total = sum(n)) %>%
+  pivot_wider(names_from =  release_decision, values_from =  n, values_fill = 0) %>%
+  select(County, Total, 'Ineligible/Unknown', 'Own Recognizance', 'Deny Release')
+
+names(release_df) <- c("Court Size", "Total", "Ineligible/Unknown", "Granted Program Release", "Denied Program Release")
+
+my_kable(release_df)
+```
+\end{landscape}
 
 \newpage
 # AB 74: Tables
