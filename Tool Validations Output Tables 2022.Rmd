@@ -61,6 +61,13 @@ FROM "DWH_PROD"."DATA_SCIENCE"."CJS_DF_STD"
 ;
 ```
 
+Pull snowflake data -- join_df
+```{sql, connection = con, output.var = 'join_df'}
+SELECT *
+FROM "DWH_PROD"."DATA_SCIENCE"."JOIN_DF_STD"
+;
+```
+
 Format data - full df and eval df
 ```{r warning=FALSE, include=FALSE}
 names(full_df) <- tolower(names(full_df))
@@ -106,6 +113,54 @@ eval_df <- full_df %>%
 
 
 ```
+
+Format data - join df 
+```{r warning=FALSE, include=FALSE}
+snow_df <- join_df
+join_df <- snow_df
+names(join_df) <- tolower(names(join_df))
+
+join_df <- join_df %>%
+  mutate(book_date = booking_date,
+         race_orig = race,
+         race = if_else(race_standard %in% c("White", "Black", "Hispanic"), race_standard, "Other/Unknown"),
+         charge_level_orig = charge_level,
+         charge_level = charge_level_standard,
+         pretrial_period_end_count = pretrial_period_end_count_standard,
+         fta_flag = fta_county_or_doj,
+         recid_arrested_flag = recid_county_or_doj,
+         tool_name = if_else(county == "Kings", "VPRAIO", tool_name),
+         oras_risk_score = if_else(tool_name == "ORAS", risk_score_raw, NULL),
+         vprai_risk_score = if_else(tool_name == "VPRAI", risk_score_raw, NULL),
+         vprair_risk_score = if_else(tool_name == "VPRAIR", risk_score_raw, NULL),
+         vpraio_risk_score = if_else(tool_name == "VPRAIO", generic_tool_total_score_raw, NULL),
+         psa_fta_risk_score = score_failure_to_appear,
+         psa_nca_risk_score = score_new_criminal_activity,
+         psa_nvca_risk_score = score_new_criminal_violent_activity,
+         scored_assessment = if_else(tool_name %in% c("ORAS", "VPRAI", "VPRAIR") & !is.na(risk_score_raw) |
+                                       tool_name == "PSA" & !is.na(score_new_criminal_activity) |
+                                       tool_name == "VPRAIO" & !is.na(generic_tool_total_score_raw), 1, 0),
+         pretrial_period_end_date = if_else(is.na(pretrial_period_end_date), as.Date(pretrial_period_end_date_doj), as.Date(pretrial_period_end_date)))%>%
+  mutate(recid_filed_flag = recid_filed_flag_doj, 
+         recid_convicted_flag = recid_convicted_flag_doj, 
+         recid_arrest_violent_psa_flag = recid_arrest_violent_psa_flag_doj,
+         any_pretrial_failure_flag = if_else(recid_arrested_flag == 1 | fta_flag == 1, 1, 0)) %>% ## update this when we get county data on these
+  mutate(across(contains("_flag"), ~if_else(is.na(.x) | .x == "No" | .x == "Unknown" | .x == "0" | .x == 0, 0, as.numeric(1))))  
+
+eval_j <- join_df %>%
+  filter(booking_assessed_count == 1,
+         scored_assessment == 1,
+         release_eligible_count ==1,
+         released_pretrial_count == 1,
+         pretrial_period_end_count == 1,
+         booking_date < as.Date("2022-01-01"),
+         tool_name %in% c("ORAS", "PSA", "VPRAI", "VPRAIR", "VPRAIO")
+         ) %>%
+  mutate(release_to_pretrial_end = pretrial_period_end_date - release_date)
+
+
+```
+
 
 Format df
 ```{r}
@@ -460,20 +515,22 @@ Source: Pretrial Pilot Multi-Agency Linked Data. Data are limited to bookings wi
 
 # Arrest Offenses
 ```{r eval=FALSE, include=FALSE}
-arrest_df <- eval_df %>%
+arrest_df <- eval_j %>%
   group_by(county) %>%
-  summarise_at(vars(arrest_felony_flag, arrest_misd_flag, arrest_violent_psa_flag, arrest_property_flag, arrest_drug_flag,
-                    arrest_dui_flag, arrest_dv_flag), funs(round(mean(.)*100))) %>%
-  mutate(arrest_misd_flag = 100 - arrest_felony_flag) 
+  summarise_at(vars(arrest_violent_psa_flag, arrest_property_flag, arrest_drug_flag,
+                    arrest_dui_flag, arrest_dv_flag), funs(round(mean(.)*100)))
 
-names(arrest_df) <- c("County", "Felony", "Misdemeanor", "Violent", "Property", "Drug", "DUI", "DV")
+names(arrest_df) <- c("County", "Violent", "Property", "Drug", "DUI", "DV")
 
 kable(arrest_df, booktabs = T, format.args = list(big.mark = ","), 
         # table.attr = "style = \"color: black;\"",
         format = "latex") %>%
     kable_styling(position = "center", full_width = F, 
                   bootstrap_options = c("striped", "hover"), stripe_color = "gray", font_size = 14, latex_options = "hold_position")
+
+
 ```
+
 
 # Adverse Outcomes by county
 ```{r}
@@ -574,6 +631,21 @@ kable(outcome_df %>% filter(County == x), booktabs = T, format.args = list(big.m
   save_kable(fname)
 
 
+
+})     
+
+lapply(c("Los Angeles", "Sacramento", "Ventura", "Sonoma", "Tulare", "San Joaquin", "Modoc", "Napa", "Calaveras"),
+  function(x){
+    
+fname = str_c(x, " arrest offense table ", ".html")
+kable(arrest_df %>% filter(County == x) , booktabs = T, format.args = list(big.mark = ","), 
+        # table.attr = "style = \"color: black;\"",
+        format = "html") %>%
+    column_spec(3:6, width = "1.5cm") %>%
+    kable_styling(position = "center", full_width = F, 
+                  bootstrap_options = c("striped", "hover"), stripe_color = "gray", font_size = 14, 
+                  latex_options = "hold_position") %>%
+      save_kable(fname)
 
 })     
 
