@@ -53,12 +53,19 @@ FROM "DWH_PROD"."DATA_SCIENCE"."CJS_DF_STD"
 ```
 
 Pull snowflake data -- cjs_outcome_std 
-```{sql connection=con, include=FALSE, output.var='full_df'}
+```{sql eval=FALSE, connection=con, include=FALSE, output.var='full_df'}
 SELECT *
 FROM "DWH_PROD"."DATA_SCIENCE"."CJS_OUTCOME_STD"
 ;
 ```
 \newpage
+
+Pull snowflake data -- join_df
+```{sql connection=con, include=FALSE, output.var='join_df'}
+SELECT *
+FROM "DWH_PROD"."DATA_SCIENCE"."JOIN_DF_STD"
+;
+```
 
 Format df
 ```{r}
@@ -66,11 +73,11 @@ names(df) <- tolower(names(df))
 
 df <- df %>%
   mutate(tool_name_orig = tool_name,
-         #tool_name = tool_name_standard,
          # remove this once the tool name logic is fixed
          tool_name = case_when(county_name == "Modoc" ~ "ORAS",
                                county_name == "Yuba" ~ "ORAS",
                                county_name == "San Joaquin" ~ "VPRAI",
+                               tool_name == "VPRAIR" ~ "VPRAI-R",
                                T ~ tool_name_standard),
          county = county_name,
          County = case_when(
@@ -95,7 +102,7 @@ df <- df %>%
          race_orig = race,
          race = if_else(race_standard == "American Indian", "Other/Unknown", race_standard),
          oras_risk_score = if_else(tool_name == "ORAS", risk_score_raw, NULL),
-         vprai_risk_score = if_else(tool_name == "VPRAI", risk_score_raw, NULL),
+         vprai_risk_score = if_else(tool_name == "VPRAI" & risk_score_raw %in% 0:9, risk_score_raw, NULL),
          vprair_risk_score = if_else(tool_name == "VPRAI-R", risk_score_raw, NULL),
          vpraio_risk_score = if_else(tool_name == "VPRAI-O", generic_tool_total_score_raw, NULL),
          psa_fta_risk_score = score_failure_to_appear,
@@ -103,7 +110,7 @@ df <- df %>%
          psa_nvca_risk_score = score_new_criminal_violent_activity,
          scored_assessment = if_else(tool_name %in% c("ORAS", "VPRAI", "VPRAI-R") & !is.na(risk_score_raw) |
                                        tool_name == "PSA" & !is.na(score_new_criminal_activity) |
-                                       tool_name == "VPRAI-O" & !is.na(generic_tool_total_score_raw), 1, 0),
+                                       tool_name %in% c("VPRAI-O", "Local") & !is.na(generic_tool_total_score_raw), 1, 0),
          monitor_level = if_else(monitoring_level_grouped %in% c("Lowest Levels", "Medium Levels", "Highest Levels"), monitoring_level_grouped, "Other/Unknown")) %>%
   arrange(County) %>%
   filter(assessment_date >= as.Date("2019-10-01")) %>%
@@ -132,17 +139,44 @@ df %>%
   filter(county == "Kings") %>%
   select(risk_level) %>%
   mutate(risk_level_part = parse_number(risk_level))
+
+df %>%
+  count(county, tool_name)
+
+df %>%
+  count(COUNTY_NAME, TOOL_NAME, ASSESSMENT_DATE < as.Date("2019-10-01"))
+
+df %>%
+  count(COUNTY_NAME, TOOL_NAME, TOOL_NAME_STANDARD)
+
+df %>%
+  filter(COUNTY_NAME == "Santa Barbara") %>%
+  count(is.na(RISK_SCORE_RAW))
+
+df %>%
+  count(scored_assessment, county, tool_name)
+
+df %>%
+  filter(tool_name == "Local") %>%
+  count(county, generic_tool_total_score_raw)
+
+df %>%
+  count(tool_name, county)
+
+eval_df %>%
+  count(county, race_standard) %>%
+  filter(race_standard == "Asian")
 ```
 
 \newpage
 
 Format full_df, join_df, and eval_df
 ```{r warning=FALSE, include=FALSE}
-snow_df <- full_df
+snow_df <- join_df
 
-names(full_df) <- tolower(names(full_df))
+names(join_df) <- tolower(names(join_df))
 
-full_df <- full_df %>%
+join_df <- join_df %>%
   mutate(book_date = booking_date,
          race_orig = race,
          race = if_else(race_standard == "American Indian", "Other/Unknown", race_standard),
@@ -170,10 +204,10 @@ full_df <- full_df %>%
          monitor_level = if_else(monitoring_level_grouped %in% c("Lowest Levels", "Medium Levels", "Highest Levels"), monitoring_level_grouped, "Other/Unknown"),
          fta_flag = fta_county_or_doj,
          recid_arrested_flag = recid_county_or_doj,
-         age = indiv_age,
+         age = individual_age,
          tool_name = if_else(county == "Kings", "VPRAIO", tool_name),
          oras_risk_score = if_else(tool_name == "ORAS", risk_score_raw, NULL),
-         vprai_risk_score = if_else(tool_name == "VPRAI", risk_score_raw, NULL),
+         vprai_risk_score = if_else(tool_name == "VPRAI" & risk_score_raw %in% 0:9, risk_score_raw, NULL),
          vprair_risk_score = if_else(tool_name == "VPRAIR", risk_score_raw, NULL),
          vpraio_risk_score = if_else(tool_name == "VPRAIO", generic_tool_total_score_raw, NULL),
          psa_fta_risk_score = score_failure_to_appear,
@@ -192,10 +226,9 @@ full_df <- full_df %>%
   arrange(County) %>%
   filter(booking_date >= as.Date("2019-10-01"))
 
-join_df <- full_df 
 
 
-eval_df <- full_df %>%
+eval_df <- join_df %>%
   filter(booking_assessed_count == 1,
          scored_assessment == 1,
          release_eligible_count ==1,
@@ -210,7 +243,7 @@ eval_df <- full_df %>%
 ```
 Dates for bookings
 ```{r}
-date_range <- full_df %>%
+date_range <- join_df %>%
   group_by(county) %>%
   summarise(Total = n(),
             `Earliest book date` = min(book_date),
@@ -227,6 +260,12 @@ date_range <- df %>%
             `Latest assessment date` = max(assessment_date, na.rm = T))
 
 date_range
+
+kable(date_range, booktabs = T, format.args = list(big.mark = ","), 
+        # table.attr = "style = \"color: black;\"",
+        format = "latex") %>%
+    kable_styling(position = "center", full_width = F, 
+                  bootstrap_options = c("striped", "hover"), stripe_color = "gray", font_size = 12, latex_options = "hold_position")
 
 ```
 
@@ -386,8 +425,7 @@ ggplot(risk_df_oras %>%
   theme_bw() +
   labs(x = "Risk Score", y = "Assessments")
 
-df %>%
-  count(tool_name)
+
 ```
 Source: Pretrial Pilot Program Probation Data ?date range? from Modoc, Napa, Nevada, Ventura, and Yuba.
 \newpage
@@ -411,7 +449,8 @@ ggplot(risk_df_vprai %>%
   geom_col(fill = "dark blue") +
   geom_text(nudge_y = 40, aes(label = n)) +
   theme_bw() +
-  labs(x = "Risk Score", y = "Assessments") 
+  labs(x = "Risk Score", y = "Assessments")  +
+  scale_x_discrete(limits = 0:9)
 ```
 Source: Pretrial Pilot Program Probation Data ?date range? from San Joaquin and Santa Barbara.
 \newpage
@@ -589,8 +628,8 @@ my_kable(charge_level_df)
 #   count(arrest_charge_level_original, arrest_charge_level, arrest_charge_original)
 ```
 
-## The Number of Assessed Individuals by Booking Charge Level with join_df
-```{r}
+## The Number of Assessed Individuals by Booking Charge Level with join_df -- do not use
+```{r eval=FALSE, include=FALSE}
 charge_level_df <- join_df %>%
   filter(is_booking_assessed == "Yes"& scored_assessment == 1) %>%
   mutate(arrest_charge_level = case_when(is.na(arrest_charge_level)|arrest_charge_level %in% c("Other/Unknown", "I") ~"Other_Unknown",
@@ -739,6 +778,7 @@ names(release_df) <- c("Court Size", "Total", "Ineligible/Unknown", "Granted Pro
 
 my_kable(release_df)
 ```
+
 \end{landscape}
 
 \newpage
@@ -748,7 +788,11 @@ my_kable(release_df)
 \newpage
 
 
+
 ## The Number and Percentage of Assessed and Supervised Individuals by Supervision Level
+
+\begin{landscape}
+
 ```{r warning=FALSE}
 monitor_df <- df %>%
   filter(release_decision_arraignment == "Monitor" | release_decision_prearraignment == "Monitor") %>%
@@ -788,7 +832,11 @@ kable(monitor_df, booktabs = T, format.args = list(big.mark = ","),
 ```
 Source:
 Notes: 'Unspecified Supervision' includes individuals in counties which do not categorize supervision conditions into discrete levels. For counties which use discrete supervision levels, supervision levels were collapsed into 'Basic', 'Moderate', and 'Enhanced' supervision, though what each of these supervision levels mean varies widely across counties.
+
+\end{landscape}
+
 \newpage
+
 
 # AB 74: Tables
 

@@ -41,14 +41,14 @@ library(gt)
 ```
 
 Connection
-```{r}
+```{r include=FALSE}
 con <- dbConnect(odbc::odbc(), "snowflake_pretrial", uid ="Sal.Lempert@jud.ca.gov", pwd = rstudioapi::askForPassword("Password"))
 
 
 ```
 
-Pull snowflake data -- cjs_outcome_std 
-```{sql, connection = con, output.var = 'full_df'}
+Pull snowflake data -- cjs_outcome_std -- removed
+```{sql eval=FALSE, connection=con, include=FALSE, output.var='full_df'}
 SELECT *
 FROM "DWH_PROD"."DATA_SCIENCE"."CJS_OUTCOME_STD"
 ;
@@ -62,14 +62,14 @@ FROM "DWH_PROD"."DATA_SCIENCE"."CJS_DF_STD"
 ```
 
 Pull snowflake data -- join_df
-```{sql, connection = con, output.var = 'join_df'}
+```{sql connection=con, include=FALSE, output.var='join_df'}
 SELECT *
 FROM "DWH_PROD"."DATA_SCIENCE"."JOIN_DF_STD"
 ;
 ```
 
-Format data - full df and eval df
-```{r warning=FALSE, include=FALSE}
+Format data - full df and eval df -- removed
+```{r eval=FALSE, warning=FALSE, include=FALSE}
 names(full_df) <- tolower(names(full_df))
 
 full_df <- full_df %>%
@@ -82,17 +82,21 @@ full_df <- full_df %>%
          fta_flag = fta_county_or_doj,
          recid_arrested_flag = recid_county_or_doj,
          age = indiv_age,
-         tool_name = if_else(county == "Kings", "VPRAIO", tool_name),
+         tool_name = case_when(county == "Kings" ~ "VPRAI-O", 
+                               county == "Santa Barbara" & assessment_date < as.Date("2020-4-29") ~ "VPRAI",
+                               county == "Santa Barbara" & assessment_date >= as.Date("2020-4-29") ~ "VPRAI-R",
+                               tool_name == "VPRAIR" ~ "VPRAI-R",
+                               T ~ tool_name),
          oras_risk_score = if_else(tool_name == "ORAS", risk_score_raw, NULL),
          vprai_risk_score = if_else(tool_name == "VPRAI", risk_score_raw, NULL),
-         vprair_risk_score = if_else(tool_name == "VPRAIR", risk_score_raw, NULL),
-         vpraio_risk_score = if_else(tool_name == "VPRAIO", generic_tool_total_score_raw, NULL),
+         vprair_risk_score = if_else(tool_name == "VPRAI-R", risk_score_raw, NULL),
+         vpraio_risk_score = if_else(tool_name == "VPRAI-O", generic_tool_total_score_raw, NULL),
          psa_fta_risk_score = score_failure_to_appear,
          psa_nca_risk_score = score_new_criminal_activity,
          psa_nvca_risk_score = score_new_criminal_violent_activity,
-         scored_assessment = if_else(tool_name %in% c("ORAS", "VPRAI", "VPRAIR") & !is.na(risk_score_raw) |
+         scored_assessment = if_else(tool_name %in% c("ORAS", "VPRAI", "VPRAI-R") & !is.na(risk_score_raw) |
                                        tool_name == "PSA" & !is.na(score_new_criminal_activity) |
-                                       tool_name == "VPRAIO" & !is.na(generic_tool_total_score_raw), 1, 0),
+                                       tool_name == "VPRAI-O" & !is.na(generic_tool_total_score_raw), 1, 0),
          pretrial_period_end_date = if_else(is.na(pretrial_period_end_date), as.Date(pretrial_period_end_date_doj), as.Date(pretrial_period_end_date)))%>%
   mutate(recid_filed_flag = recid_filed_flag_doj, 
          recid_convicted_flag = recid_convicted_flag_doj, 
@@ -107,7 +111,7 @@ eval_df <- full_df %>%
          released_pretrial_count == 1,
          pretrial_period_end_count == 1,
          booking_date < as.Date("2022-01-01"),
-         tool_name %in% c("ORAS", "PSA", "VPRAI", "VPRAIR", "VPRAIO")
+         tool_name %in% c("ORAS", "PSA", "VPRAI", "VPRAI-R", "VPRAI-O")
          ) %>%
   mutate(release_to_pretrial_end = pretrial_period_end_date - release_date)
 
@@ -124,22 +128,27 @@ join_df <- join_df %>%
   mutate(book_date = booking_date,
          race_orig = race,
          race = if_else(race_standard %in% c("White", "Black", "Hispanic"), race_standard, "Other/Unknown"),
+         age = individual_age,
          charge_level_orig = charge_level,
          charge_level = charge_level_standard,
          pretrial_period_end_count = pretrial_period_end_count_standard,
          fta_flag = fta_county_or_doj,
          recid_arrested_flag = recid_county_or_doj,
-         tool_name = if_else(county == "Kings", "VPRAIO", tool_name),
+         tool_name = case_when(county == "Kings" ~ "VPRAI-O", 
+                               county == "Santa Barbara" & assessment_date < as.Date("2020-4-29") ~ "VPRAI",
+                               county == "Santa Barbara" & assessment_date >= as.Date("2020-4-29") ~ "VPRAI-R",
+                               tool_name == "VPRAIR" ~ "VPRAI-R",
+                               T ~ tool_name),
          oras_risk_score = if_else(tool_name == "ORAS", risk_score_raw, NULL),
          vprai_risk_score = if_else(tool_name == "VPRAI", risk_score_raw, NULL),
-         vprair_risk_score = if_else(tool_name == "VPRAIR", risk_score_raw, NULL),
-         vpraio_risk_score = if_else(tool_name == "VPRAIO", generic_tool_total_score_raw, NULL),
+         vprair_risk_score = if_else(tool_name == "VPRAI-R", risk_score_raw, NULL),
+         vpraio_risk_score = if_else(tool_name == "VPRAI-O", generic_tool_total_score_raw, NULL),
          psa_fta_risk_score = score_failure_to_appear,
          psa_nca_risk_score = score_new_criminal_activity,
          psa_nvca_risk_score = score_new_criminal_violent_activity,
-         scored_assessment = if_else(tool_name %in% c("ORAS", "VPRAI", "VPRAIR") & !is.na(risk_score_raw) |
+         scored_assessment = if_else(tool_name %in% c("ORAS", "VPRAI", "VPRAI-R") & !is.na(risk_score_raw) |
                                        tool_name == "PSA" & !is.na(score_new_criminal_activity) |
-                                       tool_name == "VPRAIO" & !is.na(generic_tool_total_score_raw), 1, 0),
+                                       tool_name == "VPRAI-O" & !is.na(generic_tool_total_score_raw), 1, 0),
          pretrial_period_end_date = if_else(is.na(pretrial_period_end_date), as.Date(pretrial_period_end_date_doj), as.Date(pretrial_period_end_date)))%>%
   mutate(recid_filed_flag = recid_filed_flag_doj, 
          recid_convicted_flag = recid_convicted_flag_doj, 
@@ -147,14 +156,16 @@ join_df <- join_df %>%
          any_pretrial_failure_flag = if_else(recid_arrested_flag == 1 | fta_flag == 1, 1, 0)) %>% ## update this when we get county data on these
   mutate(across(contains("_flag"), ~if_else(is.na(.x) | .x == "No" | .x == "Unknown" | .x == "0" | .x == 0, 0, as.numeric(1))))  
 
-eval_j <- join_df %>%
+full_df <- join_df
+
+eval_df <- join_df %>%
   filter(booking_assessed_count == 1,
          scored_assessment == 1,
          release_eligible_count ==1,
          released_pretrial_count == 1,
          pretrial_period_end_count == 1,
          booking_date < as.Date("2022-01-01"),
-         tool_name %in% c("ORAS", "PSA", "VPRAI", "VPRAIR", "VPRAIO")
+         tool_name %in% c("ORAS", "PSA", "VPRAI", "VPRAI-R", "VPRAI-O")
          ) %>%
   mutate(release_to_pretrial_end = pretrial_period_end_date - release_date)
 
@@ -222,7 +233,7 @@ my_kable <- function(x){
 
 # Make AUC table
 
-Make AUC table --- TURN THIS ON WHEN THERE IS NEW DATA
+Make AUC table --- MAKE SURE THIS IS ON WHEN THERE IS NEW DATA
 ```{r eval=FALSE, include=FALSE}
 race_df <- eval_df %>%
   mutate(race = "All")
@@ -330,7 +341,8 @@ roc_df <- roc_df %>%
            (risk_score == "psa_nvca_risk_score" & outcome == "recid_arrest_violent_psa_flag"))
 
 
-
+roc_df <- roc_df %>%
+  mutate(tool_name = if_else(tool_name == "vprair", "vprai-r", tool_name))
 
 write.xlsx(roc_df, file = "C:/PretrialPilot/Pretrial-Pilot-County-Analysis/AUCs by Demographic Category.xlsx", asTable = T)
 save(roc_df, file= "C:/PretrialPilot/Pretrial-Pilot-County-Analysis/AUCs.RData")
@@ -373,7 +385,8 @@ kable(date_df, booktabs = T, format.args = list(big.mark = ","),
 ```{r}
 
 drop_df1 <- df %>%
-  filter(!is.na(risk_score)) %>%
+  filter(scored_assessment == 1,
+         tool_name != "Local") %>%
   mutate(county = if_else(county %in% c("Sierra", "Nevada"), "Nevada/Sierra", county)) %>%
   count(tool_name, county)
 
@@ -411,6 +424,17 @@ kable(drop_df_out , booktabs = T, format.args = list(big.mark = ","),
 
 # gt(drop_df_out %>% filter(County == "Los Angeles")) %>%
 #   gtsave(filename = "drop off LA.html")
+
+drop_df1
+drop_df2
+
+df %>%
+  count(county, tool_name)
+
+full_df %>%
+  count(county, tool_name)
+
+
 ```
 
 # The Percent of Assessments by Demographic
@@ -515,7 +539,7 @@ Source: Pretrial Pilot Multi-Agency Linked Data. Data are limited to bookings wi
 
 # Arrest Offenses
 ```{r echo=FALSE}
-arrest_df <- eval_j %>%
+arrest_df <- eval_df %>%
   mutate(fel_flag = if_else(charge_level == "F", 1, 0),
          misdo_flag = if_else(charge_level %in% c("M", "I"), 1, 0)) %>%
   group_by(county) %>%
@@ -587,7 +611,7 @@ kable(outcome_df_tool, booktabs = T, format.args = list(big.mark = ","),
 county_list = eval_df %>% distinct(county) %>% pull(county)
 tool_list = eval_df %>% distinct(tool_name) %>% pull(tool_name)
 
-lapply(c("Los Angeles", "Sacramento", "Ventura", "Sonoma", "Tulare", "San Joaquin", "Modoc", "Napa", "Calaveras"),
+lapply(c("Los Angeles", "Sacramento", "Ventura", "Sonoma", "Tulare", "San Joaquin", "Modoc", "Napa", "Calaveras", "Alameda", "Santa Barbara"),
   function(x){
     
 fname = str_c(x, " dropoff table ", ".html")
@@ -626,7 +650,7 @@ kable(outcome_df %>% filter(County == x), booktabs = T, format.args = list(big.m
 
 })     
 
-lapply(c("Los Angeles", "Sacramento", "Ventura", "Sonoma", "Tulare", "San Joaquin", "Modoc", "Napa", "Calaveras"),
+lapply(c("Los Angeles", "Sacramento", "Ventura", "Sonoma", "Tulare", "San Joaquin", "Modoc", "Napa", "Calaveras", "Alameda", "Santa Barbara"),
   function(x){
     
 fname = str_c(x, " arrest offense table ", ".html")
@@ -934,7 +958,7 @@ VPRAI-R
 risk_df <- eval_df %>%
    # filter(book_date <= as_date("2021-03-31"),
    #       book_date >= as_date("2019-10-01")) %>%
-  filter(tool_name == "VPRAIR", !is.na(vprair_risk_score)) %>%
+  filter(tool_name == "VPRAI-R", !is.na(vprair_risk_score)) %>%
   group_by(vprair_risk_score) %>%
   summarise(across(c(fta_flag, recid_arrested_flag, recid_filed_flag, recid_convicted_flag, 
                     any_pretrial_failure_flag, recid_arrest_violent_psa_flag),
@@ -1108,7 +1132,7 @@ Alameda
 risk_df <- eval_df %>%
    # filter(book_date <= as_date("2021-03-31"),
    #       book_date >= as_date("2019-10-01")) %>%
-  filter(tool_name == "VPRAIR", !is.na(vprair_risk_score), county == "Alameda") %>%
+  filter(tool_name == "VPRAI-R", !is.na(vprair_risk_score), county == "Alameda") %>%
   group_by(vprair_risk_score) %>%
   summarise(across(c(fta_flag, recid_arrested_flag, recid_filed_flag, recid_convicted_flag, 
                     any_pretrial_failure_flag, recid_arrest_violent_psa_flag),
@@ -1443,7 +1467,7 @@ Santa Barbara
 risk_df <- eval_df %>%
    # filter(book_date <= as_date("2021-03-31"),
    #       book_date >= as_date("2019-10-01")) %>%
-  filter(tool_name == "VPRAIR", !is.na(vprair_risk_score), county == "Santa Barbara") %>%
+  filter(tool_name == "VPRAI-R", !is.na(vprair_risk_score), county == "Santa Barbara") %>%
   group_by(vprair_risk_score) %>%
   summarise(across(c(fta_flag, recid_arrested_flag, recid_filed_flag, recid_convicted_flag, 
                     any_pretrial_failure_flag, recid_arrest_violent_psa_flag),
@@ -2032,12 +2056,12 @@ stargazer(list(m1,m2,m3,m4,m5,m6),
 VPRAI-R
 \newline
 ```{r, results='asis'}
-m1 <- glm(family = binomial(),fta_flag ~ vprair_risk_score + release_to_pretrial_end , data = eval_df %>% filter(tool_name == "VPRAIR"))
-m2 <- glm(family = binomial(),recid_arrested_flag ~ vprair_risk_score + release_to_pretrial_end , data = eval_df %>% filter(tool_name == "VPRAIR"))
-m3 <- glm(family = binomial(),recid_filed_flag ~ vprair_risk_score + release_to_pretrial_end , data = eval_df %>% filter(tool_name == "VPRAIR"))
-m4 <- glm(family = binomial(),recid_convicted_flag ~ vprair_risk_score + release_to_pretrial_end , data = eval_df %>% filter(tool_name == "VPRAIR"))
-m5 <- glm(family = binomial(),recid_arrest_violent_psa_flag ~ vprair_risk_score + release_to_pretrial_end , data = eval_df %>% filter(tool_name == "VPRAIR"))
-m6 <- glm(family = binomial(),any_pretrial_failure_flag ~ vprair_risk_score + release_to_pretrial_end , data = eval_df %>% filter(tool_name == "VPRAIR"))
+m1 <- glm(family = binomial(),fta_flag ~ vprair_risk_score + release_to_pretrial_end , data = eval_df %>% filter(tool_name == "VPRAI-R"))
+m2 <- glm(family = binomial(),recid_arrested_flag ~ vprair_risk_score + release_to_pretrial_end , data = eval_df %>% filter(tool_name == "VPRAI-R"))
+m3 <- glm(family = binomial(),recid_filed_flag ~ vprair_risk_score + release_to_pretrial_end , data = eval_df %>% filter(tool_name == "VPRAI-R"))
+m4 <- glm(family = binomial(),recid_convicted_flag ~ vprair_risk_score + release_to_pretrial_end , data = eval_df %>% filter(tool_name == "VPRAI-R"))
+m5 <- glm(family = binomial(),recid_arrest_violent_psa_flag ~ vprair_risk_score + release_to_pretrial_end , data = eval_df %>% filter(tool_name == "VPRAI-R"))
+m6 <- glm(family = binomial(),any_pretrial_failure_flag ~ vprair_risk_score + release_to_pretrial_end , data = eval_df %>% filter(tool_name == "VPRAI-R"))
 
 stargazer(list(m1,m2,m3,m4,m5,m6),
           # type = "text", 
@@ -2397,7 +2421,7 @@ VPRAI-R
 \newline
 ```{r}
 tool_df <- auc_df %>%
-  filter(tool_name == "VPRAIR", race == "All", sex == "All", county == "All") %>%
+  filter(tool_name == "VPRAI-R", race == "All", sex == "All", county == "All") %>%
   select(outcome, AUC, CI, n) %>%
  mutate(outcome = case_when(outcome == "fta_flag" ~ "FTA",                              
                             outcome == "recid_arrested_flag" ~ "New Arrest",                              
@@ -2475,7 +2499,7 @@ Alameda --- where did new conviction flag go???
 \newline
 ```{r}
 tool_df <- auc_df %>%
-  filter(tool_name == "VPRAIR", race == "All", sex == "All", county == "Alameda") %>%
+  filter(tool_name == "VPRAI-R", race == "All", sex == "All", county == "Alameda") %>%
   select(outcome, AUC, CI, n) %>%
   mutate(outcome = case_when(outcome == "fta_flag" ~ "FTA",
                              outcome == "recid_arrested_flag" ~ "New Arrest",
@@ -2583,7 +2607,7 @@ Santa Barbara
 \newline
 ```{r}
 tool_df <- auc_df %>%
-  filter(tool_name == "VPRAIR", race == "All", sex == "All", county == "Santa Barbara") %>%
+  filter(tool_name == "VPRAI-R", race == "All", sex == "All", county == "Santa Barbara") %>%
   select(outcome, AUC, CI, n) %>%
  mutate(outcome = case_when(outcome == "fta_flag" ~ "FTA",                              
                             outcome == "recid_arrested_flag" ~ "New Arrest",                              
@@ -2864,7 +2888,7 @@ VPRAI-R
 risk_df <- race_df %>%
    # filter(book_date <= as_date("2021-03-31"),
    #       book_date >= as_date("2019-10-01")) %>%
-  filter(tool_name == "VPRAIR", !is.na(vprair_risk_score)) %>%
+  filter(tool_name == "VPRAI-R", !is.na(vprair_risk_score)) %>%
   group_by(race, vprair_risk_score) %>%
   summarise(across(c(fta_flag, recid_arrested_flag, recid_filed_flag, recid_convicted_flag, 
                     any_pretrial_failure_flag, recid_arrest_violent_psa_flag),
@@ -3010,7 +3034,7 @@ Alameda
 risk_df <- race_df %>%
    # filter(book_date <= as_date("2021-03-31"),
    #       book_date >= as_date("2019-10-01")) %>%
-  filter(tool_name == "VPRAIR", !is.na(vprair_risk_score), county == "Alameda") %>%
+  filter(tool_name == "VPRAI-R", !is.na(vprair_risk_score), county == "Alameda") %>%
   group_by(race, vprair_risk_score) %>%
   summarise(across(c(fta_flag, recid_arrested_flag, recid_filed_flag, recid_convicted_flag, 
                     any_pretrial_failure_flag, recid_arrest_violent_psa_flag),
@@ -3297,7 +3321,7 @@ Santa Barbara
 risk_df <- race_df %>%
    # filter(book_date <= as_date("2021-03-31"),
    #       book_date >= as_date("2019-10-01")) %>%
-  filter(tool_name == "VPRAIR", !is.na(vprair_risk_score), county == "Santa Barbara") %>%
+  filter(tool_name == "VPRAI-R", !is.na(vprair_risk_score), county == "Santa Barbara") %>%
   group_by(race, vprair_risk_score) %>%
   summarise(across(c(fta_flag, recid_arrested_flag, recid_filed_flag, recid_convicted_flag, 
                     any_pretrial_failure_flag, recid_arrest_violent_psa_flag),
@@ -3900,7 +3924,7 @@ ggplot(risk_df) +
 ```
 \newpage
 
-San Joaquin --- removed until data is fixed
+San Joaquin 
 \newline
 ```{r fig.height=6, fig.width=10, dpi=1200}
 risk_df <- eval_df %>%
@@ -4226,6 +4250,77 @@ ggplot(risk_df) +
 ```
 \newpage
 
+Alameda 
+\newline
+```{r fig.height=6, fig.width=10, dpi=1200}
+risk_df <- eval_df %>%
+  filter(county == "Alameda") %>%
+  mutate(race = factor(race, levels = c("White", "Black", "Hispanic", "Other_Unknown"))) %>%
+  filter(tool_name == "VPRAI-R", !is.na(vprair_risk_score)) %>%
+  group_by(vprair_risk_score, race) %>%
+  select(vprair_risk_score, race, fta_flag, recid_arrested_flag, recid_filed_flag, recid_convicted_flag,
+         any_pretrial_failure_flag, recid_arrest_violent_psa_flag) %>%
+  pivot_longer(fta_flag:recid_arrest_violent_psa_flag) %>%
+  mutate(name = case_when(name == "fta_flag" ~ "FTA",
+                          name == "recid_arrested_flag" ~ "New Arrest",
+                          name == "recid_filed_flag" ~ "New Filing",
+                          name == "recid_convicted_flag" ~ "New Conviction",
+                          name == "any_pretrial_failure_flag" ~ "FTA or New Arrest",
+                          name == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest"),
+         name = factor(name, levels = c("FTA or New Arrest", "FTA", "New Arrest", "New Filing", "New Conviction", "New Violent Arrest"))) %>%
+  filter(race %in% c("White", "Black", "Hispanic")) 
+
+ggplot(risk_df) +
+  aes(x = vprair_risk_score, y = value, color = race) +
+  geom_smooth(method = "glm", method.args = list(family=binomial), alpha = .2) +
+  # geom_line() +
+  # geom_point() +
+  theme_bw() +
+  # ylim(0,100) +
+  facet_wrap(~name, scales = "free") +
+  labs(x = "Risk Category", y = "Percent",
+       title = "Comparison of Racial Differences in Logistic Regression Curves--VPRAI-R, Alameda") +
+  scale_x_continuous(breaks = 0:14)
+
+
+```
+\newpage
+
+Santa Barbara 
+\newline
+```{r fig.height=6, fig.width=10, dpi=1200}
+risk_df <- eval_df %>%
+  filter(county == "Santa Barbara") %>%
+  mutate(race = factor(race, levels = c("White", "Black", "Hispanic", "Other_Unknown"))) %>%
+  filter(tool_name == "VPRAI-R", !is.na(vprair_risk_score)) %>%
+  group_by(vprair_risk_score, race) %>%
+  select(vprair_risk_score, race, fta_flag, recid_arrested_flag, recid_filed_flag, recid_convicted_flag,
+         any_pretrial_failure_flag, recid_arrest_violent_psa_flag) %>%
+  pivot_longer(fta_flag:recid_arrest_violent_psa_flag) %>%
+  mutate(name = case_when(name == "fta_flag" ~ "FTA",
+                          name == "recid_arrested_flag" ~ "New Arrest",
+                          name == "recid_filed_flag" ~ "New Filing",
+                          name == "recid_convicted_flag" ~ "New Conviction",
+                          name == "any_pretrial_failure_flag" ~ "FTA or New Arrest",
+                          name == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest"),
+         name = factor(name, levels = c("FTA or New Arrest", "FTA", "New Arrest", "New Filing", "New Conviction", "New Violent Arrest"))) %>%
+  filter(race %in% c("White", "Black", "Hispanic")) 
+
+ggplot(risk_df) +
+  aes(x = vprair_risk_score, y = value, color = race) +
+  geom_smooth(method = "glm", method.args = list(family=binomial), alpha = .2) +
+  # geom_line() +
+  # geom_point() +
+  theme_bw() +
+  # ylim(0,100) +
+  facet_wrap(~name, scales = "free") +
+  labs(x = "Risk Category", y = "Percent",
+       title = "Comparison of Racial Differences in Logistic Regression Curves--VPRAI-R, Santa Barbara") +
+  scale_x_continuous(breaks = 0:14)
+
+
+```
+\newpage
 
 
 # Race Logistic Regression Tables
@@ -4794,6 +4889,117 @@ stargazer(list(m1,m2,m3,m4,m5),
 \newpage
 
 
+Alameda--Without Interactions
+\newline
+```{r results='asis'}
+county_df <- race_df %>%
+  filter(county == "Alameda") %>%
+  filter(tool_name == "VPRAI-R")
+
+m1 <- glm(family = binomial(),fta_flag ~ vprair_risk_score + race + release_to_pretrial_end, data = county_df)
+m2 <- glm(family = binomial(),recid_arrested_flag ~ vprair_risk_score + race + release_to_pretrial_end, data = county_df)
+m3 <- glm(family = binomial(),recid_filed_flag ~ vprair_risk_score + race + release_to_pretrial_end, data = county_df)
+m4 <- glm(family = binomial(),recid_convicted_flag ~ vprair_risk_score + race + release_to_pretrial_end, data = county_df)
+m5 <- glm(family = binomial(),recid_arrest_violent_psa_flag ~ vprair_risk_score + race + release_to_pretrial_end, data = county_df)
+m6 <- glm(family = binomial(),any_pretrial_failure_flag ~ vprair_risk_score + race + release_to_pretrial_end, data = county_df)
+
+stargazer(list(m1,m2,m3,m4,m5, m6),
+          # type = "text",
+          dep.var.labels = c("FTA", "New Arrest", "New Filing", 
+                             "New Conviction", "New Violent Arrest", "FTA or New Arrest"), 
+          covariate.labels = c("VPRAI-R Risk Score", "Race:Black", "Race:Hispanic", "Days Released"),
+          star.char = c("*", "**", "***"),
+          star.cutoffs = c(.05, .01, .001),
+          notes = c("*p<0.05; **p<0.01; ***p<.001"),
+          notes.append = F, font.size = "small")
+```
+\newpage
+
+Alameda--With Interactions
+\newline
+```{r results='asis'}
+county_df <- race_df %>%
+  filter(county == "Alameda") %>%
+  filter(tool_name == "VPRAI-R")%>%
+  mutate(across(contains("score"), ~.x-1))
+
+m1 <- glm(family = binomial(),fta_flag ~ vprair_risk_score * race + release_to_pretrial_end, data = county_df)
+m2 <- glm(family = binomial(),recid_arrested_flag ~ vprair_risk_score * race + release_to_pretrial_end, data = county_df)
+m3 <- glm(family = binomial(),recid_filed_flag ~ vprair_risk_score * race + release_to_pretrial_end, data = county_df)
+m4 <- glm(family = binomial(),recid_convicted_flag ~ vprair_risk_score * race + release_to_pretrial_end, data = county_df)
+m5 <- glm(family = binomial(),recid_arrest_violent_psa_flag ~ vprair_risk_score * race + release_to_pretrial_end, data = county_df)
+m6 <- glm(family = binomial(),any_pretrial_failure_flag ~ vprair_risk_score * race + release_to_pretrial_end, data = county_df)
+
+
+stargazer(list(m1,m2,m3,m4,m5, m6),
+          # type = "text",
+          dep.var.labels = c("FTA", "New Arrest", "New Filing", 
+                             "New Conviction", "New Violent Arrest", "FTA or New Arrest"), 
+          covariate.labels = c("VPRAI-R Risk Score", "Race:Black", "Race:Hispanic",
+                               "Days Released", "VPRAI-R*Black", "VPRAI-R*Hispanic"),
+          star.char = c("*", "**", "***"),
+          star.cutoffs = c(.05, .01, .001),
+          notes = c("*p<0.05; **p<0.01; ***p<.001"),
+          notes.append = F, font.size = "small")
+```
+\newpage
+
+Santa Barbara--Without Interactions
+\newline
+```{r results='asis'}
+county_df <- race_df %>%
+  filter(county == "Santa Barbara") %>%
+  filter(tool_name == "VPRAI-R")
+
+m1 <- glm(family = binomial(),fta_flag ~ vprair_risk_score + race + release_to_pretrial_end, data = county_df)
+m2 <- glm(family = binomial(),recid_arrested_flag ~ vprair_risk_score + race + release_to_pretrial_end, data = county_df)
+m3 <- glm(family = binomial(),recid_filed_flag ~ vprair_risk_score + race + release_to_pretrial_end, data = county_df)
+m4 <- glm(family = binomial(),recid_convicted_flag ~ vprair_risk_score + race + release_to_pretrial_end, data = county_df)
+m5 <- glm(family = binomial(),recid_arrest_violent_psa_flag ~ vprair_risk_score + race + release_to_pretrial_end, data = county_df)
+m6 <- glm(family = binomial(),any_pretrial_failure_flag ~ vprair_risk_score + race + release_to_pretrial_end, data = county_df)
+
+stargazer(list(m1,m2,m3,m4,m5, m6),
+          # type = "text",
+          dep.var.labels = c("FTA", "New Arrest", "New Filing", 
+                             "New Conviction", "New Violent Arrest", "FTA or New Arrest"), 
+          covariate.labels = c("VPRAI-R Risk Score", "Race:Black", "Race:Hispanic", "Days Released"),
+          star.char = c("*", "**", "***"),
+          star.cutoffs = c(.05, .01, .001),
+          notes = c("*p<0.05; **p<0.01; ***p<.001"),
+          notes.append = F, font.size = "small")
+```
+\newpage
+
+Santa Barbara--With Interactions
+\newline
+```{r results='asis'}
+county_df <- race_df %>%
+  filter(county == "Santa Barbara") %>%
+  filter(tool_name == "VPRAI-R")%>%
+  mutate(across(contains("score"), ~.x-1))
+
+m1 <- glm(family = binomial(),fta_flag ~ vprair_risk_score * race + release_to_pretrial_end, data = county_df)
+m2 <- glm(family = binomial(),recid_arrested_flag ~ vprair_risk_score * race + release_to_pretrial_end, data = county_df)
+m3 <- glm(family = binomial(),recid_filed_flag ~ vprair_risk_score * race + release_to_pretrial_end, data = county_df)
+m4 <- glm(family = binomial(),recid_convicted_flag ~ vprair_risk_score * race + release_to_pretrial_end, data = county_df)
+m5 <- glm(family = binomial(),recid_arrest_violent_psa_flag ~ vprair_risk_score * race + release_to_pretrial_end, data = county_df)
+m6 <- glm(family = binomial(),any_pretrial_failure_flag ~ vprair_risk_score * race + release_to_pretrial_end, data = county_df)
+
+
+stargazer(list(m1,m2,m3,m4,m5, m6),
+          # type = "text",
+          dep.var.labels = c("FTA", "New Arrest", "New Filing", 
+                             "New Conviction", "New Violent Arrest", "FTA or New Arrest"), 
+          covariate.labels = c("VPRAI-R Risk Score", "Race:Black", "Race:Hispanic",
+                               "Days Released", "VPRAI-R*Black", "VPRAI-R*Hispanic"),
+          star.char = c("*", "**", "***"),
+          star.cutoffs = c(.05, .01, .001),
+          notes = c("*p<0.05; **p<0.01; ***p<.001"),
+          notes.append = F, font.size = "small")
+```
+\newpage
+
+
 # Race AUCs
 
 VPRAI 
@@ -4925,8 +5131,6 @@ kable(tool_df[1:7], booktabs = T, format.args = list(big.mark = ","),
   add_footnote(paste("N White =", tool_df$N_White[1], ", N Black =", 
                      tool_df$N_Black[1], ", N Hispanic =", tool_df$N_Hispanic[1]))
 ```
-
-
 \newpage
 
 Los Angeles
@@ -5103,8 +5307,69 @@ kable(tool_df[1:8], booktabs = T, format.args = list(big.mark = ","),
 ```
 \newpage
 
+Alameda
+\newline
+```{r}
+tool_df <- auc_df %>%
+  filter(tool_name == "VPRAI-R", race != "All", sex == "All", county == "Alameda") %>%
+  select(race, outcome, AUC, CI, n) %>%
+  mutate(outcome = case_when(outcome == "fta_flag" ~ "FTA",
+                             outcome == "recid_arrested_flag" ~ "New Arrest",
+                             outcome == "recid_filed_flag" ~ "New Filing",
+                             outcome == "recid_convicted_flag" ~ "New Conviction",
+                             outcome == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest",
+                             outcome == "any_pretrial_failure_flag" ~ "FTA or New"))
 
- 
+names(tool_df) <- c("race", "Outcome", "AUC", "CI (95%)", "N")
+
+tool_df <- tool_df %>%
+  pivot_wider(names_from = race, values_from = c(AUC, `CI (95%)`, N))
+
+names(tool_df) <- gsub("AUC_|CI .*_", "", names(tool_df))
+
+kable(tool_df[1:7], booktabs = T, format.args = list(big.mark = ","), 
+        # table.attr = "style = \"color: black;\"",
+        format = "latex") %>%
+    kable_styling(position = "center", full_width = F, 
+                  bootstrap_options = c("striped", "hover"), stripe_color = "gray",
+                  font_size = 10, latex_options = "hold_position") %>%
+  add_header_above(c(" " = 1, "AUC" = 3, "CI (95%)" = 3)) %>% 
+  add_footnote(paste("N White =", tool_df$N_White[1], ", N Black =", 
+                     tool_df$N_Black[1], ", N Hispanic =", tool_df$N_Hispanic[1]))
+```
+\newpage
+
+Santa Barbara
+\newline
+```{r}
+tool_df <- auc_df %>%
+  filter(tool_name == "VPRAI-R", race != "All", sex == "All", county == "Santa Barbara") %>%
+  select(race, outcome, AUC, CI, n) %>%
+  mutate(outcome = case_when(outcome == "fta_flag" ~ "FTA",
+                             outcome == "recid_arrested_flag" ~ "New Arrest",
+                             outcome == "recid_filed_flag" ~ "New Filing",
+                             outcome == "recid_convicted_flag" ~ "New Conviction",
+                             outcome == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest",
+                             outcome == "any_pretrial_failure_flag" ~ "FTA or New"))
+
+names(tool_df) <- c("race", "Outcome", "AUC", "CI (95%)", "N")
+
+tool_df <- tool_df %>%
+  pivot_wider(names_from = race, values_from = c(AUC, `CI (95%)`, N))
+
+names(tool_df) <- gsub("AUC_|CI .*_", "", names(tool_df))
+
+kable(tool_df[1:7], booktabs = T, format.args = list(big.mark = ","), 
+        # table.attr = "style = \"color: black;\"",
+        format = "latex") %>%
+    kable_styling(position = "center", full_width = F, 
+                  bootstrap_options = c("striped", "hover"), stripe_color = "gray",
+                  font_size = 10, latex_options = "hold_position") %>%
+  add_header_above(c(" " = 1, "AUC" = 3, "CI (95%)" = 3)) %>% 
+  add_footnote(paste("N White =", tool_df$N_White[1], ", N Black =", 
+                     tool_df$N_Black[1], ", N Hispanic =", tool_df$N_Hispanic[1]))
+```
+\newpage 
 
 # Gender Table
 ```{r include=FALSE}
@@ -5204,7 +5469,7 @@ VPRAI-R
 risk_df <- sex_df %>%
    # filter(book_date <= as_date("2021-03-31"),
    #       book_date >= as_date("2019-10-01")) %>%
-  filter(tool_name == "VPRAIR", !is.na(vprair_risk_score)) %>%
+  filter(tool_name == "VPRAI-R", !is.na(vprair_risk_score)) %>%
   group_by(sex, vprair_risk_score) %>%
   summarise(across(c(fta_flag, recid_arrested_flag, recid_filed_flag, recid_convicted_flag, 
                     any_pretrial_failure_flag, recid_arrest_violent_psa_flag),
@@ -5352,7 +5617,7 @@ Alameda
 risk_df <- sex_df %>%
    # filter(book_date <= as_date("2021-03-31"),
    #       book_date >= as_date("2019-10-01")) %>%
-  filter(tool_name == "VPRAIR", !is.na(vprair_risk_score), county == "Alameda") %>%
+  filter(tool_name == "VPRAI-R", !is.na(vprair_risk_score), county == "Alameda") %>%
   group_by(sex, vprair_risk_score) %>%
   summarise(across(c(fta_flag, recid_arrested_flag, recid_filed_flag, recid_convicted_flag, 
                     any_pretrial_failure_flag, recid_arrest_violent_psa_flag),
@@ -5641,7 +5906,7 @@ Santa Barbara
 risk_df <- sex_df %>%
    # filter(book_date <= as_date("2021-03-31"),
    #       book_date >= as_date("2019-10-01")) %>%
-  filter(tool_name == "VPRAIR", !is.na(vprair_risk_score), county == "Santa Barbara") %>%
+  filter(tool_name == "VPRAI-R", !is.na(vprair_risk_score), county == "Santa Barbara") %>%
   group_by(sex, vprair_risk_score) %>%
   summarise(across(c(fta_flag, recid_arrested_flag, recid_filed_flag, recid_convicted_flag, 
                     any_pretrial_failure_flag, recid_arrest_violent_psa_flag),
@@ -6569,6 +6834,77 @@ ggplot(risk_df) +
 ```
 \newpage
 
+Alameda 
+\newline
+```{r fig.height=6, fig.width=10, dpi=1200}
+risk_df <- eval_df %>%
+  filter(county == "Alameda") %>%
+  mutate(sex = factor(sex, levels = c("Male", "Female"))) %>%
+  filter(tool_name == "VPRAI-R", !is.na(vprair_risk_score)) %>%
+  group_by(vprair_risk_score, sex) %>%
+  select(vprair_risk_score, sex, fta_flag, recid_arrested_flag, recid_filed_flag, recid_convicted_flag,
+         any_pretrial_failure_flag, recid_arrest_violent_psa_flag) %>%
+  pivot_longer(fta_flag:recid_arrest_violent_psa_flag) %>%
+  mutate(name = case_when(name == "fta_flag" ~ "FTA",
+                          name == "recid_arrested_flag" ~ "New Arrest",
+                          name == "recid_filed_flag" ~ "New Filing",
+                          name == "recid_convicted_flag" ~ "New Conviction",
+                          name == "any_pretrial_failure_flag" ~ "FTA or New Arrest",
+                          name == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest"),
+         name = factor(name, levels = c("FTA or New Arrest", "FTA", "New Arrest", "New Filing", "New Conviction", "New Violent Arrest"))) %>%
+  filter(sex %in% c("Male", "Female")) 
+
+ggplot(risk_df) +
+  aes(x = vprair_risk_score, y = value, color = sex) +
+  geom_smooth(method = "glm", method.args = list(family=binomial), alpha = .2) +
+  # geom_line() +
+  # geom_point() +
+  theme_bw() +
+  # ylim(0,100) +
+  facet_wrap(~name, scales = "free") +
+  labs(x = "Risk Category", y = "Percent",
+       title = "Comparison of Gender Differences in Logistic Regression Curves--VPRAI-R, Alameda") +
+  scale_x_continuous(breaks = 0:14)
+
+
+```
+\newpage
+
+Santa Barbara 
+\newline
+```{r fig.height=6, fig.width=10, dpi=1200}
+risk_df <- eval_df %>%
+  filter(county == "Santa Barbara") %>%
+  mutate(sex = factor(sex, levels = c("Male", "Female"))) %>%
+  filter(tool_name == "VPRAI-R", !is.na(vprair_risk_score)) %>%
+  group_by(vprair_risk_score, sex) %>%
+  select(vprair_risk_score, sex, fta_flag, recid_arrested_flag, recid_filed_flag, recid_convicted_flag,
+         any_pretrial_failure_flag, recid_arrest_violent_psa_flag) %>%
+  pivot_longer(fta_flag:recid_arrest_violent_psa_flag) %>%
+  mutate(name = case_when(name == "fta_flag" ~ "FTA",
+                          name == "recid_arrested_flag" ~ "New Arrest",
+                          name == "recid_filed_flag" ~ "New Filing",
+                          name == "recid_convicted_flag" ~ "New Conviction",
+                          name == "any_pretrial_failure_flag" ~ "FTA or New Arrest",
+                          name == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest"),
+         name = factor(name, levels = c("FTA or New Arrest", "FTA", "New Arrest", "New Filing", "New Conviction", "New Violent Arrest"))) %>%
+  filter(sex %in% c("Male", "Female")) 
+
+ggplot(risk_df) +
+  aes(x = vprair_risk_score, y = value, color = sex) +
+  geom_smooth(method = "glm", method.args = list(family=binomial), alpha = .2) +
+  # geom_line() +
+  # geom_point() +
+  theme_bw() +
+  # ylim(0,100) +
+  facet_wrap(~name, scales = "free") +
+  labs(x = "Risk Category", y = "Percent",
+       title = "Comparison of Gender Differences in Logistic Regression Curves--VPRAI-R, Santa Barbara") +
+  scale_x_continuous(breaks = 0:14)
+
+
+```
+\newpage
 
 # Gender Logistic Regression Tables
 
@@ -7029,6 +7365,115 @@ stargazer(list(m1,m2,m3,m4,m5,m6),
 ```
 \newpage
 
+
+Alameda--Without Interactions  
+\newline
+```{r results='asis'}
+county_df <- sex_df %>%
+  filter(county == "Alameda") %>%
+  filter(tool_name == "VPRAI-R")
+
+m1 <- glm(family = binomial(),fta_flag ~ vprair_risk_score + sex + release_to_pretrial_end, data = county_df)
+m2 <- glm(family = binomial(),recid_arrested_flag ~ vprair_risk_score + sex + release_to_pretrial_end, data = county_df)
+m3 <- glm(family = binomial(),recid_filed_flag ~ vprair_risk_score + sex + release_to_pretrial_end, data = county_df)
+m4 <- glm(family = binomial(),recid_convicted_flag ~ vprair_risk_score + sex + release_to_pretrial_end, data = county_df)
+m5 <- glm(family = binomial(),recid_arrest_violent_psa_flag ~ vprair_risk_score + sex + release_to_pretrial_end, data = county_df)
+m6 <- glm(family = binomial(),any_pretrial_failure_flag ~ vprair_risk_score + sex + release_to_pretrial_end, data = county_df)
+
+stargazer(list(m1,m2,m3,m4,m5,m6),
+          # type = "text",
+          dep.var.labels = c("FTA", "New Arrest", "New Filing", 
+                             "New Conviction", "New Violent Arrest", "FTA or New Arrest"), 
+          covariate.labels = c("VPRAI-R Risk Score", "Female", "Days Released"),
+          star.char = c("*", "**", "***"),
+          star.cutoffs = c(.05, .01, .001),
+          notes = c("*p<0.05; **p<0.01; ***p<.001"),
+          notes.append = F, font.size = "small")
+```
+\newpage
+
+Alameda--With Interactions 
+\newline
+```{r results='asis'}
+county_df <- sex_df %>%
+  filter(county == "Alameda") %>%
+  filter(tool_name == "VPRAI-R") %>%
+  mutate(across(contains("score"), ~.x-1))
+
+m1 <- glm(family = binomial(),fta_flag ~ vprair_risk_score * sex + release_to_pretrial_end, data = county_df)
+m2 <- glm(family = binomial(),recid_arrested_flag ~ vprair_risk_score * sex + release_to_pretrial_end, data = county_df)
+m3 <- glm(family = binomial(),recid_filed_flag ~ vprair_risk_score * sex + release_to_pretrial_end, data = county_df)
+m4 <- glm(family = binomial(),recid_convicted_flag ~ vprair_risk_score * sex + release_to_pretrial_end, data = county_df)
+m5 <- glm(family = binomial(),recid_arrest_violent_psa_flag ~ vprair_risk_score * sex + release_to_pretrial_end, data = county_df)
+m6 <- glm(family = binomial(),any_pretrial_failure_flag ~ vprair_risk_score * sex + release_to_pretrial_end, data = county_df)
+
+stargazer(list(m1,m2,m3,m4,m5,m6),
+          # type = "text",
+          dep.var.labels = c("FTA", "New Arrest", "New Filing", 
+                             "New Conviction", "New Violent Arrest", "FTA or New Arrest"), 
+          covariate.labels = c("VPRAI-R Risk Score", "Female",
+                               "Days Released", "VPRAI-R*Female"),
+          star.char = c("*", "**", "***"),
+          star.cutoffs = c(.05, .01, .001),
+          notes = c("*p<0.05; **p<0.01; ***p<.001"),
+          notes.append = F, font.size = "small")
+```
+\newpage
+
+Santa Barbara--Without Interactions  
+\newline
+```{r results='asis'}
+county_df <- sex_df %>%
+  filter(county == "Santa Barbara") %>%
+  filter(tool_name == "VPRAI-R")
+
+m1 <- glm(family = binomial(),fta_flag ~ vprair_risk_score + sex + release_to_pretrial_end, data = county_df)
+m2 <- glm(family = binomial(),recid_arrested_flag ~ vprair_risk_score + sex + release_to_pretrial_end, data = county_df)
+m3 <- glm(family = binomial(),recid_filed_flag ~ vprair_risk_score + sex + release_to_pretrial_end, data = county_df)
+m4 <- glm(family = binomial(),recid_convicted_flag ~ vprair_risk_score + sex + release_to_pretrial_end, data = county_df)
+m5 <- glm(family = binomial(),recid_arrest_violent_psa_flag ~ vprair_risk_score + sex + release_to_pretrial_end, data = county_df)
+m6 <- glm(family = binomial(),any_pretrial_failure_flag ~ vprair_risk_score + sex + release_to_pretrial_end, data = county_df)
+
+stargazer(list(m1,m2,m3,m4,m5,m6),
+          # type = "text",
+          dep.var.labels = c("FTA", "New Arrest", "New Filing", 
+                             "New Conviction", "New Violent Arrest", "FTA or New Arrest"), 
+          covariate.labels = c("VPRAI-R Risk Score", "Female", "Days Released"),
+          star.char = c("*", "**", "***"),
+          star.cutoffs = c(.05, .01, .001),
+          notes = c("*p<0.05; **p<0.01; ***p<.001"),
+          notes.append = F, font.size = "small")
+```
+\newpage
+
+Santa Barbara--With Interactions 
+\newline
+```{r results='asis'}
+county_df <- sex_df %>%
+  filter(county == "Santa Barbara") %>%
+  filter(tool_name == "VPRAI-R") %>%
+  mutate(across(contains("score"), ~.x-1))
+
+m1 <- glm(family = binomial(),fta_flag ~ vprair_risk_score * sex + release_to_pretrial_end, data = county_df)
+m2 <- glm(family = binomial(),recid_arrested_flag ~ vprair_risk_score * sex + release_to_pretrial_end, data = county_df)
+m3 <- glm(family = binomial(),recid_filed_flag ~ vprair_risk_score * sex + release_to_pretrial_end, data = county_df)
+m4 <- glm(family = binomial(),recid_convicted_flag ~ vprair_risk_score * sex + release_to_pretrial_end, data = county_df)
+m5 <- glm(family = binomial(),recid_arrest_violent_psa_flag ~ vprair_risk_score * sex + release_to_pretrial_end, data = county_df)
+m6 <- glm(family = binomial(),any_pretrial_failure_flag ~ vprair_risk_score * sex + release_to_pretrial_end, data = county_df)
+
+stargazer(list(m1,m2,m3,m4,m5,m6),
+          # type = "text",
+          dep.var.labels = c("FTA", "New Arrest", "New Filing", 
+                             "New Conviction", "New Violent Arrest", "FTA or New Arrest"), 
+          covariate.labels = c("VPRAI-R Risk Score", "Female",
+                               "Days Released", "VPRAI-R*Female"),
+          star.char = c("*", "**", "***"),
+          star.cutoffs = c(.05, .01, .001),
+          notes = c("*p<0.05; **p<0.01; ***p<.001"),
+          notes.append = F, font.size = "small")
+```
+\newpage
+
 # Gender AUCs
 
 VPRAI
@@ -7096,7 +7541,6 @@ kable(tool_df[1:5], booktabs = T, format.args = list(big.mark = ","),
                      tool_df$N_Male[1]))
 ```
 \newpage
-
 
 PSA
 \newline
@@ -7338,6 +7782,72 @@ kable(tool_df[1:6], booktabs = T, format.args = list(big.mark = ","),
                   bootstrap_options = c("striped", "hover"), stripe_color = "gray",
                   font_size = 10, latex_options = "hold_position") %>%
   add_header_above(c(" " = 2, "AUC" = 2, "CI (95%)" = 2)) %>% 
+  add_footnote(paste("N Female =", tool_df$N_Female[1], ", N Male =", 
+                     tool_df$N_Male[1]))
+```
+\newpage
+
+Alameda  
+\newline
+```{r}
+tool_df <- auc_df %>%
+  filter(tool_name == "VPRAI-R", race == "All", sex != "All", county == "Alameda") %>%
+  select(sex, outcome, AUC, CI, n) %>%
+  arrange(sex) %>%
+  mutate(outcome = case_when(outcome == "fta_flag" ~ "FTA",
+                             outcome == "recid_arrested_flag" ~ "New Arrest",
+                             outcome == "recid_filed_flag" ~ "New Filing",
+                             outcome == "recid_convicted_flag" ~ "New Conviction",
+                             outcome == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest",
+                             outcome == "any_pretrial_failure_flag" ~ "FTA or New"))
+
+names(tool_df) <- c("sex", "Outcome", "AUC", "CI (95%)", "N")
+
+tool_df <- tool_df %>%
+  pivot_wider(names_from = sex, values_from = c(AUC, `CI (95%)`, N))
+
+names(tool_df) <- gsub("AUC_|CI .*_", "", names(tool_df))
+
+kable(tool_df[1:5], booktabs = T, format.args = list(big.mark = ","), 
+        # table.attr = "style = \"color: black;\"",
+        format = "latex") %>%
+    kable_styling(position = "center", full_width = F, 
+                  bootstrap_options = c("striped", "hover"), stripe_color = "gray",
+                  font_size = 10, latex_options = "hold_position") %>%
+  add_header_above(c(" " = 1, "AUC" = 2, "CI (95%)" = 2)) %>% 
+  add_footnote(paste("N Female =", tool_df$N_Female[1], ", N Male =", 
+                     tool_df$N_Male[1]))
+```
+\newpage
+
+Santa Barbara  
+\newline
+```{r}
+tool_df <- auc_df %>%
+  filter(tool_name == "VPRAI-R", race == "All", sex != "All", county == "Santa Barbara") %>%
+  select(sex, outcome, AUC, CI, n) %>%
+  arrange(sex) %>%
+  mutate(outcome = case_when(outcome == "fta_flag" ~ "FTA",
+                             outcome == "recid_arrested_flag" ~ "New Arrest",
+                             outcome == "recid_filed_flag" ~ "New Filing",
+                             outcome == "recid_convicted_flag" ~ "New Conviction",
+                             outcome == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest",
+                             outcome == "any_pretrial_failure_flag" ~ "FTA or New"))
+
+names(tool_df) <- c("sex", "Outcome", "AUC", "CI (95%)", "N")
+
+tool_df <- tool_df %>%
+  pivot_wider(names_from = sex, values_from = c(AUC, `CI (95%)`, N))
+
+names(tool_df) <- gsub("AUC_|CI .*_", "", names(tool_df))
+
+kable(tool_df[1:5], booktabs = T, format.args = list(big.mark = ","), 
+        # table.attr = "style = \"color: black;\"",
+        format = "latex") %>%
+    kable_styling(position = "center", full_width = F, 
+                  bootstrap_options = c("striped", "hover"), stripe_color = "gray",
+                  font_size = 10, latex_options = "hold_position") %>%
+  add_header_above(c(" " = 1, "AUC" = 2, "CI (95%)" = 2)) %>% 
   add_footnote(paste("N Female =", tool_df$N_Female[1], ", N Male =", 
                      tool_df$N_Male[1]))
 ```

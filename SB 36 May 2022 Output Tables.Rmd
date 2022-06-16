@@ -20,6 +20,7 @@ library(ggthemes)
 library(openxlsx)
 
 # shell.exec(getwd())
+
 ```
 
 MyKable function creation
@@ -59,13 +60,20 @@ FROM "DWH_PROD"."DATA_SCIENCE"."CJS_DF_STD"
 ;
 ```
 
-Pull snowflake data -- cjs_outcome_std 
-```{sql connection=con, include=FALSE, output.var='full_df'}
+Pull snowflake data -- cjs_outcome_std -- removed 
+```{sql eval=FALSE, connection=con, include=FALSE, output.var='full_df'}
 SELECT *
 FROM "DWH_PROD"."DATA_SCIENCE"."CJS_OUTCOME_STD"
 ;
 ```
 \newpage
+
+Pull snowflake data -- join_df
+```{sql connection=con, include=FALSE, output.var='join_df'}
+SELECT *
+FROM "DWH_PROD"."DATA_SCIENCE"."JOIN_DF_STD"
+;
+```
 
 Format df
 ```{r}
@@ -110,13 +118,11 @@ df <- df %>%
 
 \newpage
 
-Format full_df, join_df, and eval_df
+Format join_df, and eval_df
 ```{r warning=FALSE, include=FALSE}
-snow_df <- full_df
+names(join_df) <- tolower(names(join_df))
 
-names(full_df) <- tolower(names(full_df))
-
-full_df <- full_df %>%
+join_df <- join_df %>%
   mutate(book_date = booking_date,
          race_orig = race,
          race = if_else(race_standard == "American Indian", "Other/Unknown", race_standard),
@@ -136,16 +142,20 @@ full_df <- full_df %>%
          monitor_level = if_else(monitoring_level_grouped %in% c("Lowest Levels", "Medium Levels", "Highest Levels"), monitoring_level_grouped, "Other/Unknown"),
          fta_flag = fta_county_or_doj,
          recid_arrested_flag = recid_county_or_doj,
-         age = indiv_age,
-         tool_name = if_else(county == "Kings", "VPRAIO", tool_name),
+         age = individual_age,
+         tool_name = case_when(county == "Kings" ~ "VPRAIO", 
+                               county == "Santa Barbara" & assessment_date < as.Date("2020-4-29") ~ "VPRAI",
+                               county == "Santa Barbara" & assessment_date >= as.Date("2020-4-29") ~ "VPRAI-R",
+                               tool_name == "VPRAIR" ~ "VPRAI-R",
+                               T ~ tool_name),
          oras_risk_score = if_else(tool_name == "ORAS", risk_score_raw, NULL),
          vprai_risk_score = if_else(tool_name == "VPRAI", risk_score_raw, NULL),
-         vprair_risk_score = if_else(tool_name == "VPRAIR", risk_score_raw, NULL),
+         vprair_risk_score = if_else(tool_name == "VPRAI-R", risk_score_raw, NULL),
          vpraio_risk_score = if_else(tool_name == "VPRAIO", generic_tool_total_score_raw, NULL),
          psa_fta_risk_score = score_failure_to_appear,
          psa_nca_risk_score = score_new_criminal_activity,
          psa_nvca_risk_score = score_new_criminal_violent_activity,
-         scored_assessment = if_else(tool_name %in% c("ORAS", "VPRAI", "VPRAIR") & !is.na(risk_score_raw) |
+         scored_assessment = if_else(tool_name %in% c("ORAS", "VPRAI", "VPRAI-R") & !is.na(risk_score_raw) |
                                        tool_name == "PSA" & !is.na(score_new_criminal_activity) |
                                        tool_name == "VPRAIO" & !is.na(generic_tool_total_score_raw), 1, 0),
          pretrial_period_end_date = if_else(is.na(pretrial_period_end_date), as.Date(pretrial_period_end_date_doj), as.Date(pretrial_period_end_date))) %>%
@@ -157,19 +167,19 @@ full_df <- full_df %>%
   mutate(across(contains("_flag"), ~if_else(is.na(.x), 0, as.numeric(.x)))) %>%
   arrange(County) 
 
-join_df <- full_df  %>%
+join_df <- join_df  %>%
   filter(booking_date >= as.Date("2019-10-01"),
          booking_date <= as.Date("2021-12-31"))
 
 
-eval_df <- full_df %>%
+eval_df <- join_df %>%
   filter(booking_assessed_count == 1,
          scored_assessment == 1,
          release_eligible_count ==1,
          released_pretrial_count == 1,
          pretrial_period_end_count == 1,
          booking_date < as.Date("2022-01-01"),
-         tool_name %in% c("ORAS", "PSA", "VPRAI", "VPRAIR", "VPRAIO")
+         tool_name %in% c("ORAS", "PSA", "VPRAI", "VPRAI-R", "VPRAIO")
          ) %>%
   mutate(release_to_pretrial_end = pretrial_period_end_date - release_date)
 
@@ -178,7 +188,7 @@ eval_df <- full_df %>%
 
 Date ranges
 ```{r}
-date_range <- full_df %>%
+date_range <- join_df %>%
   #filter(County %in% c("Alameda", "Sacramento", "Sonoma", "Ventura")) %>%
   filter(new_arrest_flag == 1) %>%
   group_by(County) %>%
@@ -292,7 +302,7 @@ PC 1320.35 (f)(2)
 
 # release_type variable may not be a reliable indicator of pretrial release, but going to try to use it here anyway just to see
 
-gender_df <- full_df %>%
+gender_df <- join_df %>%
   mutate(release_cat = case_when(release_type %in% c("Cite Release", "Bail Bond", "Own Recognizance",  "Zero Bail") ~ "Pretrial release type",
                                  release_type %in% c("Detain Only", "Dismissed", "Prison", "Time Served") ~ "Post-resolution release type",
                                  release_type %in% c("Hold Release", "Other", "Unknown") ~ "Unclear release type",
@@ -344,7 +354,7 @@ gender_df <- full_df %>%
 
 write.xlsx(gender_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/2A Gender fresh.xlsx", asTable = F)
 
-# full_df %>%
+# join_df %>%
 #   filter(new_arrest_flag == 1) %>%
 #   filter(sex %in% c("Male", "Female")) %>%
 #   count()
@@ -359,7 +369,7 @@ write.xlsx(gender_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program
 
 # release_type variable may not be a reliable indicator of pretrial release, but going to try to use it here anyway just to see
 
-race_df <- full_df %>%
+race_df <- join_df %>%
   mutate(release_cat = case_when(release_type %in% c("Cite Release", "Bail Bond", "Own Recognizance",  "Zero Bail") ~ "Pretrial release type",
                                  release_type %in% c("Detain Only", "Dismissed", "Prison", "Time Served") ~ "Post-resolution release type",
                                  release_type %in% c("Hold Release", "Other", "Unknown") ~ "Unclear release type",
@@ -410,7 +420,7 @@ race_df <- full_df %>%
 
 write.xlsx(race_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/2A Race fresh.xlsx", asTable = F)
 
-# full_df %>%
+# join_df %>%
 #   filter(new_arrest_flag == 1) %>%
 #   filter(race %in% c("White", "Black", "Hispanic")) %>%
 #   count()
@@ -427,7 +437,7 @@ write.xlsx(race_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/S
 
 # release_type variable may not be a reliable indicator of pretrial release, but going to try to use it here anyway just to see
 
-arrest_charge_level_df <- full_df %>%
+arrest_charge_level_df <- join_df %>%
   mutate(release_cat = case_when(release_type %in% c("Cite Release", "Bail Bond", "Own Recognizance",  "Zero Bail") ~ "Pretrial release type",
                                  release_type %in% c("Detain Only", "Dismissed", "Prison", "Time Served") ~ "Post-resolution release type",
                                  release_type %in% c("Hold Release", "Other", "Unknown") ~ "Unclear release type",
@@ -491,7 +501,7 @@ write.xlsx(arrest_charge_level_df, file = "G:/CrimJustice/Pretrial/000-Pretrial 
 
 # release_type variable may not be a reliable indicator of pretrial release, but going to try to use it here anyway just to see
 
-gender_df <- full_df %>%
+gender_df <- join_df %>%
   mutate(release_cat = case_when(release_type %in% c("Cite Release", "Bail Bond", "Own Recognizance",  "Zero Bail") ~ "Pretrial release type",
                                  release_type %in% c("Detain Only", "Dismissed", "Prison", "Time Served") ~ "Post-resolution release type",
                                  release_type %in% c("Hold Release", "Other", "Unknown") ~ "Unclear release type",
@@ -542,7 +552,7 @@ gender_df <- full_df %>%
 
 write.xlsx(gender_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/2A Gender LA.xlsx", asTable = F)
 
-# full_df %>%
+# join_df %>%
 #   filter(new_arrest_flag == 1) %>%
 #   filter(sex %in% c("Male", "Female")) %>%
 #   count()
@@ -557,7 +567,7 @@ write.xlsx(gender_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program
 
 # release_type variable may not be a reliable indicator of pretrial release, but going to try to use it here anyway just to see
 
-race_df <- full_df %>%
+race_df <- join_df %>%
   mutate(release_cat = case_when(release_type %in% c("Cite Release", "Bail Bond", "Own Recognizance",  "Zero Bail") ~ "Pretrial release type",
                                  release_type %in% c("Detain Only", "Dismissed", "Prison", "Time Served") ~ "Post-resolution release type",
                                  release_type %in% c("Hold Release", "Other", "Unknown") ~ "Unclear release type",
@@ -620,7 +630,7 @@ write.xlsx(race_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/S
 
 # release_type variable may not be a reliable indicator of pretrial release, but going to try to use it here anyway just to see
 
-arrest_charge_level_df <- full_df %>%
+arrest_charge_level_df <- join_df %>%
   mutate(release_cat = case_when(release_type %in% c("Cite Release", "Bail Bond", "Own Recognizance",  "Zero Bail") ~ "Pretrial release type",
                                  release_type %in% c("Detain Only", "Dismissed", "Prison", "Time Served") ~ "Post-resolution release type",
                                  release_type %in% c("Hold Release", "Other", "Unknown") ~ "Unclear release type",
@@ -672,32 +682,32 @@ arrest_charge_level_df <- full_df %>%
 
 write.xlsx(arrest_charge_level_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/2A Offense Type LA.xlsx", asTable = F)
 
-# full_df %>%
+# join_df %>%
 #   filter(new_arrest_flag == 1) %>%
 #   filter(arrest_charge_level %in% c("Felony", "Misdemeanor")) %>%
 #   count()
 
-# full_df %>%
+# join_df %>%
 #   count(county, book_type_original, new_arrest_flag)
 # 
-# full_df %>%
+# join_df %>%
 #   count(county, book_type, book_type_original, new_arrest_flag)
 # 
-# full_df %>%
+# join_df %>%
 #   filter(county == "Modoc") %>%
 #   count(new_arrest_flag)
 # 
 # eval_df %>%
 #   count()
 
-# full_df %>%
+# join_df %>%
 #   filter(release_type == "Zero Bail") %>%
 #   count(county)
 ```
 
 ## Alameda checks
 ```{r include = F}
-# alameda_release_types <- full_df %>%
+# alameda_release_types <- join_df %>%
 #   filter(new_arrest_flag == 1,
 #          County == "Alameda") %>%
 #   mutate(release_category = case_when(release_type %in% c("Bail Bond", "Zero Bail") ~ "Bail",
@@ -711,7 +721,7 @@ write.xlsx(arrest_charge_level_df, file = "G:/CrimJustice/Pretrial/000-Pretrial 
 # 
 # write.xlsx(alameda_release_types, file = "I:/Random for Shelley/2021.06.03 pretrial stuff/Alameda release type codes.xlsx", asTable = F)
   
-# alameda_bookings <- full_df %>%
+# alameda_bookings <- join_df %>%
 #   filter(County == "Alameda",
 #          is.na(arrest_charge_level_original)) %>%
 #   select(book_num, book_date)
@@ -721,7 +731,7 @@ write.xlsx(arrest_charge_level_df, file = "G:/CrimJustice/Pretrial/000-Pretrial 
 # alameda_bookings %>%
 #   distinct(book_num, )
 # 
-# full_df %>%
+# join_df %>%
 #   filter(County == "Alameda",
 #          is.na(arrest_charge_level_original)) %>%
 #   distinct(book_num, book_date)
@@ -1638,7 +1648,7 @@ Source: Pretrial Pilot Program Probation Data (10-01-2019 through 03-31-2021) fr
 ## Outcomes (VPRAI-R)
 ```{r message=FALSE, warning=FALSE}
 risk_df_vprair <- eval_df %>%
-  filter(tool_name == "VPRAIR",
+  filter(tool_name == "VPRAI-R",
          !is.na(vprair_risk_score)) %>%
   group_by(vprair_risk_score) %>%
   summarise(Total = n(), 
@@ -1646,7 +1656,7 @@ risk_df_vprair <- eval_df %>%
             `Non New Charge Rate` = paste(round(100 - mean(recid_filed_flag)*100), "%")) %>%
   mutate(vprair_risk_score = as.character(vprair_risk_score)) %>%
   bind_rows(eval_df %>% 
-              filter(tool_name == "VPRAIR",
+              filter(tool_name == "VPRAI-R",
                      !is.na(vprair_risk_score)) %>% 
               summarise(Total = n(),
                         `Non FTA Rate` = paste(round(100 - mean(fta_flag)*100), "%"),
@@ -1663,7 +1673,7 @@ Source: Pretrial Pilot Program Probation Data (10-01-2019 through 03-31-2021) fr
 ## Outcomes (VPRAI-R) categories
 ```{r message=FALSE, warning=FALSE}
 risk_df_vprair <- eval_df %>%
-  filter(tool_name == "VPRAIR",
+  filter(tool_name == "VPRAI-R",
          !is.na(vprair_risk_score)) %>%
   mutate(vprair_risk_score = case_when(
     vprair_risk_score %in% 0:2 ~ "Scores 0-2",
@@ -1679,7 +1689,7 @@ risk_df_vprair <- eval_df %>%
             `Non New Charge Rate` = paste(round(100 - mean(recid_filed_flag)*100), "%")) %>%
   mutate(vprair_risk_score = as.character(vprair_risk_score)) %>%
   bind_rows(eval_df %>% 
-              filter(tool_name == "VPRAIR",
+              filter(tool_name == "VPRAI-R",
                      !is.na(vprair_risk_score)) %>% 
               summarise(Total = n(),
                         `Non FTA Rate` = paste(round(100 - mean(fta_flag)*100), "%"),
@@ -1999,7 +2009,7 @@ gender_vprair <- df %>%
   count(vprair_risk_score, sex, risk_score_sort) 
 
 offense_type_vprair <- join_df %>%
-  filter(tool_name == "VPRAIR",
+  filter(tool_name == "VPRAI-R",
          !is.na(vprair_risk_score)) %>%
   mutate(vprair_risk_score = case_when(
            vprair_risk_score %in% 0:2 ~ "Scores 0-2",
@@ -2020,12 +2030,12 @@ offense_type_vprair <- join_df %>%
   count(vprair_risk_score, arrest_charge_level, risk_score_sort) 
 
 # zipcode_vprair <- join_df %>%
-#   filter(tool_name == "VPRAIR",
+#   filter(tool_name == "VPRAI-R",
 #          !is.na(vprair_risk_score)) %>%
 #   count(vprair_risk_score, zip_code)
 
 release_vprair <- join_df %>%
-  filter(tool_name == "VPRAIR",
+  filter(tool_name == "VPRAI-R",
          !is.na(vprair_risk_score)) %>%
   mutate(release_decision = case_when(release_decision_arraignment %in% c("Monitor", "Own Recognizance") | release_decision_prearraignment %in% c("Monitor", "Own Recognizance") ~ "Granted Program Release", 
                                       release_decision_arraignment %in% c("Deny Release") | release_decision_arraignment %in% c("Deny Release") ~ "Denied Program Release", 
@@ -2428,7 +2438,7 @@ Source: Pretrial Pilot Program Probation Data (10-01-2019 through 03-31-2021) fr
 ## Accuracy (VPRAI-R)
 ```{r message=FALSE, warning=FALSE}
 risk_df_vprair_gender <- eval_df %>%
-  filter(tool_name == "VPRAIR",
+  filter(tool_name == "VPRAI-R",
          !is.na(vprair_risk_score)) %>%
   group_by(vprair_risk_score, sex) %>%
   summarise(Total = n(), 
@@ -2439,7 +2449,7 @@ risk_df_vprair_gender <- eval_df %>%
   mutate(across(matches("Total|Count$|Rate|Perc"), ~if_else(Total < 30 & Total >= 1, "< 30", as.character(.x)))) 
 
 risk_df_vprair_race <- eval_df %>%
-  filter(tool_name == "VPRAIR",
+  filter(tool_name == "VPRAI-R",
          !is.na(vprair_risk_score)) %>%
   group_by(vprair_risk_score, race) %>%
   summarise(Total = n(), 
@@ -2450,7 +2460,7 @@ risk_df_vprair_race <- eval_df %>%
   mutate(across(matches("Total|Count$|Rate|Perc"), ~if_else(Total < 30 & Total >= 1, "< 30", as.character(.x)))) 
 
 risk_df_vprair_offense <- eval_df %>%
-  filter(tool_name == "VPRAIR",
+  filter(tool_name == "VPRAI-R",
          !is.na(vprair_risk_score)) %>%
   group_by(vprair_risk_score, arrest_charge_level) %>%
   summarise(Total = n(), 
@@ -2468,7 +2478,7 @@ Source: Pretrial Pilot Program Probation Data (10-01-2019 through 03-31-2021) fr
 ## Accuracy (VPRAI-R) categories
 ```{r message=FALSE, warning=FALSE}
 risk_df_vprair_gender <- eval_df %>%
-  filter(tool_name == "VPRAIR",
+  filter(tool_name == "VPRAI-R",
          !is.na(vprair_risk_score)) %>%
   mutate(vprair_risk_score = case_when(
     vprair_risk_score %in% 0:2 ~ "Scores 0-2",
@@ -2495,7 +2505,7 @@ risk_df_vprair_gender <- eval_df %>%
          )) 
 
 risk_df_vprair_race <- eval_df %>%
-  filter(tool_name == "VPRAIR",
+  filter(tool_name == "VPRAI-R",
          !is.na(vprair_risk_score)) %>%
   mutate(vprair_risk_score = case_when(
     vprair_risk_score %in% 0:2 ~ "Scores 0-2",
@@ -2522,7 +2532,7 @@ risk_df_vprair_race <- eval_df %>%
          )) 
 
 risk_df_vprair_offense <- eval_df %>%
-  filter(tool_name == "VPRAIR",
+  filter(tool_name == "VPRAI-R",
          !is.na(vprair_risk_score)) %>%
   mutate(vprair_risk_score = case_when(
     vprair_risk_score %in% 0:2 ~ "Scores 0-2",
