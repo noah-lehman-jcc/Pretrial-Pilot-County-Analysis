@@ -13,6 +13,8 @@ library(fuzzyjoin)
 library(tidyverse)
 #library(tools)
 library(data.table)
+library(DBI)
+
 ```
 
 # DOJ loading, cleaning, collapsing
@@ -292,37 +294,55 @@ coll_df <- doj_df %>%
 ```
 
 
+
+# Snowflake extract
+Connection
+```{r}
+
+con <- dbConnect(odbc::odbc(), "snowflake_pretrial", uid ="Sal.Lempert@jud.ca.gov", pwd = rstudioapi::askForPassword("Password"))
+
+```
+Pull snowflake data -- agg program dates
+```{sql connection=con, include=FALSE, output.var='sf'}
+SELECT county, booking_id, booking_key, cii, booking_date, release_date, case_filed_date, case_disposition_date, pretrial_period_end_date
+FROM "DWH_PROD"."REPORTING"."AGG_PRETRIAL_KPI"
+where cii is not null
+;
+```
 # Join collapsed DOJ and Snowflake extract
 Load and format Snowflake extract
 ```{r}
-load("D:/DOJ Pretrial Pilot Data/Collapsed Pretrial DOJ Data 4.6.22.RData")
+#load("D:/DOJ Pretrial Pilot Data/Collapsed Pretrial DOJ Data 4.6.22.RData")
+load("C:/Work/Pretrial-Pilot-County-Analysis/Collapsed Pretrial DOJ Data 4.6.22.RData")
 #load("Pre-DOJ Combined County Pretrial Data.RData")
 # load("Unmatched Court Data.RData")
 # G:\CrimJustice\PretrialAssessmentPilot\CIIs for DOJ\CIIs for DOJ 3 21 2022
-files <- list.files("G:/CrimJustice/PretrialAssessmentPilot/CIIs for DOJ/CIIs for DOJ 3 21 2022/snowflake extract with joining fields", full.names = T)
+# files <- list.files("G:/CrimJustice/PretrialAssessmentPilot/CIIs for DOJ/CIIs for DOJ 3 21 2022/snowflake extract with joining fields", full.names = T)
+# 
+# #1st Partition
+# sf_df <- lapply(files[2:16], function(x){
+#   
+#   df <- fread(x, colClasses = "character")
+#   
+#   return(df)
+# })
+# 
+# #2nd partition
+# sf_dfhead <- fread(files[1], colClasses = "character")
+# 
+# sf_df <- sf_df %>% bind_rows()
+# names(sf_df) <- names(sf_dfhead)
+# 
+# sf_df <- sf_dfhead %>%
+#   bind_rows(sf_df)
 
-#1st Partition
-sf_df <- lapply(files[2:16], function(x){
-  
-  df <- fread(x, colClasses = "character")
-  
-  return(df)
-})
 
-#2nd partition
-sf_dfhead <- fread(files[1], colClasses = "character")
-
-sf_df <- sf_df %>% bind_rows()
-names(sf_df) <- names(sf_dfhead)
-
-sf_df <- sf_dfhead %>%
-  bind_rows(sf_df)
-
-
-sf_df <- sf_df %>%
+sf_df <- sf %>%
   mutate(across(contains("DATE"), ~ymd(.x)))
 
 #save(sf_df, file = "Snowflake extract for joining 4.6.22.RData")
+save(sf_df, file = "C:/Work/Pretrial-Pilot-County-Analysis/Snowflake extract for joining 6.17.22.RData")
+rm(sf)
 ```
 
 Standardizing names in doj data
@@ -373,12 +393,12 @@ full_df <- sf_df %>%
          end = as.numeric(booking_date),
          row_m = row_number())
 
-full_df %>%
-  filter(is.na(start))
-
-sf_df %>%
-  #filter(is.na(booking_date)) %>%
-  count(county)
+# full_df %>%
+#   filter(is.na(start))
+# 
+# sf_df %>%
+#   #filter(is.na(booking_date)) %>%
+#   count(county)
 ```
 
 Diagnostic
@@ -454,7 +474,7 @@ full_df
 
 Join DOJ data to all bookings
 ```{r}
-full_df <- genome_left_join(full_df, dispo_df, by = c("cii", "start", "end"))
+full_df <- genome_left_join(full_df, dispo_df, by = c("cii", "start", "end")) # takes about 45 mins to run on supercomputer
 
 full_df <- full_df %>%
   rename_all(funs(gsub("\\.y$", "_doj", .))) %>%
@@ -467,11 +487,13 @@ full_df <- full_df %>%
  
 
 full_df <- full_df %>%
-  mutate(pretrial_period_end_date_doj = if_else(is.na(pretrial_period_end_date), pretrial_period_end_date_doj, pretrial_period_end_date)) # changed 6.16.22
-  #rename(pretrial_period_end_date_doj = pretrial_end_date) 
+    rename(pretrial_period_end_date_doj = pretrial_end_date) 
+
 
 #save(full_df, file = "SF DOJ Joined 4.6.22.RData")
 save(full_df, file = "SF DOJ Joined 6.17.22.RData")
+
+full_df
 ```
 
 Diagnostic
@@ -494,7 +516,7 @@ Create subset for recidivism join using only complete pretrial periods
 # load("Jail, RRF, Court, DOJ Joined.RData")
 
 match_df_2022 <- full_df %>%
-  #mutate(pretrial_period_end_date_doj = if_else(is.na(pretrial_period_end_date), pretrial_period_end_date_doj, pretrial_period_end_date)) %>% #changed this, used to be assigned to pretrial_end_date, need to fix variable names going forward ****************************************************
+  mutate(pretrial_period_end_date_doj = if_else(is.na(pretrial_period_end_date), pretrial_period_end_date_doj, pretrial_period_end_date)) %>% 
   filter(!is.na(pretrial_period_end_date_doj)) %>%
   arrange(booking_date) %>%
   # group_by(row_j, county) %>%
@@ -563,19 +585,59 @@ save(eval_df, file = "Eval df 6.17.22.RData")
 shell.exec(getwd())
 
 eval_df %>%
-  count(county)
+  count(county, recid_arrested_flag)
 ```
 
 Add back on the rows from full_df that did not make it into eval_df??? Test run this code and alter to work!!
 ```{r}
 all_with_doj_and_recid <- full_df %>%
-  select(-row_m) %>% # remove any other rows that will be problematic because they were changed or removed in eval_df
-  left_join(eval_df)
+  select(-start, -end, -row_m) %>%
+  mutate_at(vars(contains("flag")), funs(if_else(is.na(.), 0, .))) %>%
+  left_join(eval_df %>%
+              select(-pretrial_period_end_date_doj, -row_m)) %>%
+  distinct() %>%
+  mutate_at(vars(contains("flag")), funs(if_else(is.na(.), 0, .)))
+
+  
+
 
 # check to make sure number of rows is correct
 # check to make sure number of columns is correct
 
 save(all_with_doj_and_recid, file = "All with recid 6.17.22.RData")
+```
+
+Diagnostic
+```{r eval=FALSE, include=FALSE}
+all_with_doj_and_recid %>%
+  add_count(county, booking_key) %>%
+  filter(n>1)
+
+all_with_doj_and_recid %>%
+  distinct()%>%
+  add_count(county, booking_key) %>%
+  filter(n>1) %>%
+  arrange(booking_key)
+
+
+full_df %>%
+  inner_join(eval_df)
+
+full_df %>%
+  select(-row_m) %>%
+  distinct()
+
+eval_df %>%
+  distinct()
+
+all_with_doj_and_recid %>%
+  count(county, recid_arrested_flag) %>%
+  left_join(eval_df %>%
+  count(county, recid_arrested_flag), by = c("county", "recid_arrested_flag")
+) %>%
+  mutate(dif = n.x-n.y) %>%
+  filter(recid_arrested_flag == 1)
+
 
 ```
 
