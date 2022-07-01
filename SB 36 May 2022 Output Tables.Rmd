@@ -54,13 +54,20 @@ con <- dbConnect(odbc::odbc(), "snowflake_pretrial", uid ="Sal.Lempert@jud.ca.go
 ```
 
 Pull snowflake data -- cjs_df_std 
-```{sql connection=con, include=FALSE, output.var='df'}
+```{sql eval=FALSE, connection=con, include=FALSE, output.var='df'}
 SELECT *
 FROM "DWH_PROD"."DATA_SCIENCE"."CJS_DF_STD"
 ;
 ```
 
-Pull snowflake data -- cjs_outcome_std -- removed 
+Pull 6.20.22 snowflake data -- cjs_df_std 
+```{sql connection=con, include=FALSE, output.var='df'}
+SELECT *
+FROM "DWH_PROD"."DATA_SCIENCE"."CJS_STD_20220624"
+;
+```
+
+XXXXXXX Pull snowflake data -- cjs_outcome_std -- removed 
 ```{sql eval=FALSE, connection=con, include=FALSE, output.var='full_df'}
 SELECT *
 FROM "DWH_PROD"."DATA_SCIENCE"."CJS_OUTCOME_STD"
@@ -69,9 +76,16 @@ FROM "DWH_PROD"."DATA_SCIENCE"."CJS_OUTCOME_STD"
 \newpage
 
 Pull snowflake data -- join_df
-```{sql connection=con, include=FALSE, output.var='join_df'}
+```{sql  connection=con, include=FALSE, output.var='join_df'}
 SELECT *
 FROM "DWH_PROD"."DATA_SCIENCE"."JOIN_DF_STD"
+;
+```
+
+Pull 6.20.22 snowflake data -- join_df
+```{sql eval=FALSE, connection=con, include=FALSE, output.var='join_df'}
+SELECT *
+FROM "DWH_PROD"."DATA_SCIENCE"."JOIN_STD_20220624"
 ;
 ```
 
@@ -131,6 +145,8 @@ join_df <- join_df %>%
                             T ~ county),
          County = ordered(County),
          County = fct_relevel(County, levels = c("Small Counties", "Small/Medium Counties")),
+         release_type = if_else(release_type == "CiteR elease", "Cite Release", release_type), # fix LA's typo
+         convicted_flag = if_else(disposition_type == "Convicted", 1, 0),
          new_arrest_flag = release_eligible_count,
          charge_level_orig = charge_level,
          charge_level = charge_level_standard,
@@ -197,6 +213,10 @@ date_range <- join_df %>%
             `Latest book date` = max(book_date))
 
 write.xlsx(date_range, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/All bookings date ranges by county.xlsx", asTable = F)
+
+join_df %>%
+  filter(new_arrest_flag == 1) %>%
+  count()
 ```
 Dates for assessments
 ```{r}
@@ -210,6 +230,9 @@ date_range <- eval_df %>%
 
 write.xlsx(date_range, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/Assessments with outcomes, date ranges by county.xlsx", asTable = F)
 
+ eval_df %>%
+  filter(new_arrest_flag == 1) %>%
+  count()
 ```
 
 # Introduction
@@ -247,7 +270,8 @@ names(county_df) <- c("Tool Name", "County", "Assessments")
 #     kable_styling(position = "center", full_width = F, 
 #                   bootstrap_options = c("striped", "hover"), stripe_color = "gray", font_size = 12, latex_options = "hold_position")
 
-
+df %>%
+  count()
 ```
 
 ```{r echo=FALSE}
@@ -271,7 +295,9 @@ kable(county_df, booktabs = T, format.args = list(big.mark = ","),
                   bootstrap_options = c("striped", "hover"), stripe_color = "gray", font_size = 12, latex_options = "hold_position")
 
 
-
+df %>%
+  filter(assessment_date >= '10/01/2019') %>%
+  count()
 ```
 
 
@@ -303,7 +329,7 @@ PC 1320.35 (f)(2)
 # release_type variable may not be a reliable indicator of pretrial release, but going to try to use it here anyway just to see
 
 gender_df <- join_df %>%
-  mutate(release_cat = case_when(release_type %in% c("Cite Release", "Bail Bond", "Own Recognizance",  "Zero Bail") ~ "Pretrial release type",
+  mutate(release_cat = case_when(release_type %in% c("Cite Release", "Bail Bond", "Own Recognizance", "Pretrial Monitor",  "Zero Bail") ~ "Pretrial release type",
                                  release_type %in% c("Detain Only", "Dismissed", "Prison", "Time Served") ~ "Post-resolution release type",
                                  release_type %in% c("Hold Release", "Other", "Unknown") ~ "Unclear release type",
                                  T ~ "Unclear release type")) %>%
@@ -322,7 +348,7 @@ gender_df <- join_df %>%
          quick_bail_type_flag = if_else(two_day_release == 1 & release_type %in% c("Bail Bond", "Unknown_Bail"), 1, 0),
          quick_zerobail_type_flag = if_else(two_day_release == 1 & release_type %in% c("Zero Bail"), 1, 0),
          quick_cite_type_flag = if_else(two_day_release == 1 & release_type %in% c("Cite Release"), 1, 0),
-         quick_or_type_flag = if_else(two_day_release == 1 & release_type %in% c("Own Recognizance"), 1, 0),
+         quick_or_type_flag = if_else(two_day_release == 1 & release_type %in% c("Own Recognizance", "Pretrial Monitor"), 1, 0),
          quick_unknown_type_flag = if_else(two_day_release == 1 & release_cat == "Unclear release type", 1, 0),
          convicted_flag = if_else(is.na(convicted_flag), 0, convicted_flag),
          #conviction = if_else(conviction_felony_flag == 1 | conviction_misd_flag == 1 | conviction_flag == 1 | convicted_flag == 1, 1, 0),
@@ -332,7 +358,7 @@ gender_df <- join_df %>%
          later_bail_type_flag = if_else(two_day_release == 0 & release_type %in% c("Bail Bond", "Unknown_Bail"), 1, 0),
          later_zerobail_type_flag = if_else(two_day_release == 0 & release_type %in% c("Zero Bail"), 1, 0),
          later_cite_type_flag = if_else(two_day_release == 0 & release_type %in% c("Cite Release"), 1, 0),
-         later_or_type_flag = if_else(two_day_release == 0 & release_type %in% c("Own Recognizance"), 1, 0)) %>%
+         later_or_type_flag = if_else(two_day_release == 0 & release_type %in% c("Own Recognizance", "Pretrial Monitor"), 1, 0)) %>%
   group_by(County, sex) %>%
   summarise(Total = n(),
             `Charges dropped or case dismissed within 2 court days` = mean(closed_not_convicted_flag),
@@ -354,11 +380,21 @@ gender_df <- join_df %>%
 
 write.xlsx(gender_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/2A Gender fresh.xlsx", asTable = F)
 
-# join_df %>%
-#   filter(new_arrest_flag == 1) %>%
-#   filter(sex %in% c("Male", "Female")) %>%
-#   count()
+join_df %>%
+  filter(new_arrest_flag == 1) %>%
+  count()
 
+
+join_df %>%
+  filter(new_arrest_flag == 1) %>%
+  filter(sex %in% c("Male", "Female")) %>%
+  count()
+
+join_df %>%
+  filter(new_arrest_flag == 1,
+         County != "Los Angeles") %>%
+  filter(sex %in% c("Male", "Female")) %>%
+  count()
 ```
 \newpage
 
@@ -370,7 +406,7 @@ write.xlsx(gender_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program
 # release_type variable may not be a reliable indicator of pretrial release, but going to try to use it here anyway just to see
 
 race_df <- join_df %>%
-  mutate(release_cat = case_when(release_type %in% c("Cite Release", "Bail Bond", "Own Recognizance",  "Zero Bail") ~ "Pretrial release type",
+  mutate(release_cat = case_when(release_type %in% c("Cite Release", "Bail Bond", "Own Recognizance", "Pretrial Monitor",  "Zero Bail") ~ "Pretrial release type",
                                  release_type %in% c("Detain Only", "Dismissed", "Prison", "Time Served") ~ "Post-resolution release type",
                                  release_type %in% c("Hold Release", "Other", "Unknown") ~ "Unclear release type",
                                  T ~ "Unclear release type")) %>%
@@ -389,7 +425,7 @@ race_df <- join_df %>%
          quick_bail_type_flag = if_else(two_day_release == 1 & release_type %in% c("Bail Bond", "Unknown_Bail"), 1, 0),
          quick_zerobail_type_flag = if_else(two_day_release == 1 & release_type %in% c("Zero Bail"), 1, 0),
          quick_cite_type_flag = if_else(two_day_release == 1 & release_type %in% c("Cite Release"), 1, 0),
-         quick_or_type_flag = if_else(two_day_release == 1 & release_type %in% c("Own Recognizance"), 1, 0),
+         quick_or_type_flag = if_else(two_day_release == 1 & release_type %in% c("Own Recognizance", "Pretrial Monitor"), 1, 0),
          quick_unknown_type_flag = if_else(two_day_release == 1 & release_cat == "Unclear release type", 1, 0),
          convicted_flag = if_else(is.na(convicted_flag), 0, convicted_flag),
          #conviction = if_else(conviction_felony_flag == 1 | conviction_misd_flag == 1 | conviction_flag == 1 | convicted_flag == 1, 1, 0),
@@ -399,7 +435,7 @@ race_df <- join_df %>%
          later_bail_type_flag = if_else(two_day_release == 0 & release_type %in% c("Bail Bond", "Unknown_Bail"), 1, 0),
          later_zerobail_type_flag = if_else(two_day_release == 0 & release_type %in% c("Zero Bail"), 1, 0),
          later_cite_type_flag = if_else(two_day_release == 0 & release_type %in% c("Cite Release"), 1, 0),
-         later_or_type_flag = if_else(two_day_release == 0 & release_type %in% c("Own Recognizance"), 1, 0)) %>%
+         later_or_type_flag = if_else(two_day_release == 0 & release_type %in% c("Own Recognizance", "Pretrial Monitor"), 1, 0)) %>%
   group_by(County, race) %>%
   summarise(Total = n(),
             `Charges dropped or case dismissed within 2 court days` = mean(closed_not_convicted_flag),
@@ -420,11 +456,20 @@ race_df <- join_df %>%
 
 write.xlsx(race_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/2A Race fresh.xlsx", asTable = F)
 
-# join_df %>%
-#   filter(new_arrest_flag == 1) %>%
-#   filter(race %in% c("White", "Black", "Hispanic")) %>%
-#   count()
 
+join_df %>%
+  filter(new_arrest_flag == 1) %>%
+  count()
+
+join_df %>%
+  filter(new_arrest_flag == 1) %>%
+  filter(race %in% c("White", "Black", "Hispanic")) %>%
+  count()
+
+join_df %>%
+  filter(new_arrest_flag == 1,
+         County != "Los Angeles") %>%
+  count()
 ```
 \newpage
 
@@ -438,7 +483,7 @@ write.xlsx(race_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/S
 # release_type variable may not be a reliable indicator of pretrial release, but going to try to use it here anyway just to see
 
 arrest_charge_level_df <- join_df %>%
-  mutate(release_cat = case_when(release_type %in% c("Cite Release", "Bail Bond", "Own Recognizance",  "Zero Bail") ~ "Pretrial release type",
+  mutate(release_cat = case_when(release_type %in% c("Cite Release", "Bail Bond", "Own Recognizance", "Pretrial Monitor",  "Zero Bail") ~ "Pretrial release type",
                                  release_type %in% c("Detain Only", "Dismissed", "Prison", "Time Served") ~ "Post-resolution release type",
                                  release_type %in% c("Hold Release", "Other", "Unknown") ~ "Unclear release type",
                                  T ~ "Unclear release type")) %>%
@@ -457,7 +502,7 @@ arrest_charge_level_df <- join_df %>%
          quick_bail_type_flag = if_else(two_day_release == 1 & release_type %in% c("Bail Bond", "Unknown_Bail"), 1, 0),
          quick_zerobail_type_flag = if_else(two_day_release == 1 & release_type %in% c("Zero Bail"), 1, 0),
          quick_cite_type_flag = if_else(two_day_release == 1 & release_type %in% c("Cite Release"), 1, 0),
-         quick_or_type_flag = if_else(two_day_release == 1 & release_type %in% c("Own Recognizance"), 1, 0),
+         quick_or_type_flag = if_else(two_day_release == 1 & release_type %in% c("Own Recognizance", "Pretrial Monitor"), 1, 0),
          quick_unknown_type_flag = if_else(two_day_release == 1 & release_cat == "Unclear release type", 1, 0),
          convicted_flag = if_else(is.na(convicted_flag), 0, convicted_flag),
          #conviction = if_else(conviction_felony_flag == 1 | conviction_misd_flag == 1 | conviction_flag == 1 | convicted_flag == 1, 1, 0),
@@ -467,7 +512,7 @@ arrest_charge_level_df <- join_df %>%
          later_bail_type_flag = if_else(two_day_release == 0 & release_type %in% c("Bail Bond", "Unknown_Bail"), 1, 0),
          later_zerobail_type_flag = if_else(two_day_release == 0 & release_type %in% c("Zero Bail"), 1, 0),
          later_cite_type_flag = if_else(two_day_release == 0 & release_type %in% c("Cite Release"), 1, 0),
-         later_or_type_flag = if_else(two_day_release == 0 & release_type %in% c("Own Recognizance"), 1, 0)) %>%
+         later_or_type_flag = if_else(two_day_release == 0 & release_type %in% c("Own Recognizance", "Pretrial Monitor"), 1, 0)) %>%
   group_by(County, arrest_charge_level) %>%
   summarise(Total = n(),
             `Charges dropped or case dismissed within 2 court days` = mean(closed_not_convicted_flag),
@@ -490,7 +535,10 @@ arrest_charge_level_df <- join_df %>%
 
 write.xlsx(arrest_charge_level_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/2A Offense Type fresh.xlsx", asTable = F)
 
-
+join_df %>%
+  filter(new_arrest_flag == 1) %>%
+  filter(arrest_charge_level %in% c("Felony", "Misdemeanor")) %>%
+  count()
 ```
 
 
@@ -502,7 +550,7 @@ write.xlsx(arrest_charge_level_df, file = "G:/CrimJustice/Pretrial/000-Pretrial 
 # release_type variable may not be a reliable indicator of pretrial release, but going to try to use it here anyway just to see
 
 gender_df <- join_df %>%
-  mutate(release_cat = case_when(release_type %in% c("Cite Release", "Bail Bond", "Own Recognizance",  "Zero Bail") ~ "Pretrial release type",
+  mutate(release_cat = case_when(release_type %in% c("Cite Release", "Bail Bond", "Own Recognizance", "Pretrial Monitor",  "Zero Bail") ~ "Pretrial release type",
                                  release_type %in% c("Detain Only", "Dismissed", "Prison", "Time Served") ~ "Post-resolution release type",
                                  release_type %in% c("Hold Release", "Other", "Unknown") ~ "Unclear release type",
                                  T ~ "Unclear release type")) %>%
@@ -520,7 +568,7 @@ gender_df <- join_df %>%
          quick_bail_type_flag = if_else(two_day_release == 1 & release_type %in% c("Bail Bond", "Unknown_Bail"), 1, 0),
          quick_zerobail_type_flag = if_else(two_day_release == 1 & release_type %in% c("Zero Bail"), 1, 0),
          quick_cite_type_flag = if_else(two_day_release == 1 & release_type %in% c("Cite Release"), 1, 0),
-         quick_or_type_flag = if_else(two_day_release == 1 & release_type %in% c("Own Recognizance"), 1, 0),
+         quick_or_type_flag = if_else(two_day_release == 1 & release_type %in% c("Own Recognizance", "Pretrial Monitor"), 1, 0),
          quick_unknown_type_flag = if_else(two_day_release == 1 & release_cat == "Unclear release type", 1, 0),
          convicted_flag = if_else(is.na(convicted_flag), 0, convicted_flag),
          #conviction = if_else(conviction_felony_flag == 1 | conviction_misd_flag == 1 | conviction_flag == 1 | convicted_flag == 1, 1, 0),
@@ -530,7 +578,7 @@ gender_df <- join_df %>%
          later_bail_type_flag = if_else(two_day_release == 0 & release_type %in% c("Bail Bond", "Unknown_Bail"), 1, 0),
          later_zerobail_type_flag = if_else(two_day_release == 0 & release_type %in% c("Zero Bail"), 1, 0),
          later_cite_type_flag = if_else(two_day_release == 0 & release_type %in% c("Cite Release"), 1, 0),
-         later_or_type_flag = if_else(two_day_release == 0 & release_type %in% c("Own Recognizance"), 1, 0)) %>%
+         later_or_type_flag = if_else(two_day_release == 0 & release_type %in% c("Own Recognizance", "Pretrial Monitor"), 1, 0)) %>%
   group_by(County, sex) %>%
   summarise(Total = n(),
             `Charges dropped or case dismissed within 2 court days` = mean(closed_not_convicted_flag),
@@ -568,7 +616,7 @@ write.xlsx(gender_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program
 # release_type variable may not be a reliable indicator of pretrial release, but going to try to use it here anyway just to see
 
 race_df <- join_df %>%
-  mutate(release_cat = case_when(release_type %in% c("Cite Release", "Bail Bond", "Own Recognizance",  "Zero Bail") ~ "Pretrial release type",
+  mutate(release_cat = case_when(release_type %in% c("Cite Release", "Bail Bond", "Own Recognizance", "Pretrial Monitor",  "Zero Bail") ~ "Pretrial release type",
                                  release_type %in% c("Detain Only", "Dismissed", "Prison", "Time Served") ~ "Post-resolution release type",
                                  release_type %in% c("Hold Release", "Other", "Unknown") ~ "Unclear release type",
                                  T ~ "Unclear release type")) %>%
@@ -586,7 +634,7 @@ race_df <- join_df %>%
          quick_bail_type_flag = if_else(two_day_release == 1 & release_type %in% c("Bail Bond", "Unknown_Bail"), 1, 0),
          quick_zerobail_type_flag = if_else(two_day_release == 1 & release_type %in% c("Zero Bail"), 1, 0),
          quick_cite_type_flag = if_else(two_day_release == 1 & release_type %in% c("Cite Release"), 1, 0),
-         quick_or_type_flag = if_else(two_day_release == 1 & release_type %in% c("Own Recognizance"), 1, 0),
+         quick_or_type_flag = if_else(two_day_release == 1 & release_type %in% c("Own Recognizance", "Pretrial Monitor"), 1, 0),
          quick_unknown_type_flag = if_else(two_day_release == 1 & release_cat == "Unclear release type", 1, 0),
          convicted_flag = if_else(is.na(convicted_flag), 0, convicted_flag),
          #conviction = if_else(conviction_felony_flag == 1 | conviction_misd_flag == 1 | conviction_flag == 1 | convicted_flag == 1, 1, 0),
@@ -596,7 +644,7 @@ race_df <- join_df %>%
          later_bail_type_flag = if_else(two_day_release == 0 & release_type %in% c("Bail Bond", "Unknown_Bail"), 1, 0),
          later_zerobail_type_flag = if_else(two_day_release == 0 & release_type %in% c("Zero Bail"), 1, 0),
          later_cite_type_flag = if_else(two_day_release == 0 & release_type %in% c("Cite Release"), 1, 0),
-         later_or_type_flag = if_else(two_day_release == 0 & release_type %in% c("Own Recognizance"), 1, 0)) %>%
+         later_or_type_flag = if_else(two_day_release == 0 & release_type %in% c("Own Recognizance", "Pretrial Monitor"), 1, 0)) %>%
   group_by(County, race) %>%
   summarise(Total = n(),
             `Charges dropped or case dismissed within 2 court days` = mean(closed_not_convicted_flag),
@@ -631,7 +679,7 @@ write.xlsx(race_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/S
 # release_type variable may not be a reliable indicator of pretrial release, but going to try to use it here anyway just to see
 
 arrest_charge_level_df <- join_df %>%
-  mutate(release_cat = case_when(release_type %in% c("Cite Release", "Bail Bond", "Own Recognizance",  "Zero Bail") ~ "Pretrial release type",
+  mutate(release_cat = case_when(release_type %in% c("Cite Release", "Bail Bond", "Own Recognizance", "Pretrial Monitor",  "Zero Bail") ~ "Pretrial release type",
                                  release_type %in% c("Detain Only", "Dismissed", "Prison", "Time Served") ~ "Post-resolution release type",
                                  release_type %in% c("Hold Release", "Other", "Unknown") ~ "Unclear release type",
                                  T ~ "Unclear release type")) %>%
@@ -649,7 +697,7 @@ arrest_charge_level_df <- join_df %>%
          quick_bail_type_flag = if_else(two_day_release == 1 & release_type %in% c("Bail Bond", "Unknown_Bail"), 1, 0),
          quick_zerobail_type_flag = if_else(two_day_release == 1 & release_type %in% c("Zero Bail"), 1, 0),
          quick_cite_type_flag = if_else(two_day_release == 1 & release_type %in% c("Cite Release"), 1, 0),
-         quick_or_type_flag = if_else(two_day_release == 1 & release_type %in% c("Own Recognizance"), 1, 0),
+         quick_or_type_flag = if_else(two_day_release == 1 & release_type %in% c("Own Recognizance", "Pretrial Monitor"), 1, 0),
          quick_unknown_type_flag = if_else(two_day_release == 1 & release_cat == "Unclear release type", 1, 0),
          convicted_flag = if_else(is.na(convicted_flag), 0, convicted_flag),
          #conviction = if_else(conviction_felony_flag == 1 | conviction_misd_flag == 1 | conviction_flag == 1 | convicted_flag == 1, 1, 0),
@@ -659,7 +707,7 @@ arrest_charge_level_df <- join_df %>%
          later_bail_type_flag = if_else(two_day_release == 0 & release_type %in% c("Bail Bond", "Unknown_Bail"), 1, 0),
          later_zerobail_type_flag = if_else(two_day_release == 0 & release_type %in% c("Zero Bail"), 1, 0),
          later_cite_type_flag = if_else(two_day_release == 0 & release_type %in% c("Cite Release"), 1, 0),
-         later_or_type_flag = if_else(two_day_release == 0 & release_type %in% c("Own Recognizance"), 1, 0)) %>%
+         later_or_type_flag = if_else(two_day_release == 0 & release_type %in% c("Own Recognizance", "Pretrial Monitor"), 1, 0)) %>%
   group_by(County, arrest_charge_level) %>%
   summarise(Total = n(),
             `Charges dropped or case dismissed within 2 court days` = mean(closed_not_convicted_flag),
@@ -845,6 +893,11 @@ eval_df %>%
   View()
 
 
+eval_df %>%
+  mutate(release_type = if_else(!release_type %in% c("Zero Bail", "Bail Bond", "Unknown_Bail") & !is.na(assessment_date), 
+                                "Assessed_Release", release_type)) %>%
+  filter(release_type %in% c("Zero Bail", "Bail Bond",  "Assessed_Release")) %>%
+  count()
 ```
 
 
@@ -968,6 +1021,12 @@ eval_df %>%
 #   select(contains("recid")) %>%
 #   View()
 #   summarise(across(c(recid_arrested_flag, recid_filed_flag, recid_convicted_flag), mean))
+
+eval_df %>%
+  mutate(release_type = if_else(!release_type %in% c("Zero Bail", "Bail Bond", "Unknown_Bail") & !is.na(assessment_date), 
+                                "Assessed_Release", release_type)) %>%
+  filter(release_type %in% c("Zero Bail", "Bail Bond",  "Assessed_Release")) %>%
+  count()
 ```
 \newpage
 
@@ -1014,6 +1073,9 @@ write.xlsx(age_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB
 #   filter(County == "Los Angeles") %>%
 #   filter(tool_name == "PSA") %>%
 #   summarise()
+
+df %>%
+  count()
 ```
 \newpage
 
@@ -1045,6 +1107,9 @@ gender_df <- df %>%
   mutate(Total = sum(n)) 
 
 write.xlsx(gender_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/2D Gender Aggregated.xlsx", asTable = T)
+
+df %>%
+  count()
 ```
 \newpage
 
@@ -1080,6 +1145,9 @@ race_df <- df %>%
   mutate(Total = sum(n)) 
 
 write.xlsx(race_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/2D Race Aggregated.xlsx", asTable = T)
+
+df %>%
+  count()
 ```
 \newpage
 
@@ -1165,6 +1233,10 @@ charge_level_df <- join_df %>%
   count(arrest_charge_level)
 
 write.xlsx(charge_level_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/2E Charge Level Aggregated.xlsx", asTable = T)
+
+join_df %>%
+  filter(!is.na(assessment_date)) %>%
+  count()
 ```
 Notes: Booking charge level is reported in booking data, a seperate data source from assessment data. As a result, assessments that did not match booking data are not included in this table. 
 \newpage
@@ -1481,6 +1553,9 @@ write.xlsx(monitor_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Progra
 #   filter(county == "San Joaquin") %>%
 #   count(release_recommendation, monitor_level)
 
+df %>%
+  filter(release_decision_prearraignment == "Monitor" | release_decision_arraignment == "Monitor") %>%
+  count()
 ```
 Notes: 'Unspecified Supervision' includes individuals in counties which do not categorize supervision conditions into discrete levels. For counties which use discrete supervision levels, supervision levels were collapsed into 'Basic', 'Moderate', and 'Enhanced' supervision, though what each of these supervision levels mean varies widely across counties.
 \newpage
@@ -1524,6 +1599,10 @@ outcome_per_df <- outcome_df %>%
          New_Arrest_Percent = New_Arrest / Total)
 
 write.xlsx(outcome_per_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/2G Supervision Level Aggregated Percent.xlsx", asTable = T)
+
+eval_df %>%
+  filter(monitor_level %in% c("Lowest Levels", "Medium Levels", "Highest Levels")) %>%
+  count()
 ```
 
 Notes: 'Unspecified Supervision' includes individuals in counties which do not categorize supervision conditions into discrete levels. For counties which use discrete supervision levels, supervision levels were collapsed into 'Basic', 'Moderate', and 'Enhanced' supervision, though what each of these supervision levels mean varies widely across counties.
@@ -1555,6 +1634,11 @@ risk_df_oras <- eval_df %>%
               mutate(oras_risk_score = "Total"))
 
 write.xlsx(risk_df_oras, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/3A Oras.xlsx", asTable = T)  
+
+eval_df %>%
+  filter(tool_name == "ORAS",
+         !is.na(oras_risk_score)) %>%
+  count()
 ```
 Source: Pretrial Pilot Program Probation Data (10-01-2019 through 03-31-2021) from Modoc, Napa, Nevada, Ventura, and Yuba.
 \newpage
@@ -1609,6 +1693,11 @@ risk_df_vprai <- eval_df %>%
   mutate(across(matches("Total|Count$|Rate|Perc"), ~if_else(Total < 30 & Total >= 1, "< 30", as.character(.x))))
 
 write.xlsx(risk_df_vprai, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/3A Vprai.xlsx", asTable = T)  
+
+eval_df %>%
+  filter(tool_name == "VPRAI",
+         !is.na(vprai_risk_score)) %>%
+  count()
 ```
 Source: Pretrial Pilot Program Probation Data (10-01-2019 through 03-31-2021) from San Joaquin and Santa Barbara.
 \newpage
@@ -1666,6 +1755,11 @@ risk_df_vprair <- eval_df %>%
 
 
 write.xlsx(risk_df_vprair, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/3A VpraiR.xlsx", asTable = T) 
+
+eval_df %>%
+  filter(tool_name == "VPRAI-R",
+         !is.na(vprair_risk_score)) %>%
+  count()
 ```
 Source: Pretrial Pilot Program Probation Data (10-01-2019 through 03-31-2021) from Alameda, San Mateo and Santa Barbara.
 \newpage
@@ -1732,6 +1826,11 @@ risk_df_vpraio <- eval_df %>%
   mutate(across(matches("Total|Count$|Rate|Perc"), ~if_else(Total < 30 & Total >= 1, "< 30", as.character(.x))))
 
 write.xlsx(risk_df_vpraio, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/3A VpraiO.xlsx", asTable = T)
+
+eval_df %>%
+  filter(tool_name == "VPRAIO",
+         !is.na(vpraio_risk_score)) %>%
+  count()
 ```
 Source: Pretrial Pilot Program Probation Data (10-01-2019 through 03-31-2021) from Kings.
 \newpage
@@ -1804,6 +1903,20 @@ risk_df_psa_nca <- eval_df %>%
 write.xlsx(risk_df_psa_fta, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/3A PSA FTA.xlsx", asTable = T)
 
 write.xlsx(risk_df_psa_nca, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/3A PSA NCA.xlsx", asTable = T)
+
+eval_df %>%
+  filter(tool_name == "PSA",
+         !is.na(psa_fta_risk_score),
+         psa_fta_risk_score %in% 1:6) %>%
+  count()
+
+eval_df %>%
+  filter(tool_name == "PSA",
+         !is.na(psa_nca_risk_score),
+         psa_nca_risk_score %in% 1:6) %>%
+  count()
+
+
 ```
 Source: Pretrial Pilot Program Probation Data (10-01-2019 through 03-31-2021) from Calaveras, Los Angeles, Sacramento, Tulare and Tuolumne.
 \newpage
@@ -1869,6 +1982,11 @@ release_oras <- join_df %>%
   count(oras_risk_score, release_decision, risk_category)
 
 write.xlsx(list(race_oras, gender_oras, offense_type_oras, release_oras), file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/3B ORAS.xlsx", asTable = T, sheetName = c("Race", "Gender", "Offense Type",  "Release"))
+
+df %>%
+  filter(tool_name == "ORAS",
+         !is.na(oras_risk_score)) %>%
+  count()
 ```
 
 ## (VPRAI)
@@ -1961,6 +2079,12 @@ release_vprai <- join_df %>%
 
 
 write.xlsx(list(race_vprai, gender_vprai, offense_type_vprai,  release_vprai), file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/3B VPRAI.xlsx", asTable = T, sheetName = c("Race", "Gender", "Offense Type", "Release"))
+
+
+df %>%
+  filter(tool_name == "VPRAI",
+         !is.na(vprai_risk_score)) %>%
+  count()
 ```
 
 ## (VPRAIR)
@@ -2059,6 +2183,11 @@ release_vprair <- join_df %>%
   count(vprair_risk_score, release_decision, risk_score_sort)
 
 write.xlsx(list(race_vprair, gender_vprair, offense_type_vprair, release_vprair), file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/3B VPRAIR.xlsx", asTable = T, sheetName = c("Race", "Gender", "Offense Type",  "Release"))
+
+df %>%
+  filter(tool_name == "VPRAI-R",
+         !is.na(vprair_risk_score)) %>%
+  count()
 ```
 
 ## (VPRAIO)
@@ -2068,7 +2197,7 @@ race_vpraio <- df %>%
          !is.na(vpraio_risk_score)) %>%
   mutate(race = if_else(race == "Other", "Other_Unknown", race),
          risk_category = case_when(
-           vpraio_risk_score %in% 0:1 ~ "Scores 0-1"
+           vpraio_risk_score %in% 0:1 ~ "Scores 0-1",
            vpraio_risk_score == 2 ~ "Score 2",
            vpraio_risk_score == 3 ~ "Score 3",
            vpraio_risk_score == 4 ~ "Score 4",
@@ -2080,7 +2209,7 @@ gender_vpraio <- df %>%
   filter(tool_name == "VPRAI-O",
          !is.na(vpraio_risk_score)) %>%
   mutate(risk_category = case_when(
-           vpraio_risk_score %in% 0:1 ~ "Scores 0-1"
+           vpraio_risk_score %in% 0:1 ~ "Scores 0-1",
            vpraio_risk_score == 2 ~ "Score 2",
            vpraio_risk_score == 3 ~ "Score 3",
            vpraio_risk_score == 4 ~ "Score 4",
@@ -2092,7 +2221,7 @@ offense_type_vpraio <- join_df %>%
   filter(tool_name == "VPRAIO",
          !is.na(vpraio_risk_score)) %>%
   mutate(risk_category = case_when(
-           vpraio_risk_score %in% 0:1 ~ "Scores 0-1"
+           vpraio_risk_score %in% 0:1 ~ "Scores 0-1",
            vpraio_risk_score == 2 ~ "Score 2",
            vpraio_risk_score == 3 ~ "Score 3",
            vpraio_risk_score == 4 ~ "Score 4",
@@ -2120,6 +2249,12 @@ release_vpraio <- join_df %>%
   count(vpraio_risk_score, release_decision)
 
 write.xlsx(list(race_vpraio, gender_vpraio, offense_type_vpraio,  release_vpraio), file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/3B VPRAIO.xlsx", asTable = T, sheetName = c("Race", "Gender", "Offense Type",  "Release"))
+
+
+df %>%
+  filter(tool_name == "VPRAI-O",
+         !is.na(vpraio_risk_score)) %>%
+  count()
 ```
 
 ## (PSA FTA)
@@ -2159,6 +2294,12 @@ release_psa <- join_df %>%
   count(psa_fta_risk_score, release_decision)
 
 write.xlsx(list(race_psa, gender_psa, offense_type_psa,  release_psa), file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/3B PSA FTA.xlsx", asTable = T, sheetName = c("Race", "Gender", "Offense Type",  "Release"))
+
+df %>%
+  filter(tool_name == "PSA",
+         !is.na(psa_fta_risk_score),
+         psa_fta_risk_score %in% 1:6) %>%
+  count()
 ```
 
 ## (PSA NCA)
@@ -2198,6 +2339,12 @@ release_psa <- join_df %>%
   count(psa_nca_risk_score, release_decision)
 
 write.xlsx(list(race_psa, gender_psa, offense_type_psa,  release_psa), file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/3B PSA NCA.xlsx", asTable = T, sheetName = c("Race", "Gender", "Offense Type",  "Release"))
+
+df %>%
+  filter(tool_name == "PSA",
+         !is.na(psa_nca_risk_score),
+         psa_nca_risk_score %in% 1:6) %>%
+  count()
 ```
 
 ## (PSA NVCA)
@@ -2232,6 +2379,12 @@ release_psa <- join_df %>%
   count(psa_nvca_risk_score, release_decision)
 
 write.xlsx(list(race_psa, gender_psa, offense_type_psa,  release_psa), file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/3B PSA NVCA.xlsx", asTable = T, sheetName = c("Race", "Gender", "Offense Type",  "Release"))
+
+
+df %>%
+  filter(tool_name == "PSA",
+         !is.na(psa_nvca_risk_score)) %>%
+   count()
 ```
 Source: Pretrial Pilot Program Probation Data (10-01-2019 through 03-31-2021) from Modoc, Napa, Nevada, Ventura, and Yuba.
 \newpage
@@ -2802,4 +2955,14 @@ write.xlsx(list(override_df, override_df2), file = "G:/CrimJustice/Pretrial/000-
 #   filter(release_recommendation %in% c("Deny Release", "Monitor", "Own Recognizance"),
 #          release_decision %in% c("Deny Release", "Monitor", "Own Recognizance")) %>%
 #   count(county, release_recommendation)
+
+ df %>%
+  filter(release_recommendation %in% c("Deny Release", "Monitor", "Own Recognizance"),
+         release_decision_arraignment %in% c("Deny Release", "Monitor", "Own Recognizance") | release_decision_prearraignment %in% c("Deny Release", "Monitor", "Own Recognizance")) %>%
+   count()
+ 
+  df %>%
+  filter(release_recommendation %in% c("Deny Release", "Monitor", "Own Recognizance"),
+         release_decision_arraignment %in% c("Deny Release", "Monitor", "Own Recognizance") | release_decision_prearraignment %in% c("Deny Release", "Monitor", "Own Recognizance")) %>%
+   count(county)
 ```
