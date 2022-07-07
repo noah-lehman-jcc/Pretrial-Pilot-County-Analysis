@@ -54,14 +54,14 @@ con <- dbConnect(odbc::odbc(), "snowflake_pretrial", uid ="Sal.Lempert@jud.ca.go
 ```
 
 Pull snowflake data -- cjs_df_std 
-```{sql eval=FALSE, connection=con, include=FALSE, output.var='df'}
+```{sql  connection=con, include=FALSE, output.var='df'}
 SELECT *
 FROM "DWH_PROD"."DATA_SCIENCE"."CJS_DF_STD"
 ;
 ```
 
 Pull 6.20.22 snowflake data -- cjs_df_std 
-```{sql connection=con, include=FALSE, output.var='df'}
+```{sql eval=FALSE, connection=con, include=FALSE, output.var='df'}
 SELECT *
 FROM "DWH_PROD"."DATA_SCIENCE"."CJS_STD_20220624"
 ;
@@ -76,14 +76,14 @@ FROM "DWH_PROD"."DATA_SCIENCE"."CJS_OUTCOME_STD"
 \newpage
 
 Pull snowflake data -- join_df
-```{sql  connection=con, include=FALSE, output.var='join_df'}
+```{sql eval=FALSE, connection=con, include=FALSE, output.var='join_df'}
 SELECT *
 FROM "DWH_PROD"."DATA_SCIENCE"."JOIN_DF_STD"
 ;
 ```
 
 Pull 6.20.22 snowflake data -- join_df
-```{sql eval=FALSE, connection=con, include=FALSE, output.var='join_df'}
+```{sql  connection=con, include=FALSE, output.var='join_df'}
 SELECT *
 FROM "DWH_PROD"."DATA_SCIENCE"."JOIN_STD_20220624"
 ;

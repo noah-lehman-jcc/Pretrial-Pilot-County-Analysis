@@ -9652,6 +9652,13 @@ rocH_newviolent <- roc(recid_arrest_violent_psa_flag ~ vprai_risk_score, data = 
 roc.test(rocW_newviolent, rocB_newviolent)
 roc.test(rocW_newviolent, rocH_newviolent)
 roc.test(rocB_newviolent, rocH_newviolent)
+
+rocW_anyfailure <- roc(any_pretrial_failure_flag ~ vprai_risk_score, data = eval_df %>% filter(tool_name == "VPRAI") %>% filter(county == "San Joaquin") %>% filter(race == "White"), ci = T)
+rocB_anyfailure <- roc(any_pretrial_failure_flag ~ vprai_risk_score, data = eval_df %>% filter(tool_name == "VPRAI") %>% filter(county == "San Joaquin") %>% filter(race == "Black"), ci = T)
+rocH_anyfailure <- roc(any_pretrial_failure_flag ~ vprai_risk_score, data = eval_df %>% filter(tool_name == "VPRAI") %>% filter(county == "San Joaquin") %>% filter(race == "Hispanic"), ci = T)
+roc.test(rocW_anyfailure, rocB_anyfailure)
+roc.test(rocW_anyfailure, rocH_anyfailure)
+roc.test(rocB_anyfailure, rocH_anyfailure)
 ```
 
 
@@ -9684,5 +9691,11 @@ rocW_newviolent <- roc(recid_arrest_violent_psa_flag ~ vprai_risk_score, data = 
 rocM_newviolent <- roc(recid_arrest_violent_psa_flag ~ vprai_risk_score, data = eval_df %>% filter(tool_name == "VPRAI") %>% filter(county == "San Joaquin") %>% filter(sex == "Male"), ci = T)
 
 roc.test(rocW_newviolent, rocM_newviolent)
+
+
+rocW_anyfailure <- roc(any_pretrial_failure_flag ~ vprai_risk_score, data = eval_df %>% filter(tool_name == "VPRAI") %>% filter(county == "San Joaquin") %>% filter(sex == "Female"), ci = T)
+rocM_anyfailure <- roc(any_pretrial_failure_flag ~ vprai_risk_score, data = eval_df %>% filter(tool_name == "VPRAI") %>% filter(county == "San Joaquin") %>% filter(sex == "Male"), ci = T)
+
+roc.test(rocW_anyfailure, rocM_anyfailure)
 
 ```
