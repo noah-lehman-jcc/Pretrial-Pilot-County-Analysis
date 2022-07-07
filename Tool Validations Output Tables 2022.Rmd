@@ -55,28 +55,28 @@ FROM "DWH_PROD"."DATA_SCIENCE"."CJS_OUTCOME_STD"
 ```
 
 Pull snowflake data -- cjs_df_std 
-```{sql eval=FALSE, connection=con, include=FALSE, output.var='df'}
+```{sql connection=con, include=FALSE, output.var='df'}
 SELECT *
 FROM "DWH_PROD"."DATA_SCIENCE"."CJS_DF_STD"
 ;
 ```
 
 Pull 6.20.22 snowflake data -- cjs_df_std 
-```{sql  connection=con, include=FALSE, output.var='df'}
+```{sql eval=FALSE, connection=con, include=FALSE, output.var='df'}
 SELECT *
 FROM "DWH_PROD"."DATA_SCIENCE"."CJS_STD_20220624"
 ;
 ```
 
 Pull snowflake data -- join_df
-```{sql eval=FALSE, connection=con, include=FALSE, output.var='join_df'}
+```{sql  connection=con, include=FALSE, output.var='join_df'}
 SELECT *
 FROM "DWH_PROD"."DATA_SCIENCE"."JOIN_DF_STD"
 ;
 ```
 
 Pull 6.20.22 snowflake data -- join_df
-```{sql connection=con, include=FALSE, output.var='join_df'}
+```{sql eval=FALSE, connection=con, include=FALSE, output.var='join_df'}
 SELECT *
 FROM "DWH_PROD"."DATA_SCIENCE"."JOIN_STD_20220624"
 ;
@@ -5609,7 +5609,7 @@ stargazer(list(m1,m2,m3,m4,m5, m6),
 ```
 \newpage
 
-Alameda--With Interactions
+Alameda--With Interactions at score 1
 \newline
 ```{r results='asis'}
 county_df <- race_df %>%
@@ -5637,6 +5637,37 @@ stargazer(list(m1,m2,m3,m4,m5, m6),
           notes.append = F, font.size = "small")
 ```
 \newpage
+
+Alameda--With Interactions at score 6
+\newline
+```{r results='asis'}
+county_df <- race_df %>%
+  filter(county == "Alameda") %>%
+  filter(tool_name == "VPRAI-R")%>%
+  mutate(across(contains("score"), ~.x-6))
+
+m1 <- glm(family = binomial(),fta_flag ~ vprair_risk_score * race + release_to_pretrial_end, data = county_df)
+m2 <- glm(family = binomial(),recid_arrested_flag ~ vprair_risk_score * race + release_to_pretrial_end, data = county_df)
+m3 <- glm(family = binomial(),recid_filed_flag ~ vprair_risk_score * race + release_to_pretrial_end, data = county_df)
+m4 <- glm(family = binomial(),recid_convicted_flag ~ vprair_risk_score * race + release_to_pretrial_end, data = county_df)
+m5 <- glm(family = binomial(),recid_arrest_violent_psa_flag ~ vprair_risk_score * race + release_to_pretrial_end, data = county_df)
+m6 <- glm(family = binomial(),any_pretrial_failure_flag ~ vprair_risk_score * race + release_to_pretrial_end, data = county_df)
+
+
+stargazer(list(m1,m2,m3,m4,m5, m6),
+          # type = "text",
+          dep.var.labels = c("FTA", "New Arrest", "New Filing", 
+                             "New Conviction", "New Violent Arrest", "FTA or New Arrest"), 
+          covariate.labels = c("VPRAI-R Risk Score", "Race:Black", "Race:Hispanic",
+                               "Days Released", "VPRAI-R*Black", "VPRAI-R*Hispanic"),
+          star.char = c("*", "**", "***"),
+          star.cutoffs = c(.05, .01, .001),
+          notes = c("*p<0.05; **p<0.01; ***p<.001"),
+          notes.append = F, font.size = "small")
+```
+```{r}
+summary(m6)
+```
 
 Santa Barbara--Without Interactions
 \newline
@@ -8470,7 +8501,7 @@ stargazer(list(m1,m2,m3,m4,m5,m6),
 ```
 \newpage
 
-Alameda--With Interactions 
+Alameda--With Interactions at score 1
 \newline
 ```{r results='asis'}
 county_df <- sex_df %>%
@@ -8497,6 +8528,35 @@ stargazer(list(m1,m2,m3,m4,m5,m6),
           notes.append = F, font.size = "small")
 ```
 \newpage
+
+Alameda--With Interactions at score 6
+\newline
+```{r results='asis'}
+county_df <- sex_df %>%
+  filter(county == "Alameda") %>%
+  filter(tool_name == "VPRAI-R") %>%
+  mutate(across(contains("score"), ~.x-6))
+
+m1 <- glm(family = binomial(),fta_flag ~ vprair_risk_score * sex + release_to_pretrial_end, data = county_df)
+m2 <- glm(family = binomial(),recid_arrested_flag ~ vprair_risk_score * sex + release_to_pretrial_end, data = county_df)
+m3 <- glm(family = binomial(),recid_filed_flag ~ vprair_risk_score * sex + release_to_pretrial_end, data = county_df)
+m4 <- glm(family = binomial(),recid_convicted_flag ~ vprair_risk_score * sex + release_to_pretrial_end, data = county_df)
+m5 <- glm(family = binomial(),recid_arrest_violent_psa_flag ~ vprair_risk_score * sex + release_to_pretrial_end, data = county_df)
+m6 <- glm(family = binomial(),any_pretrial_failure_flag ~ vprair_risk_score * sex + release_to_pretrial_end, data = county_df)
+
+stargazer(list(m1,m2,m3,m4,m5,m6),
+          # type = "text",
+          dep.var.labels = c("FTA", "New Arrest", "New Filing", 
+                             "New Conviction", "New Violent Arrest", "FTA or New Arrest"), 
+          covariate.labels = c("VPRAI-R Risk Score", "Female",
+                               "Days Released", "VPRAI-R*Female"),
+          star.char = c("*", "**", "***"),
+          star.cutoffs = c(.05, .01, .001),
+          notes = c("*p<0.05; **p<0.01; ***p<.001"),
+          notes.append = F, font.size = "small")
+```
+\newpage
+
 
 Santa Barbara--Without Interactions  
 \newline
@@ -9319,7 +9379,54 @@ rocH_newviolent <- roc(recid_arrest_violent_psa_flag ~ vprair_risk_score, data =
 roc.test(rocW_newviolent, rocB_newviolent)
 roc.test(rocW_newviolent, rocH_newviolent)
 roc.test(rocB_newviolent, rocH_newviolent)
+
+rocW_anyfailure <- roc(any_pretrial_failure_flag ~ vprair_risk_score, data = eval_df %>% filter(tool_name == "VPRAI-R") %>% filter(county == "Alameda") %>% filter(race == "White"), ci = T)
+rocB_anyfailure <- roc(any_pretrial_failure_flag ~ vprair_risk_score, data = eval_df %>% filter(tool_name == "VPRAI-R") %>% filter(county == "Alameda") %>% filter(race == "Black"), ci = T)
+rocH_anyfailure <- roc(any_pretrial_failure_flag ~ vprair_risk_score, data = eval_df %>% filter(tool_name == "VPRAI-R") %>% filter(county == "Alameda") %>% filter(race == "Hispanic"), ci = T)
+roc.test(rocW_anyfailure, rocB_anyfailure)
+roc.test(rocW_anyfailure, rocH_anyfailure)
+roc.test(rocB_anyfailure, rocH_anyfailure)
 ```
+
+Alameda VPRAI-R AUC gender comparisons
+```{r}
+rocW_FTA <- roc(fta_flag ~ vprair_risk_score, data = eval_df %>% filter(tool_name == "VPRAI-R") %>% filter(county == "Alameda") %>% filter(sex == "Female"), ci = T)
+rocM_FTA <- roc(fta_flag ~ vprair_risk_score, data = eval_df %>% filter(tool_name == "VPRAI-R") %>% filter(county == "Alameda") %>% filter(sex == "Male"), ci = T)
+
+roc.test(rocW_FTA, rocM_FTA)
+
+
+rocW_newarrest <- roc(recid_arrested_flag ~ vprair_risk_score, data = eval_df %>% filter(tool_name == "VPRAI-R") %>% filter(county == "Alameda") %>% filter(sex == "Female"), ci = T)
+rocM_newarrest <- roc(recid_arrested_flag ~ vprair_risk_score, data = eval_df %>% filter(tool_name == "VPRAI-R") %>% filter(county == "Alameda") %>% filter(sex == "Male"), ci = T)
+
+roc.test(rocW_newarrest, rocM_newarrest)
+
+
+rocW_newfiling <- roc(recid_filed_flag ~ vprair_risk_score, data = eval_df %>% filter(tool_name == "VPRAI-R") %>% filter(county == "Alameda") %>% filter(sex == "Female"), ci = T)
+rocM_newfiling <- roc(recid_filed_flag ~ vprair_risk_score, data = eval_df %>% filter(tool_name == "VPRAI-R") %>% filter(county == "Alameda") %>% filter(sex == "Male"), ci = T)
+
+roc.test(rocW_newfiling, rocM_newfiling)
+
+
+rocW_newconviction <- roc(recid_convicted_flag ~ vprair_risk_score, data = eval_df %>% filter(tool_name == "VPRAI-R") %>% filter(county == "Alameda") %>% filter(sex == "Female"), ci = T)
+rocM_newconviction <- roc(recid_convicted_flag ~ vprair_risk_score, data = eval_df %>% filter(tool_name == "VPRAI-R") %>% filter(county == "Alameda") %>% filter(sex == "Male"), ci = T)
+
+roc.test(rocW_newconviction, rocM_newconviction)
+
+
+rocW_newviolent <- roc(recid_arrest_violent_psa_flag ~ vprair_risk_score, data = eval_df %>% filter(tool_name == "VPRAI-R") %>% filter(county == "Alameda") %>% filter(sex == "Female"), ci = T)
+rocM_newviolent <- roc(recid_arrest_violent_psa_flag ~ vprair_risk_score, data = eval_df %>% filter(tool_name == "VPRAI-R") %>% filter(county == "Alameda") %>% filter(sex == "Male"), ci = T)
+
+roc.test(rocW_newviolent, rocM_newviolent)
+
+
+rocW_anyfailure <- roc(any_pretrial_failure_flag ~ vprair_risk_score, data = eval_df %>% filter(tool_name == "VPRAI-R") %>% filter(county == "Alameda") %>% filter(sex == "Female"), ci = T)
+rocM_anyfailure <- roc(any_pretrial_failure_flag ~ vprair_risk_score, data = eval_df %>% filter(tool_name == "VPRAI-R") %>% filter(county == "Alameda") %>% filter(sex == "Male"), ci = T)
+
+roc.test(rocW_anyfailure, rocM_anyfailure)
+
+```
+
 
 San Mateo VPRAI-R AUC race comparisons
 ```{r}
