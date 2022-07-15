@@ -1,0 +1,390 @@
+{
+	"folders": {},
+	"connections": {
+		"snowflake_jdbc-17fdd0d3cd9-4703c4c99dc8fd69": {
+			"provider": "snowflake",
+			"driver": "snowflake_jdbc",
+			"name": "0. JC Tenant",
+			"save-password": true,
+			"read-only": false,
+			"configuration": {
+				"host": "calcourts.us-gov-virginia.azure.snowflakecomputing.com",
+				"port": "443",
+				"database": "WH_DATA_SCIENTIST",
+				"url": "jdbc:snowflake://calcourts.us-gov-virginia.azure.snowflakecomputing.com:443/?db=WH_DATA_SCIENTIST",
+				"type": "dev",
+				"auth-model": "snowflake_snowflake",
+				"auth-properties": {
+					"role": "DATA_SCIENTIST"
+				}
+			},
+			"custom-properties": {
+				"ddString": "false"
+			}
+		},
+		"snowflake_jdbc-17fdd11737e-50ec48f5b65d1ea": {
+			"provider": "snowflake",
+			"driver": "snowflake_jdbc",
+			"name": "Alameda",
+			"save-password": true,
+			"read-only": false,
+			"configuration": {
+				"host": "calcourts-01_alameda.snowflakecomputing.com",
+				"port": "443",
+				"database": "WH_QA_ANALYST",
+				"url": "jdbc:snowflake://calcourts-01_alameda.snowflakecomputing.com:443/?db=WH_QA_ANALYST",
+				"type": "dev",
+				"auth-model": "snowflake_snowflake",
+				"auth-properties": {
+					"role": "QA_ANALYST"
+				}
+			},
+			"custom-properties": {
+				"ddString": "false"
+			}
+		},
+		"snowflake_jdbc-17fdd138a42-68dd597a06af9705": {
+			"provider": "snowflake",
+			"driver": "snowflake_jdbc",
+			"name": "Calaveras",
+			"save-password": true,
+			"read-only": false,
+			"configuration": {
+				"host": "calcourts-05_calaveras.snowflakecomputing.com",
+				"port": "443",
+				"database": "WH_QA_ANALYST",
+				"url": "jdbc:snowflake://calcourts-05_calaveras.snowflakecomputing.com:443/?db=WH_QA_ANALYST",
+				"type": "dev",
+				"auth-model": "snowflake_snowflake",
+				"auth-properties": {
+					"role": "QA_ANALYST"
+				}
+			},
+			"custom-properties": {
+				"ddString": "false"
+			}
+		},
+		"snowflake_jdbc-17fdd14d8e6-772938575c12b950": {
+			"provider": "snowflake",
+			"driver": "snowflake_jdbc",
+			"name": "Kings",
+			"save-password": true,
+			"read-only": false,
+			"configuration": {
+				"host": "calcourts-16_kings.snowflakecomputing.com",
+				"port": "443",
+				"database": "WH_QA_ANALYST",
+				"url": "jdbc:snowflake://calcourts-16_kings.snowflakecomputing.com:443/?db=WH_QA_ANALYST",
+				"type": "dev",
+				"auth-model": "snowflake_snowflake",
+				"auth-properties": {
+					"role": "QA_ANALYST"
+				}
+			},
+			"custom-properties": {
+				"ddString": "false"
+			}
+		},
+		"snowflake_jdbc-17fdd16c30e-183427793a094b65": {
+			"provider": "snowflake",
+			"driver": "snowflake_jdbc",
+			"name": "Los Angeles",
+			"save-password": true,
+			"read-only": false,
+			"configuration": {
+				"host": "calcourts-19_losangeles.snowflakecomputing.com",
+				"port": "443",
+				"database": "WH_QA_ANALYST",
+				"url": "jdbc:snowflake://calcourts-19_losangeles.snowflakecomputing.com:443/?db=WH_QA_ANALYST",
+				"type": "dev",
+				"auth-model": "snowflake_snowflake",
+				"auth-properties": {
+					"role": "QA_ANALYST"
+				}
+			},
+			"custom-properties": {
+				"ddString": "false"
+			}
+		},
+		"snowflake_jdbc-17fdd17ee71-607ee2d6a70fb353": {
+			"provider": "snowflake",
+			"driver": "snowflake_jdbc",
+			"name": "Modoc",
+			"save-password": true,
+			"read-only": false,
+			"configuration": {
+				"host": "calcourts-25_modoc.snowflakecomputing.com",
+				"port": "443",
+				"database": "WH_QA_ANALYST",
+				"url": "jdbc:snowflake://calcourts-25_modoc.snowflakecomputing.com:443/?db=WH_QA_ANALYST",
+				"type": "dev",
+				"auth-model": "snowflake_snowflake",
+				"auth-properties": {
+					"role": "QA_ANALYST"
+				}
+			},
+			"custom-properties": {
+				"ddString": "false"
+			}
+		},
+		"snowflake_jdbc-17fdd1bced4-70677465d7aec6f3": {
+			"provider": "snowflake",
+			"driver": "snowflake_jdbc",
+			"name": "Napa",
+			"save-password": true,
+			"read-only": false,
+			"configuration": {
+				"host": "calcourts-28_napa.snowflakecomputing.com",
+				"port": "443",
+				"database": "WH_QA_ANALYST",
+				"url": "jdbc:snowflake://calcourts-28_napa.snowflakecomputing.com:443/?db=WH_QA_ANALYST",
+				"type": "dev",
+				"auth-model": "snowflake_snowflake",
+				"auth-properties": {
+					"role": "QA_ANALYST"
+				}
+			},
+			"custom-properties": {
+				"ddString": "false"
+			}
+		},
+		"snowflake_jdbc-17fdd1cb371-5832acec5c41c10b": {
+			"provider": "snowflake",
+			"driver": "snowflake_jdbc",
+			"name": "Nevada",
+			"save-password": true,
+			"read-only": false,
+			"configuration": {
+				"host": "calcourts-29_nevada.snowflakecomputing.com",
+				"port": "443",
+				"database": "WH_QA_ANALYST",
+				"url": "jdbc:snowflake://calcourts-29_nevada.snowflakecomputing.com:443/?db=WH_QA_ANALYST",
+				"type": "dev",
+				"auth-model": "snowflake_snowflake",
+				"auth-properties": {
+					"role": "QA_ANALYST"
+				}
+			},
+			"custom-properties": {
+				"ddString": "false"
+			}
+		},
+		"snowflake_jdbc-17fdd1d9222-27f1825ec3cff7ff": {
+			"provider": "snowflake",
+			"driver": "snowflake_jdbc",
+			"name": "Sacramento",
+			"save-password": true,
+			"read-only": false,
+			"configuration": {
+				"host": "calcourts-34_sacramento.snowflakecomputing.com",
+				"port": "443",
+				"server": "WH_QA_ANALYST",
+				"url": "jdbc:snowflake://calcourts-34_sacramento.snowflakecomputing.com:443/?warehouse=WH_QA_ANALYST",
+				"type": "dev",
+				"auth-model": "snowflake_snowflake",
+				"auth-properties": {
+					"role": "QA_ANALYST"
+				}
+			},
+			"custom-properties": {
+				"ddString": "false"
+			}
+		},
+		"snowflake_jdbc-180f7f111d1-4a5c230c852f3f5e": {
+			"provider": "snowflake",
+			"driver": "snowflake_jdbc",
+			"name": "San Joaquin",
+			"save-password": true,
+			"read-only": false,
+			"configuration": {
+				"host": "https://calcourts-39_sanjoaquin.snowflakecomputing.com",
+				"port": "443",
+				"server": "WH_QA_ANALYST",
+				"url": "jdbc:snowflake://https://calcourts-39_sanjoaquin.snowflakecomputing.com:443/?warehouse=WH_QA_ANALYST",
+				"type": "dev",
+				"provider-properties": {},
+				"auth-model": "snowflake_snowflake",
+				"auth-properties": {
+					"role": "QA_ANALYST",
+					"authenticator": "snowflake"
+				},
+				"handlers": {}
+			},
+			"custom-properties": {
+				"ddString": "false"
+			}
+		},
+		"snowflake_jdbc-180f7f4fee2-5e852b7ea17ca58b": {
+			"provider": "snowflake",
+			"driver": "snowflake_jdbc",
+			"name": "San Mateo",
+			"save-password": true,
+			"read-only": false,
+			"configuration": {
+				"host": "https://calcourts-41_sanmateo.snowflakecomputing.com",
+				"port": "443",
+				"database": "WH_QA_ANALYST",
+				"url": "jdbc:snowflake://https://calcourts-41_sanmateo.snowflakecomputing.com:443/?db=WH_QA_ANALYST",
+				"type": "dev",
+				"provider-properties": {},
+				"auth-model": "snowflake_snowflake",
+				"auth-properties": {},
+				"handlers": {}
+			},
+			"custom-properties": {
+				"ddString": "false"
+			}
+		},
+		"snowflake_jdbc-180f7f68484-eb142623529901c": {
+			"provider": "snowflake",
+			"driver": "snowflake_jdbc",
+			"name": "Santa Barbara",
+			"save-password": true,
+			"read-only": false,
+			"configuration": {
+				"host": "https://calcourts-42_santabarbara.snowflakecomputing.com",
+				"port": "443",
+				"url": "jdbc:snowflake://https://calcourts-42_santabarbara.snowflakecomputing.com:443/?",
+				"type": "dev",
+				"provider-properties": {},
+				"auth-model": "snowflake_snowflake",
+				"auth-properties": {},
+				"handlers": {}
+			},
+			"custom-properties": {
+				"ddString": "false"
+			}
+		},
+		"snowflake_jdbc-180f7f77d41-336ed13130079941": {
+			"provider": "snowflake",
+			"driver": "snowflake_jdbc",
+			"name": "Sierra",
+			"save-password": true,
+			"read-only": false,
+			"configuration": {
+				"host": "https://calcourts-46_sierra.snowflakecomputing.com/",
+				"port": "443",
+				"url": "jdbc:snowflake://https://calcourts-46_sierra.snowflakecomputing.com/:443/?",
+				"type": "dev",
+				"provider-properties": {},
+				"auth-model": "snowflake_snowflake",
+				"auth-properties": {},
+				"handlers": {}
+			},
+			"custom-properties": {
+				"ddString": "false"
+			}
+		},
+		"snowflake_jdbc-180f7f82b8f-1b7b75fc9c4147e7": {
+			"provider": "snowflake",
+			"driver": "snowflake_jdbc",
+			"name": "Sonoma",
+			"save-password": true,
+			"read-only": false,
+			"configuration": {
+				"host": "https://calcourts-49_sonoma.snowflakecomputing.com",
+				"port": "443",
+				"url": "jdbc:snowflake://https://calcourts-49_sonoma.snowflakecomputing.com:443/?",
+				"type": "dev",
+				"provider-properties": {},
+				"auth-model": "snowflake_snowflake",
+				"auth-properties": {},
+				"handlers": {}
+			},
+			"custom-properties": {
+				"ddString": "false"
+			}
+		},
+		"snowflake_jdbc-180f7f8d2c1-1efd589a8bdba2b1": {
+			"provider": "snowflake",
+			"driver": "snowflake_jdbc",
+			"name": "Tulare",
+			"save-password": true,
+			"read-only": false,
+			"configuration": {
+				"host": "https://calcourts-54_tulare.snowflakecomputing.com",
+				"port": "443",
+				"url": "jdbc:snowflake://https://calcourts-54_tulare.snowflakecomputing.com:443/?",
+				"type": "dev",
+				"provider-properties": {},
+				"auth-model": "snowflake_snowflake",
+				"auth-properties": {},
+				"handlers": {}
+			},
+			"custom-properties": {
+				"ddString": "false"
+			}
+		},
+		"snowflake_jdbc-180f7f98b55-783d21593fe0de45": {
+			"provider": "snowflake",
+			"driver": "snowflake_jdbc",
+			"name": "Tuolumne",
+			"save-password": true,
+			"read-only": false,
+			"configuration": {
+				"host": "https://calcourts-55_tuolumne.snowflakecomputing.com",
+				"port": "443",
+				"url": "jdbc:snowflake://https://calcourts-55_tuolumne.snowflakecomputing.com:443/?",
+				"type": "dev",
+				"provider-properties": {},
+				"auth-model": "snowflake_snowflake",
+				"auth-properties": {},
+				"handlers": {}
+			},
+			"custom-properties": {
+				"ddString": "false"
+			}
+		},
+		"snowflake_jdbc-180f7fac67a-5af49033ca26ae1f": {
+			"provider": "snowflake",
+			"driver": "snowflake_jdbc",
+			"name": "Ventura",
+			"save-password": true,
+			"read-only": false,
+			"configuration": {
+				"host": "https://calcourts-56_ventura.snowflakecomputing.com",
+				"port": "443",
+				"url": "jdbc:snowflake://https://calcourts-56_ventura.snowflakecomputing.com:443/?",
+				"type": "dev",
+				"provider-properties": {},
+				"auth-model": "snowflake_snowflake",
+				"auth-properties": {},
+				"handlers": {}
+			},
+			"custom-properties": {
+				"ddString": "false"
+			}
+		},
+		"snowflake_jdbc-180f7fb4c74-64d7fe3209db94b1": {
+			"provider": "snowflake",
+			"driver": "snowflake_jdbc",
+			"name": "Yuba",
+			"save-password": true,
+			"read-only": false,
+			"configuration": {
+				"host": "https://calcourts-58_yuba.snowflakecomputing.com",
+				"port": "443",
+				"url": "jdbc:snowflake://https://calcourts-58_yuba.snowflakecomputing.com:443/?",
+				"type": "dev",
+				"provider-properties": {},
+				"auth-model": "snowflake_snowflake",
+				"auth-properties": {},
+				"handlers": {}
+			},
+			"custom-properties": {
+				"ddString": "false"
+			}
+		}
+	},
+	"connection-types": {
+		"dev": {
+			"name": "Development",
+			"color": "255,255,255",
+			"description": "Regular development database",
+			"auto-commit": true,
+			"confirm-execute": false,
+			"confirm-data-change": false,
+			"auto-close-transactions": false
+		}
+	}
+}
