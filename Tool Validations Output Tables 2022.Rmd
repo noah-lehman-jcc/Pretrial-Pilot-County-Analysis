@@ -184,7 +184,18 @@ eval_df <- join_df %>%
          ) %>%
   mutate(release_to_pretrial_end = pretrial_period_end_date - release_date)
 
+#create zero bail dummy for period of April 6 2020 through June 20 2020
+eval_df <- eval_df %>%
+  mutate(zero_bail_dummy = if_else(arrest_date >= as.Date("2020-04-06") & arrest_date <= as.Date("2020-06-20"), 1, 0)) 
 
+# create sup_or_none dummy for supervision
+eval_df <- eval_df %>%
+  mutate(monitoring_level_grouped = if_else(grepl("Own Recognizance", monitoring_level_grouped), "Own Recognizance", monitoring_level_grouped)) %>%
+  mutate(monitoring_level_grouped = if_else(monitoring_level_grouped %in% c("Lowest Levels", "Medium Levels", "Highest Levels", "Own Recognizance"), monitoring_level_grouped, NA_character_)) %>%
+  mutate(bail_or_sup = case_when(release_type %in% c("Bail Bond") ~ "Bail Bond",
+                                 !is.na(monitoring_level_grouped) ~ monitoring_level_grouped,
+                                 release_type %in% c("Own Recognizance") ~ "Own Recognizance",
+                                 release_type %in% c("Cite Release", "CiteR elease") ~ "Cite Release")) 
 ```
 
 Change Raw Risk Scores to Risk Levels for eval_df -- toggle off to go back to raw scores
@@ -2302,6 +2313,58 @@ stargazer(list(m1,m2,m3,m4,m5,m6),
 ```
 \newpage
 
+Alameda with zero bail dummy
+\newline
+```{r, results='asis'}
+county_df <- eval_df %>%
+  filter(county == "Alameda")
+
+m1 <- glm(family = binomial(),fta_flag ~ vprair_risk_score + release_to_pretrial_end , data = county_df)
+m2 <- glm(family = binomial(),recid_arrested_flag ~ vprair_risk_score + release_to_pretrial_end , data = county_df)
+m3 <- glm(family = binomial(),recid_filed_flag ~ vprair_risk_score + release_to_pretrial_end , data = county_df)
+m4 <- glm(family = binomial(),recid_convicted_flag ~ vprair_risk_score + release_to_pretrial_end , data = county_df)
+m5 <- glm(family = binomial(),recid_arrest_violent_psa_flag ~ vprair_risk_score + release_to_pretrial_end , data = county_df)
+m6 <- glm(family = binomial(),any_pretrial_failure_flag ~ vprair_risk_score + release_to_pretrial_end , data = county_df)
+
+summary(m1)
+summary(m2)
+summary(m3)
+summary(m4)
+summary(m5)
+summary(m6)
+
+# main effect of zero bail dummy
+m1 <- glm(family = binomial(),fta_flag ~ vprair_risk_score + zero_bail_dummy + release_to_pretrial_end , data = county_df)
+m2 <- glm(family = binomial(),recid_arrested_flag ~ vprair_risk_score + zero_bail_dummy + release_to_pretrial_end , data = county_df)
+m3 <- glm(family = binomial(),recid_filed_flag ~ vprair_risk_score + zero_bail_dummy + release_to_pretrial_end , data = county_df)
+m4 <- glm(family = binomial(),recid_convicted_flag ~ vprair_risk_score + zero_bail_dummy + release_to_pretrial_end , data = county_df)
+m5 <- glm(family = binomial(),recid_arrest_violent_psa_flag ~ vprair_risk_score + zero_bail_dummy + release_to_pretrial_end , data = county_df)
+m6 <- glm(family = binomial(),any_pretrial_failure_flag ~ vprair_risk_score + zero_bail_dummy + release_to_pretrial_end , data = county_df)
+
+summary(m1)
+summary(m2)
+summary(m3)
+summary(m4)
+summary(m5)
+summary(m6)
+
+# main effect of zero bail dummy
+m1 <- glm(family = binomial(),fta_flag ~ vprair_risk_score*zero_bail_dummy + release_to_pretrial_end , data = county_df)
+m2 <- glm(family = binomial(),recid_arrested_flag ~ vprair_risk_score*zero_bail_dummy + release_to_pretrial_end , data = county_df)
+m3 <- glm(family = binomial(),recid_filed_flag ~ vprair_risk_score*zero_bail_dummy + release_to_pretrial_end , data = county_df)
+m4 <- glm(family = binomial(),recid_convicted_flag ~ vprair_risk_score*zero_bail_dummy + release_to_pretrial_end , data = county_df)
+m5 <- glm(family = binomial(),recid_arrest_violent_psa_flag ~ vprair_risk_score*zero_bail_dummy + release_to_pretrial_end , data = county_df)
+m6 <- glm(family = binomial(),any_pretrial_failure_flag ~ vprair_risk_score*zero_bail_dummy + release_to_pretrial_end , data = county_df)
+
+summary(m1)
+summary(m2)
+summary(m3)
+summary(m4)
+summary(m5)
+summary(m6)
+```
+\newpage
+
 Los Angeles
 \newline
 ```{r, results='asis'}
@@ -2326,6 +2389,124 @@ stargazer(list(m1,m2,m3,m4,m5),
 ```
 \newpage
 
+Los Angeles with zero bail dummy
+```{r}
+county_df <- eval_df %>%
+  filter(county == "Los Angeles", tool_name == "PSA")
+
+# main effect of zero bail dummy
+m1 <- glm(family = binomial(),fta_flag ~ psa_fta_risk_score + release_to_pretrial_end + zero_bail_dummy, data = county_df %>% filter(!is.na(psa_fta_risk_score)))
+m2 <- glm(family = binomial(),recid_arrested_flag ~ psa_nca_risk_score + release_to_pretrial_end + zero_bail_dummy, data = county_df %>% filter(!is.na(psa_nca_risk_score)))
+m3 <- glm(family = binomial(),recid_filed_flag ~ psa_nca_risk_score + release_to_pretrial_end + zero_bail_dummy, data = county_df %>% filter(!is.na(psa_nca_risk_score)))
+m4 <- glm(family = binomial(),recid_convicted_flag ~ psa_nca_risk_score + release_to_pretrial_end + zero_bail_dummy, data = county_df %>% filter(!is.na(psa_nca_risk_score)))
+m5 <- glm(family = binomial(),recid_arrest_violent_psa_flag ~ psa_nvca_risk_score + release_to_pretrial_end + zero_bail_dummy, data = county_df %>% filter(!is.na(psa_nvca_risk_score)))
+
+stargazer(list(m1,m2,m3,m4,m5),
+          # type = "text",
+          dep.var.labels = c("FTA", "New Arrest", "New Filing", 
+                             "New Conviction", "New Violent Arrest"), 
+          covariate.labels = c("PSA FTA Risk Score", "PSA NCA Risk Score", "PSA NVCA Risk Score", "Days Released", "Mandatory Zero Bail Timeframe"),
+          star.char = c("*", "**", "***"),
+          star.cutoffs = c(.05, .01, .001),
+          notes = c("*p<0.05; **p<0.01; ***p<.001"),
+          notes.append = F, font.size = "small")
+
+summary(m1)
+summary(m2)
+summary(m3)
+summary(m4)
+summary(m5)
+
+# interaction of zero bail dummy with risk score
+m1 <- glm(family = binomial(),fta_flag ~ psa_fta_risk_score*zero_bail_dummy + release_to_pretrial_end, data = county_df %>% filter(!is.na(psa_fta_risk_score)))
+m2 <- glm(family = binomial(),recid_arrested_flag ~ psa_nca_risk_score*zero_bail_dummy + release_to_pretrial_end, data = county_df %>% filter(!is.na(psa_nca_risk_score)))
+m3 <- glm(family = binomial(),recid_filed_flag ~ psa_nca_risk_score*zero_bail_dummy + release_to_pretrial_end, data = county_df %>% filter(!is.na(psa_nca_risk_score)))
+m4 <- glm(family = binomial(),recid_convicted_flag ~ psa_nca_risk_score*zero_bail_dummy + release_to_pretrial_end, data = county_df %>% filter(!is.na(psa_nca_risk_score)))
+m5 <- glm(family = binomial(),recid_arrest_violent_psa_flag ~ psa_nvca_risk_score*zero_bail_dummy + release_to_pretrial_end, data = county_df %>% filter(!is.na(psa_nvca_risk_score)))
+
+stargazer(list(m1,m2,m3,m4,m5),
+          # type = "text",
+          dep.var.labels = c("FTA", "New Arrest", "New Filing", 
+                             "New Conviction", "New Violent Arrest"), 
+          covariate.labels = c("PSA FTA Risk Score", "PSA NCA Risk Score", "PSA NVCA Risk Score", "Days Released", "Mandatory Zero Bail Timeframe"),
+          star.char = c("*", "**", "***"),
+          star.cutoffs = c(.05, .01, .001),
+          notes = c("*p<0.05; **p<0.01; ***p<.001"),
+          notes.append = F, font.size = "small")
+
+summary(m1)
+summary(m2)
+summary(m3)
+summary(m4)
+summary(m5)
+
+# look at when zero_bail_dummy is 1
+m2 <- glm(family = binomial(),recid_arrested_flag ~ psa_nca_risk_score*(zero_bail_dummy-1) + release_to_pretrial_end, data = county_df %>% filter(!is.na(psa_nca_risk_score)))
+
+summary(m2)
+```
+Los Angeles graphs with zero bail dummy
+\newline
+```{r fig.height=6, fig.width=10, dpi=1200}
+risk_df <- eval_df %>%
+  filter(county == "Los Angeles") %>%
+  filter(tool_name == "PSA", !is.na(psa_fta_risk_score)) %>%
+  group_by(psa_fta_risk_score, zero_bail_dummy, county) %>%
+  select(fta_flag) %>%
+  pivot_longer(fta_flag) 
+
+names(risk_df)[1] <- "psa_risk_score"
+
+risk_df2 <- eval_df %>%
+  filter(county == "Los Angeles") %>%
+  filter(tool_name == "PSA", !is.na(psa_nca_risk_score)) %>%
+  group_by(psa_nca_risk_score, zero_bail_dummy, county) %>%
+  select(recid_arrested_flag, recid_filed_flag, recid_convicted_flag) %>%
+  pivot_longer(recid_arrested_flag:recid_convicted_flag) 
+
+names(risk_df2)[1] <- "psa_risk_score"
+
+risk_df3 <- eval_df %>%
+  filter(county == "Los Angeles") %>%
+  filter(tool_name == "PSA", !is.na(psa_nvca_risk_score)) %>%
+  group_by(psa_nvca_risk_score, zero_bail_dummy, county) %>%
+  select(recid_arrest_violent_psa_flag) %>%
+  pivot_longer(recid_arrest_violent_psa_flag) 
+
+names(risk_df3)[1] <- "psa_risk_score"
+
+risk_df <- bind_rows(risk_df, risk_df2, risk_df3)
+  
+rm(risk_df2, risk_df3)
+
+risk_df <- risk_df %>%
+  mutate(zero_bail_dummy = factor(zero_bail_dummy)) %>%
+  mutate(name = case_when(name == "fta_flag" ~ "FTA",
+                          name == "recid_arrested_flag" ~ "New Arrest",
+                          name == "recid_filed_flag" ~ "New Filing",
+                          name == "recid_convicted_flag" ~ "New Conviction",
+                          name == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest"),
+         name = factor(name, levels = c("FTA", "New Arrest", "New Filing", "New Conviction", "New Violent Arrest"))) 
+
+ggplot(risk_df) +
+  aes(x = psa_risk_score, y = value, color = zero_bail_dummy) +
+  geom_smooth(method = "glm", method.args = list(family=binomial), alpha = .2) +
+  # geom_line() +
+  # geom_point() +
+  theme_bw() +
+  # ylim(0,100) +
+  facet_wrap(~name, scales = "free") +
+  labs(x = "Risk Category", y = "Percent",
+       title = "Comparison of  Logistic Regression Curves during and outside of the mandatory zero bail period--PSA, Los Angeles") +
+  scale_x_continuous(breaks = 1:6)
+
+# eval_df %>%
+#   filter(tool_name == "PSA") %>%
+#   count(county)
+
+
+```
+\newpage
 Sacramento
 \newline
 ```{r, results='asis'}
@@ -2375,6 +2556,68 @@ stargazer(list(m1,m2,m3,m4,m5,m6),
 ```
 \newpage
 
+San Mateo with zero bail dummy
+\newline
+```{r, results='asis'}
+county_df <- eval_df %>%
+  filter(county == "San Mateo")
+
+m1 <- glm(family = binomial(),fta_flag ~ vprair_risk_score + release_to_pretrial_end , data = county_df)
+m2 <- glm(family = binomial(),recid_arrested_flag ~ vprair_risk_score + release_to_pretrial_end , data = county_df)
+m3 <- glm(family = binomial(),recid_filed_flag ~ vprair_risk_score + release_to_pretrial_end , data = county_df)
+m4 <- glm(family = binomial(),recid_convicted_flag ~ vprair_risk_score + release_to_pretrial_end , data = county_df)
+m5 <- glm(family = binomial(),recid_arrest_violent_psa_flag ~ vprair_risk_score + release_to_pretrial_end , data = county_df)
+m6 <- glm(family = binomial(),any_pretrial_failure_flag ~ vprair_risk_score + release_to_pretrial_end , data = county_df)
+
+summary(m1)
+summary(m2)
+summary(m3)
+summary(m4)
+summary(m5)
+summary(m6)
+
+stargazer(list(m1,m2,m3,m4,m5,m6),
+          # type = "text",
+          dep.var.labels = c("FTA", "New Arrest", "New Filing", 
+                             "New Conviction", "New Violent Arrest", "FTA or New Arrest"), 
+          covariate.labels = c("VPRAI-R Risk Score", "Days Released"),
+          star.char = c("*", "**", "***"),
+          star.cutoffs = c(.05, .01, .001),
+          notes = c("*p<0.05; **p<0.01; ***p<.001"),
+          notes.append = F, font.size = "small")
+
+# main effect of zero bail dummy
+m1 <- glm(family = binomial(),fta_flag ~ vprair_risk_score + zero_bail_dummy + release_to_pretrial_end , data = county_df)
+m2 <- glm(family = binomial(),recid_arrested_flag ~ vprair_risk_score + zero_bail_dummy + release_to_pretrial_end , data = county_df)
+m3 <- glm(family = binomial(),recid_filed_flag ~ vprair_risk_score + zero_bail_dummy + release_to_pretrial_end , data = county_df)
+m4 <- glm(family = binomial(),recid_convicted_flag ~ vprair_risk_score + zero_bail_dummy + release_to_pretrial_end , data = county_df)
+m5 <- glm(family = binomial(),recid_arrest_violent_psa_flag ~ vprair_risk_score + zero_bail_dummy + release_to_pretrial_end , data = county_df)
+m6 <- glm(family = binomial(),any_pretrial_failure_flag ~ vprair_risk_score + zero_bail_dummy + release_to_pretrial_end , data = county_df)
+
+summary(m1)
+summary(m2)
+summary(m3)
+summary(m4)
+summary(m5)
+summary(m6)
+
+# risk score interacted with zero bail dummy
+m1 <- glm(family = binomial(),fta_flag ~ vprair_risk_score*zero_bail_dummy + release_to_pretrial_end , data = county_df)
+m2 <- glm(family = binomial(),recid_arrested_flag ~ vprair_risk_score*zero_bail_dummy + release_to_pretrial_end , data = county_df)
+m3 <- glm(family = binomial(),recid_filed_flag ~ vprair_risk_score*zero_bail_dummy + release_to_pretrial_end , data = county_df)
+m4 <- glm(family = binomial(),recid_convicted_flag ~ vprair_risk_score*zero_bail_dummy + release_to_pretrial_end , data = county_df)
+m5 <- glm(family = binomial(),recid_arrest_violent_psa_flag ~ vprair_risk_score*zero_bail_dummy + release_to_pretrial_end , data = county_df)
+m6 <- glm(family = binomial(),any_pretrial_failure_flag ~ vprair_risk_score*zero_bail_dummy + release_to_pretrial_end , data = county_df)
+
+summary(m1)
+summary(m2)
+summary(m3)
+summary(m4)
+summary(m5)
+summary(m6)
+```
+\newpage
+
 San Joaquin 
 \newline
 ```{r results='asis'}
@@ -2399,6 +2642,60 @@ stargazer(list(m1,m2,m3,m4,m5,m6),
           notes.append = F, font.size = "small")
 ```
 \newpage
+
+San Joaquin with zero bail dummy
+\newline
+```{r results='asis'}
+county_df <- eval_df %>%
+  filter(county == "San Joaquin")
+
+m1 <- glm(family = binomial(),fta_flag ~ vprai_risk_score + release_to_pretrial_end , data = county_df)
+m2 <- glm(family = binomial(),recid_arrested_flag ~ vprai_risk_score + release_to_pretrial_end , data = county_df)
+m3 <- glm(family = binomial(),recid_filed_flag ~ vprai_risk_score + release_to_pretrial_end , data = county_df)
+m4 <- glm(family = binomial(),recid_convicted_flag ~ vprai_risk_score + release_to_pretrial_end , data = county_df)
+m5 <- glm(family = binomial(),recid_arrest_violent_psa_flag ~ vprai_risk_score + release_to_pretrial_end , data = county_df)
+m6 <- glm(family = binomial(),any_pretrial_failure_flag ~ vprai_risk_score + release_to_pretrial_end , data = county_df)
+
+summary(m1)
+summary(m2)
+summary(m3)
+summary(m4)
+summary(m5)
+summary(m6)
+
+# main effect of zero bail dummy
+m1 <- glm(family = binomial(),fta_flag ~ vprai_risk_score + zero_bail_dummy + release_to_pretrial_end , data = county_df)
+m2 <- glm(family = binomial(),recid_arrested_flag ~ vprai_risk_score + zero_bail_dummy + release_to_pretrial_end , data = county_df)
+m3 <- glm(family = binomial(),recid_filed_flag ~ vprai_risk_score + zero_bail_dummy + release_to_pretrial_end , data = county_df)
+m4 <- glm(family = binomial(),recid_convicted_flag ~ vprai_risk_score + zero_bail_dummy + release_to_pretrial_end , data = county_df)
+m5 <- glm(family = binomial(),recid_arrest_violent_psa_flag ~ vprai_risk_score + zero_bail_dummy + release_to_pretrial_end , data = county_df)
+m6 <- glm(family = binomial(),any_pretrial_failure_flag ~ vprai_risk_score + zero_bail_dummy + release_to_pretrial_end , data = county_df)
+
+summary(m1)
+summary(m2)
+summary(m3)
+summary(m4)
+summary(m5)
+summary(m6)
+
+#interaction of zero bail dummy
+m1 <- glm(family = binomial(),fta_flag ~ vprai_risk_score*zero_bail_dummy + release_to_pretrial_end , data = county_df)
+m2 <- glm(family = binomial(),recid_arrested_flag ~ vprai_risk_score*zero_bail_dummy + release_to_pretrial_end , data = county_df)
+m3 <- glm(family = binomial(),recid_filed_flag ~ vprai_risk_score*zero_bail_dummy + release_to_pretrial_end , data = county_df)
+m4 <- glm(family = binomial(),recid_convicted_flag ~ vprai_risk_score*zero_bail_dummy + release_to_pretrial_end , data = county_df)
+m5 <- glm(family = binomial(),recid_arrest_violent_psa_flag ~ vprai_risk_score*zero_bail_dummy + release_to_pretrial_end , data = county_df)
+m6 <- glm(family = binomial(),any_pretrial_failure_flag ~ vprai_risk_score*zero_bail_dummy + release_to_pretrial_end , data = county_df)
+
+summary(m1)
+summary(m2)
+summary(m3)
+summary(m4)
+summary(m5)
+summary(m6)
+
+```
+\newpage
+
 
 Santa Barbara
 \newline
@@ -2585,7 +2882,7 @@ tool_df <- auc_df %>%
                             outcome == "recid_filed_flag" ~ "New Filing",                              
                             outcome == "recid_convicted_flag" ~ "New Conviction",                              
                             outcome == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest",                              
-                            outcome == "any_pretrial_failure_flag" ~ "FTA or New"))
+                            outcome == "any_pretrial_failure_flag" ~ "FTA or New Arrest"))
 
 names(tool_df) <- c("Outcome", "AUC", "CI (95%)", "N")
 
@@ -2595,7 +2892,7 @@ kable(tool_df %>% select(-starts_with("N")), booktabs = T, format.args = list(bi
     kable_styling(position = "center", full_width = F, 
                   bootstrap_options = c("striped", "hover"), stripe_color = "gray", font_size = 12,
                   latex_options = "hold_position") %>%
-  add_footnote(paste("N =", tool_df$N[1]))
+  footnote(paste("N =", tool_df$N[1]))
   
 ```
 \newpage
@@ -2611,7 +2908,7 @@ tool_df <- auc_df %>%
                             outcome == "recid_filed_flag" ~ "New Filing",                              
                             outcome == "recid_convicted_flag" ~ "New Conviction",                              
                             outcome == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest",                              
-                            outcome == "any_pretrial_failure_flag" ~ "FTA or New"))
+                            outcome == "any_pretrial_failure_flag" ~ "FTA or New Arrest"))
 
 names(tool_df) <- c("Outcome", "AUC", "CI (95%)", "N")
 
@@ -2621,7 +2918,7 @@ kable(tool_df %>% select(-starts_with("N")), booktabs = T, format.args = list(bi
     kable_styling(position = "center", full_width = F, 
                   bootstrap_options = c("striped", "hover"), stripe_color = "gray", font_size = 12, 
                   latex_options = "hold_position") %>%
-  add_footnote(paste("N =", tool_df$N[1]))
+  footnote(paste("N =", tool_df$N[1]))
 ```
 \newpage
 
@@ -2636,7 +2933,7 @@ tool_df <- auc_df %>%
                             outcome == "recid_filed_flag" ~ "New Filing",                              
                             outcome == "recid_convicted_flag" ~ "New Conviction",                              
                             outcome == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest",                              
-                            outcome == "any_pretrial_failure_flag" ~ "FTA or New"))
+                            outcome == "any_pretrial_failure_flag" ~ "FTA or New Arrest"))
 
 names(tool_df) <- c("Outcome", "AUC", "CI (95%)", "N")
 
@@ -2646,7 +2943,7 @@ kable(tool_df %>% select(-starts_with("N")), booktabs = T, format.args = list(bi
     kable_styling(position = "center", full_width = F, 
                   bootstrap_options = c("striped", "hover"), stripe_color = "gray", font_size = 12, 
                   latex_options = "hold_position") %>%
-  add_footnote(paste("N =", tool_df$N[1]))
+  footnote(paste("N =", tool_df$N[1]))
 ```
 \newpage
 
@@ -2664,7 +2961,7 @@ tool_df <- auc_df %>%
                              outcome == "recid_filed_flag" ~ "New Filing",
                              outcome == "recid_convicted_flag" ~ "New Conviction",
                              outcome == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest",
-                             outcome == "any_pretrial_failure_flag" ~ "FTA or New"))
+                             outcome == "any_pretrial_failure_flag" ~ "FTA or New Arrest"))
 
 names(tool_df) <- c("Risk Score", "Outcome", "AUC", "CI (95%)", "N")
 
@@ -2674,7 +2971,7 @@ kable(tool_df %>% select(-starts_with("N")), booktabs = T, format.args = list(bi
     kable_styling(position = "center", full_width = F, 
                   bootstrap_options = c("striped", "hover"), stripe_color = "gray", font_size = 12, 
                   latex_options = "hold_position") %>%
-  add_footnote(paste("N =", tool_df$N[1]))
+  footnote(paste("N =", tool_df$N[1]))
 ```
 \newpage
 
@@ -2689,7 +2986,7 @@ tool_df <- auc_df %>%
                              outcome == "recid_filed_flag" ~ "New Filing",
                              outcome == "recid_convicted_flag" ~ "New Conviction",
                              outcome == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest",
-                             outcome == "any_pretrial_failure_flag" ~ "FTA or New"))
+                             outcome == "any_pretrial_failure_flag" ~ "FTA or New Arrest"))
 
 names(tool_df) <- c("Outcome", "AUC", "CI (95%)", "N")
 
@@ -2699,7 +2996,7 @@ kable(tool_df %>% select(-starts_with("N")), booktabs = T, format.args = list(bi
     kable_styling(position = "center", full_width = F, 
                   bootstrap_options = c("striped", "hover"), stripe_color = "gray", font_size = 12,
                   latex_options = "hold_position") %>%
-  add_footnote(paste("N =", tool_df$N[1]))
+  footnote(paste("N =", tool_df$N[1]))
 
 
 ```
@@ -2719,7 +3016,7 @@ tool_df <- auc_df %>%
                              outcome == "recid_filed_flag" ~ "New Filing",
                              outcome == "recid_convicted_flag" ~ "New Conviction",
                              outcome == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest",
-                             outcome == "any_pretrial_failure_flag" ~ "FTA or New"))
+                             outcome == "any_pretrial_failure_flag" ~ "FTA or New Arrest"))
 
 names(tool_df) <- c("Risk Score", "Outcome", "AUC", "CI (95%)", "N")
 
@@ -2729,7 +3026,7 @@ kable(tool_df %>% select(-starts_with("N")), booktabs = T, format.args = list(bi
     kable_styling(position = "center", full_width = F, 
                   bootstrap_options = c("striped", "hover"), stripe_color = "gray", font_size = 12,
                   latex_options = "hold_position") %>%
-  add_footnote(paste("N =", tool_df$N[1]))
+  footnote(paste("N =", tool_df$N[1]))
 ```
 \newpage
 
@@ -2744,7 +3041,7 @@ tool_df <- auc_df %>%
                              outcome == "recid_filed_flag" ~ "New Filing",
                              outcome == "recid_convicted_flag" ~ "New Conviction",
                              outcome == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest",
-                             outcome == "any_pretrial_failure_flag" ~ "FTA or New"))
+                             outcome == "any_pretrial_failure_flag" ~ "FTA or New Arrest"))
 
 names(tool_df) <- c("Outcome", "AUC", "CI (95%)", "N")
 
@@ -2754,7 +3051,7 @@ kable(tool_df %>% select(-starts_with("N")), booktabs = T, format.args = list(bi
     kable_styling(position = "center", full_width = F, 
                   bootstrap_options = c("striped", "hover"), stripe_color = "gray", font_size = 12,
                   latex_options = "hold_position") %>%
-  add_footnote(paste("N =", tool_df$N[1]))
+  footnote(paste("N =", tool_df$N[1]))
 
 
 ```
@@ -2775,7 +3072,7 @@ tool_df <- auc_df %>%
                              outcome == "recid_filed_flag" ~ "New Filing",
                              outcome == "recid_convicted_flag" ~ "New Conviction",
                              outcome == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest",
-                             outcome == "any_pretrial_failure_flag" ~ "FTA or New"))
+                             outcome == "any_pretrial_failure_flag" ~ "FTA or New Arrest"))
 
 names(tool_df) <- c("Risk Score", "Outcome", "AUC", "CI (95%)", "N")
 
@@ -2785,7 +3082,7 @@ kable(tool_df %>% select(-starts_with("N")), booktabs = T, format.args = list(bi
     kable_styling(position = "center", full_width = F, 
                   bootstrap_options = c("striped", "hover"), stripe_color = "gray", font_size = 12, 
                   latex_options = "hold_position") %>%
-  add_footnote(paste("N =", tool_df$N[1]))
+  footnote(paste("N =", tool_df$N[1]))
 ```
 \newpage
 
@@ -2800,7 +3097,7 @@ tool_df <- auc_df %>%
                              outcome == "recid_filed_flag" ~ "New Filing",
                              outcome == "recid_convicted_flag" ~ "New Conviction",
                              outcome == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest",
-                             outcome == "any_pretrial_failure_flag" ~ "FTA or New"))
+                             outcome == "any_pretrial_failure_flag" ~ "FTA or New Arrest"))
 
 names(tool_df) <- c("Outcome", "AUC", "CI (95%)", "N")
 
@@ -2810,7 +3107,7 @@ kable(tool_df %>% select(-starts_with("N")), booktabs = T, format.args = list(bi
     kable_styling(position = "center", full_width = F, 
                   bootstrap_options = c("striped", "hover"), stripe_color = "gray", font_size = 12, 
                   latex_options = "hold_position") %>%
-  add_footnote(paste("N =", tool_df$N[1]))
+  footnote(paste("N =", tool_df$N[1]))
 ```
 \newpage
 
@@ -2825,7 +3122,7 @@ tool_df <- auc_df %>%
                             outcome == "recid_filed_flag" ~ "New Filing",                              
                             outcome == "recid_convicted_flag" ~ "New Conviction",                              
                             outcome == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest",                              
-                            outcome == "any_pretrial_failure_flag" ~ "FTA or New"))
+                            outcome == "any_pretrial_failure_flag" ~ "FTA or New Arrest"))
 
 names(tool_df) <- c("Outcome", "AUC", "CI (95%)", "N")
 
@@ -2835,7 +3132,7 @@ kable(tool_df %>% select(-starts_with("N")), booktabs = T, format.args = list(bi
     kable_styling(position = "center", full_width = F, 
                   bootstrap_options = c("striped", "hover"), stripe_color = "gray", font_size = 12, 
                   latex_options = "hold_position") %>%
-  add_footnote(paste("N =", tool_df$N[1]))
+  footnote(paste("N =", tool_df$N[1]))
 
 ```
 \newpage
@@ -2854,7 +3151,7 @@ tool_df <- auc_df %>%
                              outcome == "recid_filed_flag" ~ "New Filing",
                              outcome == "recid_convicted_flag" ~ "New Conviction",
                              outcome == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest",
-                             outcome == "any_pretrial_failure_flag" ~ "FTA or New"))
+                             outcome == "any_pretrial_failure_flag" ~ "FTA or New Arrest"))
 
 names(tool_df) <- c("Risk Score", "Outcome", "AUC", "CI (95%)", "N")
 
@@ -2864,7 +3161,7 @@ kable(tool_df %>% select(-starts_with("N")), booktabs = T, format.args = list(bi
     kable_styling(position = "center", full_width = F, 
                   bootstrap_options = c("striped", "hover"), stripe_color = "gray", font_size = 12, 
                   latex_options = "hold_position") %>%
-  add_footnote(paste("N =", tool_df$N[1]))
+  footnote(paste("N =", tool_df$N[1]))
 ```
 \newpage
 
@@ -2879,7 +3176,7 @@ tool_df <- auc_df %>%
                             outcome == "recid_filed_flag" ~ "New Filing",                              
                             outcome == "recid_convicted_flag" ~ "New Conviction",                              
                             outcome == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest",                            
-                            outcome == "any_pretrial_failure_flag" ~ "FTA or New"))
+                            outcome == "any_pretrial_failure_flag" ~ "FTA or New Arrest"))
 
 names(tool_df) <- c("Outcome", "AUC", "CI (95%)", "N")
 
@@ -2889,7 +3186,7 @@ kable(tool_df %>% select(-starts_with("N")), booktabs = T, format.args = list(bi
     kable_styling(position = "center", full_width = F, 
                   bootstrap_options = c("striped", "hover"), stripe_color = "gray", font_size = 12, 
                   latex_options = "hold_position") %>%
-  add_footnote(paste("N =", tool_df$N[1]))
+  footnote(paste("N =", tool_df$N[1]))
 ```
 \newpage
 
@@ -2904,7 +3201,7 @@ tool_df <- auc_df %>%
                             outcome == "recid_filed_flag" ~ "New Filing",                              
                             outcome == "recid_convicted_flag" ~ "New Conviction",                              
                             outcome == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest",                            
-                            outcome == "any_pretrial_failure_flag" ~ "FTA or New"))
+                            outcome == "any_pretrial_failure_flag" ~ "FTA or New Arrest"))
 
 names(tool_df) <- c("Outcome", "AUC", "CI (95%)", "N")
 
@@ -2914,7 +3211,7 @@ kable(tool_df %>% select(-starts_with("N")), booktabs = T, format.args = list(bi
     kable_styling(position = "center", full_width = F, 
                   bootstrap_options = c("striped", "hover"), stripe_color = "gray", font_size = 12, 
                   latex_options = "hold_position") %>%
-  add_footnote(paste("N =", tool_df$N[1]))
+  footnote(paste("N =", tool_df$N[1]))
 ```
 \newpage
 
@@ -2929,7 +3226,7 @@ tool_df <- auc_df %>%
                             outcome == "recid_filed_flag" ~ "New Filing",                              
                             outcome == "recid_convicted_flag" ~ "New Conviction",                              
                             outcome == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest",                            
-                            outcome == "any_pretrial_failure_flag" ~ "FTA or New"))
+                            outcome == "any_pretrial_failure_flag" ~ "FTA or New Arrest"))
 
 names(tool_df) <- c("Outcome", "AUC", "CI (95%)", "N")
 
@@ -2939,7 +3236,7 @@ kable(tool_df %>% select(-starts_with("N")), booktabs = T, format.args = list(bi
     kable_styling(position = "center", full_width = F, 
                   bootstrap_options = c("striped", "hover"), stripe_color = "gray", font_size = 12, 
                   latex_options = "hold_position") %>%
-  add_footnote(paste("N =", tool_df$N[1]))
+  footnote(paste("N =", tool_df$N[1]))
 ```
 \newpage
 
@@ -2957,7 +3254,7 @@ tool_df <- auc_df %>%
                              outcome == "recid_filed_flag" ~ "New Filing",
                              outcome == "recid_convicted_flag" ~ "New Conviction",
                              outcome == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest",
-                             outcome == "any_pretrial_failure_flag" ~ "FTA or New"))
+                             outcome == "any_pretrial_failure_flag" ~ "FTA or New Arrest"))
 
 names(tool_df) <- c("Risk Score", "Outcome", "AUC", "CI (95%)", "N")
 
@@ -2967,7 +3264,7 @@ kable(tool_df %>% select(-starts_with("N")), booktabs = T, format.args = list(bi
     kable_styling(position = "center", full_width = F, 
                   bootstrap_options = c("striped", "hover"), stripe_color = "gray", font_size = 12, 
                   latex_options = "hold_position") %>%
-  add_footnote(paste("N =", tool_df$N[1]))
+  footnote(paste("N =", tool_df$N[1]))
 ```
 \newpage
 
@@ -2985,7 +3282,7 @@ tool_df <- auc_df %>%
                              outcome == "recid_filed_flag" ~ "New Filing",
                              outcome == "recid_convicted_flag" ~ "New Conviction",
                              outcome == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest",
-                             outcome == "any_pretrial_failure_flag" ~ "FTA or New"))
+                             outcome == "any_pretrial_failure_flag" ~ "FTA or New Arrest"))
 
 names(tool_df) <- c("Risk Score", "Outcome", "AUC", "CI (95%)", "N")
 
@@ -2995,7 +3292,7 @@ kable(tool_df %>% select(-starts_with("N")), booktabs = T, format.args = list(bi
     kable_styling(position = "center", full_width = F, 
                   bootstrap_options = c("striped", "hover"), stripe_color = "gray", font_size = 12, 
                   latex_options = "hold_position") %>%
-  add_footnote(paste("N =", tool_df$N[1]))
+  footnote(paste("N =", tool_df$N[1]))
 ```
 \newpage
 
@@ -5814,6 +6111,7 @@ summary(m3)
 ```
 
 
+
 # Race AUCs
 
 VPRAI 
@@ -5827,7 +6125,7 @@ tool_df <- auc_df %>%
                              outcome == "recid_filed_flag" ~ "New Filing",
                              outcome == "recid_convicted_flag" ~ "New Conviction",
                              outcome == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest",
-                             outcome == "any_pretrial_failure_flag" ~ "FTA or New"))
+                             outcome == "any_pretrial_failure_flag" ~ "FTA or New Arrest"))
 
 names(tool_df) <- c("race", "Outcome", "AUC", "CI (95%)", "N")
 
@@ -5843,7 +6141,7 @@ kable(tool_df[1:7], booktabs = T, format.args = list(big.mark = ","),
                   bootstrap_options = c("striped", "hover"), stripe_color = "gray",
                   font_size = 10, latex_options = "hold_position") %>%
   add_header_above(c(" " = 1, "AUC" = 3, "CI (95%)" = 3)) %>% 
-  add_footnote(paste("N White =", tool_df$N_White[1], ", N Black =", 
+  footnote(paste("N White =", tool_df$N_White[1], ", N Black =", 
                      tool_df$N_Black[1], ", N Hispanic =", tool_df$N_Hispanic[1]))
 ```
 \newpage
@@ -5860,7 +6158,7 @@ tool_df <- auc_df %>%
                              outcome == "recid_filed_flag" ~ "New Filing",
                              outcome == "recid_convicted_flag" ~ "New Conviction",
                              outcome == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest",
-                             outcome == "any_pretrial_failure_flag" ~ "FTA or New"))
+                             outcome == "any_pretrial_failure_flag" ~ "FTA or New Arrest"))
 
 names(tool_df) <- c("race", "Outcome", "AUC", "CI (95%)", "N")
 
@@ -5876,7 +6174,7 @@ kable(tool_df[1:7], booktabs = T, format.args = list(big.mark = ","),
                   bootstrap_options = c("striped", "hover"), stripe_color = "gray",
                   font_size = 10, latex_options = "hold_position") %>%
   add_header_above(c(" " = 1, "AUC" = 3, "CI (95%)" = 3)) %>% 
-  add_footnote(paste("N White =", tool_df$N_White[1], ", N Black =", 
+  footnote(paste("N White =", tool_df$N_White[1], ", N Black =", 
                      tool_df$N_Black[1], ", N Hispanic =", tool_df$N_Hispanic[1]))
 ```
 \newpage
@@ -5893,7 +6191,7 @@ tool_df <- auc_df %>%
                              outcome == "recid_filed_flag" ~ "New Filing",
                              outcome == "recid_convicted_flag" ~ "New Conviction",
                              outcome == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest",
-                             outcome == "any_pretrial_failure_flag" ~ "FTA or New"))
+                             outcome == "any_pretrial_failure_flag" ~ "FTA or New Arrest"))
 
 names(tool_df) <- c("race", "Outcome", "AUC", "CI (95%)", "N")
 
@@ -5909,7 +6207,7 @@ kable(tool_df[1:7], booktabs = T, format.args = list(big.mark = ","),
                   bootstrap_options = c("striped", "hover"), stripe_color = "gray",
                   font_size = 10, latex_options = "hold_position") %>%
   add_header_above(c(" " = 1, "AUC" = 3, "CI (95%)" = 3)) %>% 
-  add_footnote(paste("N White =", tool_df$N_White[1], ", N Black =", 
+  footnote(paste("N White =", tool_df$N_White[1], ", N Black =", 
                      tool_df$N_Black[1], ", N Hispanic =", tool_df$N_Hispanic[1]))
 ```
 \newpage
@@ -5928,7 +6226,7 @@ tool_df <- auc_df %>%
                              outcome == "recid_filed_flag" ~ "New Filing",
                              outcome == "recid_convicted_flag" ~ "New Conviction",
                              outcome == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest",
-                             outcome == "any_pretrial_failure_flag" ~ "FTA or New"))
+                             outcome == "any_pretrial_failure_flag" ~ "FTA or New Arrest"))
 
 names(tool_df) <- c("race", "Risk Score", "Outcome", "AUC", "CI (95%)", "N")
 
@@ -5944,7 +6242,7 @@ kable(tool_df[1:8], booktabs = T, format.args = list(big.mark = ","),
                   bootstrap_options = c("striped", "hover"), stripe_color = "gray",
                   font_size = 10, latex_options = "hold_position") %>%
   add_header_above(c(" " = 2, "AUC" = 3, "CI (95%)" = 3)) %>% 
-  add_footnote(paste("N White =", tool_df$N_White[1], ", N Black =", 
+  footnote(paste("N White =", tool_df$N_White[1], ", N Black =", 
                      tool_df$N_Black[1], ", N Hispanic =", tool_df$N_Hispanic[1]))
 ```
 \newpage
@@ -5960,7 +6258,7 @@ tool_df <- auc_df %>%
                              outcome == "recid_filed_flag" ~ "New Filing",
                              outcome == "recid_convicted_flag" ~ "New Conviction",
                              outcome == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest",
-                             outcome == "any_pretrial_failure_flag" ~ "FTA or New"))
+                             outcome == "any_pretrial_failure_flag" ~ "FTA or New Arrest"))
 
 names(tool_df) <- c("race", "Outcome", "AUC", "CI (95%)", "N")
 
@@ -5976,7 +6274,7 @@ kable(tool_df[1:7], booktabs = T, format.args = list(big.mark = ","),
                   bootstrap_options = c("striped", "hover"), stripe_color = "gray",
                   font_size = 10, latex_options = "hold_position") %>%
   add_header_above(c(" " = 1, "AUC" = 3, "CI (95%)" = 3)) %>% 
-  add_footnote(paste("N White =", tool_df$N_White[1], ", N Black =", 
+  footnote(paste("N White =", tool_df$N_White[1], ", N Black =", 
                      tool_df$N_Black[1], ", N Hispanic =", tool_df$N_Hispanic[1]))
 ```
 \newpage
@@ -5995,7 +6293,7 @@ tool_df <- auc_df %>%
                              outcome == "recid_filed_flag" ~ "New Filing",
                              outcome == "recid_convicted_flag" ~ "New Conviction",
                              outcome == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest",
-                             outcome == "any_pretrial_failure_flag" ~ "FTA or New"))
+                             outcome == "any_pretrial_failure_flag" ~ "FTA or New Arrest"))
 
 names(tool_df) <- c("race", "Risk Score", "Outcome", "AUC", "CI (95%)", "N")
 
@@ -6011,7 +6309,7 @@ kable(tool_df[1:8], booktabs = T, format.args = list(big.mark = ","),
                   bootstrap_options = c("striped", "hover"), stripe_color = "gray",
                   font_size = 10, latex_options = "hold_position") %>%
   add_header_above(c(" " = 2, "AUC" = 3, "CI (95%)" = 3)) %>% 
-  add_footnote(paste("N White =", tool_df$N_White[1], ", N Black =", 
+  footnote(paste("N White =", tool_df$N_White[1], ", N Black =", 
                      tool_df$N_Black[1], ", N Hispanic =", tool_df$N_Hispanic[1]))
 
 
@@ -6032,7 +6330,7 @@ tool_df <- auc_df %>%
                              outcome == "recid_filed_flag" ~ "New Filing",
                              outcome == "recid_convicted_flag" ~ "New Conviction",
                              outcome == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest",
-                             outcome == "any_pretrial_failure_flag" ~ "FTA or New"))
+                             outcome == "any_pretrial_failure_flag" ~ "FTA or New Arrest"))
 
 names(tool_df) <- c("race", "Risk Score", "Outcome", "AUC", "CI (95%)", "N")
 
@@ -6048,7 +6346,7 @@ kable(tool_df[1:8], booktabs = T, format.args = list(big.mark = ","),
                   bootstrap_options = c("striped", "hover"), stripe_color = "gray",
                   font_size = 10, latex_options = "hold_position") %>%
   add_header_above(c(" " = 2, "AUC" = 3, "CI (95%)" = 3)) %>% 
-  add_footnote(paste("N White =", tool_df$N_White[1], ", N Black =", 
+  footnote(paste("N White =", tool_df$N_White[1], ", N Black =", 
                      tool_df$N_Black[1], ", N Hispanic =", tool_df$N_Hispanic[1]))
 ```
 \newpage
@@ -6064,7 +6362,7 @@ tool_df <- auc_df %>%
                              outcome == "recid_filed_flag" ~ "New Filing",
                              outcome == "recid_convicted_flag" ~ "New Conviction",
                              outcome == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest",
-                             outcome == "any_pretrial_failure_flag" ~ "FTA or New"))
+                             outcome == "any_pretrial_failure_flag" ~ "FTA or New Arrest"))
 
 names(tool_df) <- c("race", "Outcome", "AUC", "CI (95%)", "N")
 
@@ -6080,7 +6378,7 @@ kable(tool_df[1:7], booktabs = T, format.args = list(big.mark = ","),
                   bootstrap_options = c("striped", "hover"), stripe_color = "gray",
                   font_size = 10, latex_options = "hold_position") %>%
   add_header_above(c(" " = 1, "AUC" = 3, "CI (95%)" = 3)) %>% 
-  add_footnote(paste("N White =", tool_df$N_White[1], ", N Black =", 
+  footnote(paste("N White =", tool_df$N_White[1], ", N Black =", 
                      tool_df$N_Black[1], ", N Hispanic =", tool_df$N_Hispanic[1]))
 ```
 \newpage
@@ -6096,7 +6394,7 @@ tool_df <- auc_df %>%
                              outcome == "recid_filed_flag" ~ "New Filing",
                              outcome == "recid_convicted_flag" ~ "New Conviction",
                              outcome == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest",
-                             outcome == "any_pretrial_failure_flag" ~ "FTA or New"))
+                             outcome == "any_pretrial_failure_flag" ~ "FTA or New Arrest"))
 
 names(tool_df) <- c("race", "Outcome", "AUC", "CI (95%)", "N")
 
@@ -6112,7 +6410,7 @@ kable(tool_df[1:5], booktabs = T, format.args = list(big.mark = ","),
                   bootstrap_options = c("striped", "hover"), stripe_color = "gray",
                   font_size = 10, latex_options = "hold_position") %>%
   add_header_above(c(" " = 1, "AUC" = 2, "CI (95%)" = 2)) %>% 
-  add_footnote(paste("N White =", tool_df$N_White[1],  ", N Hispanic =", tool_df$N_Hispanic[1]))
+  footnote(paste("N White =", tool_df$N_White[1],  ", N Hispanic =", tool_df$N_Hispanic[1]))
 ```
 \newpage
 
@@ -6130,7 +6428,7 @@ tool_df <- auc_df %>%
                              outcome == "recid_filed_flag" ~ "New Filing",
                              outcome == "recid_convicted_flag" ~ "New Conviction",
                              outcome == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest",
-                             outcome == "any_pretrial_failure_flag" ~ "FTA or New"))
+                             outcome == "any_pretrial_failure_flag" ~ "FTA or New Arrest"))
 
 names(tool_df) <- c("race", "Risk Score", "Outcome", "AUC", "CI (95%)", "N")
 
@@ -6146,7 +6444,7 @@ kable(tool_df[1:8], booktabs = T, format.args = list(big.mark = ","),
                   bootstrap_options = c("striped", "hover"), stripe_color = "gray",
                   font_size = 10, latex_options = "hold_position") %>%
   add_header_above(c(" " = 2, "AUC" = 3, "CI (95%)" = 3)) %>% 
-  add_footnote(paste("N White =", tool_df$N_White[1], ", N Black =", 
+  footnote(paste("N White =", tool_df$N_White[1], ", N Black =", 
                      tool_df$N_Black[1], ", N Hispanic =", tool_df$N_Hispanic[1]))
 ```
 \newpage
@@ -6165,7 +6463,7 @@ tool_df <- auc_df %>%
                              outcome == "recid_filed_flag" ~ "New Filing",
                              outcome == "recid_convicted_flag" ~ "New Conviction",
                              outcome == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest",
-                             outcome == "any_pretrial_failure_flag" ~ "FTA or New"))
+                             outcome == "any_pretrial_failure_flag" ~ "FTA or New Arrest"))
 
 names(tool_df) <- c("race", "Risk Score", "Outcome", "AUC", "CI (95%)", "N")
 
@@ -6181,7 +6479,7 @@ kable(tool_df[1:8], booktabs = T, format.args = list(big.mark = ","),
                   bootstrap_options = c("striped", "hover"), stripe_color = "gray",
                   font_size = 10, latex_options = "hold_position") %>%
   add_header_above(c(" " = 2, "AUC" = 3, "CI (95%)" = 3)) %>% 
-  add_footnote(paste("N White =", tool_df$N_White[1], ", N Black =", 
+  footnote(paste("N White =", tool_df$N_White[1], ", N Black =", 
                      tool_df$N_Black[1], ", N Hispanic =", tool_df$N_Hispanic[1]))
 ```
 \newpage
@@ -6200,7 +6498,7 @@ tool_df <- auc_df %>%
                              outcome == "recid_filed_flag" ~ "New Filing",
                              outcome == "recid_convicted_flag" ~ "New Conviction",
                              outcome == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest",
-                             outcome == "any_pretrial_failure_flag" ~ "FTA or New"))
+                             outcome == "any_pretrial_failure_flag" ~ "FTA or New Arrest"))
 
 names(tool_df) <- c("race", "Risk Score", "Outcome", "AUC", "CI (95%)", "N")
 
@@ -6216,7 +6514,7 @@ kable(tool_df[1:6], booktabs = T, format.args = list(big.mark = ","),
                   bootstrap_options = c("striped", "hover"), stripe_color = "gray",
                   font_size = 10, latex_options = "hold_position") %>%
   add_header_above(c(" " = 2, "AUC" = 2, "CI (95%)" = 2)) %>% 
-  add_footnote(paste("N White =", tool_df$N_White[1],  ", N Hispanic =", tool_df$N_Hispanic[1]))
+  footnote(paste("N White =", tool_df$N_White[1],  ", N Hispanic =", tool_df$N_Hispanic[1]))
 ```
 \newpage
 
@@ -6231,7 +6529,7 @@ tool_df <- auc_df %>%
                              outcome == "recid_filed_flag" ~ "New Filing",
                              outcome == "recid_convicted_flag" ~ "New Conviction",
                              outcome == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest",
-                             outcome == "any_pretrial_failure_flag" ~ "FTA or New"))
+                             outcome == "any_pretrial_failure_flag" ~ "FTA or New Arrest"))
 
 names(tool_df) <- c("race", "Outcome", "AUC", "CI (95%)", "N")
 
@@ -6247,7 +6545,7 @@ kable(tool_df[1:7], booktabs = T, format.args = list(big.mark = ","),
                   bootstrap_options = c("striped", "hover"), stripe_color = "gray",
                   font_size = 10, latex_options = "hold_position") %>%
   add_header_above(c(" " = 1, "AUC" = 3, "CI (95%)" = 3)) %>% 
-  add_footnote(paste("N White =", tool_df$N_White[1], ", N Black =", 
+  footnote(paste("N White =", tool_df$N_White[1], ", N Black =", 
                      tool_df$N_Black[1], ", N Hispanic =", tool_df$N_Hispanic[1]))
 ```
 \newpage
@@ -6263,7 +6561,7 @@ tool_df <- auc_df %>%
                              outcome == "recid_filed_flag" ~ "New Filing",
                              outcome == "recid_convicted_flag" ~ "New Conviction",
                              outcome == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest",
-                             outcome == "any_pretrial_failure_flag" ~ "FTA or New"))
+                             outcome == "any_pretrial_failure_flag" ~ "FTA or New Arrest"))
 
 names(tool_df) <- c("race", "Outcome", "AUC", "CI (95%)", "N")
 
@@ -6279,7 +6577,7 @@ kable(tool_df[1:7], booktabs = T, format.args = list(big.mark = ","),
                   bootstrap_options = c("striped", "hover"), stripe_color = "gray",
                   font_size = 10, latex_options = "hold_position") %>%
   add_header_above(c(" " = 1, "AUC" = 3, "CI (95%)" = 3)) %>% 
-  add_footnote(paste("N White =", tool_df$N_White[1], ", N Black =", 
+  footnote(paste("N White =", tool_df$N_White[1], ", N Black =", 
                      tool_df$N_Black[1], ", N Hispanic =", tool_df$N_Hispanic[1]))
 ```
 \newpage 
@@ -6295,7 +6593,7 @@ tool_df <- auc_df %>%
                              outcome == "recid_filed_flag" ~ "New Filing",
                              outcome == "recid_convicted_flag" ~ "New Conviction",
                              outcome == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest",
-                             outcome == "any_pretrial_failure_flag" ~ "FTA or New"))
+                             outcome == "any_pretrial_failure_flag" ~ "FTA or New Arrest"))
 
 names(tool_df) <- c("race", "Outcome", "AUC", "CI (95%)", "N")
 
@@ -6311,7 +6609,7 @@ kable(tool_df[1:7], booktabs = T, format.args = list(big.mark = ","),
                   bootstrap_options = c("striped", "hover"), stripe_color = "gray",
                   font_size = 10, latex_options = "hold_position") %>%
   add_header_above(c(" " = 1, "AUC" = 3, "CI (95%)" = 3)) %>% 
-  add_footnote(paste("N White =", tool_df$N_White[1], ", N Black =", 
+  footnote(paste("N White =", tool_df$N_White[1], ", N Black =", 
                      tool_df$N_Black[1], ", N Hispanic =", tool_df$N_Hispanic[1]))
 ```
 \newpage
@@ -8680,7 +8978,7 @@ tool_df <- auc_df %>%
                              outcome == "recid_filed_flag" ~ "New Filing",
                              outcome == "recid_convicted_flag" ~ "New Conviction",
                              outcome == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest",
-                             outcome == "any_pretrial_failure_flag" ~ "FTA or New"))
+                             outcome == "any_pretrial_failure_flag" ~ "FTA or New Arrest"))
 
 names(tool_df) <- c("sex", "Outcome", "AUC", "CI (95%)", "N")
 
@@ -8696,7 +8994,7 @@ kable(tool_df[1:5], booktabs = T, format.args = list(big.mark = ","),
                   bootstrap_options = c("striped", "hover"), stripe_color = "gray",
                   font_size = 10, latex_options = "hold_position") %>%
   add_header_above(c(" " = 1, "AUC" = 2, "CI (95%)" = 2)) %>% 
-  add_footnote(paste("N Female =", tool_df$N_Female[1], ", N Male =", 
+  footnote(paste("N Female =", tool_df$N_Female[1], ", N Male =", 
                      tool_df$N_Male[1]))
 ```
 \newpage
@@ -8713,7 +9011,7 @@ tool_df <- auc_df %>%
                              outcome == "recid_filed_flag" ~ "New Filing",
                              outcome == "recid_convicted_flag" ~ "New Conviction",
                              outcome == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest",
-                             outcome == "any_pretrial_failure_flag" ~ "FTA or New"))
+                             outcome == "any_pretrial_failure_flag" ~ "FTA or New Arrest"))
 
 names(tool_df) <- c("sex", "Outcome", "AUC", "CI (95%)", "N")
 
@@ -8729,7 +9027,7 @@ kable(tool_df[1:5], booktabs = T, format.args = list(big.mark = ","),
                   bootstrap_options = c("striped", "hover"), stripe_color = "gray",
                   font_size = 10, latex_options = "hold_position") %>%
   add_header_above(c(" " = 1, "AUC" = 2, "CI (95%)" = 2)) %>% 
-  add_footnote(paste("N Female =", tool_df$N_Female[1], ", N Male =", 
+  footnote(paste("N Female =", tool_df$N_Female[1], ", N Male =", 
                      tool_df$N_Male[1]))
 ```
 \newpage
@@ -8746,7 +9044,7 @@ tool_df <- auc_df %>%
                              outcome == "recid_filed_flag" ~ "New Filing",
                              outcome == "recid_convicted_flag" ~ "New Conviction",
                              outcome == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest",
-                             outcome == "any_pretrial_failure_flag" ~ "FTA or New"))
+                             outcome == "any_pretrial_failure_flag" ~ "FTA or New Arrest"))
 
 names(tool_df) <- c("sex", "Outcome", "AUC", "CI (95%)", "N")
 
@@ -8762,7 +9060,7 @@ kable(tool_df[1:5], booktabs = T, format.args = list(big.mark = ","),
                   bootstrap_options = c("striped", "hover"), stripe_color = "gray",
                   font_size = 10, latex_options = "hold_position") %>%
   add_header_above(c(" " = 1, "AUC" = 2, "CI (95%)" = 2)) %>% 
-  add_footnote(paste("N Female =", tool_df$N_Female[1], ", N Male =", 
+  footnote(paste("N Female =", tool_df$N_Female[1], ", N Male =", 
                      tool_df$N_Male[1]))
 ```
 \newpage
@@ -8782,7 +9080,7 @@ tool_df <- auc_df %>%
                              outcome == "recid_filed_flag" ~ "New Filing",
                              outcome == "recid_convicted_flag" ~ "New Conviction",
                              outcome == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest",
-                             outcome == "any_pretrial_failure_flag" ~ "FTA or New"))
+                             outcome == "any_pretrial_failure_flag" ~ "FTA or New Arrest"))
 
 names(tool_df) <- c("sex", "Risk Score", "Outcome", "AUC", "CI (95%)", "N")
 
@@ -8798,7 +9096,7 @@ kable(tool_df[1:6], booktabs = T, format.args = list(big.mark = ","),
                   bootstrap_options = c("striped", "hover"), stripe_color = "gray",
                   font_size = 10, latex_options = "hold_position") %>%
   add_header_above(c(" " = 2, "AUC" = 2, "CI (95%)" = 2)) %>% 
-  add_footnote(paste("N Female =", tool_df$N_Female[1], ", N Male =", 
+  footnote(paste("N Female =", tool_df$N_Female[1], ", N Male =", 
                      tool_df$N_Male[1]))
 ```
 \newpage
@@ -8815,7 +9113,7 @@ tool_df <- auc_df %>%
                              outcome == "recid_filed_flag" ~ "New Filing",
                              outcome == "recid_convicted_flag" ~ "New Conviction",
                              outcome == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest",
-                             outcome == "any_pretrial_failure_flag" ~ "FTA or New"))
+                             outcome == "any_pretrial_failure_flag" ~ "FTA or New Arrest"))
 
 names(tool_df) <- c("sex", "Outcome", "AUC", "CI (95%)", "N")
 
@@ -8831,7 +9129,7 @@ kable(tool_df[1:5], booktabs = T, format.args = list(big.mark = ","),
                   bootstrap_options = c("striped", "hover"), stripe_color = "gray",
                   font_size = 10, latex_options = "hold_position") %>%
   add_header_above(c(" " = 1, "AUC" = 2, "CI (95%)" = 2)) %>% 
-  add_footnote(paste("N Female =", tool_df$N_Female[1], ", N Male =", 
+  footnote(paste("N Female =", tool_df$N_Female[1], ", N Male =", 
                      tool_df$N_Male[1]))
 ```
 \newpage
@@ -8850,7 +9148,7 @@ tool_df <- auc_df %>%
                              outcome == "recid_filed_flag" ~ "New Filing",
                              outcome == "recid_convicted_flag" ~ "New Conviction",
                              outcome == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest",
-                             outcome == "any_pretrial_failure_flag" ~ "FTA or New"))
+                             outcome == "any_pretrial_failure_flag" ~ "FTA or New Arrest"))
 
 names(tool_df) <- c("sex", "Risk Score", "Outcome", "AUC", "CI (95%)", "N")
 
@@ -8866,7 +9164,7 @@ kable(tool_df[1:6], booktabs = T, format.args = list(big.mark = ","),
                   bootstrap_options = c("striped", "hover"), stripe_color = "gray",
                   font_size = 10, latex_options = "hold_position") %>%
   add_header_above(c(" " = 2, "AUC" = 2, "CI (95%)" = 2)) %>% 
-  add_footnote(paste("N Female =", tool_df$N_Female[1], ", N Male =", 
+  footnote(paste("N Female =", tool_df$N_Female[1], ", N Male =", 
                      tool_df$N_Male[1]))
 ```
 \newpage
@@ -8886,7 +9184,7 @@ tool_df <- auc_df %>%
                              outcome == "recid_filed_flag" ~ "New Filing",
                              outcome == "recid_convicted_flag" ~ "New Conviction",
                              outcome == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest",
-                             outcome == "any_pretrial_failure_flag" ~ "FTA or New"))
+                             outcome == "any_pretrial_failure_flag" ~ "FTA or New Arrest"))
 
 names(tool_df) <- c("sex", "Risk Score", "Outcome", "AUC", "CI (95%)", "N")
 
@@ -8902,7 +9200,7 @@ kable(tool_df[1:6], booktabs = T, format.args = list(big.mark = ","),
                   bootstrap_options = c("striped", "hover"), stripe_color = "gray",
                   font_size = 10, latex_options = "hold_position") %>%
   add_header_above(c(" " = 2, "AUC" = 2, "CI (95%)" = 2)) %>% 
-  add_footnote(paste("N Female =", tool_df$N_Female[1], ", N Male =", 
+  footnote(paste("N Female =", tool_df$N_Female[1], ", N Male =", 
                      tool_df$N_Male[1]))
 ```
 \newpage
@@ -8919,7 +9217,7 @@ tool_df <- auc_df %>%
                              outcome == "recid_filed_flag" ~ "New Filing",
                              outcome == "recid_convicted_flag" ~ "New Conviction",
                              outcome == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest",
-                             outcome == "any_pretrial_failure_flag" ~ "FTA or New"))
+                             outcome == "any_pretrial_failure_flag" ~ "FTA or New Arrest"))
 
 names(tool_df) <- c("sex", "Outcome", "AUC", "CI (95%)", "N")
 
@@ -8935,7 +9233,7 @@ kable(tool_df[1:5], booktabs = T, format.args = list(big.mark = ","),
                   bootstrap_options = c("striped", "hover"), stripe_color = "gray",
                   font_size = 10, latex_options = "hold_position") %>%
   add_header_above(c(" " = 1, "AUC" = 2, "CI (95%)" = 2)) %>% 
-  add_footnote(paste("N Female =", tool_df$N_Female[1], ", N Male =", 
+  footnote(paste("N Female =", tool_df$N_Female[1], ", N Male =", 
                      tool_df$N_Male[1]))
 ```
 \newpage
@@ -8955,7 +9253,7 @@ tool_df <- auc_df %>%
                              outcome == "recid_filed_flag" ~ "New Filing",
                              outcome == "recid_convicted_flag" ~ "New Conviction",
                              outcome == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest",
-                             outcome == "any_pretrial_failure_flag" ~ "FTA or New"))
+                             outcome == "any_pretrial_failure_flag" ~ "FTA or New Arrest"))
 
 names(tool_df) <- c("sex", "Risk Score", "Outcome", "AUC", "CI (95%)", "N")
 
@@ -8971,7 +9269,7 @@ kable(tool_df[1:6], booktabs = T, format.args = list(big.mark = ","),
                   bootstrap_options = c("striped", "hover"), stripe_color = "gray",
                   font_size = 10, latex_options = "hold_position") %>%
   add_header_above(c(" " = 2, "AUC" = 2, "CI (95%)" = 2)) %>% 
-  add_footnote(paste("N Female =", tool_df$N_Female[1], ", N Male =", 
+  footnote(paste("N Female =", tool_df$N_Female[1], ", N Male =", 
                      tool_df$N_Male[1]))
 ```
 \newpage
@@ -8991,7 +9289,7 @@ tool_df <- auc_df %>%
                              outcome == "recid_filed_flag" ~ "New Filing",
                              outcome == "recid_convicted_flag" ~ "New Conviction",
                              outcome == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest",
-                             outcome == "any_pretrial_failure_flag" ~ "FTA or New"))
+                             outcome == "any_pretrial_failure_flag" ~ "FTA or New Arrest"))
 
 names(tool_df) <- c("sex", "Risk Score", "Outcome", "AUC", "CI (95%)", "N")
 
@@ -9007,7 +9305,7 @@ kable(tool_df[1:6], booktabs = T, format.args = list(big.mark = ","),
                   bootstrap_options = c("striped", "hover"), stripe_color = "gray",
                   font_size = 10, latex_options = "hold_position") %>%
   add_header_above(c(" " = 2, "AUC" = 2, "CI (95%)" = 2)) %>% 
-  add_footnote(paste("N Female =", tool_df$N_Female[1], ", N Male =", 
+  footnote(paste("N Female =", tool_df$N_Female[1], ", N Male =", 
                      tool_df$N_Male[1]))
 ```
 \newpage
@@ -9024,7 +9322,7 @@ tool_df <- auc_df %>%
                              outcome == "recid_filed_flag" ~ "New Filing",
                              outcome == "recid_convicted_flag" ~ "New Conviction",
                              outcome == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest",
-                             outcome == "any_pretrial_failure_flag" ~ "FTA or New"))
+                             outcome == "any_pretrial_failure_flag" ~ "FTA or New Arrest"))
 
 names(tool_df) <- c("sex", "Outcome", "AUC", "CI (95%)", "N")
 
@@ -9040,7 +9338,7 @@ kable(tool_df[1:5], booktabs = T, format.args = list(big.mark = ","),
                   bootstrap_options = c("striped", "hover"), stripe_color = "gray",
                   font_size = 10, latex_options = "hold_position") %>%
   add_header_above(c(" " = 1, "AUC" = 2, "CI (95%)" = 2)) %>% 
-  add_footnote(paste("N Female =", tool_df$N_Female[1], ", N Male =", 
+  footnote(paste("N Female =", tool_df$N_Female[1], ", N Male =", 
                      tool_df$N_Male[1]))
 ```
 \newpage
@@ -9057,7 +9355,7 @@ tool_df <- auc_df %>%
                              outcome == "recid_filed_flag" ~ "New Filing",
                              outcome == "recid_convicted_flag" ~ "New Conviction",
                              outcome == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest",
-                             outcome == "any_pretrial_failure_flag" ~ "FTA or New"))
+                             outcome == "any_pretrial_failure_flag" ~ "FTA or New Arrest"))
 
 names(tool_df) <- c("sex", "Outcome", "AUC", "CI (95%)", "N")
 
@@ -9073,7 +9371,7 @@ kable(tool_df[1:5], booktabs = T, format.args = list(big.mark = ","),
                   bootstrap_options = c("striped", "hover"), stripe_color = "gray",
                   font_size = 10, latex_options = "hold_position") %>%
   add_header_above(c(" " = 1, "AUC" = 2, "CI (95%)" = 2)) %>% 
-  add_footnote(paste("N Female =", tool_df$N_Female[1], ", N Male =", 
+  footnote(paste("N Female =", tool_df$N_Female[1], ", N Male =", 
                      tool_df$N_Male[1]))
 ```
 \newpage
@@ -9090,7 +9388,7 @@ tool_df <- auc_df %>%
                              outcome == "recid_filed_flag" ~ "New Filing",
                              outcome == "recid_convicted_flag" ~ "New Conviction",
                              outcome == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest",
-                             outcome == "any_pretrial_failure_flag" ~ "FTA or New"))
+                             outcome == "any_pretrial_failure_flag" ~ "FTA or New Arrest"))
 
 names(tool_df) <- c("sex", "Outcome", "AUC", "CI (95%)", "N")
 
@@ -9106,7 +9404,7 @@ kable(tool_df[1:5], booktabs = T, format.args = list(big.mark = ","),
                   bootstrap_options = c("striped", "hover"), stripe_color = "gray",
                   font_size = 10, latex_options = "hold_position") %>%
   add_header_above(c(" " = 1, "AUC" = 2, "CI (95%)" = 2)) %>% 
-  add_footnote(paste("N Female =", tool_df$N_Female[1], ", N Male =", 
+  footnote(paste("N Female =", tool_df$N_Female[1], ", N Male =", 
                      tool_df$N_Male[1]))
 ```
 \newpage
@@ -9699,3 +9997,607 @@ rocM_anyfailure <- roc(any_pretrial_failure_flag ~ vprai_risk_score, data = eval
 roc.test(rocW_anyfailure, rocM_anyfailure)
 
 ```
+
+# Exploration of Supervision
+```{r}
+eval_df %>%
+  mutate(monitoring_level_grouped = if_else(grepl("Own Recognizance", monitoring_level_grouped), "Own Recognizance", monitoring_level_grouped)) %>%
+  mutate(monitoring_level_grouped = if_else(monitoring_level_grouped %in% c("Lowest Levels", "Medium Levels", "Highest Levels", "Own Recognizance"), monitoring_level_grouped, NA_character_)) %>%
+  group_by(county) %>%
+  mutate(totn = sum(booking_assessed_count)) %>%
+  group_by(county, monitoring_level_grouped) %>%
+  summarise(group_count = sum(booking_assessed_count), total = mean(totn), percent = round(group_count/total*100)) %>%
+  select(-group_count) %>%
+  pivot_wider(names_from = monitoring_level_grouped, values_from = percent) %>%
+  select(total, 'Own Recognizance', 'Lowest Levels', 'Medium Levels', 'Highest Levels', 'NA')
+
+eval_df %>%
+  mutate(monitoring_level_grouped = if_else(grepl("Own Recognizance", monitoring_level_grouped), "Own Recognizance", monitoring_level_grouped)) %>%
+  mutate(monitoring_level_grouped = if_else(monitoring_level_grouped %in% c("Lowest Levels", "Medium Levels", "Highest Levels", "Own Recognizance"), monitoring_level_grouped, NA_character_)) %>%
+  mutate(bail_flag = if_else(release_type == "Bail Bond", 1, 0)) %>%
+  count(bail_flag, monitoring_level_grouped)
+
+eval_df <- eval_df %>%
+  mutate(monitoring_level_grouped = if_else(grepl("Own Recognizance", monitoring_level_grouped), "Own Recognizance", monitoring_level_grouped)) %>%
+  mutate(monitoring_level_grouped = if_else(monitoring_level_grouped %in% c("Lowest Levels", "Medium Levels", "Highest Levels", "Own Recognizance"), monitoring_level_grouped, NA_character_)) %>%
+  mutate(bail_or_sup = case_when(release_type %in% c("Bail Bond") ~ "Bail Bond",
+                                 !is.na(monitoring_level_grouped) ~ monitoring_level_grouped,
+                                 release_type %in% c("Own Recognizance") ~ "Own Recognizance",
+                                 release_type %in% c("Cite Release", "CiteR elease") ~ "Cite Release")) 
+  
+  
+eval_df %>%
+  count(release_type)
+
+eval_df %>%
+  count(county, bail_or_sup) %>%
+  pivot_wider(names_from = bail_or_sup, values_from = n)
+```
+
+```{r}
+county_df <- eval_df %>%
+  filter(county == "Sacramento", tool_name == "PSA")
+
+m1 <- glm(family = binomial(),fta_flag ~ psa_fta_risk_score + release_to_pretrial_end + bail_or_sup, data = county_df %>% filter(!is.na(psa_fta_risk_score)))
+m2 <- glm(family = binomial(),recid_arrested_flag ~ psa_nca_risk_score + release_to_pretrial_end + bail_or_sup, data = county_df %>% filter(!is.na(psa_nca_risk_score)))
+m3 <- glm(family = binomial(),recid_filed_flag ~ psa_nca_risk_score + release_to_pretrial_end + bail_or_sup, data = county_df %>% filter(!is.na(psa_nca_risk_score)))
+m4 <- glm(family = binomial(),recid_convicted_flag ~ psa_nca_risk_score + release_to_pretrial_end + bail_or_sup, data = county_df %>% filter(!is.na(psa_nca_risk_score)))
+m5 <- glm(family = binomial(),recid_arrest_violent_psa_flag ~ psa_nvca_risk_score + release_to_pretrial_end + bail_or_sup, data = county_df %>% filter(!is.na(psa_nvca_risk_score)))
+
+summary(m1)
+summary(m2)
+summary(m3)
+summary(m4)
+summary(m5)
+
+# eval_df %>%
+#   count(county, bail_or_sup)
+```
+
+Sacramento graphs by supervision
+\newline
+```{r fig.height=6, fig.width=10, dpi=1200}
+risk_df <- eval_df %>%
+  filter(county == "Sacramento") %>%
+  filter(tool_name == "PSA") %>%
+  group_by(psa_fta_risk_score, bail_or_sup, county) %>%
+  select(fta_flag) %>%
+  pivot_longer(fta_flag) 
+
+names(risk_df)[1] <- "psa_risk_score"
+
+risk_df2 <- eval_df %>%
+  filter(county == "Sacramento") %>%
+  filter(tool_name == "PSA") %>%
+  group_by(psa_nca_risk_score, bail_or_sup, county) %>%
+  select(recid_arrested_flag, recid_filed_flag, recid_convicted_flag) %>%
+  pivot_longer(recid_arrested_flag:recid_convicted_flag) 
+
+names(risk_df2)[1] <- "psa_risk_score"
+
+risk_df3 <- eval_df %>%
+  filter(county == "Sacramento") %>%
+  filter(tool_name == "PSA", !is.na(psa_nvca_risk_score)) %>%
+  group_by(psa_nvca_risk_score, bail_or_sup, county) %>%
+  select(recid_arrest_violent_psa_flag) %>%
+  pivot_longer(recid_arrest_violent_psa_flag) 
+
+names(risk_df3)[1] <- "psa_risk_score"
+
+risk_df <- bind_rows(risk_df, risk_df2, risk_df3)
+  
+rm(risk_df2, risk_df3)
+
+risk_df <- risk_df %>%
+  mutate(race = factor(bail_or_sup, levels = c("Cite Release", "Own Recognizance", "Bail Bond", "Lowest Levels", "Medium Levels", "Highest Levels"))) %>%
+  filter(!is.na(bail_or_sup)) %>%
+  mutate(name = case_when(name == "fta_flag" ~ "FTA",
+                          name == "recid_arrested_flag" ~ "New Arrest",
+                          name == "recid_filed_flag" ~ "New Filing",
+                          name == "recid_convicted_flag" ~ "New Conviction",
+                          name == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest"),
+         name = factor(name, levels = c("FTA", "New Arrest", "New Filing", "New Conviction", "New Violent Arrest"))) %>%
+  filter(county %in% c("Los Angeles", "Sacramento"))
+
+ggplot(risk_df) +
+  aes(x = psa_risk_score, y = value, color = bail_or_sup) +
+  geom_smooth(method = "glm", method.args = list(family=binomial), alpha = .2) +
+  # geom_line() +
+  # geom_point() +
+  theme_bw() +
+  # ylim(0,100) +
+  facet_wrap(~name, scales = "free") +
+  labs(x = "Risk Category", y = "Percent", title = "Comparison of Release Differences in Logistic Regression Curves--PSA, Sacramento") +
+  scale_x_continuous(breaks = 1:6)
+
+
+```
+```{r}
+ggplot(risk_df %>%
+         filter(bail_or_sup %in% c("Lowest Levels", "Medium Levels", "Highest Levels", "Bail Bond"))) +
+  aes(x = psa_risk_score, y = value, color = bail_or_sup) +
+  geom_smooth(method = "glm", method.args = list(family=binomial), alpha = .2) +
+  # geom_line() +
+  # geom_point() +
+  theme_bw() +
+  # ylim(0,100) +
+  facet_wrap(~name, scales = "free") +
+  labs(x = "Risk Category", y = "Percent", title = "Comparison of Release Differences in Logistic Regression Curves--PSA, Sacramento") +
+  scale_x_continuous(breaks = 1:6)
+
+```
+
+Extra table for Deirdre
+```{r}
+ab74_df <- join_df %>%
+  filter(booking_date >= as.Date("2019-10-01")) %>%
+  filter(booking_assessed_count == 1,
+         scored_assessment == 1,
+         release_eligible_count ==1,
+         released_pretrial_count == 1,
+         pretrial_period_end_count == 1,
+         booking_date < as.Date("2022-01-01"),
+         tool_name %in% c("ORAS", "PSA", "VPRAI", "VPRAI-R", "VPRAIO")
+         ) %>%
+  mutate(release_to_pretrial_end = pretrial_period_end_date - release_date)
+
+ab74_df <- ab74_df %>%
+  mutate(monitor_level = monitoring_level_grouped) %>%
+  mutate(County = county)
+```
+For Deirdre - 2G by misdo/felony
+```{r message=FALSE, warning=FALSE}
+sup_df <- ab74_df %>%
+  filter(monitor_level %in% c("Lowest Levels", "Medium Levels", "Highest Levels")) %>%
+  mutate(monitor_level = factor(monitor_level, levels =  c("Lowest Levels", "Medium Levels", "Highest Levels"))) %>%
+  # filter(County != "San Joaquin") %>%
+  mutate(revoked_flag = if_else(fta_flag == 1|recid_arrested_flag == 1|pretrial_termination_outcome == "Unsuccessful", 1, 0)) %>%
+  mutate(revoked_flag = if_else(is.na(revoked_flag), 0, revoked_flag)) 
+
+#Aggregated 
+
+outcome_df <- sup_df %>%
+  filter(charge_level %in% c("M", "F")) %>%
+  group_by(charge_level, monitor_level) %>%
+  summarise(FTA = round(mean(fta_flag)*n()), New_Arrest = round(mean(recid_arrested_flag)*n()), Total_Revoked = round(mean(revoked_flag)*n()), Total = n())
+
+write.xlsx(outcome_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/2G Supervision Level Aggregated by charge level.xlsx", asTable = T) 
+
+outcome_per_df <- outcome_df %>%
+  mutate(FTA_percent = FTA / Total,
+         New_Arrest_Percent = New_Arrest / Total,
+         Total_Revoked_percent = Total_Revoked/Total)
+
+write.xlsx(outcome_per_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/2G Supervision Level Aggregated Percent by charge level.xlsx", asTable = T)
+
+eval_df %>%
+  filter(monitor_level %in% c("Lowest Levels", "Medium Levels", "Highest Levels")) %>%
+  count()
+```
+Misdo only
+```{r message=FALSE, warning=FALSE}
+mon_df <- ab74_df %>%
+  filter(charge_level == "M") %>%
+  mutate(recid_flag = recid_county_or_doj) %>%
+  filter(monitor_level %in% c("Lowest Levels", "Medium Levels", "Highest Levels")) %>%
+  mutate(monitor_level = factor(monitor_level, levels =  c("Lowest Levels", "Medium Levels", "Highest Levels"))) %>%
+  mutate(revoked_flag = if_else(fta_flag == 1|recid_flag == 1|pretrial_termination_outcome == "Unsuccessful", 1, 0)) %>%
+  mutate(revoked_flag = if_else(is.na(revoked_flag), 0, revoked_flag)) 
+
+fta_df <- mon_df %>%
+  group_by(monitor_level, fta_flag) %>%
+  count() %>%
+  group_by(monitor_level) %>%
+  mutate(Total = sum(n), n = paste0(round(n/Total*100), "%", " ", n)) %>%
+  spread(fta_flag, n) %>%
+  select(-`0`) %>%
+  bind_rows(mon_df %>%
+              count(fta_flag) %>%
+              mutate(Total = sum(n), n = paste0(round(n/Total*100), "%", " ", n)) %>%
+  spread(fta_flag, n) %>%
+  select(-`0`) %>%
+  mutate(monitor_level = "All_Levels")) %>%
+  separate(`1`, sep = " ", into = c("Percent", "Count"))
+
+recid_df <- mon_df %>%
+  group_by(monitor_level, recid_flag) %>%
+  count() %>%
+  group_by(monitor_level) %>%
+  mutate(Total = sum(n), n = paste0(round(n/Total*100), "%", " ", n)) %>%
+  spread(recid_flag, n) %>%
+  select(-`0`) %>%
+  bind_rows(mon_df %>%
+              count(recid_flag) %>%
+              mutate(Total = sum(n), n = paste0(round(n/Total*100), "%", " ", n)) %>%
+  spread(recid_flag, n) %>%
+  select(-`0`) %>%
+  mutate(monitor_level = "All_Levels")) %>%
+  separate(`1`, sep = " ", into = c("Percent", "Count"))
+
+revoked_df <- mon_df %>%
+  group_by(monitor_level, revoked_flag) %>%
+  count() %>%
+  group_by(monitor_level) %>%
+  mutate(Total = sum(n), n = paste0(round(n/Total*100), "%", " ", n)) %>%
+  spread(revoked_flag, n) %>%
+  select(-`0`) %>%
+  bind_rows(mon_df %>%
+              count(revoked_flag) %>%
+              mutate(Total = sum(n), n = paste0(round(n/Total*100), "%", " ", n)) %>%
+  spread(revoked_flag, n) %>%
+  select(-`0`) %>%
+  mutate(monitor_level = "All_Levels")) %>%
+  separate(`1`, sep = " ", into = c("Percent", "Count"))
+
+  
+outcome_df <- bind_cols(fta_df, recid_df[3:4], revoked_df[3:4])
+
+names(outcome_df) <- gsub("\\..*", "", names(outcome_df))
+
+
+kable(outcome_df, booktabs = T, format.args = list(big.mark = ","),
+        # table.attr = "style = \"color: black;\"",
+        format = "html") %>%
+    kable_styling(position = "center", full_width = T,
+                  bootstrap_options = c("striped", "hover"), stripe_color = "gray", latex_options = "hold_position") %>%
+  add_header_above(c(" " = 2, "FTA" = 2, "New Crime" = 2, "Total\n Revoked" = 2)) 
+# %>%
+#   column_spec(2:10, width = ".5in") %>%
+#   column_spec(1, width = "1in") %>%
+#   row_spec(5, bold = T) 
+
+
+```
+
+Felony only
+```{r message=FALSE, warning=FALSE}
+mon_df <- ab74_df %>%
+  filter(charge_level == "F") %>%
+  mutate(recid_flag = recid_county_or_doj) %>%
+  filter(monitor_level %in% c("Lowest Levels", "Medium Levels", "Highest Levels")) %>%
+  mutate(monitor_level = factor(monitor_level, levels =  c("Lowest Levels", "Medium Levels", "Highest Levels"))) %>%
+  mutate(revoked_flag = if_else(fta_flag == 1|recid_flag == 1|pretrial_termination_outcome == "Unsuccessful", 1, 0)) %>%
+  mutate(revoked_flag = if_else(is.na(revoked_flag), 0, revoked_flag)) 
+
+fta_df <- mon_df %>%
+  group_by(monitor_level, fta_flag) %>%
+  count() %>%
+  group_by(monitor_level) %>%
+  mutate(Total = sum(n), n = paste0(round(n/Total*100), "%", " ", n)) %>%
+  spread(fta_flag, n) %>%
+  select(-`0`) %>%
+  bind_rows(mon_df %>%
+              count(fta_flag) %>%
+              mutate(Total = sum(n), n = paste0(round(n/Total*100), "%", " ", n)) %>%
+  spread(fta_flag, n) %>%
+  select(-`0`) %>%
+  mutate(monitor_level = "All_Levels")) %>%
+  separate(`1`, sep = " ", into = c("Percent", "Count"))
+
+recid_df <- mon_df %>%
+  group_by(monitor_level, recid_flag) %>%
+  count() %>%
+  group_by(monitor_level) %>%
+  mutate(Total = sum(n), n = paste0(round(n/Total*100), "%", " ", n)) %>%
+  spread(recid_flag, n) %>%
+  select(-`0`) %>%
+  bind_rows(mon_df %>%
+              count(recid_flag) %>%
+              mutate(Total = sum(n), n = paste0(round(n/Total*100), "%", " ", n)) %>%
+  spread(recid_flag, n) %>%
+  select(-`0`) %>%
+  mutate(monitor_level = "All_Levels")) %>%
+  separate(`1`, sep = " ", into = c("Percent", "Count"))
+
+revoked_df <- mon_df %>%
+  group_by(monitor_level, revoked_flag) %>%
+  count() %>%
+  group_by(monitor_level) %>%
+  mutate(Total = sum(n), n = paste0(round(n/Total*100), "%", " ", n)) %>%
+  spread(revoked_flag, n) %>%
+  select(-`0`) %>%
+  bind_rows(mon_df %>%
+              count(revoked_flag) %>%
+              mutate(Total = sum(n), n = paste0(round(n/Total*100), "%", " ", n)) %>%
+  spread(revoked_flag, n) %>%
+  select(-`0`) %>%
+  mutate(monitor_level = "All_Levels")) %>%
+  separate(`1`, sep = " ", into = c("Percent", "Count"))
+
+  
+outcome_df <- bind_cols(fta_df, recid_df[3:4], revoked_df[3:4])
+
+names(outcome_df) <- gsub("\\..*", "", names(outcome_df))
+
+
+kable(outcome_df, booktabs = T, format.args = list(big.mark = ","),
+        # table.attr = "style = \"color: black;\"",
+        format = "html") %>%
+    kable_styling(position = "center", full_width = T,
+                  bootstrap_options = c("striped", "hover"), stripe_color = "gray", latex_options = "hold_position") %>%
+  add_header_above(c(" " = 2, "FTA" = 2, "New Crime" = 2, "Total\n Revoked" = 2)) 
+# %>%
+#   column_spec(2:10, width = ".5in") %>%
+#   column_spec(1, width = "1in") %>%
+#   row_spec(5, bold = T) 
+
+
+```
+
+San Mateo with supervision
+\newline
+```{r, results='asis'}
+county_df <- eval_df %>%
+  filter(county == "San Mateo") %>%
+  mutate(sup_or_none = if_else(bail_or_sup %in% c("Lowest Levels", "Medium Levels", "Highest Levels"), "Supervision", bail_or_sup)) %>%
+  filter(sup_or_none %in% c("Supervision", "Bail Bond"))
+
+m1 <- glm(family = binomial(),fta_flag ~ vprair_risk_score + release_to_pretrial_end , data = county_df)
+m2 <- glm(family = binomial(),recid_arrested_flag ~ vprair_risk_score + release_to_pretrial_end , data = county_df)
+m3 <- glm(family = binomial(),recid_filed_flag ~ vprair_risk_score + release_to_pretrial_end , data = county_df)
+m4 <- glm(family = binomial(),recid_convicted_flag ~ vprair_risk_score + release_to_pretrial_end , data = county_df)
+m5 <- glm(family = binomial(),recid_arrest_violent_psa_flag ~ vprair_risk_score + release_to_pretrial_end , data = county_df)
+m6 <- glm(family = binomial(),any_pretrial_failure_flag ~ vprair_risk_score + release_to_pretrial_end , data = county_df)
+
+summary(m1)
+summary(m2)
+summary(m3)
+summary(m4)
+summary(m5)
+summary(m6)
+
+
+# main effect of supervision
+m1 <- glm(family = binomial(),fta_flag ~ vprair_risk_score + sup_or_none + release_to_pretrial_end , data = county_df)
+m2 <- glm(family = binomial(),recid_arrested_flag ~ vprair_risk_score + sup_or_none + release_to_pretrial_end , data = county_df)
+m3 <- glm(family = binomial(),recid_filed_flag ~ vprair_risk_score + sup_or_none + release_to_pretrial_end , data = county_df)
+m4 <- glm(family = binomial(),recid_convicted_flag ~ vprair_risk_score + sup_or_none + release_to_pretrial_end , data = county_df)
+m5 <- glm(family = binomial(),recid_arrest_violent_psa_flag ~ vprair_risk_score + sup_or_none + release_to_pretrial_end , data = county_df)
+m6 <- glm(family = binomial(),any_pretrial_failure_flag ~ vprair_risk_score + sup_or_none + release_to_pretrial_end , data = county_df)
+
+summary(m1)
+summary(m2)
+summary(m3)
+summary(m4)
+summary(m5)
+summary(m6)
+
+# interaction effect of supervision
+m1 <- glm(family = binomial(),fta_flag ~ vprair_risk_score*sup_or_none + release_to_pretrial_end , data = county_df)
+m2 <- glm(family = binomial(),recid_arrested_flag ~ vprair_risk_score*sup_or_none + release_to_pretrial_end , data = county_df)
+m3 <- glm(family = binomial(),recid_filed_flag ~ vprair_risk_score*sup_or_none + release_to_pretrial_end , data = county_df)
+m4 <- glm(family = binomial(),recid_convicted_flag ~ vprair_risk_score*sup_or_none + release_to_pretrial_end , data = county_df)
+m5 <- glm(family = binomial(),recid_arrest_violent_psa_flag ~ vprair_risk_score*sup_or_none + release_to_pretrial_end , data = county_df)
+m6 <- glm(family = binomial(),any_pretrial_failure_flag ~ vprair_risk_score*sup_or_none + release_to_pretrial_end , data = county_df)
+
+summary(m1)
+summary(m2)
+summary(m3)
+summary(m4)
+summary(m5)
+summary(m6)
+
+ggplot(m2) %>%
+  aes(x = vprair_risk_score, y = recid_arrested_flag, color = sup_or_none)+
+  geom_smooth(method = "glm", method.args = list(family=binomial), alpha = .2)
+  
+  
+ggplot(county_df) +
+  aes(x = vprair_risk_score, y = recid_arrested_flag, color = sup_or_none) +
+  geom_smooth(method = "glm", method.args = list(family=binomial), alpha = .2) +
+  # geom_line() +
+  # geom_point() +
+  theme_bw() #+
+  # ylim(0,100) +
+  facet_wrap(~name, scales = "free") +
+  labs(x = "Risk Category", y = "Percent", title = "Comparison of Release Differences in Logistic Regression Curves") +
+  scale_x_continuous(breaks = 1:6)
+```
+\newpage
+
+Alameda with supervision
+\newline
+```{r, results='asis'}
+county_df <- eval_df %>%
+  filter(county == "Alameda") %>%
+  mutate(sup_or_none = if_else(bail_or_sup %in% c("Lowest Levels", "Medium Levels", "Highest Levels"), "Supervision", bail_or_sup)) %>%
+  filter(sup_or_none %in% c("Supervision", "Bail Bond"))
+
+m1 <- glm(family = binomial(),fta_flag ~ vprair_risk_score + release_to_pretrial_end , data = county_df)
+m2 <- glm(family = binomial(),recid_arrested_flag ~ vprair_risk_score + release_to_pretrial_end , data = county_df)
+m3 <- glm(family = binomial(),recid_filed_flag ~ vprair_risk_score + release_to_pretrial_end , data = county_df)
+m4 <- glm(family = binomial(),recid_convicted_flag ~ vprair_risk_score + release_to_pretrial_end , data = county_df)
+m5 <- glm(family = binomial(),recid_arrest_violent_psa_flag ~ vprair_risk_score + release_to_pretrial_end , data = county_df)
+m6 <- glm(family = binomial(),any_pretrial_failure_flag ~ vprair_risk_score + release_to_pretrial_end , data = county_df)
+
+summary(m1)
+summary(m2)
+summary(m3)
+summary(m4)
+summary(m5)
+summary(m6)
+
+
+# main effect of supervision
+m1 <- glm(family = binomial(),fta_flag ~ vprair_risk_score + sup_or_none + release_to_pretrial_end , data = county_df)
+m2 <- glm(family = binomial(),recid_arrested_flag ~ vprair_risk_score + sup_or_none + release_to_pretrial_end , data = county_df)
+m3 <- glm(family = binomial(),recid_filed_flag ~ vprair_risk_score + sup_or_none + release_to_pretrial_end , data = county_df)
+m4 <- glm(family = binomial(),recid_convicted_flag ~ vprair_risk_score + sup_or_none + release_to_pretrial_end , data = county_df)
+m5 <- glm(family = binomial(),recid_arrest_violent_psa_flag ~ vprair_risk_score + sup_or_none + release_to_pretrial_end , data = county_df)
+m6 <- glm(family = binomial(),any_pretrial_failure_flag ~ vprair_risk_score + sup_or_none + release_to_pretrial_end , data = county_df)
+
+summary(m1)
+summary(m2)
+summary(m3)
+summary(m4)
+summary(m5)
+summary(m6)
+
+# interaction effect of supervision
+m1 <- glm(family = binomial(),fta_flag ~ vprair_risk_score*sup_or_none + release_to_pretrial_end , data = county_df)
+m2 <- glm(family = binomial(),recid_arrested_flag ~ vprair_risk_score*sup_or_none + release_to_pretrial_end , data = county_df)
+m3 <- glm(family = binomial(),recid_filed_flag ~ vprair_risk_score*sup_or_none + release_to_pretrial_end , data = county_df)
+m4 <- glm(family = binomial(),recid_convicted_flag ~ vprair_risk_score*sup_or_none + release_to_pretrial_end , data = county_df)
+m5 <- glm(family = binomial(),recid_arrest_violent_psa_flag ~ vprair_risk_score*sup_or_none + release_to_pretrial_end , data = county_df)
+m6 <- glm(family = binomial(),any_pretrial_failure_flag ~ vprair_risk_score*sup_or_none + release_to_pretrial_end , data = county_df)
+
+summary(m1)
+summary(m2)
+summary(m3)
+summary(m4)
+summary(m5)
+summary(m6)
+  
+  
+ggplot(county_df) +
+  aes(x = vprair_risk_score, y = fta_flag, color = sup_or_none) +
+  geom_smooth(method = "glm", method.args = list(family=binomial), alpha = .2) +
+  theme_bw()
+
+ggsave("Alameda FTA bail vs supervision.png")
+
+ggplot(county_df) +
+  aes(x = vprair_risk_score, y = recid_arrested_flag, color = sup_or_none) +
+  geom_smooth(method = "glm", method.args = list(family=binomial), alpha = .2) +
+  theme_bw()
+
+ggsave("Alameda recid arrest bail vs supervision.png")
+
+
+ggplot(county_df) +
+  aes(x = vprair_risk_score, y = recid_filed_flag, color = sup_or_none) +
+  geom_smooth(method = "glm", method.args = list(family=binomial), alpha = .2) +
+  theme_bw()
+
+ggsave("Alameda recid filed bail vs supervision.png")
+
+
+ggplot(county_df) +
+  aes(x = vprair_risk_score, y = recid_convicted_flag, color = sup_or_none) +
+  geom_smooth(method = "glm", method.args = list(family=binomial), alpha = .2) +
+  theme_bw()
+
+ggsave("Alameda recid convicted bail vs supervision.png")
+
+
+ggplot(county_df) +
+  aes(x = vprair_risk_score, y = recid_arrest_violent_psa_flag, color = sup_or_none) +
+  geom_smooth(method = "glm", method.args = list(family=binomial), alpha = .2) +
+  theme_bw()
+
+ggsave("Alameda recid violent bail vs supervision.png")
+
+
+ggplot(county_df) +
+  aes(x = vprair_risk_score, y = any_pretrial_failure_flag, color = sup_or_none) +
+  geom_smooth(method = "glm", method.args = list(family=binomial), alpha = .2) +
+  theme_bw()
+
+ggsave("Alameda combined failure bail vs supervision.png")
+
+```
+\newpage
+
+San Joaquin with supervision
+\newline
+```{r, results='asis'}
+county_df <- eval_df %>%
+  filter(county == "San Joaquin") %>%
+  mutate(sup_or_none = if_else(bail_or_sup %in% c("Lowest Levels", "Medium Levels", "Highest Levels"), "Supervision", bail_or_sup)) %>%
+  filter(sup_or_none %in% c("Supervision", "Bail Bond"))
+
+m1 <- glm(family = binomial(),fta_flag ~ vprai_risk_score + release_to_pretrial_end , data = county_df)
+m2 <- glm(family = binomial(),recid_arrested_flag ~ vprai_risk_score + release_to_pretrial_end , data = county_df)
+m3 <- glm(family = binomial(),recid_filed_flag ~ vprai_risk_score + release_to_pretrial_end , data = county_df)
+m4 <- glm(family = binomial(),recid_convicted_flag ~ vprai_risk_score + release_to_pretrial_end , data = county_df)
+m5 <- glm(family = binomial(),recid_arrest_violent_psa_flag ~ vprai_risk_score + release_to_pretrial_end , data = county_df)
+m6 <- glm(family = binomial(),any_pretrial_failure_flag ~ vprai_risk_score + release_to_pretrial_end , data = county_df)
+
+summary(m1)
+summary(m2)
+summary(m3)
+summary(m4)
+summary(m5)
+summary(m6)
+
+
+# main effect of supervision
+m1 <- glm(family = binomial(),fta_flag ~ vprai_risk_score + sup_or_none + release_to_pretrial_end , data = county_df)
+m2 <- glm(family = binomial(),recid_arrested_flag ~ vprai_risk_score + sup_or_none + release_to_pretrial_end , data = county_df)
+m3 <- glm(family = binomial(),recid_filed_flag ~ vprai_risk_score + sup_or_none + release_to_pretrial_end , data = county_df)
+m4 <- glm(family = binomial(),recid_convicted_flag ~ vprai_risk_score + sup_or_none + release_to_pretrial_end , data = county_df)
+m5 <- glm(family = binomial(),recid_arrest_violent_psa_flag ~ vprai_risk_score + sup_or_none + release_to_pretrial_end , data = county_df)
+m6 <- glm(family = binomial(),any_pretrial_failure_flag ~ vprai_risk_score + sup_or_none + release_to_pretrial_end , data = county_df)
+
+summary(m1)
+summary(m2)
+summary(m3)
+summary(m4)
+summary(m5)
+summary(m6)
+
+# interaction effect of supervision
+m1 <- glm(family = binomial(),fta_flag ~ vprai_risk_score*sup_or_none + release_to_pretrial_end , data = county_df)
+m2 <- glm(family = binomial(),recid_arrested_flag ~ vprai_risk_score*sup_or_none + release_to_pretrial_end , data = county_df)
+m3 <- glm(family = binomial(),recid_filed_flag ~ vprai_risk_score*sup_or_none + release_to_pretrial_end , data = county_df)
+m4 <- glm(family = binomial(),recid_convicted_flag ~ vprai_risk_score*sup_or_none + release_to_pretrial_end , data = county_df)
+m5 <- glm(family = binomial(),recid_arrest_violent_psa_flag ~ vprai_risk_score*sup_or_none + release_to_pretrial_end , data = county_df)
+m6 <- glm(family = binomial(),any_pretrial_failure_flag ~ vprai_risk_score*sup_or_none + release_to_pretrial_end , data = county_df)
+
+summary(m1)
+summary(m2)
+summary(m3)
+summary(m4)
+summary(m5)
+summary(m6)
+  
+  
+ggplot(county_df) +
+  aes(x = vprai_risk_score, y = fta_flag, color = sup_or_none) +
+  geom_smooth(method = "glm", method.args = list(family=binomial), alpha = .2) +
+  theme_bw()
+
+ggsave("San Joaquin FTA  bail vs supervision.png")
+
+ggplot(county_df) +
+  aes(x = vprai_risk_score, y = recid_arrested_flag, color = sup_or_none) +
+  geom_smooth(method = "glm", method.args = list(family=binomial), alpha = .2) +
+  theme_bw()
+
+ggsave("San Joaquin recid arrest bail vs supervision.png")
+
+
+ggplot(county_df) +
+  aes(x = vprai_risk_score, y = recid_filed_flag, color = sup_or_none) +
+  geom_smooth(method = "glm", method.args = list(family=binomial), alpha = .2) +
+  theme_bw()
+
+ggsave("San Joaquin recid filed bail vs supervision.png")
+
+
+ggplot(county_df) +
+  aes(x = vprai_risk_score, y = recid_convicted_flag, color = sup_or_none) +
+  geom_smooth(method = "glm", method.args = list(family=binomial), alpha = .2) +
+  theme_bw()
+
+ggsave("San Joaquin recid convicted bail vs supervision.png")
+
+
+ggplot(county_df) +
+  aes(x = vprai_risk_score, y = recid_arrest_violent_psa_flag, color = sup_or_none) +
+  geom_smooth(method = "glm", method.args = list(family=binomial), alpha = .2) +
+  theme_bw()
+
+ggsave("San Joaquin recid violent bail vs supervision.png")
+
+
+ggplot(county_df) +
+  aes(x = vprai_risk_score, y = any_pretrial_failure_flag, color = sup_or_none) +
+  geom_smooth(method = "glm", method.args = list(family=binomial), alpha = .2) +
+  theme_bw()
+
+ggsave("San Joaquin combined failure bail vs supervision.png")
+
+```
+\newpage
+
