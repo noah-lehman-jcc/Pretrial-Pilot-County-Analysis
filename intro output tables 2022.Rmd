@@ -2,6 +2,7 @@
 output:
   pdf_document: default
   html_document: default
+  word_document: default
 ---
 # Tables for introductions for county-level validation studies
 # Settup and Library
@@ -11,25 +12,29 @@ knitr::opts_chunk$set(
 	message = FALSE,
 	warning = FALSE
 )
-#knitr::opts_knit$set(root.dir = "G:/CrimJustice/PretrialAssessmentPilot")
+
+knitr::opts_knit$set(root.dir = "C:/PretrialPilot/Pretrial-Pilot-County-Analysis")
+
 
 # library(rlang)
 library(tidyverse)
 library(data.table)
 library(openxlsx)
-library(readxl)
+#library(readxl)
 library(lubridate)
 library(gsubfn)
 library(fuzzyjoin)
 library(dplyr)
-library(openxlsx)
-library(fuzzyjoin)
 # library(multidplyr)
 library(pROC)
 library(broom)
 library(kableExtra)
 library(stargazer)
-
+library(DBI)
+library(dbplyr)
+library(odbc)
+library(tinytex)
+library(gt)
 # shell.exec(getwd())
 ```
 
@@ -50,105 +55,133 @@ my_kable <- function(x){
 
 
 ```
-
+Connection
 ```{r}
-# This is really going to be a focus on assessments matched with bookings. 
-drop_df <- full_df %>%
-  filter(new_arrest_flag == 1,
-         !is.na(assessment_date)) %>%
-  mutate(pretrial_end_date = if_else(is.na(pretrial_end_date), pretrial_end_date_doj, pretrial_end_date)) %>%
-  mutate(arrest_charge_level = case_when(is.na(arrest_charge_level)|arrest_charge_level %in% c("Other", "I") ~"Other_Unknown",
-                                         arrest_charge_level == "F" ~ "Felony",
-                                         arrest_charge_level == "M" ~ "Misdemeanor")) %>%
-  filter(!is.na(cii)) %>%
-  mutate(monitor_level = case_when(
-    monitor_level %in% c("Level I - Pretrial Release Supervision",
-                                     "Pretrial Supervision Level I", "1", "Low") ~ "Low",
-    monitor_level %in% c("Level II - Pretrial Release Supervision",
-                                     "Pretrial Supervision Level II", "2", "Medium") ~ "Medium",
-    monitor_level %in% c("Level III - Pretrial Release Supervision",
-                                     "Pretrial Supervision Level III", "3:4", "High") ~ "High",
-                              T ~ monitor_level)) %>%
-  mutate(fta_flag = if_else(fta_flag == 1|arrest_fta_flag == 1|court_fta_flag == 1|court_fta_flag_doj == 1, 1, 0),
-         revoked_flag = if_else(pretrial_termination_outcome == "Unsuccessful", 1, 0),
-         oras_risk_score = if_else(oras_risk_score == -Inf, NA_real_, oras_risk_score)) %>%
-  mutate(monitor_level = factor(monitor_level, levels = c("Low", "Medium", "High", "Other_Unknown"))) %>%
-  mutate(county = tools::toTitleCase(gsub("_", " ", county))) %>%
-  mutate(pre_trial_release_flag = if_else(release_date >= pretrial_end_date|is.na(release_date), 0, 1)) %>%
-  mutate(sex = case_when(sex == "F" ~ "Female",
-                         sex == "M" ~ "Male",
-                         T ~ sex),
-         tool_name = gsub("-", "", tool_name),
-         tool_name = if_else(county == "Alameda" & !is.na(assessment_date), "vprair", tool_name),
-         tool_name = if_else(county == "Yuba" & !is.na(assessment_date), "oras", tool_name),
-         tool_name = if_else(tool_name == "ORASPAT", "oras", tolower(tool_name)),
-         tool_name = if_else(tool_name == "null", NA_character_, tool_name)) %>%
-  mutate(release_type = case_when(
-    county %in% c("San Joaquin", "Ventura", "Alameda", "Tuolumne", "Nevada", "San Mateo", "Kings") &
-      release_type_original %in% c("EMERGENCY ZERO BAIL", "Zero Bail", "TEMPORARY EMERGENCY BAIL",
-                                   "TEMPORARY EMERGENCY CITATION", "Covid 19", "Emergency Bail Schedule",
-                                   "ZERO DOLLAR BAIL", "COVID-Pretrial Court-Order", "Pandemic Citation Release", 
-                                   "Pandemic Sentence Release", "Emergency Bail Schedule-Cite", 
-                                   "Emergency Bail Schedule-Court") ~ "Zero_Bail",
-    county %in% c("San Joaquin", "Ventura", "Alameda", "Tuolumne", "Nevada", "San Mateo", "Kings") & 
-      release_type == "Bail_Bond" ~ "Non_Zero_Bail",
-    (!county %in% c("San Joaquin", "Ventura", "Alameda", "Tuolumne", "Nevada", "San Mateo", "Kings")) & 
-      release_type == "Bail_Bond" ~ "Unknown_Bail",
-    T ~ release_type)) %>%
-  mutate(arrest_charge_level = case_when(is.na(arrest_charge_level)|arrest_charge_level %in% c("Other", "I") ~"Other_Unknown",
-                                         arrest_charge_level == "F" ~ "Felony",
-                                         arrest_charge_level == "M" ~ "Misdemeanor")) %>%
-  filter(tool_name %in% c("oras", "psa", "vprai", "vprair", "ccat", "vpraio")) %>%
-   filter((psa_nca_risk_score %in% c(1:6) &
-         psa_fta_risk_score %in% c(1:6))|tool_name != "psa") %>%
-  group_by(tool_name, county) %>%
-  summarise("Assessed Bookings" = n(),
-            "Has End Date" = sum(!is.na(pretrial_end_date), na.rm = T),
-            "Released Pretrial" = sum(pretrial_end_date - as_date(release_date) > 0, na.rm = T)) %>%
-  rename("Tool Name" = tool_name) %>%
-  mutate(`Tool Name` = toupper(`Tool Name`)) %>%
-  arrange(county)
+
+con <- dbConnect(odbc::odbc(), "snowflake_pretrial", uid ="Sal.Lempert@jud.ca.gov", pwd = rstudioapi::askForPassword("Password"))
+
+```
+
+Pull snowflake data -- cjs_df_std 
+```{sql connection=con, include=FALSE, output.var='df'}
+SELECT *
+FROM "DWH_PROD"."DATA_SCIENCE"."CJS_DF_STD"
+;
+```
+
+Pull snowflake data -- cjs_outcome_std 
+```{sql connection=con, include=FALSE, output.var='full_df'}
+SELECT *
+FROM "DWH_PROD"."DATA_SCIENCE"."CJS_OUTCOME_STD"
+;
+```
+\newpage
+
+Format df
+```{r}
+names(df) <- tolower(names(df))
+
+df <- df %>%
+  mutate(tool_name_orig = tool_name,
+         tool_name = case_when(county_name == "Modoc" ~ "ORAS",
+                               county_name == "Yuba" ~ "ORAS",
+                               county_name == "San Joaquin" ~ "VPRAI",
+                               T ~ tool_name_standard),
+         county = county_name,
+         County = case_when(county %in% c("Calaveras", "Modoc", "Tuolumne", "Yuba") ~ "Small Counties",
+                            county %in% c("Kings", "Napa", "Nevada", "Sierra") ~ "Small/Medium Counties",
+                            T ~ county),
+         County = ordered(County),
+         County = fct_relevel(County, levels = c("Small Counties", "Small/Medium Counties")),
+         charge_level_orig = charge_level,
+         charge_level = charge_level_standard,
+         arrest_charge_level = charge_level,
+         age = individual_age,
+         sex_orig = sex,
+         sex = if_else(sex %in% c("Male", "Female"), sex, "Other/Unknown"),
+         race_orig = race,
+         race = if_else(race_standard == "American Indian", "Other/Unknown", race_standard),
+         oras_risk_score = if_else(tool_name == "ORAS", risk_score_raw, NULL),
+         vprai_risk_score = if_else(tool_name == "VPRAI", risk_score_raw, NULL),
+         vprair_risk_score = if_else(tool_name == "VPRAI-R", risk_score_raw, NULL),
+         vpraio_risk_score = if_else(tool_name == "VPRAI-O", generic_tool_total_score_raw, NULL),
+         psa_fta_risk_score = score_failure_to_appear,
+         psa_nca_risk_score = score_new_criminal_activity,
+         psa_nvca_risk_score = score_new_criminal_violent_activity,
+         scored_assessment = if_else(tool_name %in% c("ORAS", "VPRAI", "VPRAI-R") & !is.na(risk_score_raw) |
+                                       tool_name == "PSA" & !is.na(score_new_criminal_activity) |
+                                       tool_name == "VPRAI-O" & !is.na(generic_tool_total_score_raw), 1, 0),
+         monitor_level = if_else(monitoring_level_grouped %in% c("Lowest Levels", "Medium Levels", "Highest Levels"), monitoring_level_grouped, "Other/Unknown")) %>%
+  arrange(County) %>%
+  filter(assessment_date >= as.Date("2019-10-01"),
+         assessment_date <= as.Date("2021-12-31")) %>%
+  filter(scored_assessment == 1)
+```
+
+\newpage
+
+Format full_df, join_df, and eval_df
+```{r warning=FALSE, include=FALSE}
+snow_df <- full_df
+
+names(full_df) <- tolower(names(full_df))
+
+full_df <- full_df %>%
+  mutate(book_date = booking_date,
+         race_orig = race,
+         race = if_else(race_standard == "American Indian", "Other/Unknown", race_standard),
+         County = case_when(county %in% c("Calaveras", "Modoc", "Tuolumne", "Yuba") ~ "Small Counties",
+                            county %in% c("Kings", "Napa", "Nevada", "Sierra") ~ "Small/Medium Counties",
+                            T ~ county),
+         County = ordered(County),
+         County = fct_relevel(County, levels = c("Small Counties", "Small/Medium Counties")),
+         new_arrest_flag = release_eligible_count,
+         charge_level_orig = charge_level,
+         charge_level = charge_level_standard,
+         arrest_charge_level = case_when(charge_level == "F" ~ "Felony",
+                                         charge_level == "M" ~ "Misdemeanor",
+                                         charge_level == "I" ~ "Infraction",
+                                         T ~ "Other/Unknown"),
+         pretrial_period_end_count = pretrial_period_end_count_standard,
+         monitor_level = if_else(monitoring_level_grouped %in% c("Lowest Levels", "Medium Levels", "Highest Levels"), monitoring_level_grouped, "Other/Unknown"),
+         fta_flag = fta_county_or_doj,
+         recid_arrested_flag = recid_county_or_doj,
+         age = indiv_age,
+         tool_name = if_else(county == "Kings", "VPRAIO", tool_name),
+         oras_risk_score = if_else(tool_name == "ORAS", risk_score_raw, NULL),
+         vprai_risk_score = if_else(tool_name == "VPRAI", risk_score_raw, NULL),
+         vprair_risk_score = if_else(tool_name == "VPRAIR", risk_score_raw, NULL),
+         vpraio_risk_score = if_else(tool_name == "VPRAIO", generic_tool_total_score_raw, NULL),
+         psa_fta_risk_score = score_failure_to_appear,
+         psa_nca_risk_score = score_new_criminal_activity,
+         psa_nvca_risk_score = score_new_criminal_violent_activity,
+         scored_assessment = if_else(tool_name %in% c("ORAS", "VPRAI", "VPRAIR") & !is.na(risk_score_raw) |
+                                       tool_name == "PSA" & !is.na(score_new_criminal_activity) |
+                                       tool_name == "VPRAIO" & !is.na(generic_tool_total_score_raw), 1, 0),
+         pretrial_period_end_date = if_else(is.na(pretrial_period_end_date), as.Date(pretrial_period_end_date_doj), as.Date(pretrial_period_end_date))) %>%
+  mutate(recid_filed_flag = recid_filed_flag_doj, 
+         recid_convicted_flag = recid_convicted_flag_doj, 
+         recid_arrest_violent_psa_flag = recid_arrest_violent_psa_flag_doj,
+         recid_filed_violent_psa_flag = recid_filed_violent_psa_flag_doj,
+         any_pretrial_failure_flag = if_else(recid_arrested_flag == 1 | fta_flag == 1, 1, 0)) %>% ## update this when we get county data on these
+  mutate(across(contains("_flag"), ~if_else(is.na(.x), 0, as.numeric(.x)))) %>%
+  arrange(County) 
+
+join_df <- full_df  %>%
+  filter(booking_date >= as.Date("2019-10-01"),
+         booking_date <= as.Date("2021-12-31"))
 
 
-files <- list.files("Assessment Output Tables", pattern = "RData", full.names = T)
-
-assess_df <- lapply(files, function(x) {
-  load(file = x)
-  df <- get(ls()[!ls() %in% c("files", "court_df", "assess_df", "eval_df", "full_df", "drop_df")]) %>%
-    filter(assessment_date >= as_date("2016-11-08")) %>%
-    group_by(tool_name, county) %>%
-    mutate(assessment_date = if_else(assessment_date == -Inf|assessment_date == Inf, NA_Date_, as_date(assessment_date))) %>%
-    summarise(assessments = n(), min_assessment_date = min(assessment_date, na.rm = T), max_assessment_date = max(assessment_date, na.rm = T))
-}) %>% bind_rows() 
-
-assess_df <- assess_df %>%
-  arrange(county)
-
-drop_df$`Released Pretrial` <- (eval_df %>%
-                                  arrange(county) %>%
-                                  count(county, tool_name))$n
-
-
-assess_df <- assess_df %>%
-  mutate(tool_name = gsub("-", "", tolower(tool_name)),
-         tool_name = if_else(county == "Alameda","vprair", tool_name),
-         tool_name = if_else(county == "Yuba", "oras", tool_name),
-         tool_name = if_else(tool_name == "oraspat", "oras", tolower(tool_name)),
-         tool_name = if_else(tool_name == "null", NA_character_, tool_name)) %>%
-  filter(tool_name %in% c("oras", "psa", "vprai", "vprair", "ccat", "vpraio")) %>%
-  group_by(tool_name, county) %>%
-  summarise(Assessments = sum(assessments)) %>%
-  rename("Tool Name" = tool_name) %>%
-  mutate(`Tool Name` = toupper(`Tool Name`)) %>%
-  arrange(county)
-
-drop_df <- assess_df %>%
-  left_join(drop_df)
-
-names(drop_df)[2] <- "County"
-names(drop_df)[5] <- "Pretrial Complete" 
-
-save(drop_df, file = "Assessment to Validation Drop Off.RData")
+eval_df <- full_df %>%
+  filter(booking_assessed_count == 1,
+         scored_assessment == 1,
+         release_eligible_count ==1,
+         released_pretrial_count == 1,
+         pretrial_period_end_count == 1,
+         booking_date < as.Date("2022-01-01"),
+         tool_name %in% c("ORAS", "PSA", "VPRAI", "VPRAIR", "VPRAIO")
+         ) %>%
+  mutate(release_to_pretrial_end = pretrial_period_end_date - release_date)
 
 
 ```
@@ -167,8 +200,8 @@ kable(date_df, booktabs = T, format.args = list(big.mark = ","),
     kable_styling(position = "center", full_width = F, 
                   bootstrap_options = c("striped", "hover"), stripe_color = "gray", font_size = 14, latex_options = "hold_position")
 
-gt(date_df) %>%
-  gtsave(filename = "dates by county.html")
+# gt(date_df) %>%
+#   gtsave(filename = "dates by county.html")
 ```
 
 # Drop-Off
@@ -208,12 +241,14 @@ kable(drop_df_out , booktabs = T, format.args = list(big.mark = ","),
                   bootstrap_options = c("striped", "hover"), stripe_color = "gray", font_size = 10, 
                   latex_options = "hold_position") 
 
-gt(drop_df_out) %>%
-  gtsave(filename = "drop off by county.html")
+# gt(drop_df_out) %>%
+#   gtsave(filename = "drop off by county.html")
 
-gt(drop_df_out %>% filter(County == "Los Angeles")) %>%
-  gtsave(filename = "drop off LA.html")
+# gt(drop_df_out %>% filter(County == "Los Angeles")) %>%
+#   gtsave(filename = "drop off LA.html")
 ```
+
+
 
 # The Percent of Assessments by Demographic
 ```{r}
@@ -260,14 +295,14 @@ demo_df <- left_join(race_df, gender_df) %>%
 my_kable(demo_df) %>%
   add_header_above(c(" " = 2, "Race/Ethnicity (%)" = 4, "Gender (%)" = 2, " " = 1))
 
-gt(demo_df) %>%
-  gtsave(filename = "demographics by county.html")
+# gt(demo_df) %>%
+#   gtsave(filename = "demographics by county.html")
 ```
 Source: Pretrial Pilot Multi-Agency Linked Data. Data are limited to bookings with a defendant released pretrial and a completed pretrial period.
 \newpage
 
 # Arrest Offenses
-```{r}
+```{r eval=FALSE, include=FALSE}
 arrest_df <- eval_df %>%
   group_by(county) %>%
   summarise_at(vars(arrest_felony_flag, arrest_misd_flag, arrest_violent_psa_flag, arrest_property_flag, arrest_drug_flag,
@@ -301,7 +336,33 @@ kable(outcome_df, booktabs = T, format.args = list(big.mark = ","),
     kable_styling(position = "center", full_width = F, 
                   bootstrap_options = c("striped", "hover"), stripe_color = "gray", font_size = 14, latex_options = "hold_position")
 
-gt(outcome_df) %>%
-  gtsave(filename = "outcome rates by county.html")
+# gt(outcome_df) %>%
+#   gtsave(filename = "outcome rates by county.html")
 ```
 
+#LA only tables
+```{r}
+kable(drop_df_out %>% filter(County == "Los Angeles") , booktabs = T, format.args = list(big.mark = ","), 
+        # table.attr = "style = \"color: black;\"",
+        format = "latex") %>%
+    column_spec(3:6, width = "1.5cm") %>%
+    kable_styling(position = "center", full_width = F, 
+                  bootstrap_options = c("striped", "hover"), stripe_color = "gray", font_size = 10, 
+                  latex_options = "hold_position") 
+
+
+kable(demo_df %>% filter(County == "Los Angeles"), booktabs = T, format.args = list(big.mark = ","), 
+        # table.attr = "style = \"color: black;\"",
+        format = "latex")  %>%
+    kable_styling(position = "center", full_width = F, 
+                  bootstrap_options = c("striped", "hover"), stripe_color = "gray", font_size = 10, 
+                  latex_options = "hold_position") %>%
+  add_header_above(c(" " = 2, "Race/Ethnicity (%)" = 4, "Gender (%)" = 2, " " = 1))
+
+
+kable(outcome_df %>% filter(County == "Los Angeles"), booktabs = T, format.args = list(big.mark = ","), 
+        # table.attr = "style = \"color: black;\"",
+        format = "latex") %>%
+    kable_styling(position = "center", full_width = F, 
+                  bootstrap_options = c("striped", "hover"), stripe_color = "gray", font_size = 14, latex_options = "hold_position")
+```
