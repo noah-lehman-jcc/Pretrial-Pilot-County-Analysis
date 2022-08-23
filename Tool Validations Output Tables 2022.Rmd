@@ -62,7 +62,7 @@ FROM "DWH_PROD"."DATA_SCIENCE"."CJS_DF_STD"
 ```
 
 Pull 6.20.22 snowflake data -- cjs_df_std 
-```{sql eval=FALSE, connection=con, include=FALSE, echo=TRUE, output.var='df'}
+```{sql eval=FALSE, connection=con, include=FALSE, output.var='df'}
 SELECT *
 FROM "DWH_PROD"."DATA_SCIENCE"."CJS_STD_20220624"
 ;
@@ -76,14 +76,14 @@ FROM "DWH_PROD"."DATA_SCIENCE"."JOIN_DF_STD"
 ```
 
 Pull 6.20.22 snowflake data -- join_df
-```{sql eval=FALSE, connection=con, include=FALSE, echo=TRUE, output.var='join_df'}
+```{sql eval=FALSE, connection=con, include=FALSE, output.var='join_df'}
 SELECT *
 FROM "DWH_PROD"."DATA_SCIENCE"."JOIN_STD_20220624"
 ;
 ```
 
 Pull additional recid flags
-```{sql eval=FALSE, connection=con, include=FALSE, echo=TRUE, output.var='addon_df'}
+```{sql eval=FALSE, connection=con, include=FALSE,  output.var='addon_df'}
 SELECT COUNTY, BOOKING_KEY, RECID_ARREST_VIOLENT_PSA_FLAG_DOJ, RECID_ARREST_DV_FLAG_DOJ, RECID_ARREST_DUI_FLAG_DOJ, RECID_ARREST_PROPERTY_FLAG_DOJ, RECID_ARREST_DRUG_FLAG_DOJ
 FROM "DWH_PROD"."REPORTING"."AGG_PRETRIAL_KPI_DOJ_ENHANCED";
 
