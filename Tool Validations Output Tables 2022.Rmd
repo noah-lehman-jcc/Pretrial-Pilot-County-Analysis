@@ -1,7 +1,7 @@
 ---
 title: "Tool Validations Output Table"
 author: "Sal Lempert"
-date: "5/10/2022"
+date: "Run date: `r format(Sys.Date(), '%d. %B %Y')`"
 output:
   pdf_document: default
   html_document:
@@ -55,35 +55,35 @@ FROM "DWH_PROD"."DATA_SCIENCE"."CJS_OUTCOME_STD"
 ```
 
 Pull snowflake data -- cjs_df_std 
-```{sql connection=con, include=FALSE, output.var='df'}
+```{sql echo=TRUE, connection=con, output.var='df'}
 SELECT *
 FROM "DWH_PROD"."DATA_SCIENCE"."CJS_DF_STD"
 ;
 ```
 
 Pull 6.20.22 snowflake data -- cjs_df_std 
-```{sql eval=FALSE, connection=con, include=FALSE, output.var='df'}
+```{sql eval=FALSE, connection=con, include=FALSE, echo=TRUE, output.var='df'}
 SELECT *
 FROM "DWH_PROD"."DATA_SCIENCE"."CJS_STD_20220624"
 ;
 ```
 
 Pull snowflake data -- join_df
-```{sql  connection=con, include=FALSE, output.var='join_df'}
+```{sql echo=TRUE, connection=con, output.var='join_df'}
 SELECT *
 FROM "DWH_PROD"."DATA_SCIENCE"."JOIN_DF_STD"
 ;
 ```
 
 Pull 6.20.22 snowflake data -- join_df
-```{sql eval=FALSE, connection=con, include=FALSE, output.var='join_df'}
+```{sql eval=FALSE, connection=con, include=FALSE, echo=TRUE, output.var='join_df'}
 SELECT *
 FROM "DWH_PROD"."DATA_SCIENCE"."JOIN_STD_20220624"
 ;
 ```
 
 Pull additional recid flags
-```{sql eval=FALSE, connection=con, include=FALSE, output.var='addon_df'}
+```{sql eval=FALSE, connection=con, include=FALSE, echo=TRUE, output.var='addon_df'}
 SELECT COUNTY, BOOKING_KEY, RECID_ARREST_VIOLENT_PSA_FLAG_DOJ, RECID_ARREST_DV_FLAG_DOJ, RECID_ARREST_DUI_FLAG_DOJ, RECID_ARREST_PROPERTY_FLAG_DOJ, RECID_ARREST_DRUG_FLAG_DOJ
 FROM "DWH_PROD"."REPORTING"."AGG_PRETRIAL_KPI_DOJ_ENHANCED";
 
@@ -286,8 +286,7 @@ df <- df %>%
                                        tool_name == "VPRAI-O" & !is.na(generic_tool_total_score_raw), 1, 0),
          monitor_level = if_else(monitoring_level_grouped %in% c("Lowest Levels", "Medium Levels", "Highest Levels"), monitoring_level_grouped, "Other/Unknown")) %>%
   arrange(County) %>%
-  filter(assessment_date >= as.Date("2019-10-01"),
-         assessment_date < as.Date("2022-01-01")) %>%
+  filter(assessment_date < as.Date("2022-01-01")) %>%
   filter(scored_assessment == 1)
 
 ```
@@ -349,7 +348,7 @@ my_kable <- function(x){
 # Make AUC table
 
 Make AUC table --- MAKE SURE THIS IS ON WHEN THERE IS NEW DATA
-```{r include=FALSE}
+```{r eval=FALSE, include=FALSE}
 race_df <- eval_df %>%
   mutate(race = "All")
 
@@ -467,7 +466,7 @@ save(roc_df, file= "C:/PretrialPilot/Pretrial-Pilot-County-Analysis/AUCs.RData")
 
 ```{r}
 #auc_df <- read.xlsx("C:/PretrialPilot/Pretrial-Pilot-County-Analysis/AUCs by Demographic Category.xlsx")
-#load("C:/PretrialPilot/Pretrial-Pilot-County-Analysis/AUCs.RData")
+load("C:/PretrialPilot/Pretrial-Pilot-County-Analysis/AUCs.RData")
 
 auc_df <- roc_df %>%
   mutate(tool_name = toupper(tool_name))
@@ -3108,7 +3107,7 @@ kable(tool_df %>% select(-starts_with("N")), booktabs = T, format.args = list(bi
 ```
 \newpage
 
-San Joaquin  ---- removed until data is fixed
+San Joaquin  
 \newline
 ```{r}
 tool_df <- auc_df %>%
@@ -4032,6 +4031,109 @@ kable(nvca_df, booktabs = T, format.args = list(big.mark = ","),
 ```
 \newpage
 
+Sonoma - White and Hispanic only
+\newline
+```{r, fig.height = 7, fig.widith = 3}
+risk_df <- race_df %>%
+  filter(tool_name == "PSA", county == "Sonoma") %>%
+  group_by(race, psa_fta_risk_score) %>%
+  summarise(across(c(fta_flag),
+                   ~round(mean(.x)*100, 1)), Total = n()) %>%
+  pivot_longer(fta_flag) 
+
+names(risk_df)[2] <- "psa_risk_score"
+
+risk_df2 <- race_df %>%
+  filter(tool_name == "PSA", county == "Sonoma") %>%
+  group_by(race, psa_nca_risk_score) %>%
+  summarise(across(c(recid_arrested_flag, recid_filed_flag, recid_convicted_flag),
+                   ~round(mean(.x)*100, 1)), Total = n()) %>%
+  pivot_longer(recid_arrested_flag:recid_convicted_flag) 
+
+names(risk_df2)[2] <- "psa_risk_score"
+
+risk_df3 <- race_df %>%
+  filter(tool_name == "PSA", !is.na(psa_nvca_risk_score), county == "Sonoma") %>%
+  group_by(race, psa_nvca_risk_score) %>%
+  summarise(across(c(recid_arrest_violent_psa_flag),
+                   ~round(mean(.x)*100, 1)), Total = n()) %>%
+  pivot_longer(recid_arrest_violent_psa_flag) 
+
+names(risk_df3)[2] <- "psa_risk_score"
+
+risk_df <- bind_rows(risk_df, risk_df2, risk_df3)
+  
+rm(risk_df2, risk_df3)
+
+risk_df <- risk_df %>%
+  mutate(name = case_when(name == "fta_flag" ~ "FTA",
+                          name == "recid_arrested_flag" ~ "New Arrest",
+                          name == "recid_filed_flag" ~ "New Filing",
+                          name == "recid_convicted_flag" ~ "New Conviction",
+                          name == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest"),
+         name = factor(name, levels = c("FTA", "New Arrest", "New Filing", "New Conviction", "New Violent Arrest")))
+
+risk_df <- risk_df %>%
+  filter(race %in% c("White", "Hispanic")) %>%
+  mutate(psa_risk_score = case_when(name == "New Violent Arrest" & psa_risk_score == 0 ~ "No flag",
+                   name == "New Violent Arrest" & psa_risk_score == 1 ~ "Flag",
+                   T ~ as.character(psa_risk_score))) %>%
+  mutate(psa_risk_score = ordered(psa_risk_score, c("1", "2", "3", "4", "5", "6", "No flag", "Flag")))
+
+ggplot(risk_df %>%
+         filter(!name %in% c("New Filing", "New Conviction")) %>%
+         mutate(name = case_when(name == "FTA" ~ "PSA FTA Risk Score",
+                                 name == "New Arrest" ~ "PSA NCA Risk Score",
+                                 name == "New Violent Arrest" ~ "PSA NVCA Risk Score")) %>% 
+         group_by(race, name) %>% 
+         mutate(percent = Total/sum(Total)) %>% ungroup()) +
+  aes(x = as.factor(psa_risk_score), y = percent, fill = race) +
+  geom_col(position = "dodge") +
+  geom_text(vjust = -0.2, aes(label = str_c(round(percent*100), "%")), size = 2.6, position = position_dodge(width = .9)) +
+  theme_bw() +  
+  # ylim(0,100) +
+  facet_wrap(~name, scales = "free", ncol = 1) +
+  labs(x = "Risk Category", y = "Percent", title = "Sonoma Distribution of Assessments by PSA Risk Category", fill = "Race") +
+  scale_y_continuous(expand = expansion(mult = c(.1, .15)), labels = scales::percent_format(accuracy = 1))
+
+fta_df <- risk_df %>%
+  filter(name == "FTA") %>%
+  distinct(race, psa_risk_score, Total) %>%
+  pivot_wider(names_from = race, values_from = Total) %>%
+  rename(`PSA FTA Risk Score` = psa_risk_score)
+
+kable(fta_df, booktabs = T, format.args = list(big.mark = ","), 
+        # table.attr = "style = \"color: black;\"",
+        format = "latex") %>%
+    kable_styling(position = "center", full_width = F, 
+                  bootstrap_options = c("striped", "hover"), stripe_color = "gray", font_size = 12, latex_options = "hold_position") 
+
+nca_df <- risk_df %>%
+  filter(name == "New Arrest") %>%
+  distinct(race, psa_risk_score, Total) %>%
+  pivot_wider(names_from = race, values_from = Total) %>%
+  rename(`PSA NCA Risk Score` = psa_risk_score)
+
+kable(nca_df, booktabs = T, format.args = list(big.mark = ","), 
+        # table.attr = "style = \"color: black;\"",
+        format = "latex") %>%
+    kable_styling(position = "center", full_width = F, 
+                  bootstrap_options = c("striped", "hover"), stripe_color = "gray", font_size = 12, latex_options = "hold_position") 
+
+nvca_df <- risk_df %>%
+  filter(name == "New Violent Arrest") %>%
+  distinct(race, psa_risk_score, Total) %>%
+  pivot_wider(names_from = race, values_from = Total) %>%
+  rename(`PSA NVCA Risk Score` = psa_risk_score)
+
+kable(nvca_df, booktabs = T, format.args = list(big.mark = ","), 
+        # table.attr = "style = \"color: black;\"",
+        format = "latex") %>%
+    kable_styling(position = "center", full_width = F, 
+                  bootstrap_options = c("striped", "hover"), stripe_color = "gray", font_size = 12, latex_options = "hold_position") 
+```
+\newpage
+
 Ventura
 \newline
 ```{r}
@@ -4802,6 +4904,69 @@ rm(risk_df2, risk_df3)
 risk_df <- risk_df %>%
   mutate(race = factor(race, levels = c("White", "Black", "Hispanic", "Other_Unknown"))) %>%
   filter(race %in% c("White", "Black", "Hispanic")) %>%
+  mutate(name = case_when(name == "fta_flag" ~ "FTA",
+                          name == "recid_arrested_flag" ~ "New Arrest",
+                          name == "recid_filed_flag" ~ "New Filing",
+                          name == "recid_convicted_flag" ~ "New Conviction",
+                          name == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest"),
+         name = factor(name, levels = c("FTA", "New Arrest", "New Filing", "New Conviction", "New Violent Arrest"))) 
+
+ggplot(risk_df) +
+  aes(x = psa_risk_score, y = value, color = race) +
+  geom_smooth(method = "glm", method.args = list(family=binomial), alpha = .2) +
+  # geom_line() +
+  # geom_point() +
+  theme_bw() +
+  # ylim(0,100) +
+  facet_wrap(~name, scales = "free") +
+  labs(x = "Risk Category", y = "Percent", title = "Comparison of Racial Differences in Logistic Regression Curves--PSA, Sonoma") +
+  scale_x_continuous(breaks = 1:6)
+
+# eval_df %>%
+#   filter(tool_name == "PSA") %>%
+#   count(county)
+
+
+```
+\newpage
+
+Sonoma - White and Hispanic only
+\newline
+```{r fig.height=6, fig.width=10, dpi=1200}
+risk_df <- eval_df %>%
+  filter(county == "Sonoma") %>%
+  filter(tool_name == "PSA") %>%
+  group_by(psa_fta_risk_score, race, county) %>%
+  select(fta_flag) %>%
+  pivot_longer(fta_flag) 
+
+names(risk_df)[1] <- "psa_risk_score"
+
+risk_df2 <- eval_df %>%
+  filter(county == "Sonoma") %>%
+  filter(tool_name == "PSA") %>%
+  group_by(psa_nca_risk_score, race, county) %>%
+  select(recid_arrested_flag, recid_filed_flag, recid_convicted_flag) %>%
+  pivot_longer(recid_arrested_flag:recid_convicted_flag) 
+
+names(risk_df2)[1] <- "psa_risk_score"
+
+risk_df3 <- eval_df %>%
+  filter(county == "Sonoma") %>%
+  filter(tool_name == "PSA", !is.na(psa_nvca_risk_score)) %>%
+  group_by(psa_nvca_risk_score, race, county) %>%
+  select(recid_arrest_violent_psa_flag) %>%
+  pivot_longer(recid_arrest_violent_psa_flag) 
+
+names(risk_df3)[1] <- "psa_risk_score"
+
+risk_df <- bind_rows(risk_df, risk_df2, risk_df3)
+  
+rm(risk_df2, risk_df3)
+
+risk_df <- risk_df %>%
+  mutate(race = factor(race, levels = c("White", "Black", "Hispanic", "Other_Unknown"))) %>%
+  filter(race %in% c("White", "Hispanic")) %>%
   mutate(name = case_when(name == "fta_flag" ~ "FTA",
                           name == "recid_arrested_flag" ~ "New Arrest",
                           name == "recid_filed_flag" ~ "New Filing",
@@ -5789,9 +5954,67 @@ stargazer(list(m1,m2,m3,m4,m5),
 \newpage
 
 
-Tulare--Without Interactions -- temporarily removed
+Sonoma--Without Interactions - White and Hispanic only
 \newline
-```{r eval=FALSE, include=FALSE, results='asis'}
+```{r, results='asis'}
+county_df <- race_df %>%
+  filter(county == "Sonoma") %>%
+  filter(tool_name == "PSA") %>%
+  filter(race %in% c("White", "Hispanic"))
+
+m1 <- glm(family = binomial(),fta_flag ~ psa_fta_risk_score + race + release_to_pretrial_end , data = county_df)
+m2 <- glm(family = binomial(),recid_arrested_flag ~ psa_nca_risk_score + race + release_to_pretrial_end , data = county_df)
+m3 <- glm(family = binomial(),recid_filed_flag ~ psa_nca_risk_score + race + release_to_pretrial_end , data = county_df)
+m4 <- glm(family = binomial(),recid_convicted_flag ~ psa_nca_risk_score + race + release_to_pretrial_end , data = county_df)
+m5 <- glm(family = binomial(),recid_arrest_violent_psa_flag ~ psa_nvca_risk_score + race + release_to_pretrial_end , data = county_df)
+
+stargazer(list(m1,m2,m3,m4,m5),
+        # type = "text",
+          dep.var.labels = c("FTA", "New Arrest", "New Filing", 
+                             "New Conviction", "New Violent Arrest"), 
+          covariate.labels = c("PSA FTA Risk Score", "PSA NCA Risk Score", 
+                               "PSA NVCA Risk Score", "Race:Hispanic", "Days Released"),
+          star.char = c("*", "**", "***"),
+          star.cutoffs = c(.05, .01, .001),
+          notes = c("*p<0.05; **p<0.01; ***p<.001"),
+          notes.append = F, font.size = "small")
+```
+\newpage
+
+Sonoma--With Interactions - White and Hispanic only
+\newline
+```{r, results='asis'}
+county_df <- race_df %>%
+  filter(county == "Sonoma") %>%
+  filter(tool_name == "PSA") %>%
+  mutate(across(contains("score"), ~.x-1)) %>%
+  mutate(psa_nvca_risk_score = psa_nvca_risk_score + 1) %>%
+  filter(race %in% c("White", "Hispanic"))
+
+m1 <- glm(family = binomial(),fta_flag ~ psa_fta_risk_score * race + release_to_pretrial_end , data = county_df)
+m2 <- glm(family = binomial(),recid_arrested_flag ~ psa_nca_risk_score * race + release_to_pretrial_end , data = county_df)
+m3 <- glm(family = binomial(),recid_filed_flag ~ psa_nca_risk_score * race + release_to_pretrial_end , data = county_df)
+m4 <- glm(family = binomial(),recid_convicted_flag ~ psa_nca_risk_score * race + release_to_pretrial_end , data = county_df)
+m5 <- glm(family = binomial(),recid_arrest_violent_psa_flag ~ psa_nvca_risk_score * race + release_to_pretrial_end , data = county_df)
+
+stargazer(list(m1,m2,m3,m4,m5),
+        # type = "text",
+          dep.var.labels = c("FTA", "New Arrest", "New Filing", 
+                             "New Conviction", "New Violent Arrest"), 
+          covariate.labels = c("PSA FTA Risk Score", "PSA NCA Risk Score", "PSA NVCA Risk Score", 
+                               "Race:Hispanic", "Days Released",  "FTA*Hispanic",
+                               "NCA*Hispanic",  "NVCA*Hispanic"),
+          star.char = c("*", "**", "***"),
+          star.cutoffs = c(.05, .01, .001),
+          notes = c("*p<0.05; **p<0.01; ***p<.001"),
+          notes.append = F, font.size = "small")
+```
+\newpage
+
+
+Tulare--Without Interactions 
+\newline
+```{r results='asis'}
 county_df <- race_df %>%
   filter(county == "Tulare") %>%
   filter(tool_name == "PSA")
@@ -5815,9 +6038,9 @@ stargazer(list(m1,m2,m3,m4,m5),
 ```
 \newpage
 
-Tulare--Without Interactions, White and Hispanic only -- temporarily removed
+Tulare--Without Interactions, White and Hispanic only 
 \newline
-```{r eval=FALSE, include=FALSE, results='asis'}
+```{r  results='asis'}
 county_df <- race_df %>%
   filter(race != "Black") %>%
   filter(county == "Tulare") %>%
@@ -5842,9 +6065,9 @@ stargazer(list(m1,m2,m3,m4,m5),
 ```
 \newpage
 
-Tulare--With Interactions -- temporarily removed 
+Tulare--With Interactions  
 \newline
-```{r eval=FALSE, include=FALSE, results='asis'}
+```{r  results='asis'}
 county_df <- race_df %>%
   filter(county == "Tulare") %>%
   filter(tool_name == "PSA") %>%
@@ -5871,9 +6094,9 @@ stargazer(list(m1,m2,m3,m4,m5),
 ```
 \newpage
 
-Tulare--With Interactions, White and Hispanic only -- temporarily removed
+Tulare--With Interactions, White and Hispanic only 
 \newline
-```{r eval=FALSE, include=FALSE, results='asis'}
+```{r  results='asis'}
 county_df <- race_df %>%
   filter(county == "Tulare") %>%
   filter(tool_name == "PSA") %>%
@@ -6471,9 +6694,43 @@ kable(tool_df[1:8], booktabs = T, format.args = list(big.mark = ","),
 ```
 \newpage
 
-Tulare -- removed
+Sonoma - White and Hispanic only
 \newline
-```{r eval=FALSE, include=FALSE}
+```{r}
+tool_df <- auc_df %>%
+  filter(tool_name == "PSA", race != "All", race != "Black", sex == "All", county == "Sonoma") %>%
+  select(race, risk_score, outcome, AUC, CI, n) %>%
+  mutate(risk_score = case_when(risk_score == "psa_fta_risk_score" ~ "PSA FTA",
+                                risk_score == "psa_nca_risk_score" ~ "PSA NCA",
+                                risk_score == "psa_nvca_risk_score" ~ "PSA NVCA")) %>%
+  mutate(outcome = case_when(outcome == "fta_flag" ~ "FTA",
+                             outcome == "recid_arrested_flag" ~ "New Arrest",
+                             outcome == "recid_filed_flag" ~ "New Filing",
+                             outcome == "recid_convicted_flag" ~ "New Conviction",
+                             outcome == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest",
+                             outcome == "any_pretrial_failure_flag" ~ "FTA or New Arrest"))
+
+names(tool_df) <- c("race", "Risk Score", "Outcome", "AUC", "CI (95%)", "N")
+
+tool_df <- tool_df %>%
+  pivot_wider(names_from = race, values_from = c(AUC, `CI (95%)`, N))
+
+names(tool_df) <- gsub("AUC_|CI .*_", "", names(tool_df))
+
+kable(tool_df[1:6], booktabs = T, format.args = list(big.mark = ","), 
+        # table.attr = "style = \"color: black;\"",
+        format = "latex") %>%
+    kable_styling(position = "center", full_width = F, 
+                  bootstrap_options = c("striped", "hover"), stripe_color = "gray",
+                  font_size = 10, latex_options = "hold_position") %>%
+  add_header_above(c(" " = 2, "AUC" = 2, "CI (95%)" = 2)) %>% 
+  footnote(paste("N White =", tool_df$N_White[1],  ", N Hispanic =", tool_df$N_Hispanic[1]))
+```
+\newpage
+
+Tulare 
+\newline
+```{r }
 tool_df <- auc_df %>%
   filter(tool_name == "PSA", race != "All", sex == "All", county == "Tulare") %>%
   select(race, risk_score, outcome, AUC, CI, n) %>%
@@ -6506,9 +6763,9 @@ kable(tool_df[1:8], booktabs = T, format.args = list(big.mark = ","),
 ```
 \newpage
 
-Tulare -- only White & Hispanic -- temporarily removed
+Tulare -- only White & Hispanic 
 \newline
-```{r eval=FALSE, include=FALSE}
+```{r }
 tool_df <- auc_df %>%
   filter(tool_name == "PSA", race != "All", race != "Black", sex == "All", county == "Tulare") %>%
   select(race, risk_score, outcome, AUC, CI, n) %>%
@@ -8108,7 +8365,7 @@ ggplot(risk_df) +
   # ylim(0,100) +
   facet_wrap(~name, scales = "free") +
   labs(x = "Risk Category", y = "Percent", 
-       title = "Comparison of Racial Differences in Logistic Regression Curves--PSA, Sonoma") +
+       title = "Comparison of Gender Differences in Logistic Regression Curves--PSA, Sonoma") +
   scale_x_continuous(breaks = 1:6)
 
 # eval_df %>%
@@ -8693,9 +8950,9 @@ stargazer(list(m1,m2,m3,m4,m5),
 ```
 \newpage
 
-Tulare--Without Interactions -- temporarily removed
+Tulare--Without Interactions 
 \newline
-```{r eval=FALSE, include=FALSE, results='asis'}
+```{r results='asis'}
 county_df <- sex_df %>%
   filter(county == "Tulare") %>%
   filter(tool_name == "PSA")
@@ -8719,9 +8976,9 @@ stargazer(list(m1,m2,m3,m4,m5),
 ```
 \newpage
 
-Tulare--With Interactions -- temporarily removed
+Tulare--With Interactions 
 \newline
-```{r eval=FALSE, include=FALSE, results='asis'}
+```{r  results='asis'}
 county_df <- sex_df %>%
   filter(county == "Tulare") %>%
   filter(tool_name == "PSA") %>%
@@ -9296,9 +9553,9 @@ kable(tool_df[1:6], booktabs = T, format.args = list(big.mark = ","),
 ```
 \newpage
 
-Tulare -- temporarily removed
+Tulare 
 \newline
-```{r eval=FALSE, include=FALSE}
+```{r }
 tool_df <- auc_df %>%
   filter(tool_name == "PSA", race == "All", sex != "All", county == "Tulare") %>%
   select(sex, risk_score, outcome, AUC, CI, n) %>%
@@ -9432,9 +9689,9 @@ kable(tool_df[1:5], booktabs = T, format.args = list(big.mark = ","),
 \newpage
 
 
-# KNITR EXIT -----------------------------------------------
+# KNITR EXIT ----------------------------------------------- removed for now
 ```{r}
-knitr::knit_exit()
+#knitr::knit_exit()
 ```
 
 #AUC comparisons
@@ -9859,6 +10116,79 @@ roc.test(rocM_newviolent, rocW_newviolent)
 
 ```
 
+Sonoma PSA AUC race comparisons
+```{r}
+rocW_FTA <- roc(fta_flag ~ psa_fta_risk_score, data = eval_df %>% filter(tool_name == "PSA") %>% filter(county == "Sonoma") %>% filter(race == "White"), ci = T)
+#rocB_FTA <- roc(fta_flag ~ psa_fta_risk_score, data = eval_df %>% filter(tool_name == "PSA") %>% filter(county == "Sonoma") %>% filter(race == "Black"), ci = T)
+rocH_FTA <- roc(fta_flag ~ psa_fta_risk_score, data = eval_df %>% filter(tool_name == "PSA") %>% filter(county == "Sonoma") %>% filter(race == "Hispanic"), ci = T)
+#roc.test(rocW_FTA, rocB_FTA)
+roc.test(rocW_FTA, rocH_FTA)
+#roc.test(rocB_FTA, rocH_FTA)
+
+rocW_newarrest <- roc(recid_arrested_flag ~ psa_nca_risk_score, data = eval_df %>% filter(tool_name == "PSA") %>% filter(county == "Sonoma") %>% filter(race == "White"), ci = T)
+#rocB_newarrest <- roc(recid_arrested_flag ~ psa_nca_risk_score, data = eval_df %>% filter(tool_name == "PSA") %>% filter(county == "Sonoma") %>% filter(race == "Black"), ci = T)
+rocH_newarrest <- roc(recid_arrested_flag ~ psa_nca_risk_score, data = eval_df %>% filter(tool_name == "PSA") %>% filter(county == "Sonoma") %>% filter(race == "Hispanic"), ci = T)
+#roc.test(rocW_newarrest, rocB_newarrest)
+roc.test(rocW_newarrest, rocH_newarrest)
+#roc.test(rocB_newarrest, rocH_newarrest)
+
+rocW_newfiling <- roc(recid_filed_flag ~ psa_nca_risk_score, data = eval_df %>% filter(tool_name == "PSA") %>% filter(county == "Sonoma") %>% filter(race == "White"), ci = T)
+#rocB_newfiling <- roc(recid_filed_flag ~ psa_nca_risk_score, data = eval_df %>% filter(tool_name == "PSA") %>% filter(county == "Sonoma") %>% filter(race == "Black"), ci = T)
+rocH_newfiling <- roc(recid_filed_flag ~ psa_nca_risk_score, data = eval_df %>% filter(tool_name == "PSA") %>% filter(county == "Sonoma") %>% filter(race == "Hispanic"), ci = T)
+#roc.test(rocW_newfiling, rocB_newfiling)
+roc.test(rocW_newfiling, rocH_newfiling)
+#roc.test(rocB_newfiling, rocH_newfiling)
+
+rocW_newconviction <- roc(recid_convicted_flag ~ psa_nca_risk_score, data = eval_df %>% filter(tool_name == "PSA") %>% filter(county == "Sonoma") %>% filter(race == "White"), ci = T)
+#rocB_newconviction <- roc(recid_convicted_flag ~ psa_nca_risk_score, data = eval_df %>% filter(tool_name == "PSA") %>% filter(county == "Sonoma") %>% filter(race == "Black"), ci = T)
+rocH_newconviction <- roc(recid_convicted_flag ~ psa_nca_risk_score, data = eval_df %>% filter(tool_name == "PSA") %>% filter(county == "Sonoma") %>% filter(race == "Hispanic"), ci = T)
+#roc.test(rocW_newconviction, rocB_newconviction)
+roc.test(rocW_newconviction, rocH_newconviction)
+#roc.test(rocB_newconviction, rocH_newconviction)
+
+rocW_newviolent <- roc(recid_arrest_violent_psa_flag ~ psa_nvca_risk_score, data = eval_df %>% filter(tool_name == "PSA") %>% filter(county == "Sonoma") %>% filter(race == "White"), ci = T)
+#rocB_newviolent <- roc(recid_arrest_violent_psa_flag ~ psa_nvca_risk_score, data = eval_df %>% filter(tool_name == "PSA") %>% filter(county == "Sonoma") %>% filter(race == "Black"), ci = T)
+rocH_newviolent <- roc(recid_arrest_violent_psa_flag ~ psa_nvca_risk_score, data = eval_df %>% filter(tool_name == "PSA") %>% filter(county == "Sonoma") %>% filter(race == "Hispanic"), ci = T)
+#roc.test(rocW_newviolent, rocB_newviolent)
+roc.test(rocW_newviolent, rocH_newviolent)
+#roc.test(rocB_newviolent, rocH_newviolent)
+```
+
+Sonoma PSA AUC gender comparisons
+```{r}
+rocM_FTA <- roc(fta_flag ~ psa_fta_risk_score, data = eval_df %>% filter(tool_name == "PSA") %>% filter(county == "Sonoma") %>% filter(sex == "Male"), ci = T)
+rocW_FTA <- roc(fta_flag ~ psa_fta_risk_score, data = eval_df %>% filter(tool_name == "PSA") %>% filter(county == "Sonoma") %>% filter(sex == "Female"), ci = T)
+
+roc.test(rocM_FTA, rocW_FTA)
+
+
+rocM_newarrest <- roc(recid_arrested_flag ~ psa_nca_risk_score, data = eval_df %>% filter(tool_name == "PSA") %>% filter(county == "Sonoma") %>% filter(sex == "Male"), ci = T)
+rocW_newarrest <- roc(recid_arrested_flag ~ psa_nca_risk_score, data = eval_df %>% filter(tool_name == "PSA") %>% filter(county == "Sonoma") %>% filter(sex == "Female"), ci = T)
+
+roc.test(rocM_newarrest, rocW_newarrest)
+
+
+rocM_newfiling <- roc(recid_filed_flag ~ psa_nca_risk_score, data = eval_df %>% filter(tool_name == "PSA") %>% filter(county == "Sonoma") %>% filter(sex == "Male"), ci = T)
+rocW_newfiling <- roc(recid_filed_flag ~ psa_nca_risk_score, data = eval_df %>% filter(tool_name == "PSA") %>% filter(county == "Sonoma") %>% filter(sex == "Female"), ci = T)
+
+roc.test(rocM_newfiling, rocW_newfiling)
+
+
+rocM_newconviction <- roc(recid_convicted_flag ~ psa_nca_risk_score, data = eval_df %>% filter(tool_name == "PSA") %>% filter(county == "Sonoma") %>% filter(sex == "Male"), ci = T)
+rocW_newconviction <- roc(recid_convicted_flag ~ psa_nca_risk_score, data = eval_df %>% filter(tool_name == "PSA") %>% filter(county == "Sonoma") %>% filter(sex == "Female"), ci = T)
+
+roc.test(rocM_newconviction, rocW_newconviction)
+
+
+rocM_newviolent <- roc(recid_arrest_violent_psa_flag ~ psa_nvca_risk_score, data = eval_df %>% filter(tool_name == "PSA") %>% filter(county == "Sonoma") %>% filter(sex == "Male"), ci = T)
+rocW_newviolent <- roc(recid_arrest_violent_psa_flag ~ psa_nvca_risk_score, data = eval_df %>% filter(tool_name == "PSA") %>% filter(county == "Sonoma") %>% filter(sex == "Female"), ci = T)
+
+roc.test(rocM_newviolent, rocW_newviolent)
+
+
+
+```
+
 
 Ventura ORAS AUC race comparisons
 ```{r}
@@ -9930,10 +10260,6 @@ rocM_newviolent <- roc(recid_arrest_violent_psa_flag ~ oras_risk_score, data = e
 roc.test(rocW_newviolent, rocM_newviolent)
 
 ```
-
-
-
-
 
 
 San Joaquin VPRAI AUC race comparisons
@@ -10019,6 +10345,13 @@ rocM_anyfailure <- roc(any_pretrial_failure_flag ~ vprai_risk_score, data = eval
 roc.test(rocW_anyfailure, rocM_anyfailure)
 
 ```
+
+
+# KNITR EXIT -----------------------------------------------
+```{r}
+knitr::knit_exit()
+```
+
 
 # Exploration of Supervision
 ```{r}
@@ -10624,6 +10957,181 @@ ggsave("San Joaquin combined failure bail vs supervision.png")
 ```
 \newpage
 
+Sonoma graphs by supervision
+\newline
+```{r fig.height=6, fig.width=10, dpi=1200}
+risk_df <- eval_df %>%
+  filter(county == "Sonoma") %>%
+  filter(tool_name == "PSA") %>%
+  group_by(psa_fta_risk_score, bail_or_sup, county) %>%
+  select(fta_flag) %>%
+  pivot_longer(fta_flag) 
+
+names(risk_df)[1] <- "psa_risk_score"
+
+risk_df2 <- eval_df %>%
+  filter(county == "Sonoma") %>%
+  filter(tool_name == "PSA") %>%
+  group_by(psa_nca_risk_score, bail_or_sup, county) %>%
+  select(recid_arrested_flag, recid_filed_flag, recid_convicted_flag) %>%
+  pivot_longer(recid_arrested_flag:recid_convicted_flag) 
+
+names(risk_df2)[1] <- "psa_risk_score"
+
+risk_df3 <- eval_df %>%
+  filter(county == "Sonoma") %>%
+  filter(tool_name == "PSA", !is.na(psa_nvca_risk_score)) %>%
+  group_by(psa_nvca_risk_score, bail_or_sup, county) %>%
+  select(recid_arrest_violent_psa_flag) %>%
+  pivot_longer(recid_arrest_violent_psa_flag) 
+
+names(risk_df3)[1] <- "psa_risk_score"
+
+risk_df <- bind_rows(risk_df, risk_df2, risk_df3)
+  
+rm(risk_df2, risk_df3)
+
+risk_df <- risk_df %>%
+  mutate(race = factor(bail_or_sup, levels = c("Cite Release", "Own Recognizance", "Bail Bond", "Lowest Levels", "Medium Levels", "Highest Levels"))) %>%
+  filter(!is.na(bail_or_sup)) %>%
+  mutate(name = case_when(name == "fta_flag" ~ "FTA",
+                          name == "recid_arrested_flag" ~ "New Arrest",
+                          name == "recid_filed_flag" ~ "New Filing",
+                          name == "recid_convicted_flag" ~ "New Conviction",
+                          name == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest"),
+         name = factor(name, levels = c("FTA", "New Arrest", "New Filing", "New Conviction", "New Violent Arrest"))) 
+
+ggplot(risk_df) +
+  aes(x = psa_risk_score, y = value, color = bail_or_sup) +
+  geom_smooth(method = "glm", method.args = list(family=binomial), alpha = .2) +
+  # geom_line() +
+  # geom_point() +
+  theme_bw() +
+  # ylim(0,100) +
+  facet_wrap(~name, scales = "free") +
+  labs(x = "Risk Category", y = "Percent", title = "Comparison of Release Differences in Logistic Regression Curves--PSA, Sonoma") +
+  scale_x_continuous(breaks = 1:6)
+
+
+```
+
+
+Tulare graphs by supervision
+\newline
+```{r fig.height=6, fig.width=10, dpi=1200}
+risk_df <- eval_df %>%
+  filter(county == "Tulare") %>%
+  filter(tool_name == "PSA") %>%
+  group_by(psa_fta_risk_score, bail_or_sup, county) %>%
+  select(fta_flag) %>%
+  pivot_longer(fta_flag) 
+
+names(risk_df)[1] <- "psa_risk_score"
+
+risk_df2 <- eval_df %>%
+  filter(county == "Tulare") %>%
+  filter(tool_name == "PSA") %>%
+  group_by(psa_nca_risk_score, bail_or_sup, county) %>%
+  select(recid_arrested_flag, recid_filed_flag, recid_convicted_flag) %>%
+  pivot_longer(recid_arrested_flag:recid_convicted_flag) 
+
+names(risk_df2)[1] <- "psa_risk_score"
+
+risk_df3 <- eval_df %>%
+  filter(county == "Tulare") %>%
+  filter(tool_name == "PSA", !is.na(psa_nvca_risk_score)) %>%
+  group_by(psa_nvca_risk_score, bail_or_sup, county) %>%
+  select(recid_arrest_violent_psa_flag) %>%
+  pivot_longer(recid_arrest_violent_psa_flag) 
+
+names(risk_df3)[1] <- "psa_risk_score"
+
+risk_df <- bind_rows(risk_df, risk_df2, risk_df3)
+  
+rm(risk_df2, risk_df3)
+
+risk_df <- risk_df %>%
+  mutate(race = factor(bail_or_sup, levels = c("Cite Release", "Own Recognizance", "Bail Bond", "Lowest Levels", "Medium Levels", "Highest Levels"))) %>%
+  filter(!is.na(bail_or_sup)) %>%
+  mutate(name = case_when(name == "fta_flag" ~ "FTA",
+                          name == "recid_arrested_flag" ~ "New Arrest",
+                          name == "recid_filed_flag" ~ "New Filing",
+                          name == "recid_convicted_flag" ~ "New Conviction",
+                          name == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest"),
+         name = factor(name, levels = c("FTA", "New Arrest", "New Filing", "New Conviction", "New Violent Arrest"))) 
+
+ggplot(risk_df) +
+  aes(x = psa_risk_score, y = value, color = bail_or_sup) +
+  geom_smooth(method = "glm", method.args = list(family=binomial), alpha = .2) +
+  # geom_line() +
+  # geom_point() +
+  theme_bw() +
+  # ylim(0,100) +
+  facet_wrap(~name, scales = "free") +
+  labs(x = "Risk Category", y = "Percent", title = "Comparison of Release Differences in Logistic Regression Curves--PSA, Tulare") +
+  scale_x_continuous(breaks = 1:6)
+
+
+```
+
+
+All PSA graphs by supervision
+\newline
+```{r fig.height=6, fig.width=10, dpi=1200}
+risk_df <- eval_df %>%
+  filter(tool_name == "PSA") %>%
+  group_by(psa_fta_risk_score, bail_or_sup, county) %>%
+  select(fta_flag) %>%
+  pivot_longer(fta_flag) 
+
+names(risk_df)[1] <- "psa_risk_score"
+
+risk_df2 <- eval_df %>%
+  filter(tool_name == "PSA") %>%
+  group_by(psa_nca_risk_score, bail_or_sup, county) %>%
+  select(recid_arrested_flag, recid_filed_flag, recid_convicted_flag) %>%
+  pivot_longer(recid_arrested_flag:recid_convicted_flag) 
+
+names(risk_df2)[1] <- "psa_risk_score"
+
+risk_df3 <- eval_df %>%
+  filter(tool_name == "PSA", !is.na(psa_nvca_risk_score)) %>%
+  group_by(psa_nvca_risk_score, bail_or_sup, county) %>%
+  select(recid_arrest_violent_psa_flag) %>%
+  pivot_longer(recid_arrest_violent_psa_flag) 
+
+names(risk_df3)[1] <- "psa_risk_score"
+
+risk_df <- bind_rows(risk_df, risk_df2, risk_df3)
+  
+rm(risk_df2, risk_df3)
+
+risk_df <- risk_df %>%
+  mutate(race = factor(bail_or_sup, levels = c("Cite Release", "Own Recognizance", "Bail Bond", "Lowest Levels", "Medium Levels", "Highest Levels"))) %>%
+  filter(!is.na(bail_or_sup)) %>%
+  mutate(name = case_when(name == "fta_flag" ~ "FTA",
+                          name == "recid_arrested_flag" ~ "New Arrest",
+                          name == "recid_filed_flag" ~ "New Filing",
+                          name == "recid_convicted_flag" ~ "New Conviction",
+                          name == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest"),
+         name = factor(name, levels = c("FTA", "New Arrest", "New Filing", "New Conviction", "New Violent Arrest"))) 
+
+ggplot(risk_df %>%
+         filter(county != "Los Angeles")) +
+  aes(x = psa_risk_score, y = value, color = bail_or_sup) +
+  geom_smooth(method = "glm", method.args = list(family=binomial), alpha = .2) +
+  # geom_line() +
+  # geom_point() +
+  theme_bw() +
+  # ylim(0,100) +
+  facet_wrap(~name, scales = "free") +
+  labs(x = "Risk Category", y = "Percent", title = "Comparison of Release Differences in Logistic Regression Curves--PSA without LA") +
+  scale_x_continuous(breaks = 1:6)
+
+
+```
+
+
 # Exploration of condition flags
 ```{r}
 eval_df %>%
@@ -10646,7 +11154,365 @@ eval_df %>%
             nocontact =round(mean(condition_no_contact_flag)*100))
   
 
+# Sonoma has a decent number and spread of flags
+# Alameda could look at court reminder and in person
 ```
+Sonoma with supervision flags
+```{r}
+county_df <- eval_df %>%
+  filter(county == "Sonoma", tool_name == "PSA")
+
+m1 <- glm(family = binomial(),fta_flag ~ psa_fta_risk_score + release_to_pretrial_end + court_date_reminder_flag + condition_phone_flag + condition_inperson_flag + condition_drug_test_flag + condition_alcohol_flag + condition_em_flag + condition_no_contact_flag, data = county_df %>% filter(!is.na(psa_fta_risk_score)))
+m2 <- glm(family = binomial(),recid_arrested_flag ~ psa_nca_risk_score + release_to_pretrial_end + court_date_reminder_flag + condition_phone_flag + condition_inperson_flag + condition_drug_test_flag + condition_alcohol_flag + condition_em_flag + condition_no_contact_flag, data = county_df %>% filter(!is.na(psa_nca_risk_score)))
+m3 <- glm(family = binomial(),recid_filed_flag ~ psa_nca_risk_score + release_to_pretrial_end + court_date_reminder_flag + condition_phone_flag + condition_inperson_flag + condition_drug_test_flag + condition_alcohol_flag + condition_em_flag + condition_no_contact_flag, data = county_df %>% filter(!is.na(psa_nca_risk_score)))
+m4 <- glm(family = binomial(),recid_convicted_flag ~ psa_nca_risk_score + release_to_pretrial_end + court_date_reminder_flag + condition_phone_flag + condition_inperson_flag + condition_drug_test_flag + condition_alcohol_flag + condition_em_flag + condition_no_contact_flag, data = county_df %>% filter(!is.na(psa_nca_risk_score)))
+m5 <- glm(family = binomial(),recid_arrest_violent_psa_flag ~ psa_nvca_risk_score + release_to_pretrial_end + court_date_reminder_flag + condition_phone_flag + condition_inperson_flag + condition_drug_test_flag + condition_alcohol_flag + condition_em_flag + condition_no_contact_flag, data = county_df %>% filter(!is.na(psa_nvca_risk_score)))
+
+summary(m1)
+summary(m2)
+summary(m3)
+summary(m4)
+summary(m5)
+
+
+```
+
+Sonoma graphs by alcohol flag
+\newline
+```{r fig.height=6, fig.width=10, dpi=1200}
+risk_df <- eval_df %>%
+  filter(county == "Sonoma") %>%
+  filter(tool_name == "PSA") %>%
+  group_by(psa_fta_risk_score, condition_alcohol_flag, county) %>%
+  select(fta_flag) %>%
+  pivot_longer(fta_flag) 
+
+names(risk_df)[1] <- "psa_risk_score"
+
+risk_df2 <- eval_df %>%
+  filter(county == "Sonoma") %>%
+  filter(tool_name == "PSA") %>%
+  group_by(psa_nca_risk_score, condition_alcohol_flag, county) %>%
+  select(recid_arrested_flag, recid_filed_flag, recid_convicted_flag) %>%
+  pivot_longer(recid_arrested_flag:recid_convicted_flag) 
+
+names(risk_df2)[1] <- "psa_risk_score"
+
+risk_df3 <- eval_df %>%
+  filter(county == "Sonoma") %>%
+  filter(tool_name == "PSA", !is.na(psa_nvca_risk_score)) %>%
+  group_by(psa_nvca_risk_score, condition_alcohol_flag, county) %>%
+  select(recid_arrest_violent_psa_flag) %>%
+  pivot_longer(recid_arrest_violent_psa_flag) 
+
+names(risk_df3)[1] <- "psa_risk_score"
+
+risk_df <- bind_rows(risk_df, risk_df2, risk_df3)
+  
+rm(risk_df2, risk_df3)
+
+risk_df <- risk_df %>%
+  mutate(condition_alcohol_flag = factor(condition_alcohol_flag)) %>%
+  mutate(name = case_when(name == "fta_flag" ~ "FTA",
+                          name == "recid_arrested_flag" ~ "New Arrest",
+                          name == "recid_filed_flag" ~ "New Filing",
+                          name == "recid_convicted_flag" ~ "New Conviction",
+                          name == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest"),
+         name = factor(name, levels = c("FTA", "New Arrest", "New Filing", "New Conviction", "New Violent Arrest"))) 
+
+ggplot(risk_df) +
+  aes(x = psa_risk_score, y = value, color = condition_alcohol_flag) +
+  geom_smooth(method = "glm", method.args = list(family=binomial), alpha = .2) +
+  # geom_line() +
+  # geom_point() +
+  theme_bw() +
+  # ylim(0,100) +
+  facet_wrap(~name, scales = "free") +
+  labs(x = "Risk Category", y = "Percent", title = "Comparison of Alcohol Condition Differences in Logistic Regression Curves--PSA, Sonoma") +
+  scale_x_continuous(breaks = 1:6)
+
+```
+
+Sonoma graphs by court_date_reminder_flag
+\newline
+```{r fig.height=6, fig.width=10, dpi=1200}
+risk_df <- eval_df %>%
+  filter(county == "Sonoma") %>%
+  filter(tool_name == "PSA") %>%
+  group_by(psa_fta_risk_score, court_date_reminder_flag, county) %>%
+  select(fta_flag) %>%
+  pivot_longer(fta_flag) 
+
+names(risk_df)[1] <- "psa_risk_score"
+
+risk_df2 <- eval_df %>%
+  filter(county == "Sonoma") %>%
+  filter(tool_name == "PSA") %>%
+  group_by(psa_nca_risk_score, court_date_reminder_flag, county) %>%
+  select(recid_arrested_flag, recid_filed_flag, recid_convicted_flag) %>%
+  pivot_longer(recid_arrested_flag:recid_convicted_flag) 
+
+names(risk_df2)[1] <- "psa_risk_score"
+
+risk_df3 <- eval_df %>%
+  filter(county == "Sonoma") %>%
+  filter(tool_name == "PSA", !is.na(psa_nvca_risk_score)) %>%
+  group_by(psa_nvca_risk_score, court_date_reminder_flag, county) %>%
+  select(recid_arrest_violent_psa_flag) %>%
+  pivot_longer(recid_arrest_violent_psa_flag) 
+
+names(risk_df3)[1] <- "psa_risk_score"
+
+risk_df <- bind_rows(risk_df, risk_df2, risk_df3)
+  
+rm(risk_df2, risk_df3)
+
+risk_df <- risk_df %>%
+  mutate(court_date_reminder_flag = factor(court_date_reminder_flag)) %>%
+  mutate(name = case_when(name == "fta_flag" ~ "FTA",
+                          name == "recid_arrested_flag" ~ "New Arrest",
+                          name == "recid_filed_flag" ~ "New Filing",
+                          name == "recid_convicted_flag" ~ "New Conviction",
+                          name == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest"),
+         name = factor(name, levels = c("FTA", "New Arrest", "New Filing", "New Conviction", "New Violent Arrest"))) 
+
+ggplot(risk_df) +
+  aes(x = psa_risk_score, y = value, color = court_date_reminder_flag) +
+  geom_smooth(method = "glm", method.args = list(family=binomial), alpha = .2) +
+  # geom_line() +
+  # geom_point() +
+  theme_bw() +
+  # ylim(0,100) +
+  facet_wrap(~name, scales = "free") +
+  labs(x = "Risk Category", y = "Percent", title = "Comparison of Court Date Reminder Differences in Logistic Regression Curves--PSA, Sonoma") +
+  scale_x_continuous(breaks = 1:6)
+
+```
+
+Sonoma graphs by condition_drug_test_flag
+\newline
+```{r fig.height=6, fig.width=10, dpi=1200}
+risk_df <- eval_df %>%
+  filter(county == "Sonoma") %>%
+  filter(tool_name == "PSA") %>%
+  group_by(psa_fta_risk_score, condition_drug_test_flag, county) %>%
+  select(fta_flag) %>%
+  pivot_longer(fta_flag) 
+
+names(risk_df)[1] <- "psa_risk_score"
+
+risk_df2 <- eval_df %>%
+  filter(county == "Sonoma") %>%
+  filter(tool_name == "PSA") %>%
+  group_by(psa_nca_risk_score, condition_drug_test_flag, county) %>%
+  select(recid_arrested_flag, recid_filed_flag, recid_convicted_flag) %>%
+  pivot_longer(recid_arrested_flag:recid_convicted_flag) 
+
+names(risk_df2)[1] <- "psa_risk_score"
+
+risk_df3 <- eval_df %>%
+  filter(county == "Sonoma") %>%
+  filter(tool_name == "PSA", !is.na(psa_nvca_risk_score)) %>%
+  group_by(psa_nvca_risk_score, condition_drug_test_flag, county) %>%
+  select(recid_arrest_violent_psa_flag) %>%
+  pivot_longer(recid_arrest_violent_psa_flag) 
+
+names(risk_df3)[1] <- "psa_risk_score"
+
+risk_df <- bind_rows(risk_df, risk_df2, risk_df3)
+  
+rm(risk_df2, risk_df3)
+
+risk_df <- risk_df %>%
+  mutate(condition_drug_test_flag = factor(condition_drug_test_flag)) %>%
+  mutate(name = case_when(name == "fta_flag" ~ "FTA",
+                          name == "recid_arrested_flag" ~ "New Arrest",
+                          name == "recid_filed_flag" ~ "New Filing",
+                          name == "recid_convicted_flag" ~ "New Conviction",
+                          name == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest"),
+         name = factor(name, levels = c("FTA", "New Arrest", "New Filing", "New Conviction", "New Violent Arrest"))) 
+
+ggplot(risk_df) +
+  aes(x = psa_risk_score, y = value, color = condition_drug_test_flag) +
+  geom_smooth(method = "glm", method.args = list(family=binomial), alpha = .2) +
+  # geom_line() +
+  # geom_point() +
+  theme_bw() +
+  # ylim(0,100) +
+  facet_wrap(~name, scales = "free") +
+  labs(x = "Risk Category", y = "Percent", title = "Comparison of Drug Test Condition Differences in Logistic Regression Curves--PSA, Sonoma") +
+  scale_x_continuous(breaks = 1:6)
+
+```
+
+Sonoma graphs by condition_inperson_flag
+\newline
+```{r fig.height=6, fig.width=10, dpi=1200}
+risk_df <- eval_df %>%
+  filter(county == "Sonoma") %>%
+  filter(tool_name == "PSA") %>%
+  group_by(psa_fta_risk_score, condition_inperson_flag, county) %>%
+  select(fta_flag) %>%
+  pivot_longer(fta_flag) 
+
+names(risk_df)[1] <- "psa_risk_score"
+
+risk_df2 <- eval_df %>%
+  filter(county == "Sonoma") %>%
+  filter(tool_name == "PSA") %>%
+  group_by(psa_nca_risk_score, condition_inperson_flag, county) %>%
+  select(recid_arrested_flag, recid_filed_flag, recid_convicted_flag) %>%
+  pivot_longer(recid_arrested_flag:recid_convicted_flag) 
+
+names(risk_df2)[1] <- "psa_risk_score"
+
+risk_df3 <- eval_df %>%
+  filter(county == "Sonoma") %>%
+  filter(tool_name == "PSA", !is.na(psa_nvca_risk_score)) %>%
+  group_by(psa_nvca_risk_score, condition_inperson_flag, county) %>%
+  select(recid_arrest_violent_psa_flag) %>%
+  pivot_longer(recid_arrest_violent_psa_flag) 
+
+names(risk_df3)[1] <- "psa_risk_score"
+
+risk_df <- bind_rows(risk_df, risk_df2, risk_df3)
+  
+rm(risk_df2, risk_df3)
+
+risk_df <- risk_df %>%
+  mutate(condition_inperson_flag = factor(condition_inperson_flag)) %>%
+  mutate(name = case_when(name == "fta_flag" ~ "FTA",
+                          name == "recid_arrested_flag" ~ "New Arrest",
+                          name == "recid_filed_flag" ~ "New Filing",
+                          name == "recid_convicted_flag" ~ "New Conviction",
+                          name == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest"),
+         name = factor(name, levels = c("FTA", "New Arrest", "New Filing", "New Conviction", "New Violent Arrest"))) 
+
+ggplot(risk_df) +
+  aes(x = psa_risk_score, y = value, color = condition_inperson_flag) +
+  geom_smooth(method = "glm", method.args = list(family=binomial), alpha = .2) +
+  # geom_line() +
+  # geom_point() +
+  theme_bw() +
+  # ylim(0,100) +
+  facet_wrap(~name, scales = "free") +
+  labs(x = "Risk Category", y = "Percent", title = "Comparison of In Person Condition Differences in Logistic Regression Curves--PSA, Sonoma") +
+  scale_x_continuous(breaks = 1:6)
+
+```
+
+Sonoma graphs by condition_em_flag
+\newline
+```{r fig.height=6, fig.width=10, dpi=1200}
+risk_df <- eval_df %>%
+  filter(county == "Sonoma") %>%
+  filter(tool_name == "PSA") %>%
+  group_by(psa_fta_risk_score, condition_em_flag, county) %>%
+  select(fta_flag) %>%
+  pivot_longer(fta_flag) 
+
+names(risk_df)[1] <- "psa_risk_score"
+
+risk_df2 <- eval_df %>%
+  filter(county == "Sonoma") %>%
+  filter(tool_name == "PSA") %>%
+  group_by(psa_nca_risk_score, condition_em_flag, county) %>%
+  select(recid_arrested_flag, recid_filed_flag, recid_convicted_flag) %>%
+  pivot_longer(recid_arrested_flag:recid_convicted_flag) 
+
+names(risk_df2)[1] <- "psa_risk_score"
+
+risk_df3 <- eval_df %>%
+  filter(county == "Sonoma") %>%
+  filter(tool_name == "PSA", !is.na(psa_nvca_risk_score)) %>%
+  group_by(psa_nvca_risk_score, condition_em_flag, county) %>%
+  select(recid_arrest_violent_psa_flag) %>%
+  pivot_longer(recid_arrest_violent_psa_flag) 
+
+names(risk_df3)[1] <- "psa_risk_score"
+
+risk_df <- bind_rows(risk_df, risk_df2, risk_df3)
+  
+rm(risk_df2, risk_df3)
+
+risk_df <- risk_df %>%
+  mutate(condition_em_flag = factor(condition_em_flag)) %>%
+  mutate(name = case_when(name == "fta_flag" ~ "FTA",
+                          name == "recid_arrested_flag" ~ "New Arrest",
+                          name == "recid_filed_flag" ~ "New Filing",
+                          name == "recid_convicted_flag" ~ "New Conviction",
+                          name == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest"),
+         name = factor(name, levels = c("FTA", "New Arrest", "New Filing", "New Conviction", "New Violent Arrest"))) 
+
+ggplot(risk_df) +
+  aes(x = psa_risk_score, y = value, color = condition_em_flag) +
+  geom_smooth(method = "glm", method.args = list(family=binomial), alpha = .2) +
+  # geom_line() +
+  # geom_point() +
+  theme_bw() +
+  # ylim(0,100) +
+  facet_wrap(~name, scales = "free") +
+  labs(x = "Risk Category", y = "Percent", title = "Comparison of EM Differences in Logistic Regression Curves--PSA, Sonoma") +
+  scale_x_continuous(breaks = 1:6)
+
+```
+
+Sonoma graphs by condition_no_contact_flag
+\newline
+```{r fig.height=6, fig.width=10, dpi=1200}
+risk_df <- eval_df %>%
+  filter(county == "Sonoma") %>%
+  filter(tool_name == "PSA") %>%
+  group_by(psa_fta_risk_score, condition_no_contact_flag, county) %>%
+  select(fta_flag) %>%
+  pivot_longer(fta_flag) 
+
+names(risk_df)[1] <- "psa_risk_score"
+
+risk_df2 <- eval_df %>%
+  filter(county == "Sonoma") %>%
+  filter(tool_name == "PSA") %>%
+  group_by(psa_nca_risk_score, condition_no_contact_flag, county) %>%
+  select(recid_arrested_flag, recid_filed_flag, recid_convicted_flag) %>%
+  pivot_longer(recid_arrested_flag:recid_convicted_flag) 
+
+names(risk_df2)[1] <- "psa_risk_score"
+
+risk_df3 <- eval_df %>%
+  filter(county == "Sonoma") %>%
+  filter(tool_name == "PSA", !is.na(psa_nvca_risk_score)) %>%
+  group_by(psa_nvca_risk_score, condition_no_contact_flag, county) %>%
+  select(recid_arrest_violent_psa_flag) %>%
+  pivot_longer(recid_arrest_violent_psa_flag) 
+
+names(risk_df3)[1] <- "psa_risk_score"
+
+risk_df <- bind_rows(risk_df, risk_df2, risk_df3)
+  
+rm(risk_df2, risk_df3)
+
+risk_df <- risk_df %>%
+  mutate(condition_no_contact_flag = factor(condition_no_contact_flag)) %>%
+  mutate(name = case_when(name == "fta_flag" ~ "FTA",
+                          name == "recid_arrested_flag" ~ "New Arrest",
+                          name == "recid_filed_flag" ~ "New Filing",
+                          name == "recid_convicted_flag" ~ "New Conviction",
+                          name == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest"),
+         name = factor(name, levels = c("FTA", "New Arrest", "New Filing", "New Conviction", "New Violent Arrest"))) 
+
+ggplot(risk_df) +
+  aes(x = psa_risk_score, y = value, color = condition_no_contact_flag) +
+  geom_smooth(method = "glm", method.args = list(family=binomial), alpha = .2) +
+  # geom_line() +
+  # geom_point() +
+  theme_bw() +
+  # ylim(0,100) +
+  facet_wrap(~name, scales = "free") +
+  labs(x = "Risk Category", y = "Percent", title = "Comparison of No Contact Differences in Logistic Regression Curves--PSA, Sonoma") +
+  scale_x_continuous(breaks = 1:6)
+
+```
+
 
 # Exploration of arrest offense types
 ```{r}
