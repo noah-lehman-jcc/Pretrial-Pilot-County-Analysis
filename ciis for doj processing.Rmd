@@ -13,8 +13,8 @@ library(tidyverse)
 library(gdata)
 ```
 
-##Read in data
 
+# XXXXXXX OLD MODOC SPECIFIC STUFF, no longer relevant as of 10.12.22 extraction
 ```{r}
 # this file should have 386 observations. It had a wierd last line that said "386 Records"
 modocCII <- read_csv("G:/CrimJustice/PretrialAssessmentPilot/CII.csv")
@@ -47,33 +47,56 @@ modocCII <- modocCII %>%
   mutate(DOB = mdy(DOB))
 ```
 
+# Read in data downloaded from Snowflake
 ```{r}
-sf <- fread(file = 'G:/CrimJustice/PretrialAssessmentPilot/CIIs for DOJ/CIIs for DOJ 3 21 2022/SnowflakeCIIDOB 3 21 2022.csv', header = TRUE)
+#sf <- fread(file = 'G:/CrimJustice/PretrialAssessmentPilot/CIIs for DOJ/CIIs for DOJ 3 21 2022/SnowflakeCIIDOB 3 21 2022.csv', header = TRUE)
+
+sf <- fread(file = 'G:/CrimJustice/PretrialAssessmentPilot/CIIs for DOJ/Oct 12 2022/CII for DOJ 10 12 2022.csv', header = TRUE)
+
 
 ```
-
+Process Snowflake extract as of 3.22.22 extract requires CII and DOB
 ```{r}
 names(sf) <- c("cii", "DOB")
-#this snippet finds any observations that have a digit or any missing values in this case it finds ("A10707613" and "Unknown" and "")
+
+
+#this snippet finds any observations that have a digit or any missing values 
+# 3.21.22 it finds ("A10707613" and "Unknown" and "")
+sf %>%
+  mutate(bad = if_else(grepl("\\D", cii) | cii=="", 1, 0)) %>%
+  filter(bad == 1)
+# 10.12.22 found bad record "A10707613"
+
 
 sf <- sf %>%
   mutate(bad = if_else(grepl("\\D", cii) | cii=="", 1, 0)) %>%
   filter(bad == "0") %>%
   select(-bad)
+
+
 #bind Modoc and Snowflake CIIs
+#10.12.22 no longer have separate modoc extract
+# doj_cii_3_21_2022 <- bind_rows(modocCII, sf) %>% 
+#   distinct()
 
-doj_cii_3_21_2022 <- bind_rows(modocCII, sf) %>% 
-  distinct()
 
-doj_cii_3_21_2022 <- doj_cii_3_21_2022 %>%
+#Format DOB and add spacer variables for required formatting specifications
+doj_cii_10_12_2022 <- sf %>%
   mutate(DOBstring=format(DOB,"%Y%m%d")) %>%
   mutate(spacer1=str_pad("",30), spacer2=str_pad("",30)) %>%
   select(cii, spacer1,DOBstring, spacer2)
 
-
-doj_invalid_removed <- doj_cii_3_21_2022 %>%
+#from email from DataRequests 3.22.22 "Per the CSD the CII number must begin with ‘10’, ‘30’, ‘32’, ‘40’, or ‘00’. Otherwise, use two spaces to fill."
+#mark rows for removal if CII does not begin with the specified numbers
+doj_invalid_removed <- doj_cii_10_12_2022 %>%
   mutate(remove = if_else(grepl("^00|^10|^30|^40|^32", cii), 0, 1))
 
+doj_invalid_removed %>%
+  filter(remove == 1)
+#10.12.22 519 records tagged for removal based on starting two digits
+
+# email from DataRequests 3.22.22 "Per the CSD the file cannot contain more than one record for each CII number submitted."
+# remove records flagged as starting with the wrong digits and distinct on CIIs because DOJ will not accept multiple rows per CII even if associated with a different DOB. 
 doj_invalid_removed <- doj_invalid_removed %>%
   filter(remove ==0) %>%
   select(-remove) %>%
@@ -81,21 +104,30 @@ doj_invalid_removed <- doj_invalid_removed %>%
 
 
 
-
+#diagnostic, CIIs with multiple rows
 doj_invalid_removed %>%
   add_count(cii) %>%
   filter(n>1) %>%
   arrange(cii)
+# no duplicates in de-duped df
+doj_cii_10_12_2022 %>%
+    add_count(cii) %>%
+  filter(n>1) %>%
+  arrange(cii)
+#duplicates in pre-de-duped df
 
 
-
+#combine columns into one column as required by DOJ formatting guidelines
 doj_single <- doj_invalid_removed %>%
   unite("all", cii:spacer2, sep= "", remove = T)
 
+#check that all rows have the correct number of characters
 doj_single %>%
-  mutate(n = nchar(all))
+  mutate(n = nchar(all)) %>%
+  count(n)
 
 
+#one more distinct, just in case
 doj_single <- doj_single %>%
   distinct()
 
@@ -112,15 +144,22 @@ doj_single <- doj_single %>%
 
 ```
 
+Write to file for upload to DOJ
 ```{r}
-write.fwf(doj_single, file="senddoj_cii_3_22_2022.txt", sep="", na="NULL",
-rownames=FALSE, colnames=FALSE, justify="left",
-formatInfo=FALSE, quoteInfo=TRUE, width=78, eol="\r",
-scientific=FALSE)
+# write.fwf(doj_single, file="senddoj_cii_3_22_2022.txt", sep="", na="NULL",
+# rownames=FALSE, colnames=FALSE, justify="left",
+# formatInfo=FALSE, quoteInfo=TRUE, width=78, eol="\r",
+# scientific=FALSE)
+# 
+# 
+# 
+# write.fwf(doj_single, file="G:/CrimJustice/PretrialAssessmentPilot/CIIs for DOJ/CIIs for DOJ 3 21 2022/senddoj_cii_3_22_2022.txt", sep="", na="NULL",
+# rownames=FALSE, colnames=FALSE, justify="left",
+# formatInfo=FALSE, quoteInfo=TRUE, width=78, eol="\r",
+# scientific=FALSE)
 
-
-
-write.fwf(doj_single, file="G:/CrimJustice/PretrialAssessmentPilot/CIIs for DOJ/CIIs for DOJ 3 21 2022/senddoj_cii_3_22_2022.txt", sep="", na="NULL",
+# write to a fixed width txt file with carriage returns at the end of each line, each line width 78 characters, as required by DOJ
+write.fwf(doj_single, file="G:/CrimJustice/PretrialAssessmentPilot/CIIs for DOJ/Oct 12 2022/senddoj_cii_10_12_2022.txt", sep="", na="NULL",
 rownames=FALSE, colnames=FALSE, justify="left",
 formatInfo=FALSE, quoteInfo=TRUE, width=78, eol="\r",
 scientific=FALSE)
