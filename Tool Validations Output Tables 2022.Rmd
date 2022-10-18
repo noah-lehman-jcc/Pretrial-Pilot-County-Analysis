@@ -36,14 +36,15 @@ library(dbplyr)
 library(odbc)
 library(tinytex)
 library(gt)
+library(askpass)
 
 # shell.exec(getwd())
 ```
 
 Connection
 ```{r include=FALSE}
-con <- dbConnect(odbc::odbc(), "snowflake_pretrial", uid ="Sal.Lempert@jud.ca.gov", pwd = rstudioapi::askForPassword("Password"))
 
+con <- dbConnect(odbc::odbc(), "snowflake_pretrial", uid ="Sal.Lempert@jud.ca.gov", pwd = rstudioapi::askForPassword("Password"))
 
 ```
 
