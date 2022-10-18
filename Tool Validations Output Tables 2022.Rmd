@@ -55,7 +55,7 @@ FROM "DWH_PROD"."DATA_SCIENCE"."CJS_OUTCOME_STD"
 ```
 
 Pull live snowflake data -- cjs_df_std 
-```{sql eval=FALSE, connection=con, include=FALSE, output.var='df'}
+```{sql echo=TRUE, connection=con, output.var='df'}
 SELECT *
 FROM "DWH_PROD"."DATA_SCIENCE"."CJS_DF_STD"
 ;
@@ -69,14 +69,14 @@ FROM "DWH_PROD"."DATA_SCIENCE"."CJS_STD_20220624"
 ```
 
 Pull 8.18.22 snowflake data -- cjs_df_std 
-```{sql echo=TRUE, connection=con, output.var='df'}
+```{sql eval=FALSE, connection=con, include=FALSE, output.var='df'}
 SELECT *
 FROM "DWH_PROD"."DATA_SCIENCE"."CJS_STD_20220818"
 ;
 ```
 
 Pull live snowflake data -- join_df
-```{sql eval=FALSE, connection=con, include=FALSE, output.var='join_df'}
+```{sql echo=TRUE, connection=con, output.var='join_df'}
 SELECT *
 FROM "DWH_PROD"."DATA_SCIENCE"."JOIN_DF_STD"
 ;
@@ -90,7 +90,7 @@ FROM "DWH_PROD"."DATA_SCIENCE"."JOIN_STD_20220624"
 ```
 
 Pull 8.18.22 snowflake data -- join_df
-```{sql echo=TRUE, connection=con, output.var='join_df'}
+```{sql eval=FALSE, connection=con, include=FALSE, output.var='join_df'}
 SELECT *
 FROM "DWH_PROD"."DATA_SCIENCE"."JOIN_STD_20220818"
 ;
@@ -383,7 +383,7 @@ my_kable <- function(x){
 # Make AUC table
 
 Make AUC table --- MAKE SURE THIS IS ON WHEN THERE IS NEW DATA
-```{r eval=FALSE, include=FALSE}
+```{r echo=TRUE}
 race_df <- eval_df %>%
   mutate(race = "All")
 
@@ -474,7 +474,7 @@ save(roc_df, file= "C:/PretrialPilot/Pretrial-Pilot-County-Analysis/AUCs.RData")
 
 ```{r}
 #auc_df <- read.xlsx("C:/PretrialPilot/Pretrial-Pilot-County-Analysis/AUCs by Demographic Category.xlsx")
-load("C:/PretrialPilot/Pretrial-Pilot-County-Analysis/AUCs.RData")
+#load("C:/PretrialPilot/Pretrial-Pilot-County-Analysis/AUCs.RData")
 
 auc_df <- roc_df %>%
   mutate(tool_name = toupper(tool_name))
@@ -11935,7 +11935,7 @@ ggplot(risk_df) +
 
 
 # Exploration of arrest offense types
-```{r}
+```{r eval=FALSE, include=FALSE}
 #arrest_felony_flag, arrest_misd_flag, arrest_violent_psa_flag, arrest_property_flag, arrest_drug_flag, arrest_dui_flag, arrest_dv_flag
 
 test_df <- eval_df %>%
