@@ -1,0 +1,2013 @@
+---
+title: "Untitled"
+output: html_document
+date: '2022-10-25'
+---
+
+# Settup and Library
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+	echo = FALSE,
+	message = FALSE,
+	warning = FALSE
+)
+knitr::opts_knit$set(root.dir = "C:/PretrialPilot/Pretrial-Pilot-County-Analysis")
+
+# library(rlang)
+library(tidyverse)
+library(data.table)
+library(openxlsx)
+#library(readxl)
+library(lubridate)
+#library(gsubfn)
+#library(fuzzyjoin)
+library(dplyr)
+# library(multidplyr)
+#library(pROC)
+library(broom)
+#library(kableExtra)
+#library(stargazer)
+library(DBI)
+library(dbplyr)
+library(odbc)
+#library(tinytex)
+#library(gt)
+library(ggthemes)
+
+# shell.exec(getwd())
+```
+# Define which counties to include
+```{r}
+countylist <- c('Alameda County', 'Los Angeles County', 'Sacramento County', 'San Joaquin County', 'San Mateo County', 'Sonoma County', 'Tulare County', 'Ventura County')
+```
+
+# Pull in DOF data
+```{r}
+# dof <- read.xlsx("G:/CrimJustice/PretrialAssessmentPilot/California Population and Arrest Data/P3_California-and-Counties.xlsx", sheet = "California Population (County)")
+dof <- read.xlsx("C:/PretrialPilot/Pretrial-Pilot-County-Analysis/California Population and Arrest Data/P3_California-and-Counties.xlsx", sheet = "California Population (County)")
+
+dof <- dof %>%
+  select(County, Sex,'Race/ethnicity', 'Age.(0-110+)', '2021')
+
+names(dof) <- c("county", "sex", "race", "age", "count_2021")
+
+dof <- dof %>%
+  filter(age >=18)
+
+county_populations <-dof %>%
+  mutate(race = if_else(toupper(race) %in% c("BLACK NH", "WHITE NH", "HISPANIC"), word(race, 1), "Other")) %>%
+  group_by(county, race) %>%
+  summarize(pop = sum(count_2021)) %>%
+  group_by(county) %>%
+  mutate(percent = round(100*pop/sum(pop),1),
+         pop_tot = sum(pop)) %>%
+  select(-pop, -pop_tot) %>%
+  filter(county %in% countylist) %>%
+  pivot_wider(names_from = county, values_from = percent) %>%
+  slice(1, 4, 2, 3)
+
+#fwrite(county_populations, "county population breakdowns by race for 2021.csv")
+```
+
+# Pull in public DOJ arrest data
+```{r}
+# doj <- fread("G:/CrimJustice/PretrialAssessmentPilot/California Population and Arrest Data/OnlineArrestData1980-2021.csv")
+doj <- fread("C:/PretrialPilot/Pretrial-Pilot-County-Analysis/California Population and Arrest Data/OnlineArrestData1980-2021.csv")
+
+
+names(doj) <- tolower(names(doj))
+
+doj <- doj %>%
+  filter(year == 2021,
+         age_group != "Under 18")
+
+
+county_arrests <- doj %>%
+  filter(county %in% countylist) %>%
+  group_by(county, race) %>%
+  summarise(tot_felony = sum(f_total),
+            tot_misdo = sum(m_total),
+            tot = sum(f_total, m_total)) %>%
+  group_by(county) %>%
+  mutate(percent = round(100*tot/sum(tot),1)) %>%
+  select(-contains("tot")) %>%
+  pivot_wider(names_from = county, values_from = percent) %>%
+  slice(1, 4, 2, 3)
+  
+
+#fwrite(county_arrests, "county arrest breakdowns by race for 2021.csv")
+```
+
+Create spreadsheets for each county with population and arrest breakdowns
+```{r}
+
+out <- createWorkbook()
+
+county_tabs <- lapply(countylist,
+       function(x){
+         pop <- county_populations %>%
+           select(race, matches(x)) %>%
+           mutate(county = x)
+         names(pop) <- c("Race", "Population", "County")
+         arr <- county_arrests %>%
+           select(race, matches(x)) %>%
+           mutate(county = x)
+         names(arr) <- c("Race", "Arrests", "County")
+         
+         join<- pop %>%
+           left_join(arr) %>%
+           select(County, Race, Population, Arrests)
+         
+         addWorksheet(out, x)
+         writeData(out, sheet = x, x = join)
+       }
+)
+
+saveWorkbook(out, "county pop and arrest demographics.xlsx")
+
+#write.xlsx(county_tabs, "indiv county pop and arrest demographics.xlsx")
+
+
+```
+# Get Snowflake data
+Connection
+```{r include=FALSE}
+con <- dbConnect(odbc::odbc(), "snowflake_pretrial", uid ="Sal.Lempert@jud.ca.gov", pwd = rstudioapi::askForPassword("Password"))
+
+
+```
+
+Pull live snowflake data -- join_df
+```{sql echo=TRUE, connection=con, output.var='join_df'}
+SELECT *
+FROM "DWH_PROD"."DATA_SCIENCE"."JOIN_DF_STD"
+;
+```
+
+Format data - join df 
+```{r warning=FALSE, include=FALSE}
+#snow_df <- join_df
+#join_df <- snow_df
+names(join_df) <- tolower(names(join_df))
+
+join_df <- join_df %>%
+  mutate(book_date = booking_date,
+         race_orig = race,
+         race = if_else(race_standard %in% c("White", "Black", "Hispanic"), race_standard, "Other/Unknown"),
+         age = individual_age,
+         charge_level_orig = charge_level,
+         charge_level = charge_level_standard,
+         pretrial_period_end_count = pretrial_period_end_count_standard,
+         fta_flag = fta_county_or_doj,
+         recid_arrested_flag = recid_county_or_doj,
+         tool_name = case_when(county == "Kings" ~ "VPRAI-O", 
+                               county == "Santa Barbara" & assessment_date < as.Date("2020-4-29") ~ "VPRAI",
+                               county == "Santa Barbara" & assessment_date >= as.Date("2020-4-29") ~ "VPRAI-R",
+                               tool_name == "VPRAIR" ~ "VPRAI-R",
+                               T ~ tool_name),
+         oras_risk_score = if_else(tool_name == "ORAS", risk_score_raw, NULL),
+         vprai_risk_score = if_else(tool_name == "VPRAI", risk_score_raw, NULL),
+         vprair_risk_score = if_else(tool_name == "VPRAI-R", risk_score_raw, NULL),
+         vpraio_risk_score = if_else(tool_name == "VPRAI-O", generic_tool_total_score_raw, NULL),
+         psa_fta_risk_score = score_failure_to_appear,
+         psa_nca_risk_score = score_new_criminal_activity,
+         psa_nvca_risk_score = score_new_criminal_violent_activity,
+         scored_assessment = if_else(tool_name %in% c("ORAS", "VPRAI", "VPRAI-R") & !is.na(risk_score_raw) |
+                                       tool_name == "PSA" & !is.na(score_new_criminal_activity) |
+                                       tool_name == "VPRAI-O" & !is.na(generic_tool_total_score_raw), 1, 0),
+         pretrial_period_end_date = if_else(is.na(pretrial_period_end_date), as.Date(pretrial_period_end_date_doj), as.Date(pretrial_period_end_date)))%>%
+  mutate(recid_filed_flag = recid_filed_flag_doj, 
+         recid_convicted_flag = recid_convicted_flag_doj, 
+         recid_arrest_violent_psa_flag = recid_arrest_violent_psa_flag_doj,
+         any_pretrial_failure_flag = if_else(recid_arrested_flag == 1 | fta_flag == 1, 1, 0)) %>% ## update this when we get county data on these
+  mutate(across(contains("_flag"), ~if_else(is.na(.x) | .x == "No" | .x == "Unknown" | .x == "0" | .x == 0, 0, as.numeric(1))))  
+
+full_df <- join_df %>%
+  filter(booking_date < as.Date("2022-01-01"))
+
+eval_df <- join_df %>%
+  filter(booking_assessed_count == 1,
+         scored_assessment == 1,
+         release_eligible_count ==1,
+         released_pretrial_count == 1,
+         pretrial_period_end_count == 1,
+         booking_date < as.Date("2022-01-01"),
+         tool_name %in% c("ORAS", "PSA", "VPRAI", "VPRAI-R", "VPRAI-O")
+         ) %>%
+  mutate(release_to_pretrial_end = pretrial_period_end_date - release_date)
+
+#create zero bail dummy for period of April 6 2020 through June 20 2020
+eval_df <- eval_df %>%
+  mutate(zero_bail_dummy = if_else(arrest_date >= as.Date("2020-04-06") & arrest_date <= as.Date("2020-06-20"), 1, 0)) 
+
+# create sup_or_none dummy for supervision
+eval_df <- eval_df %>%
+  mutate(monitoring_level_grouped = if_else(grepl("Own Recognizance", monitoring_level_grouped), "Own Recognizance", monitoring_level_grouped)) %>%
+  mutate(monitoring_level_grouped = if_else(monitoring_level_grouped %in% c("Lowest Levels", "Medium Levels", "Highest Levels", "Own Recognizance"), monitoring_level_grouped, NA_character_)) %>%
+  mutate(bail_or_sup = case_when(release_type %in% c("Bail Bond") ~ "Bail Bond",
+                                 !is.na(monitoring_level_grouped) ~ monitoring_level_grouped,
+                                 release_type %in% c("Own Recognizance") ~ "Own Recognizance",
+                                 release_type %in% c("Cite Release", "CiteR elease") ~ "Cite Release")) 
+```
+
+XXXXX MOVED TO ITS OWN FILE XXXXXXFor Deirdre SB129
+```{r eval=FALSE, include=FALSE}
+rep_df <- join_df %>%
+  filter(booking_date > as.Date("2021-07-01")) %>%
+  mutate(rep_q = case_when(booking_date < as.Date("2022-01-01") ~ "FY1 Q1-2",
+                           booking_date < as.Date("2022-04-01") ~ "FY1 Q3",
+                           booking_date < as.Date("2022-07-01") ~ "FY1 Q4",
+                           booking_date < as.Date("2022-10-01") ~ "FY2 Q1",
+                           booking_date < as.Date("2023-01-01") ~ "FY2 Q2")) %>%
+  mutate(rel_within_2days = case_when(
+    weekdays(book_date) == "Thursday" & release_date - book_date <= 4 ~ 1,
+    weekdays(book_date) == "Friday" & release_date - book_date <= 4 ~ 1,
+    weekdays(book_date) == "Saturday" & release_date - book_date <= 3 ~ 1,
+    !weekdays(book_date) %in% c("Thursday", "Friday", "Saturday") & release_date - book_date <= 2 ~ 1,
+    is.na(release_date) ~ 0,
+    T ~ 0)) %>%
+  mutate(rel_after_2days = if_else(!is.na(release_date) & rel_within_2days == 0, 1, 0)) %>%
+  mutate(age_grp = case_when(age %in% 18:25 ~ "18-25",
+                             age %in% 26:35 ~ "26-35",
+                             age %in% 36:45 ~ "36-45",
+                             age %in% 46:55 ~ "46-55",
+                             age > 55 ~ "Over 56",
+                             T ~ "Other")) %>%
+  mutate(race = if_else(race_standard %in% c("White", "Black", "Hispanic", "Asian"), race_standard, "Other/Unknown")) %>%
+  mutate(sex_standard = case_when(sex %in% c("Female") ~ "Female",
+                                  sex %in% c("M", "Male") ~ "Male",
+                                  T ~ "Other/Unknown")) %>%
+  mutate(release_type = case_when(release_type %in% c("Cite Release", "CiteR elease") ~ "Jail Cite and Release",
+                                  release_type %in% c("Bail Bond") ~ "Release on Bail",
+                                  release_type %in% c("Own Recognizance") ~ "Release by Judicial Officer on OR",
+                                  release_type %in% c("Pretrial Monitor") ~ "Pretrial Supervision",
+                                  release_type %in% c("Detain only", "Detain Only", "Dismissed") ~ "No Charges Filed/Charges Dismissed",
+                                  release_type %in% c("Prison", "Time Served") ~ "Charges Resolved (includes by plea)",
+                                  release_type %in% c("Zero Bail") ~ "Zero Bail",
+                                  T ~ "Other"))
+
+out <- createWorkbook()
+
+#Q1: Total bookings (all bookings even if not eligible for pretrial release)
+addWorksheet(out, "1 Total Bookings")
+
+q1 <- rep_df %>%
+  group_by(county, rep_q) %>%
+  count() %>%
+  pivot_wider(names_from = rep_q, values_from = n)
+
+writeData(out, sheet = "1 Total Bookings", x = q1)
+
+#Q2: New offense bookings by misdo/fel
+addWorksheet(out, "2 New offense misd.fel")
+q2 <- rep_df %>%
+  filter(county %in% c("Los Angeles", "Tulare", "Yuba") | booking_type %in% c("On View", "New Warrant", "Warrant")) %>%
+  filter(charge_level %in% c("M", "F")) %>%
+  group_by(county, rep_q, charge_level) %>%
+  count()%>%
+  pivot_wider(names_from = rep_q, values_from = n)
+
+writeData(out, sheet = "2 New offense misd.fel", x = q2)
+
+
+#Q3: New offense released within 2 days by release type and misd/fel
+addWorksheet(out, "3 Released within 2 days")
+q3 <- rep_df %>%
+  filter(county %in% c("Los Angeles", "Tulare", "Yuba") | booking_type %in% c("On View", "New Warrant", "Warrant")) %>%
+  filter(charge_level %in% c("M", "F")) %>%
+  filter(!is.na(release_date), rel_within_2days == 1) %>%
+  group_by(county, rep_q, charge_level, release_type) %>%
+  count()%>%
+  pivot_wider(names_from = rep_q, values_from = n) %>%
+  arrange(county, charge_level, release_type)
+
+writeData(out, sheet = "3 Released within 2 days", x = q3)
+
+
+#Q3: New offense released after 2 days by release type and misd/fel
+addWorksheet(out, "4 Released after 2 days")
+q4 <- rep_df %>%
+  filter(county %in% c("Los Angeles", "Tulare", "Yuba") | booking_type %in% c("On View", "New Warrant", "Warrant")) %>%
+  filter(charge_level %in% c("M", "F")) %>%
+  filter(!is.na(release_date), rel_after_2days == 1) %>%
+  group_by(county, rep_q, charge_level, release_type) %>%
+  count()%>%
+  pivot_wider(names_from = rep_q, values_from = n) %>%
+  arrange(county, charge_level, release_type)
+
+writeData(out, sheet = "4 Released after 2 days", x = q4)
+
+#Q5: Avg monthly bookings by demographics
+addWorksheet(out, "5 Avg monthly bookings by sex")
+
+q5_sex <- rep_df %>%
+  filter(sex %in% c("Male", "Female")) %>%
+  mutate(book_month = month(booking_date)) %>%
+  group_by(county, rep_q, book_month, sex) %>%
+  count() %>%
+  group_by(county, rep_q, sex) %>%
+  summarise(avg_bookings = round(mean(n),1)) %>%
+  pivot_wider(names_from = rep_q, values_from = avg_bookings)
+
+writeData(out, sheet = "5 Avg monthly bookings by sex", x = q5_sex)
+
+addWorksheet(out, "5 Avg monthly bookings by age")
+
+q5_age <- rep_df %>%
+  filter(age_grp != "Other") %>%
+  mutate(book_month = month(booking_date)) %>%
+  group_by(county, rep_q, book_month, age_grp) %>%
+  count() %>%
+  group_by(county, rep_q, age_grp) %>%
+  summarise(avg_bookings = round(mean(n),1)) %>%
+  pivot_wider(names_from = rep_q, values_from = avg_bookings)
+
+writeData(out, sheet = "5 Avg monthly bookings by age", x = q5_age)
+
+
+addWorksheet(out, "5 Avg monthly bookings by race")
+
+q5_race <- rep_df %>%
+  mutate(book_month = month(booking_date)) %>%
+  group_by(county, rep_q, book_month, race) %>%
+  count() %>%
+  group_by(county, rep_q, race) %>%
+  summarise(avg_bookings = round(mean(n),1)) %>%
+  pivot_wider(names_from = rep_q, values_from = avg_bookings)
+
+writeData(out, sheet = "5 Avg monthly bookings by race", x = q5_race)
+
+
+out
+saveWorkbook(out, "SB 129 pilot numbers for Deirdre 11.28.22.xlsx")
+
+
+  
+
+```
+
+
+
+
+Get list of pilot counties
+```{r}
+countylist <- pull(join_df %>% select(county) %>% distinct() %>% mutate(county = str_c(county, ' County')))
+
+# countylist <- c('Alameda County', 'Los Angeles County', 'Sacramento County', 'San Joaquin County', 'San Mateo County', 'Sonoma County', 'Tulare County', 'Ventura County')
+```
+
+Get county breakdowns
+```{r}
+county_snowpercs <- full_df %>%
+  mutate(county = str_c(county, " County")) %>%
+  filter(county %in% countylist) %>%
+  mutate(race_standard = if_else(race %in% c("Black", "White", "Hispanic"), race_standard, "Other")) %>%
+  mutate(days_to_release = as.numeric(release_date - booking_date)) %>%
+  mutate(detained_after2days_flag = if_else(is.na(days_to_release) | days_to_release >2, 1, 0),
+         undisposed_after2days_flag = if_else(is.na(pretrial_period_end_date)| as.numeric(pretrial_period_end_date-booking_date) >2, 1, 0)) %>%
+  group_by(race_standard, county) %>%
+  summarise(tot_booked = n(),
+            #tot_release_elig = sum(release_eligible_count),
+            tot_filed = sum(1-unmatched_booking_count),
+            tot_filed_detained_after2days = sum(detained_after2days_flag*(1-unmatched_booking_count))) %>%
+  group_by(county) %>%
+  mutate(perc_booked = round(100*tot_booked/sum(tot_booked),1),
+         #perc_release_elig = round(100*tot_release_elig/sum(tot_release_elig),1),
+         perc_filed = round(100*tot_filed/sum(tot_filed), 1),
+         perc_filed_detained_after2days = round(100*tot_filed_detained_after2days/sum(tot_filed_detained_after2days),1)) %>%
+  select(-contains("tot")) %>%
+  pivot_wider(names_from = county, values_from = c(perc_booked, perc_filed, perc_filed_detained_after2days)) %>%
+  slice(1, 4, 2, 3)
+
+
+county_snowpercs
+
+```
+There are unmatched bookings even for people detained after several days (can increasee days, does not change ratio much)
+```{r}
+full_df %>%
+  mutate(county = str_c(county, " County")) %>%
+  filter(county %in% countylist) %>%
+  mutate(race_standard = if_else(race %in% c("Black", "White", "Hispanic"), race_standard, "Other")) %>%
+  mutate(days_to_release = as.numeric(release_date - booking_date)) %>%
+  mutate(detained_after2days_flag = if_else(is.na(days_to_release) | days_to_release >2, 1, 0),
+         undisposed_after2days_flag = if_else(is.na(pretrial_period_end_date)| as.numeric(pretrial_period_end_date-booking_date) >2, 1, 0)) %>%
+  filter(undisposed_after2days_flag == 1,
+         detained_after2days_flag == 1) %>%
+  count(is_unmatched_booking)
+```
+
+Create spreadsheets for each county with population and arrest breakdowns
+```{r}
+
+out <- createWorkbook()
+
+county_tabs <- lapply(countylist,
+       function(x){
+         percs <- county_snowpercs %>%
+           select(race_standard, contains(x)) %>%
+           mutate(county = x)
+         names(percs) <- c("Race", "Booked", "Filed", "Filed Detained >2 days", "County")
+         pop <- county_populations %>%
+           select(race, matches(x)) %>%
+           mutate(county = x)
+         names(pop) <- c("Race", "Population", "County")
+         arr <- county_arrests %>%
+           select(race, matches(x)) %>%
+           mutate(county = x)
+         names(arr) <- c("Race", "Arrests", "County")
+         
+         join<- pop %>%
+           left_join(arr) %>%
+           select(County, Race, Population, Arrests) %>%
+           left_join(percs)
+         addWorksheet(out, x)
+         writeData(out, sheet = x, x = join)
+       }
+)
+out
+saveWorkbook(out, "county demographics with filings.xlsx")
+
+
+```
+# Separate arrest and booking breakdowns by misdo/felony
+Arrests by race and arrest charge level
+```{r}
+# doj <- fread("G:/CrimJustice/PretrialAssessmentPilot/California Population and Arrest Data/OnlineArrestData1980-2021.csv")
+doj <- fread("C:/PretrialPilot/Pretrial-Pilot-County-Analysis/California Population and Arrest Data/OnlineArrestData1980-2021.csv")
+
+
+names(doj) <- tolower(names(doj))
+
+doj <- doj %>%
+  filter(year == 2021,
+         age_group != "Under 18")
+
+
+county_arrests_Misdo <- doj %>%
+  filter(county %in% countylist) %>%
+  group_by(county, race) %>%
+  summarise(tot_misdo = sum(m_total)) %>%
+  group_by(county) %>%
+  mutate(percent_misdo = round(100*tot_misdo/sum(tot_misdo),1)) %>%
+  select(-contains("tot")) %>%
+  pivot_wider(names_from = county, values_from = percent_misdo) %>%
+  slice(1, 4, 2, 3)
+  
+
+county_arrests_Fel <- doj %>%
+  filter(county %in% countylist) %>%
+  group_by(county, race) %>%
+  summarise(tot_felony = sum(f_total)) %>%
+  group_by(county) %>%
+  mutate(percent_felony = round(100*tot_felony/sum(tot_felony),1)) %>%
+  select(-contains("tot")) %>%
+  pivot_wider(names_from = county, values_from = percent_felony) %>%
+  slice(1, 4, 2, 3)
+  
+
+#fwrite(county_arrests, "county arrest breakdowns by race and arrest charge level for 2021.csv")
+```
+Get county breakdowns by misdo/felony
+```{r}
+county_snowpercs_Misdo <- full_df %>%
+  mutate(county = str_c(county, " County")) %>%
+  filter(county %in% countylist) %>%
+  mutate(race_standard = if_else(race %in% c("Black", "White", "Hispanic"), race_standard, "Other"),
+         booking_charge_level = case_when(booking_charge_level %in% c("F", "Felony") ~ "Felony",
+                                          booking_charge_level %in% c("M", "Misdemeanor") ~ "Misdemeanor",
+                                          T ~ "Other")) %>%
+  filter(booking_charge_level %in% c("Misdemeanor"))  %>%
+  mutate(days_to_release = as.numeric(release_date - booking_date)) %>%
+  mutate(detained_after2days_flag = if_else(is.na(days_to_release) | days_to_release >2, 1, 0),
+         undisposed_after2days_flag = if_else(is.na(pretrial_period_end_date)| as.numeric(pretrial_period_end_date-booking_date) >2, 1, 0)) %>%
+  group_by(race_standard, county) %>%
+  summarise(tot_booked = n(),
+            #tot_release_elig = sum(release_eligible_count),
+            tot_filed = sum(1-unmatched_booking_count),
+            tot_filed_detained_after2days = sum(detained_after2days_flag*(1-unmatched_booking_count))) %>%
+  group_by(county) %>%
+  mutate(perc_booked = round(100*tot_booked/sum(tot_booked),1),
+         #perc_release_elig = round(100*tot_release_elig/sum(tot_release_elig),1),
+         perc_filed = round(100*tot_filed/sum(tot_filed), 1),
+         perc_filed_detained_after2days = round(100*tot_filed_detained_after2days/sum(tot_filed_detained_after2days),1)) %>%
+  select(-contains("tot")) %>%
+  pivot_wider(names_from = county, values_from = c(perc_booked, perc_filed, perc_filed_detained_after2days)) %>%
+  slice(1, 4, 2, 3)
+
+
+
+county_snowpercs_Fel <- full_df %>%
+  mutate(county = str_c(county, " County")) %>%
+  filter(county %in% countylist) %>%
+  mutate(race_standard = if_else(race %in% c("Black", "White", "Hispanic"), race_standard, "Other"),
+         booking_charge_level = case_when(booking_charge_level %in% c("F", "Felony") ~ "Felony",
+                                          booking_charge_level %in% c("M", "Misdemeanor") ~ "Misdemeanor",
+                                          T ~ "Other")) %>%
+  filter(booking_charge_level %in% c("Felony"))  %>%
+  mutate(days_to_release = as.numeric(release_date - booking_date)) %>%
+  mutate(detained_after2days_flag = if_else(is.na(days_to_release) | days_to_release >2, 1, 0),
+         undisposed_after2days_flag = if_else(is.na(pretrial_period_end_date)| as.numeric(pretrial_period_end_date-booking_date) >2, 1, 0)) %>%
+  group_by(race_standard, county) %>%
+  summarise(tot_booked = n(),
+            #tot_release_elig = sum(release_eligible_count),
+            tot_filed = sum(1-unmatched_booking_count),
+            tot_filed_detained_after2days = sum(detained_after2days_flag*(1-unmatched_booking_count))) %>%
+  group_by(county) %>%
+  mutate(perc_booked = round(100*tot_booked/sum(tot_booked),1),
+         #perc_release_elig = round(100*tot_release_elig/sum(tot_release_elig),1),
+         perc_filed = round(100*tot_filed/sum(tot_filed), 1),
+         perc_filed_detained_after2days = round(100*tot_filed_detained_after2days/sum(tot_filed_detained_after2days),1)) %>%
+  select(-contains("tot")) %>%
+  pivot_wider(names_from = county, values_from = c(perc_booked, perc_filed, perc_filed_detained_after2days)) %>%
+  slice(1, 4, 2, 3)
+
+
+county_snowpercs_Misdo
+county_snowpercs_Fel
+
+```
+Create spreadsheets for each county with population and arrest breakdowns by misdo/fel
+```{r}
+
+out <- createWorkbook()
+
+county_tabs <- lapply(countylist,
+       function(x){
+         percs <- county_snowpercs_Misdo %>%
+           select(race_standard, contains(x)) %>%
+           mutate(county = x)
+         names(percs) <- c("Race", "Booked", "Filed", "Filed Detained >2 days", "County")
+         pop <- county_populations %>%
+           select(race, matches(x)) %>%
+           mutate(county = x)
+         names(pop) <- c("Race", "Population", "County")
+         arr <- county_arrests_Misdo %>%
+           select(race, matches(x)) %>%
+           mutate(county = x)
+         names(arr) <- c("Race", "Arrests", "County")
+         
+         join<- pop %>%
+           left_join(arr) %>%
+           select(County, Race, Population, Arrests) %>%
+           left_join(percs)
+         addWorksheet(out, str_c(x, " - Misdo"))
+         writeData(out, sheet = str_c(x, " - Misdo"), x = join)
+         
+         percs <- county_snowpercs_Fel %>%
+           select(race_standard, contains(x)) %>%
+           mutate(county = x)
+         names(percs) <- c("Race", "Booked", "Filed", "Filed Detained >2 days", "County")
+
+         arr <- county_arrests_Fel %>%
+           select(race, matches(x)) %>%
+           mutate(county = x)
+         names(arr) <- c("Race", "Arrests", "County")
+         
+         join<- pop %>%
+           left_join(arr) %>%
+           select(County, Race, Population, Arrests) %>%
+           left_join(percs)
+         addWorksheet(out, str_c(x, " - Fel"))
+         writeData(out, sheet = str_c(x, " - Fel"), x = join)
+       }
+)
+out
+saveWorkbook(out, "county demographics with filings by charge level.xlsx")
+
+
+```
+
+# Collapsed across counties -- Separate arrest and booking breakdowns by misdo/felony
+```{r}
+# dof <- read.xlsx("G:/CrimJustice/PretrialAssessmentPilot/California Population and Arrest Data/P3_California-and-Counties.xlsx", sheet = "California Population (County)")
+dof <- read.xlsx("C:/PretrialPilot/Pretrial-Pilot-County-Analysis/California Population and Arrest Data/P3_California-and-Counties.xlsx", sheet = "California Population (County)")
+
+dof <- dof %>%
+  select(County, Sex,'Race/ethnicity', 'Age.(0-110+)', '2021')
+
+names(dof) <- c("county", "sex", "race", "age", "count_2021")
+
+dof <- dof %>%
+  filter(age >=18)
+
+collapsed_populations <- dof %>%
+  filter(county %in% countylist) %>%
+  mutate(race = if_else(toupper(race) %in% c("BLACK NH", "WHITE NH", "HISPANIC"), word(race, 1), "Other")) %>%
+  group_by(race) %>%
+  summarize(pop = sum(count_2021)) %>%
+  mutate(percent = round(100*pop/sum(pop),1),
+         pop_tot = sum(pop)) %>%
+  select(-pop, -pop_tot) %>%
+  select('Race' = race, 'Population' = percent) %>%
+  slice(1, 4, 2, 3)
+
+```
+
+Arrests by race and arrest charge level
+```{r}
+# doj <- fread("G:/CrimJustice/PretrialAssessmentPilot/California Population and Arrest Data/OnlineArrestData1980-2021.csv")
+doj <- fread("C:/PretrialPilot/Pretrial-Pilot-County-Analysis/California Population and Arrest Data/OnlineArrestData1980-2021.csv")
+
+
+names(doj) <- tolower(names(doj))
+
+doj <- doj %>%
+  filter(year == 2021,
+         age_group != "Under 18")
+
+
+collapsed_arrests_Misdo <- doj %>%
+  filter(county %in% countylist) %>%
+  group_by(race) %>%
+  summarise(tot_misdo = sum(m_total)) %>%
+  mutate(percent_misdo = round(100*tot_misdo/sum(tot_misdo),1)) %>%
+  select(-contains("tot")) %>%
+  select('Race' = race, 'Arrests' = percent_misdo) %>%
+  slice(1, 4, 2, 3)
+  
+
+collapsed_arrests_Fel <- doj %>%
+  filter(county %in% countylist) %>%
+  group_by(race) %>%
+  summarise(tot_felony = sum(f_total)) %>%
+  mutate(percent_felony = round(100*tot_felony/sum(tot_felony),1)) %>%
+  select(-contains("tot")) %>%
+  select('Race' = race, 'Arrests' = percent_felony) %>%
+  slice(1, 4, 2, 3)
+  
+
+```
+Get collpased breakdowns by misdo/felony
+```{r}
+collapsed_snowpercs_Misdo <- full_df %>%
+  mutate(county = str_c(county, " County")) %>%
+  filter(county %in% countylist) %>%
+  mutate(race_standard = if_else(race %in% c("Black", "White", "Hispanic"), race_standard, "Other"),
+         booking_charge_level = case_when(booking_charge_level %in% c("F", "Felony") ~ "Felony",
+                                          booking_charge_level %in% c("M", "Misdemeanor") ~ "Misdemeanor",
+                                          T ~ "Other")) %>%
+  filter(booking_charge_level %in% c("Misdemeanor"))  %>%
+  mutate(days_to_release = as.numeric(release_date - booking_date)) %>%
+  mutate(detained_after2days_flag = if_else(is.na(days_to_release) | days_to_release >2, 1, 0),
+         undisposed_after2days_flag = if_else(is.na(pretrial_period_end_date)| as.numeric(pretrial_period_end_date-booking_date) >2, 1, 0)) %>%
+  group_by(race_standard) %>%
+  summarise(tot_booked = n(),
+            #tot_release_elig = sum(release_eligible_count),
+            tot_filed = sum(1-unmatched_booking_count),
+            tot_filed_detained_after2days = sum(detained_after2days_flag*(1-unmatched_booking_count))) %>%
+  mutate(perc_booked = round(100*tot_booked/sum(tot_booked),1),
+         #perc_release_elig = round(100*tot_release_elig/sum(tot_release_elig),1),
+         perc_filed = round(100*tot_filed/sum(tot_filed), 1),
+         perc_filed_detained_after2days = round(100*tot_filed_detained_after2days/sum(tot_filed_detained_after2days),1)) %>%
+  select(-contains("tot")) %>%
+  select('Race' = race_standard, 'Booked' = perc_booked, 'Filed' = perc_filed, 'Filed Detained >2 days' = perc_filed_detained_after2days) %>%
+  slice(1, 4, 2, 3)
+
+
+
+collapsed_snowpercs_Fel <- full_df %>%
+  mutate(county = str_c(county, " County")) %>%
+  filter(county %in% countylist) %>%
+  mutate(race_standard = if_else(race %in% c("Black", "White", "Hispanic"), race_standard, "Other"),
+         booking_charge_level = case_when(booking_charge_level %in% c("F", "Felony") ~ "Felony",
+                                          booking_charge_level %in% c("M", "Misdemeanor") ~ "Misdemeanor",
+                                          T ~ "Other")) %>%
+  filter(booking_charge_level %in% c("Felony"))  %>%
+  mutate(days_to_release = as.numeric(release_date - booking_date)) %>%
+  mutate(detained_after2days_flag = if_else(is.na(days_to_release) | days_to_release >2, 1, 0),
+         undisposed_after2days_flag = if_else(is.na(pretrial_period_end_date)| as.numeric(pretrial_period_end_date-booking_date) >2, 1, 0)) %>%
+  group_by(race_standard) %>%
+  summarise(tot_booked = n(),
+            #tot_release_elig = sum(release_eligible_count),
+            tot_filed = sum(1-unmatched_booking_count),
+            tot_filed_detained_after2days = sum(detained_after2days_flag*(1-unmatched_booking_count))) %>%
+  mutate(perc_booked = round(100*tot_booked/sum(tot_booked),1),
+         #perc_release_elig = round(100*tot_release_elig/sum(tot_release_elig),1),
+         perc_filed = round(100*tot_filed/sum(tot_filed), 1),
+         perc_filed_detained_after2days = round(100*tot_filed_detained_after2days/sum(tot_filed_detained_after2days),1)) %>%
+  select(-contains("tot")) %>%
+  select('Race' = race_standard, 'Booked' = perc_booked, 'Filed' = perc_filed, 'Filed Detained >2 days' = perc_filed_detained_after2days) %>%
+  slice(1, 4, 2, 3)
+
+
+collapsed_snowpercs_Misdo
+collapsed_snowpercs_Fel
+
+```
+Create spreadsheet collapsed across counties with population and arrest breakdowns by misdo/fel
+```{r}
+
+out <- createWorkbook()
+
+collapsed_misdo <- collapsed_populations %>%
+  left_join(collapsed_arrests_Misdo) %>%
+  left_join(collapsed_snowpercs_Misdo)
+  
+addWorksheet(out, "Misdemeanors")
+writeData(out, sheet = "Misdemeanors", x = collapsed_misdo)
+
+collapsed_fel <- collapsed_populations %>%
+  left_join(collapsed_arrests_Fel) %>%
+  left_join(collapsed_snowpercs_Fel)
+  
+addWorksheet(out, "Felonies")
+writeData(out, sheet = "Felonies", x = collapsed_fel)
+
+
+out
+saveWorkbook(out, "collapsed demographics with filings by charge level all pilots.xlsx")
+
+
+```
+Breakdown of misdo/felony in bookings by race
+```{r}
+full_df %>%
+  mutate(county = str_c(county, " County")) %>%
+  filter(county %in% countylist) %>%
+  mutate(race_standard = if_else(race %in% c("Black", "White", "Hispanic"), race_standard, "Other"),
+         booking_charge_level = case_when(booking_charge_level %in% c("F", "Felony") ~ "Felony",
+                                          booking_charge_level %in% c("M", "Misdemeanor") ~ "Misdemeanor",
+                                          T ~ "Other")) %>%
+  filter(booking_charge_level %in% c("Misdemeanor", "Felony"))  %>%
+  mutate(misdo_flag = if_else(booking_charge_level == "Misdemeanor", 1, 0),
+         fel_flag = if_else(booking_charge_level == "Felony", 1, 0)) %>%
+  group_by(race_standard) %>%
+  summarise(misd_perc = sum(misdo_flag)/n(), fel_perc = sum(fel_flag)/n())
+```
+Breakdown of misdo/felony in arrests by race
+```{r}
+doj %>%
+  filter(county %in% countylist) %>%
+  group_by(race) %>%
+  summarise(perc_misdo = sum(m_total)/(sum(m_total) + sum(f_total)),
+            perc_fel = sum(f_total)/(sum(m_total) + sum(f_total)))
+```
+
+
+# Rates of release and types of release
+Pretrial release rates of filings by race and booking charge level
+```{r}
+county_releases <- full_df %>%
+  mutate(county = str_c(county, " County")) %>%
+  filter(county %in% countylist) %>%
+  filter(release_eligible_count ==1) %>%
+  filter(is_unmatched_booking == "No") %>%
+  mutate(race_standard = if_else(race %in% c("Black", "White", "Hispanic"), race_standard, "Other"),
+         booking_charge_level = case_when(booking_charge_level %in% c("F", "Felony") ~ "Felony",
+                                          booking_charge_level %in% c("M", "Misdemeanor") ~ "Misdemeanor",
+                                          T ~ "Other")) %>%
+  filter(booking_charge_level %in% c("Misdemeanor", "Felony")) %>%
+  group_by(county, race_standard, booking_charge_level) %>%
+  summarise(pretrial_release_rate = round(100*sum(released_pretrial_count)/n(),1)) %>%
+  pivot_wider(names_from = race_standard, values_from = pretrial_release_rate) %>%
+  select(County = county, 'Charge Level' = booking_charge_level, Black, White, Hispanic, Other)
+```
+Create spreadsheets for each county with pretrial release rates
+```{r}
+
+out <- createWorkbook()
+
+county_tabs <- lapply(countylist,
+       function(x){
+         percs <- county_releases %>%
+           filter(County == x) %>%
+           slice(2,1)
+
+         addWorksheet(out, x)
+         writeData(out, sheet = x, x = percs)
+       }
+)
+out
+saveWorkbook(out, "county pretrial release rates of filings.xlsx")
+
+
+```
+
+Collapsed pretrial release rate
+```{r}
+pret <- full_df %>%
+  mutate(county = str_c(county, " County")) %>%
+  filter(county %in% countylist) %>%
+  filter(release_eligible_count ==1) %>%
+  filter(is_unmatched_booking == "No") %>%
+  mutate(race_standard = if_else(race %in% c("Black", "White", "Hispanic"), race_standard, "Other"),
+         booking_charge_level = case_when(booking_charge_level %in% c("F", "Felony") ~ "Felony",
+                                          booking_charge_level %in% c("M", "Misdemeanor") ~ "Misdemeanor",
+                                          T ~ "Other")) %>%
+  filter(booking_charge_level %in% c("Misdemeanor", "Felony")) %>%
+  group_by(race_standard, booking_charge_level) %>%
+  summarise(pretrial_release_rate = round(100*sum(released_pretrial_count)/n(),1)) %>%
+  pivot_wider(names_from = race_standard, values_from = pretrial_release_rate) %>%
+  select('Booking Charge Level' = booking_charge_level, Black, White, Hispanic, Other) 
+
+write.xlsx(pret, "Pretrial Release Rates all pilots.xlsx")
+
+full_df %>%
+  mutate(county = str_c(county, " County")) %>%
+  filter(county %in% countylist) %>%
+  filter(release_eligible_count ==1) %>%
+  filter(is_unmatched_booking == "No") %>%
+  mutate(race_standard = if_else(race %in% c("Black", "White", "Hispanic"), race_standard, "Other"),
+         booking_charge_level = case_when(booking_charge_level %in% c("F", "Felony") ~ "Felony",
+                                          booking_charge_level %in% c("M", "Misdemeanor") ~ "Misdemeanor",
+                                          T ~ "Other")) %>%
+  filter(booking_charge_level %in% c("Misdemeanor", "Felony")) %>%
+  group_by(booking_charge_level) %>%
+  summarise(pretrial_release_rate = round(100*sum(released_pretrial_count)/n(),1)) 
+```
+
+COUNTY - Types of release for pretrial release of filings by race and booking charge level
+```{r}
+county_reltypes <- full_df %>%
+  mutate(county = str_c(county, " County")) %>%
+  filter(county %in% countylist) %>%
+  filter(release_eligible_count ==1) %>%
+  filter(is_unmatched_booking == "No") %>%
+  filter(released_pretrial_count == 1) %>%
+  mutate(race_standard = if_else(race %in% c("Black", "White", "Hispanic"), race_standard, "Other"),
+         booking_charge_level = case_when(booking_charge_level %in% c("F", "Felony") ~ "Felony",
+                                          booking_charge_level %in% c("M", "Misdemeanor") ~ "Misdemeanor",
+                                          T ~ "Other")) %>%
+  filter(booking_charge_level %in% c("Misdemeanor", "Felony")) %>%
+  mutate(release_type = case_when(release_type %in% c("CiteR elease") ~ "Cite Release",
+                                  release_type %in% c("Court Order", "Hold Release", "Unspec Cap", "Unknown", "Administrative",
+                                                      "NULL", "Undefined", "Unsent Cap", "Fed", "Time Served", "Prison", "Dismissed",
+                                                      "Detain Only") ~ "Other",
+                                  T ~ release_type)) %>%
+  group_by(county, race_standard, booking_charge_level) %>%
+  count(release_type) %>%
+  mutate(percent = round(100*n/sum(n),1)) %>%
+  select(-n) %>%
+  pivot_wider(names_from = race_standard, values_from = percent) %>%
+  select(County = county, 'Charge Level' = booking_charge_level, 'Release Type' = release_type, Black, White, Hispanic, Other)
+
+
+```
+
+Create spreadsheets for each county with pretrial release types
+```{r}
+
+out <- createWorkbook()
+
+county_tabs <- lapply(countylist,
+       function(x){
+         mpercs <- county_reltypes %>%
+           filter(County == x) %>%
+           filter(`Charge Level` == "Misdemeanor")
+
+         addWorksheet(out, str_c(x, " - Misd"))
+         writeData(out, sheet = str_c(x, " - Misd"), x = mpercs)
+         
+         fpercs <- county_reltypes %>%
+           filter(County == x) %>%
+           filter(`Charge Level` == "Felony")
+
+         addWorksheet(out, str_c(x, " - Fel"))
+         writeData(out, sheet = str_c(x, " - Fel"), x = fpercs)
+       }
+)
+out
+saveWorkbook(out, "county pretrial release types of filings.xlsx")
+
+```
+
+
+COLLAPSED - Types of release for pretrial release of filings by race and booking charge level collapsed across counties
+```{r}
+collapsed_reltypes <- full_df %>%
+  mutate(county = str_c(county, " County")) %>%
+  filter(county %in% countylist) %>%
+  #filter(booking_date < as.Date("2020-03-01")) %>%
+  filter(release_eligible_count ==1) %>%
+  filter(is_unmatched_booking == "No") %>%
+  filter(released_pretrial_count == 1) %>%
+  mutate(race_standard = if_else(race %in% c("Black", "White", "Hispanic"), race_standard, "Other"),
+         booking_charge_level = case_when(booking_charge_level %in% c("F", "Felony") ~ "Felony",
+                                          booking_charge_level %in% c("M", "Misdemeanor") ~ "Misdemeanor",
+                                          T ~ "Other")) %>%
+  filter(booking_charge_level %in% c("Misdemeanor", "Felony")) %>%
+  mutate(release_type = case_when(release_type %in% c("CiteR elease", "Zero Bail") ~ "Cite Release",
+                                  release_type %in% c("Pretrial Monitor") ~ "Own Recognizance",
+                                  release_type %in% c("Court Order", "Hold Release", "Unspec Cap", "Unknown", "Administrative",
+                                                      "NULL", "Undefined", "Unsent Cap", "Fed", "Time Served", "Prison", "Dismissed",
+                                                      "Detain Only") ~ "Other",
+                                  T ~ release_type)) %>%
+  group_by(race_standard, booking_charge_level) %>%
+  count(release_type) %>%
+  mutate(percent = round(100*n/sum(n),1)) %>%
+  select(-n) %>%
+  pivot_wider(names_from = race_standard, values_from = percent) %>%
+  mutate(release_type = ordered(release_type, levels = c("Cite Release", "Bail Bond", "Own Recognizance", "Other"))) %>%
+  arrange(booking_charge_level, release_type) %>%
+  select('Charge Level' = booking_charge_level, 'Release Type' = release_type, Black, White, Hispanic, Other)
+
+collapsed_reltypes
+
+full_df %>%
+  filter(booking_date < as.Date("2020-03-01"))
+```
+Graph release types
+```{r}
+rel_for_graphs <- full_df %>%
+  mutate(county = str_c(county, " County")) %>%
+  #filter(county %in% countylist) %>%
+  #filter(booking_date < as.Date("2020-03-01")) %>%
+  filter(release_eligible_count ==1) %>%
+  filter(is_unmatched_booking == "No") %>%
+  filter(released_pretrial_count == 1) %>%
+  mutate(race_standard = if_else(race %in% c("Black", "White", "Hispanic"), race_standard, "Other"),
+         booking_charge_level = case_when(booking_charge_level %in% c("F", "Felony") ~ "Felony",
+                                          booking_charge_level %in% c("M", "Misdemeanor") ~ "Misdemeanor",
+                                          T ~ "Other")) %>%
+  filter(booking_charge_level %in% c("Misdemeanor", "Felony")) %>%
+  mutate(release_type = case_when(release_type %in% c("CiteR elease", "Zero Bail", "Cite Release") ~ "Cite Release/Zero Bail",
+                                  release_type %in% c("Bail Bond") ~ "Bail Bond",
+                                  release_type %in% c("Pretrial Monitor", "Own Recognizance") ~ "Own Recognizance/Monitor",
+                                  release_type %in% c("Court Order", "Hold Release", "Unspec Cap", "Unknown", "Administrative",
+                                                      "NULL", "Undefined", "Unsent Cap", "Fed", "Time Served", "Prison", "Dismissed",
+                                                      "Detain Only", "NA") ~ "Other",
+                                  T ~ "Other")) %>%
+  group_by(race_standard, booking_charge_level) %>%
+  count(release_type) %>%
+  mutate(percent = round(100*n/sum(n),1)) %>%
+  select(-n) %>%
+  mutate(release_type = ordered(release_type, levels = c("Other", "Own Recognizance/Monitor", "Bail Bond", "Cite Release/Zero Bail"))) %>%
+  mutate(race_standard = ordered(race_standard, levels = c("Black", "White", "Hispanic", "Other"))) %>%
+  mutate(booking_charge_level = ordered(booking_charge_level, levels = c("Misdemeanor", "Felony")))
+
+
+rel_for_graphs %>%
+  ggplot(aes(x = race_standard, y = percent, fill = release_type)) +
+    geom_bar(position = "stack", stat = "identity") +
+  #scale_fill_brewer(palette = "Set3") +
+  scale_fill_wsj() +
+  #scale_fill_tableau("Tableau 10")+
+  facet_grid(cols = vars(booking_charge_level)) +
+  labs(x = "Race", y = "Percent of Pretrial Releases", fill = "Release Type") +
+  geom_text(
+                aes(label = percent),
+                colour = "white", size = 3,
+                position = position_stack(vjust = 0.5)
+                 )
+
+
+full_df %>%
+  count(release_type)
+```
+
+Make spreadsheet for collapsed release types
+```{r}
+out <- createWorkbook()
+
+mpercs <- collapsed_reltypes %>%
+           filter(`Charge Level` == "Misdemeanor")
+
+addWorksheet(out, "Misdemeanor")
+writeData(out, sheet =  "Misdemeanor", x = mpercs)
+         
+fpercs <- collapsed_reltypes %>%
+           filter(`Charge Level` == "Felony")
+
+addWorksheet(out, "Felony")
+writeData(out, sheet = "Felony", x = fpercs)
+
+out
+saveWorkbook(out, "collapsed pretrial release types of filings.xlsx")
+
+```
+# Booking trends
+
+Collapsed bookings by month - Misdo v Fel
+```{r}
+full_df %>%
+  mutate(county = str_c(county, " County")) %>%
+  filter(county %in% countylist) %>%
+  filter(booking_date > "2018-07-01") %>%
+  mutate(race_standard = if_else(race %in% c("Black", "White", "Hispanic"), race_standard, "Other"),
+         booking_charge_level = case_when(booking_charge_level %in% c("F", "Felony") ~ "Felony",
+                                          booking_charge_level %in% c("M", "Misdemeanor") ~ "Misdemeanor",
+                                          T ~ "Other")) %>%
+  filter(booking_charge_level %in% c("Misdemeanor", "Felony")) %>%
+  mutate(book_month = month(booking_date), book_year = year(booking_date)) %>%
+  group_by(book_month, book_year, booking_charge_level) %>%
+  count() %>%
+  arrange(booking_charge_level, book_year, book_month) %>%
+  mutate(booking_my = as.Date(str_c(book_year, "-", book_month, "-", "01"), orders = ymd)) %>%
+  
+  ggplot(aes(x = booking_my, y = n, color = booking_charge_level)) +
+  geom_line()
+
+
+```
+Collapsed bookings by month - Misdo v Fel, all pilot counties
+```{r}
+full_df %>%
+  mutate(county = str_c(county, " County")) %>%
+  #filter(county %in% countylist) %>%
+  filter(booking_date > "2018-07-01") %>%
+  mutate(race_standard = if_else(race %in% c("Black", "White", "Hispanic"), race_standard, "Other"),
+         booking_charge_level = case_when(booking_charge_level %in% c("F", "Felony") ~ "Felony",
+                                          booking_charge_level %in% c("M", "Misdemeanor") ~ "Misdemeanor",
+                                          T ~ "Other")) %>%
+  filter(booking_charge_level %in% c("Misdemeanor", "Felony")) %>%
+  mutate(book_month = month(booking_date), book_year = year(booking_date)) %>%
+  group_by(book_month, book_year, booking_charge_level) %>%
+  count() %>%
+  arrange(booking_charge_level, book_year, book_month) %>%
+  mutate(booking_my = as.Date(str_c(book_year, "-", book_month, "-", "01"), orders = ymd)) %>%
+  
+  ggplot(aes(x = booking_my, y = n, color = booking_charge_level)) +
+    geom_line() +
+    labs(x = "Booking Date", y = "Total Bookings", color = "Booking Charge Level") +
+  annotate(geom = "vline",
+             x = c(as.Date("2020-03-01")),
+             xintercept = c(as.Date("2020-03-01")),
+             linetype = c("dashed")) +
+  annotate(geom = "text",
+             label = c("COVID"),
+             x = c(as.Date("2020-03-01")),
+             y = c(22500),
+             angle = 90, 
+             vjust = 1) 
+
+
+```
+
+Collapsed bookings by month and charge level by race
+```{r}
+full_df %>%
+  mutate(county = str_c(county, " County")) %>%
+  filter(county %in% countylist) %>%
+  filter(booking_date > "2018-07-01") %>%
+  mutate(race_standard = if_else(race %in% c("Black", "White", "Hispanic"), race_standard, "Other"),
+         booking_charge_level = case_when(booking_charge_level %in% c("F", "Felony") ~ "Felony",
+                                          booking_charge_level %in% c("M", "Misdemeanor") ~ "Misdemeanor",
+                                          T ~ "Other")) %>%
+  filter(booking_charge_level %in% c("Misdemeanor", "Felony")) %>%
+  mutate(book_month = month(booking_date), book_year = year(booking_date)) %>%
+  group_by(book_month, book_year, booking_charge_level, race_standard) %>%
+  count() %>%
+  arrange(booking_charge_level, book_year, book_month) %>%
+  mutate(booking_my = as.Date(str_c(book_year, "-", book_month, "-", "01"), orders = ymd)) %>%
+  ggplot(aes(x = booking_my, y = n, color = race_standard)) +
+  geom_line() +
+  facet_wrap("booking_charge_level") +
+  labs(x = "Booking Date", y = "Total Bookings", color = "Race")
+
+
+```
+Collapsed bookings by month and charge level by race BY COUNTY
+```{r}
+test <- full_df %>%
+  mutate(county = str_c(county, " County")) %>%
+  filter(county %in% countylist) %>%
+  filter(booking_date > "2018-07-01") %>%
+  mutate(race_standard = if_else(race %in% c("Black", "White", "Hispanic"), race_standard, "Other"),
+         booking_charge_level = case_when(booking_charge_level %in% c("F", "Felony") ~ "Felony",
+                                          booking_charge_level %in% c("M", "Misdemeanor") ~ "Misdemeanor",
+                                          T ~ "Other")) %>%
+  filter(booking_charge_level %in% c("Misdemeanor", "Felony")) %>%
+  mutate(book_month = month(booking_date), book_year = year(booking_date)) %>%
+  group_by(book_month, book_year, booking_charge_level, race_standard, county) %>%
+  count() %>%
+  arrange(booking_charge_level, book_year, book_month) %>%
+  mutate(booking_my = as.Date(str_c(book_year, "-", book_month, "-", "01"), orders = ymd))
+
+
+lapply(countylist,
+       function(z){
+test %>%
+           filter(county == z) %>%
+  ggplot(aes(x = booking_my, y = n, color = race_standard)) +
+  geom_line() +
+  facet_wrap("booking_charge_level") +
+  labs(x = "Booking Date", y = "Total Bookings", color = "Race", title = z)
+       })
+
+
+```
+Collapsed bookings by month and charge level by race percent
+```{r}
+full_df %>%
+  mutate(county = str_c(county, " County")) %>%
+  filter(county %in% countylist) %>%
+  filter(booking_date > "2018-07-01") %>%
+  mutate(race_standard = if_else(race %in% c("Black", "White", "Hispanic"), race_standard, "Other"),
+         booking_charge_level = case_when(booking_charge_level %in% c("F", "Felony") ~ "Felony",
+                                          booking_charge_level %in% c("M", "Misdemeanor") ~ "Misdemeanor",
+                                          T ~ "Other")) %>%
+  filter(booking_charge_level %in% c("Misdemeanor", "Felony")) %>%
+  mutate(book_month = month(booking_date), book_year = year(booking_date)) %>%
+  group_by(book_month, book_year, booking_charge_level, race_standard) %>%
+  count() %>%
+  arrange(booking_charge_level, book_year, book_month) %>%
+  mutate(booking_my = as.Date(str_c(book_year, "-", book_month, "-", "01"), orders = ymd)) %>%
+  ggplot(aes(x = booking_my, y = n, fill = race_standard)) +
+  geom_bar(position = "fill", stat = "identity") +
+  facet_wrap("booking_charge_level") +
+  labs(x = "Booking Date", y = "Share of Bookings", fill = "Race")
+
+
+```
+Collapsed bookings by month and charge level by race percent
+```{r}
+full_df %>%
+  mutate(county = str_c(county, " County")) %>%
+  filter(county %in% countylist) %>%
+  filter(booking_date > "2018-07-01") %>%
+  mutate(race_standard = if_else(race %in% c("Black", "White", "Hispanic"), race_standard, "Other"),
+         booking_charge_level = case_when(booking_charge_level %in% c("F", "Felony") ~ "Felony",
+                                          booking_charge_level %in% c("M", "Misdemeanor") ~ "Misdemeanor",
+                                          T ~ "Other")) %>%
+  filter(booking_charge_level %in% c("Misdemeanor", "Felony")) %>%
+  mutate(book_month = month(booking_date), book_year = year(booking_date)) %>%
+  group_by(book_month, book_year, booking_charge_level, race_standard) %>%
+  count() %>%
+  group_by(book_month, book_year, booking_charge_level) %>%
+  mutate(perc = n/sum(n)) %>%
+  arrange(booking_charge_level, book_year, book_month) %>%
+  mutate(booking_my = as.Date(str_c(book_year, "-", book_month, "-", "01"), orders = ymd)) %>%
+  ggplot(aes(x = booking_my, y = perc, color = race_standard)) +
+  geom_line() +
+  facet_wrap("booking_charge_level") +
+  labs(x = "Booking Date", y = "Share of Bookings", color = "Race") +
+  annotate(geom = "vline",
+             x = c(as.Date("2020-03-01")),
+             xintercept = c(as.Date("2020-03-01")),
+             linetype = c("dashed")) +
+    annotate(geom = "text",
+             label = c("COVID"),
+             x = c(as.Date("2020-03-01")),
+             y = c(0.5),
+             angle = 90, 
+             vjust = 1)
+
+
+```
+
+```{r}
+test <- full_df %>%
+  mutate(county = str_c(county, " County")) %>%
+  filter(county %in% countylist) %>%
+  filter(booking_date > "2018-07-01") %>%
+  mutate(race_standard = if_else(race %in% c("Black", "White", "Hispanic"), race_standard, "Other"),
+         booking_charge_level = case_when(booking_charge_level %in% c("F", "Felony") ~ "Felony",
+                                          booking_charge_level %in% c("M", "Misdemeanor") ~ "Misdemeanor",
+                                          T ~ "Other")) %>%
+  filter(booking_charge_level %in% c("Misdemeanor", "Felony")) %>%
+  mutate(book_month = month(booking_date), book_year = year(booking_date)) %>%
+  group_by(book_month, book_year, booking_charge_level, race_standard) %>%
+  count() %>%
+  group_by(book_month, book_year, booking_charge_level) %>%
+  mutate(perc = n/sum(n)) %>%
+  arrange(booking_charge_level, book_year, book_month) %>%
+  mutate(booking_my = as.Date(str_c(book_year, "-", book_month, "-", "01"), orders = ymd))
+
+test %>%
+  ungroup() %>%
+  ggplot(aes(x = booking_my, y = perc, color = race_standard)) +
+  geom_line() +
+  facet_wrap("booking_charge_level") +
+  labs(x = "Booking Date", y = "Share of Bookings", color = "Race") +
+  annotate(geom = "vline",
+             x = c(as.Date("2020-03-01")),
+             xintercept = c(as.Date("2020-03-01")),
+             linetype = c("dashed")) +
+  annotate(geom = "vline",
+             x = c(as.Date("2021-03-01")),
+             xintercept = c(as.Date("2021-03-01")),
+             linetype = c("dashed")) +
+  annotate(geom = "text",
+             label = c("COVID"),
+             x = c(as.Date("2020-03-01")),
+             y = c(0.35),
+             angle = 90, 
+             vjust = 1) +
+    annotate(geom = "text",
+             label = c("Humphrey"),
+             x = c(as.Date("2021-03-01")),
+             y = c(0.35),
+             angle = 90, 
+             vjust = 1)
+
+```
+by county
+```{r}
+test2 <- full_df %>%
+  mutate(county = str_c(county, " County")) %>%
+  filter(county %in% countylist) %>%
+  filter(booking_date > "2018-07-01") %>%
+  mutate(race_standard = if_else(race %in% c("Black", "White", "Hispanic"), race_standard, "Other"),
+         booking_charge_level = case_when(booking_charge_level %in% c("F", "Felony") ~ "Felony",
+                                          booking_charge_level %in% c("M", "Misdemeanor") ~ "Misdemeanor",
+                                          T ~ "Other")) %>%
+  filter(booking_charge_level %in% c("Misdemeanor", "Felony")) %>%
+  mutate(book_month = month(booking_date), book_year = year(booking_date)) %>%
+  group_by(book_month, book_year, booking_charge_level, race_standard, county) %>%
+  count() %>%
+  group_by(book_month, book_year, booking_charge_level, county) %>%
+  mutate(perc = n/sum(n)) %>%
+  arrange(booking_charge_level, book_year, book_month) %>%
+  mutate(booking_my = as.Date(str_c(book_year, "-", book_month, "-", "01"), orders = ymd))
+
+
+lapply(countylist,
+       function(z){
+test2 %>%
+           ungroup() %>%
+           filter(county == z) %>%
+  ggplot(aes(x = booking_my, y = perc, color = race_standard)) +
+  geom_line() +
+  facet_grid(rows = vars(county), cols = vars(booking_charge_level)) +
+  labs(x = "Booking Date", y = "Share of Bookings", color = "Race", title = z) 
+
+       })
+
+```
+Types of release for pretrial release of bookings by race and booking charge level BY COUNTY
+```{r}
+test <- join_df %>%
+  mutate(county = str_c(county, " County")) %>%
+  filter(county %in% countylist) %>%
+  filter(booking_date > "2018-07-01") %>%
+  filter(booking_date < "2022-01-01") %>%
+  filter(release_eligible_count ==1) %>%
+  filter(released_pretrial_count == 1) %>%
+  mutate(race_standard = if_else(race %in% c("Black", "White", "Hispanic"), race_standard, "Other"),
+         booking_charge_level = case_when(booking_charge_level %in% c("F", "Felony") ~ "Felony",
+                                          booking_charge_level %in% c("M", "Misdemeanor") ~ "Misdemeanor",
+                                          T ~ "Other")) %>%
+  filter(booking_charge_level %in% c("Misdemeanor", "Felony")) %>%
+  mutate(release_type = case_when(release_type %in% c("CiteR elease") ~ "Cite Release",
+                                  release_type %in% c("Pretrial Monitor") ~ "Own Recognizance",
+                                  release_type %in% c("Court Order", "Hold Release", "Unspec Cap", "Unknown", "Administrative",
+                                                      "NULL", "Undefined", "Unsent Cap", "Fed", "Time Served", "Prison", "Dismissed",
+                                                      "Detain Only") ~ "Other",
+                                  T ~ release_type)) %>%
+  mutate(book_month = month(booking_date), book_year = year(booking_date)) %>%
+  group_by(book_month, book_year, booking_charge_level, county) %>%
+  count(release_type) %>%
+  mutate(percent = round(100*n/sum(n),1))  %>%
+  ungroup()%>%
+  mutate(booking_my = as.Date(str_c(book_year, "-", book_month, "-", "01"), orders = ymd))
+
+lapply(countylist,
+       function(z){
+         test %>%
+           filter(county == z) %>%
+           ggplot(aes(x = booking_my, y = percent, color = release_type)) +
+           geom_line() +
+           facet_grid(cols = vars(booking_charge_level)) +
+           labs(x = "Booking Date", y = "Percent", color = "Release Type", title = z) 
+           
+       })
+
+
+```
+
+Collapsed pretrial release rate by month BY COUNTY
+```{r}
+test <- join_df %>%
+  mutate(county = str_c(county, " County")) %>%
+  filter(county %in% countylist) %>%
+  filter(booking_date > "2018-07-01") %>%
+  filter(booking_date < "2022-01-01") %>%
+  mutate(race_standard = if_else(race %in% c("Black", "White", "Hispanic"), race_standard, "Other"),
+         booking_charge_level = case_when(booking_charge_level %in% c("F", "Felony") ~ "Felony",
+                                          booking_charge_level %in% c("M", "Misdemeanor") ~ "Misdemeanor",
+                                          T ~ "Other")) %>%
+  filter(booking_charge_level %in% c("Misdemeanor", "Felony")) %>%
+  mutate(book_month = month(booking_date), book_year = year(booking_date)) %>%
+  group_by(book_month, book_year, booking_charge_level, county) %>%
+  summarise(pretrial_release_rate = round(100*sum(released_pretrial_count)/n(),1)) %>%
+  arrange(booking_charge_level, book_year, book_month) %>%
+  mutate(booking_my = as.Date(str_c(book_year, "-", book_month, "-", "01"), orders = ymd))
+  
+
+lapply(countylist,
+       function(z){
+         test %>%
+           filter(county == z) %>%
+           ggplot(aes(x = booking_my, y = pretrial_release_rate, color = booking_charge_level)) +
+           geom_line() +
+           labs(x = "Booking Date", y = "Pretrial Release Rate", color = "Booking Charge Level", title = z) 
+           
+       })
+```
+Pretrial release rate of filings by race BY COUNTY
+```{r}
+test <- join_df %>%
+  mutate(county = str_c(county, " County")) %>%
+  filter(county %in% countylist) %>%
+  filter(booking_date > "2018-07-01") %>%
+  filter(booking_date < "2022-01-01") %>%
+  filter(is_release_eligible == "Yes") %>%
+  filter(is_unmatched_booking == "No") %>%
+  mutate(race_standard = if_else(race %in% c("Black", "White", "Hispanic"), race_standard, "Other"),
+         booking_charge_level = case_when(booking_charge_level %in% c("F", "Felony") ~ "Felony",
+                                          booking_charge_level %in% c("M", "Misdemeanor") ~ "Misdemeanor",
+                                          T ~ "Other")) %>%
+  filter(booking_charge_level %in% c("Misdemeanor", "Felony")) %>%
+  group_by(race_standard, booking_charge_level, county) %>%
+  summarise(pretrial_release_rate = round(100*sum(released_pretrial_count)/n(),1)) 
+  
+
+lapply(countylist,
+       function(z){
+         test %>%
+           filter(county == z) %>%
+           ggplot(aes(x = booking_charge_level, y = pretrial_release_rate, fill = race_standard)) +
+           geom_bar(stat = "identity", position = "dodge") +
+           labs(x = "Booking Charge Level", y = "Pretrial Release Rate", fill = "Race", title = z) +
+           geom_text(
+                aes(label = pretrial_release_rate),
+                colour = "white", size = 3,
+                vjust = 1.5, position = position_dodge(.9)
+                 )
+           
+       })
+```
+
+Bookings and pretrial releases by month and charge level by race BY COUNTY
+```{r}
+test <- join_df %>%
+  mutate(county = str_c(county, " County")) %>%
+  filter(county %in% countylist) %>%
+  filter(booking_date > "2018-07-01") %>%
+  filter(booking_date < "2022-01-01") %>%
+  mutate(race_standard = if_else(race %in% c("Black", "White", "Hispanic"), race_standard, "Other"),
+         booking_charge_level = case_when(booking_charge_level %in% c("F", "Felony") ~ "Felony",
+                                          booking_charge_level %in% c("M", "Misdemeanor") ~ "Misdemeanor",
+                                          T ~ "Other")) %>%
+  filter(booking_charge_level %in% c("Misdemeanor", "Felony")) %>%
+  mutate(book_month = month(booking_date), book_year = year(booking_date)) %>%
+  group_by(book_month, book_year, booking_charge_level, county) %>%
+  summarise(tot_bookings = n(), 
+            tot_pretrial_releases = sum(released_pretrial_count),
+            tot_release_eligible = sum(release_eligible_count),
+            tot_matched_elig_bookings = (n() - sum(unmatched_booking_count*release_eligible_count))) %>%
+  pivot_longer(cols = c(tot_bookings, tot_pretrial_releases, tot_release_eligible, tot_matched_elig_bookings), names_to = "count_of") %>%
+  mutate(booking_my = as.Date(str_c(book_year, "-", book_month, "-", "01"), orders = ymd))
+
+
+lapply(countylist,
+       function(z){
+test %>%
+           filter(county == z) %>%
+           #filter(count_of != "tot_release_eligible") %>%
+  ggplot(aes(x = booking_my, y = value, color = count_of)) +
+  geom_line() +
+  facet_wrap("booking_charge_level") +
+  labs(x = "Booking Date", y = "Total", color = "Count", title = z)
+       })
+
+
+```
+# Exploratory
+
+
+Look at Tulare's pretrial releases
+```{r}
+tu_df <- join_df %>%
+  filter(county == "Tulare")
+
+
+tu_df %>%
+  summarise(min_bk = min(booking_date),
+            max_bk = max(booking_date))
+tu_df %>%
+  filter(is_unmatched_booking == "No") %>%
+  filter(is_released_pretrial == "No") %>%
+  filter(!is.na(release_date)) %>%
+  select(booking_date, release_date, pretrial_period_end_date)
+
+
+
+
+test <- tu_df %>%
+  mutate(race_standard = if_else(race %in% c("Black", "White", "Hispanic"), race_standard, "Other"),
+         booking_charge_level = case_when(booking_charge_level %in% c("F", "Felony") ~ "Felony",
+                                          booking_charge_level %in% c("M", "Misdemeanor") ~ "Misdemeanor",
+                                          T ~ "Other")) %>%
+  filter(booking_charge_level %in% c("Misdemeanor", "Felony")) %>%
+  mutate(book_month = month(booking_date), book_year = year(booking_date)) %>%
+  group_by(book_month, book_year, booking_charge_level, county) %>%
+  summarise(tot_bookings = n(), 
+            tot_pretrial_releases = sum(released_pretrial_count),
+            tot_release_eligible = sum(release_eligible_count),
+            tot_matched_elig_bookings = (n() - sum(unmatched_booking_count*release_eligible_count))) %>%
+  mutate(booking_date = as.Date(str_c(book_year, "-", book_month, "-", "01"), orders = ymd)) %>%
+  ungroup() %>%
+  select(county, booking_date, booking_charge_level, tot_bookings, tot_release_eligible, tot_matched_elig_bookings, tot_pretrial_releases) %>%
+  arrange(booking_date, booking_charge_level)
+
+
+write.csv(test, "numbers for Tulare.csv")
+```
+Look at most common offenses by county
+```{r}
+top_off <- join_df %>%
+  mutate(booking_charge_level = case_when(booking_charge_level %in% c("F", "Felony") ~ "F",
+                                          booking_charge_level %in% c("M", "Misdemeanor") ~ "M",
+                                          T ~ "Other")) %>%
+  filter(booking_charge_level %in% c("F", "M")) %>%
+  mutate(booking_charge = toupper(gsub("-|\\+|\\(|\\)|\\.| |PC|VC|HS", "", booking_charge))) %>%
+  count(booking_charge_level, booking_charge_code, booking_charge, county) %>%
+  arrange(desc(n))
+
+
+top_off %>%
+  filter(str_c(county, " County") %in% countylist) %>%
+  pivot_wider(names_from = county, values_from = n) 
+
+```
+
+Look at bookings by race for most common offenses by county
+```{r}
+
+out <- createWorkbook()
+
+lapply(countylist,
+       function(z){
+         tab <- join_df %>%
+           filter(str_c(county, " County") == z) %>%
+           mutate(booking_charge_level = case_when(booking_charge_level %in% c("F", "Felony") ~ "F",
+                                          booking_charge_level %in% c("M", "Misdemeanor") ~ "M",
+                                          T ~ "Other")) %>%
+           filter(booking_charge_level %in% c("F", "M")) %>%
+           mutate(booking_charge = toupper(gsub("-|\\+|\\(|\\)|\\.| |PC|VC|HS", "", booking_charge))) %>%
+           filter(booking_charge %in% pull(top_off %>% 
+                                         filter(str_c(county, " County") == z) %>%
+                                         arrange(desc(n)) %>%
+                                         slice(1:10) %>%
+                                         select(booking_charge))) %>%
+           group_by(race) %>%
+           count(county, booking_charge_level, booking_charge_code, booking_charge) %>%
+           group_by(county, booking_charge_level, booking_charge_code, booking_charge) %>%
+           mutate(tot = sum(n),
+                  percent = round(100*n/sum(n),1)) %>%
+           select(-n) %>%
+           pivot_wider(names_from = race, values_from = percent) %>%
+           ungroup() %>%
+           arrange(desc(tot)) %>%
+           slice(1:10)
+         
+         addWorksheet(out, z)
+         writeData(out, sheet = z, x = tab)
+         
+       })
+
+
+saveWorkbook(out, "most common offenses by race and county.xlsx")
+
+```
+
+Look at release rates by race for most common offenses by county
+```{r}
+out <- createWorkbook()
+
+lapply(countylist,
+       function(z){
+         tab <- join_df %>%
+           filter(str_c(county, " County") == z) %>%
+           filter(booking_date > "2018-07-01") %>%
+           filter(booking_date < "2022-01-01") %>%
+           filter(release_eligible_count == 1) %>%
+           filter(unmatched_booking_count == 0) %>%
+           mutate(booking_charge_level = case_when(booking_charge_level %in% c("F", "Felony") ~ "F",
+                                          booking_charge_level %in% c("M", "Misdemeanor") ~ "M",
+                                          T ~ "Other")) %>%
+           filter(booking_charge_level %in% c("F", "M")) %>%
+           mutate(booking_charge = toupper(gsub("-|\\+|\\(|\\)|\\.| |PC|VC|HS", "", booking_charge))) %>%
+           filter(booking_charge %in% pull(top_off %>% 
+                                         filter(str_c(county, " County") == z) %>%
+                                         arrange(desc(n)) %>%
+                                         slice(1:10) %>%
+                                         select(booking_charge))) %>%
+           group_by(county, booking_charge_level, booking_charge_code, booking_charge) %>%
+           mutate(tot = n()) %>%
+           group_by(race, tot, county, booking_charge_level, booking_charge_code, booking_charge) %>%
+           summarise(perc_pretrial_release = round(100*sum(released_pretrial_count)/n(),1)) %>%
+           pivot_wider(names_from = race, values_from = perc_pretrial_release) %>%
+           ungroup() %>%
+           arrange(desc(tot)) %>%
+           slice(1:10)
+         
+         addWorksheet(out, z)
+         writeData(out, sheet = z, x = tab)
+         
+       })
+
+
+saveWorkbook(out, "pretrial release rates for most common offenses by race and county.xlsx")
+```
+
+
+Look at rearrest rates by race for most common offenses by county
+```{r}
+out <- createWorkbook()
+
+lapply(countylist,
+       function(z){
+         tab <- join_df %>%
+           filter(str_c(county, " County") == z) %>%
+           filter(booking_date > "2018-07-01") %>%
+           filter(booking_date < "2022-01-01") %>%
+           filter(release_eligible_count == 1) %>%
+           filter(unmatched_booking_count == 0) %>%
+           filter(released_pretrial_count == 1) %>%
+           filter(pretrial_period_end_count == 1) %>%
+           mutate(booking_charge_level = case_when(booking_charge_level %in% c("F", "Felony") ~ "F",
+                                          booking_charge_level %in% c("M", "Misdemeanor") ~ "M",
+                                          T ~ "Other")) %>%
+           filter(booking_charge_level %in% c("F", "M")) %>%
+           mutate(booking_charge = toupper(gsub("-|\\+|\\(|\\)|\\.| |PC|VC|HS", "", booking_charge))) %>%
+           filter(booking_charge %in% pull(top_off %>% 
+                                         filter(str_c(county, " County") == z) %>%
+                                         arrange(desc(n)) %>%
+                                         slice(1:10) %>%
+                                         select(booking_charge))) %>%
+           group_by(county, booking_charge_level, booking_charge_code, booking_charge) %>%
+           mutate(tot = n()) %>%
+           group_by(race, tot, county, booking_charge_level, booking_charge_code, booking_charge) %>%
+           summarise(percent = round(100*sum(recid_county_or_doj)/n(),1)) %>%
+           pivot_wider(names_from = race, values_from = percent) %>%
+           ungroup() %>%
+           arrange(desc(tot)) %>%
+           slice(1:10)
+         
+         addWorksheet(out, z)
+         writeData(out, sheet = z, x = tab)
+         
+       })
+
+
+saveWorkbook(out, "rearrest rates for most common offenses by race and county.xlsx")
+```
+
+Collapsed pretrial release rate by month
+```{r}
+full_df %>%
+  mutate(county = str_c(county, " County")) %>%
+  filter(county %in% countylist) %>%
+  filter(release_eligible_count ==1) %>%
+  filter(is_unmatched_booking == "No") %>%
+  mutate(race_standard = if_else(race %in% c("Black", "White", "Hispanic"), race_standard, "Other"),
+         booking_charge_level = case_when(booking_charge_level %in% c("F", "Felony") ~ "Felony",
+                                          booking_charge_level %in% c("M", "Misdemeanor") ~ "Misdemeanor",
+                                          T ~ "Other")) %>%
+  filter(booking_charge_level %in% c("Misdemeanor", "Felony")) %>%
+  mutate(book_month = month(booking_date), book_year = year(booking_date)) %>%
+  group_by(book_month, book_year, booking_charge_level) %>%
+  summarise(pretrial_release_rate = round(100*sum(released_pretrial_count)/n(),1)) %>%
+  arrange(booking_charge_level, book_year, book_month) %>%
+  mutate(booking_my = as.Date(str_c(book_year, "-", book_month, "-", "01"), orders = ymd)) %>%
+  
+  ggplot(aes(x = booking_my, y = pretrial_release_rate, color = booking_charge_level)) +
+  geom_line()
+
+month(test)
+parse_date_time(test, orders = ymd)
+parse_date_time(month(test), year(test), orders = my)
+
+as.Date(str_c(year(test), "-", month(test), "-", "01"), orders = ymd)
+```
+```{r}
+join_df %>%
+  filter(county == "Sacramento") %>%
+  filter(released_pretrial_count == 1) %>%
+  filter(booking_charge_level == "F") %>%
+  filter(release_type == "Cite Release") %>%
+  count(booking_type, booking_charge_code, booking_charge_level, booking_charge) %>%
+  arrange(desc(n))
+```
+```{r}
+join_df %>%
+  filter(county == "Los Angeles") %>%
+  filter(is_release_eligible == "Yes") %>%
+  filter(is_unmatched_booking == "No") %>%
+  filter(!is.na(psa_nca_risk_score)) %>%
+  mutate(or_flag = if_else(release_type == "Own Recognizance", 1, 0),
+         cite_flag = if_else(release_type == "Cite Release", 1, 0),
+         bail_flag = if_else(release_type == "Bail Bond", 1, 0)) %>%
+  mutate(race_standard = if_else(race %in% c("Black", "White", "Hispanic"), race_standard, "Other"),
+         booking_charge_level = case_when(booking_charge_level %in% c("F", "Felony") ~ "Felony",
+                                          booking_charge_level %in% c("M", "Misdemeanor") ~ "Misdemeanor",
+                                          T ~ "Other")) %>%
+  filter(race_standard %in% c("Black", "White", "Hispanic")) %>%
+  group_by(psa_nca_risk_score, race_standard) %>%
+  summarise(OR = round(100*sum(released_pretrial_count*or_flag)/n(),1),
+            Cite = round(100*sum(released_pretrial_count*cite_flag)/n(),1),
+            Bail = round(100*sum(released_pretrial_count*bail_flag)/n(),1)) %>%
+  pivot_longer(cols = c(OR, Cite, Bail), names_to = "release_type") %>%
+  ggplot(aes(x = psa_nca_risk_score, y = value, fill = race_standard)) +
+  geom_bar(stat = "identity", position = "dodge")+
+  facet_grid(rows = vars(release_type)) +
+           labs(x = "PSA NCA Score", y = "Pretrial Release Rate", fill = "Race", title = "Los Angeles - Pretrial Release by NCA Score") +
+           geom_text(
+                aes(label = value),
+                colour = "white", size = 3,
+                vjust = 1.5, position = position_dodge(.9)
+                 )
+```
+Pretrial release rates by race, release type, risk score, and county
+```{r}
+test <- join_df %>%
+  mutate(county = str_c(county, " County")) %>%
+  filter(county %in% countylist) %>%
+  filter(booking_date > "2018-07-01") %>%
+  filter(booking_date < "2022-01-01") %>%
+  mutate(risk_score_comb = if_else(tool_name == "PSA", psa_nca_risk_score, risk_score_raw)) %>%
+  filter(is_release_eligible == "Yes") %>%
+  filter(is_unmatched_booking == "No") %>%
+  filter(!is.na(risk_score_comb)) %>%
+  mutate(or_flag = if_else(release_type == "Own Recognizance", 1, 0),
+         cite_flag = if_else(release_type == "Cite Release", 1, 0),
+         bail_flag = if_else(release_type == "Bail Bond", 1, 0)) %>%
+  mutate(race_standard = if_else(race %in% c("Black", "White", "Hispanic"), race_standard, "Other"),
+         booking_charge_level = case_when(booking_charge_level %in% c("F", "Felony") ~ "Felony",
+                                          booking_charge_level %in% c("M", "Misdemeanor") ~ "Misdemeanor",
+                                          T ~ "Other")) %>%
+  filter(booking_charge_level %in% c("Felony", "Misdemeanor")) %>%
+  group_by(county, risk_score_comb, race_standard, booking_charge_level) %>%
+  summarise(OR = round(100*sum(released_pretrial_count*or_flag)/n(),1),
+            Cite = round(100*sum(released_pretrial_count*cite_flag)/n(),1),
+            Bail = round(100*sum(released_pretrial_count*bail_flag)/n(),1)) %>%
+  pivot_longer(cols = c(OR, Cite, Bail), names_to = "release_type")
+
+
+
+lapply(countylist,
+       function(z){
+  test %>%
+      filter(county == z) %>%
+      filter(race_standard %in% c("Black", "White", "Hispanic")) %>%
+      ggplot(aes(x = risk_score_comb, y = value, fill = race_standard)) +
+        geom_bar(stat = "identity", position = "dodge")+
+        facet_grid(rows = vars(release_type), cols = vars(booking_charge_level)) +
+        labs(x = "Risk Score", y = "Pretrial Release Rate", fill = "Release Type", title = str_c(z, " - Pretrial Release by Risk Score")) +
+        geom_text(
+            aes(label = value),
+            colour = "white", size = 3,
+            vjust = 1.5, position = position_dodge(.9)
+             )
+       })
+
+```
+
+Pretrial rearrest rates by race, release type, risk score, and county for OR releases
+```{r}
+test2 <- join_df %>%
+  mutate(county = str_c(county, " County")) %>%
+  filter(county %in% countylist) %>%
+  filter(booking_date > "2018-07-01") %>%
+  filter(booking_date < "2022-01-01") %>%
+  mutate(risk_score_comb = if_else(tool_name == "PSA", psa_nca_risk_score, risk_score_raw)) %>%
+  filter(is_release_eligible == "Yes") %>%
+  filter(is_unmatched_booking == "No") %>%
+  filter(is_released_pretrial == "Yes") %>%
+  filter(has_pretrial_period_end == "Yes") %>%
+  filter(release_type == "Own Recognizance") %>%
+  filter(!is.na(risk_score_comb)) %>%
+  mutate(race_standard = if_else(race %in% c("Black", "White", "Hispanic"), race_standard, "Other"),
+         booking_charge_level = case_when(booking_charge_level %in% c("F", "Felony") ~ "Felony",
+                                          booking_charge_level %in% c("M", "Misdemeanor") ~ "Misdemeanor",
+                                          T ~ "Other")) %>%
+  filter(booking_charge_level %in% c("Felony", "Misdemeanor")) %>%
+  group_by(county, risk_score_comb, race_standard, booking_charge_level) %>%
+  summarise(rearrest_perc = round(100*sum(recid_county_or_doj)/n(),1))
+
+
+
+lapply(countylist,
+       function(z){
+  test2 %>%
+      filter(county == z) %>%
+      filter(race_standard %in% c("Black", "White", "Hispanic")) %>%
+      ggplot(aes(x = risk_score_comb, y = rearrest_perc)) +
+        geom_bar(stat = "identity", position = "dodge")+
+        facet_grid(rows = vars(booking_charge_level), cols = vars(race_standard)) +
+        labs(x = "Risk Score", y = "Pretrial Rearrest Rate", fill = "Race", title = str_c(z, " - Pretrial Rearrest by Risk Score for OR releases")) +
+        geom_text(
+            aes(label = rearrest_perc),
+            colour = "white", size = 3,
+            vjust = 1.5, position = position_dodge(.9)
+             )
+       })
+
+```
+Pretrial rearrest rates by race, release type, risk score, and county for CITE releases
+```{r}
+test3 <- join_df %>%
+  mutate(county = str_c(county, " County")) %>%
+  filter(county %in% countylist) %>%
+  filter(booking_date > "2018-07-01") %>%
+  filter(booking_date < "2022-01-01") %>%
+  mutate(risk_score_comb = if_else(tool_name == "PSA", psa_nca_risk_score, risk_score_raw)) %>%
+  filter(is_release_eligible == "Yes") %>%
+  filter(is_unmatched_booking == "No") %>%
+  filter(is_released_pretrial == "Yes") %>%
+  filter(has_pretrial_period_end == "Yes") %>%
+  filter(release_type == "Cite Release") %>%
+  filter(!is.na(risk_score_comb)) %>%
+  mutate(race_standard = if_else(race %in% c("Black", "White", "Hispanic"), race_standard, "Other"),
+         booking_charge_level = case_when(booking_charge_level %in% c("F", "Felony") ~ "Felony",
+                                          booking_charge_level %in% c("M", "Misdemeanor") ~ "Misdemeanor",
+                                          T ~ "Other")) %>%
+  filter(booking_charge_level %in% c("Felony", "Misdemeanor")) %>%
+  group_by(county, risk_score_comb, race_standard, booking_charge_level) %>%
+  summarise(rearrest_perc = round(100*sum(recid_county_or_doj)/n(),1))
+
+
+
+lapply(countylist,
+       function(z){
+  test3 %>%
+      filter(county == z) %>%
+      filter(race_standard %in% c("Black", "White", "Hispanic")) %>%
+      ggplot(aes(x = risk_score_comb, y = rearrest_perc)) +
+        geom_bar(stat = "identity", position = "dodge")+
+        facet_grid(rows = vars(booking_charge_level), cols = vars(race_standard)) +
+        labs(x = "Risk Score", y = "Pretrial Rearrest Rate", fill = "Race", title = str_c(z, " - Pretrial Rearrest by Risk Score for Cite and Release")) +
+        geom_text(
+            aes(label = rearrest_perc),
+            colour = "white", size = 3,
+            vjust = 1.5, position = position_dodge(.9)
+             )
+       })
+
+```
+
+Pretrial rearrest rates by race, release type, risk score, and county for BAIL releases
+```{r}
+test4 <- join_df %>%
+  mutate(county = str_c(county, " County")) %>%
+  filter(county %in% countylist) %>%
+  filter(booking_date > "2018-07-01") %>%
+  filter(booking_date < "2022-01-01") %>%
+  mutate(risk_score_comb = if_else(tool_name == "PSA", psa_nca_risk_score, risk_score_raw)) %>%
+  filter(is_release_eligible == "Yes") %>%
+  filter(is_unmatched_booking == "No") %>%
+  filter(is_released_pretrial == "Yes") %>%
+  filter(has_pretrial_period_end == "Yes") %>%
+  filter(release_type == "Bail Bond") %>%
+  filter(!is.na(risk_score_comb)) %>%
+  mutate(race_standard = if_else(race %in% c("Black", "White", "Hispanic"), race_standard, "Other"),
+         booking_charge_level = case_when(booking_charge_level %in% c("F", "Felony") ~ "Felony",
+                                          booking_charge_level %in% c("M", "Misdemeanor") ~ "Misdemeanor",
+                                          T ~ "Other")) %>%
+  filter(booking_charge_level %in% c("Felony", "Misdemeanor")) %>%
+  group_by(county, risk_score_comb, race_standard, booking_charge_level) %>%
+  summarise(rearrest_perc = round(100*sum(recid_county_or_doj)/n(),1))
+
+
+
+lapply(countylist,
+       function(z){
+  test4 %>%
+      filter(county == z) %>%
+      filter(race_standard %in% c("Black", "White", "Hispanic")) %>%
+      ggplot(aes(x = risk_score_comb, y = rearrest_perc)) +
+        geom_bar(stat = "identity", position = "dodge")+
+        facet_grid(rows = vars(booking_charge_level), cols = vars(race_standard)) +
+        labs(x = "Risk Score", y = "Pretrial Rearrest Rate", fill = "Race", title = str_c(z, " - Pretrial Rearrest by Risk Score for bail releases")) +
+        geom_text(
+            aes(label = rearrest_perc),
+            colour = "white", size = 3,
+            vjust = 1.5, position = position_dodge(.9)
+             )
+       })
+
+```
+
+Pretrial rearrest rates by race, release type, risk score, and county for OR releases
+```{r}
+test5 <- join_df %>%
+  mutate(county = str_c(county, " County")) %>%
+  filter(county %in% countylist) %>%
+  filter(booking_date > "2018-07-01") %>%
+  filter(booking_date < "2022-01-01") %>%
+  mutate(risk_score_comb = if_else(tool_name == "PSA", psa_nca_risk_score, risk_score_raw)) %>%
+  filter(is_release_eligible == "Yes") %>%
+  filter(is_unmatched_booking == "No") %>%
+  filter(is_released_pretrial == "Yes") %>%
+  filter(has_pretrial_period_end == "Yes") %>%
+  filter(release_type %in% c("Own Recognizance", "Cite Release", "Bail Bond")) %>%
+  filter(!is.na(risk_score_comb)) %>%
+  mutate(race_standard = if_else(race %in% c("Black", "White", "Hispanic"), race_standard, "Other"),
+         booking_charge_level = case_when(booking_charge_level %in% c("F", "Felony") ~ "Felony",
+                                          booking_charge_level %in% c("M", "Misdemeanor") ~ "Misdemeanor",
+                                          T ~ "Other")) %>%
+  filter(booking_charge_level %in% c("Felony", "Misdemeanor")) %>%
+  group_by(county, risk_score_comb, release_type, booking_charge_level) %>%
+  summarise(rearrest_perc = round(100*sum(recid_county_or_doj)/n(),1))
+
+
+
+lapply(countylist,
+       function(z){
+  test5 %>%
+      filter(county == z) %>%
+      ggplot(aes(x = risk_score_comb, y = rearrest_perc, fill = release_type)) +
+        geom_bar(stat = "identity", position = "dodge")+
+        facet_grid(rows = vars(booking_charge_level)) +
+        labs(x = "Risk Score", y = "Pretrial Rearrest Rate", fill = "Release Type", title = str_c(z, " - Pretrial Rearrest by Risk Score and Release Type")) +
+        geom_text(
+            aes(label = rearrest_perc),
+            colour = "white", size = 3,
+            vjust = 1.5, position = position_dodge(.9)
+             )
+       })
+
+```
+
+
+
+Share pre vs post arraignment released by race
+```{r}
+full_df %>%
+  mutate(county = str_c(county, " County")) %>%
+  filter(county %in% countylist) %>%
+  filter(release_eligible_count ==1) %>%
+  filter(is_unmatched_booking == "No") %>%
+  filter(released_pretrial_count == 1) %>%
+  filter(!is.na(arraignment_date)) %>%
+  mutate(race_standard = if_else(race %in% c("Black", "White", "Hispanic"), race_standard, "Other"),
+         booking_charge_level = case_when(booking_charge_level %in% c("F", "Felony") ~ "Felony",
+                                          booking_charge_level %in% c("M", "Misdemeanor") ~ "Misdemeanor",
+                                          T ~ "Other")) %>%
+  filter(booking_charge_level %in% c("Misdemeanor", "Felony")) %>%
+  mutate(pre_arr = case_when(release_date < arraignment_date ~ "Before arraignment date",
+                             T ~ "On or after arraignment date")) %>%
+  group_by(race_standard, booking_charge_level) %>%
+  summarise(perc_pre_arr = round(100*sum(if_else(pre_arr == "Before arraignment date", 1, 0))/n(),1),
+            perc_post_arr = round(100*sum(if_else(pre_arr == "On or after arraignment date", 1, 0))/n(),1)) %>%
+  mutate(race_standard = ordered(race_standard, levels = c("Black", "White", "Hispanic", "Other"))) %>%
+  arrange(booking_charge_level, race_standard) %>%
+  select('Race' = race_standard, 'Charge Level' = booking_charge_level, 'Pre arraignment' = perc_pre_arr, 'On or after arraignment' = perc_post_arr)
+```
+Avg time to pretrial release by race
+```{r}
+full_df %>%
+  mutate(county = str_c(county, " County")) %>%
+  filter(county %in% countylist) %>%
+  filter(release_eligible_count ==1) %>%
+  filter(is_unmatched_booking == "No") %>%
+  filter(released_pretrial_count == 1) %>%
+  filter(!is.na(arraignment_date)) %>%
+  mutate(race_standard = if_else(race %in% c("Black", "White", "Hispanic"), race_standard, "Other"),
+         booking_charge_level = case_when(booking_charge_level %in% c("F", "Felony") ~ "Felony",
+                                          booking_charge_level %in% c("M", "Misdemeanor") ~ "Misdemeanor",
+                                          T ~ "Other")) %>%
+  filter(booking_charge_level %in% c("Misdemeanor", "Felony")) %>%
+  mutate(days_to_release = as.numeric(release_date - booking_date)) %>%
+  group_by(race_standard, booking_charge_level) %>%
+  summarise(mean_days = mean(days_to_release),
+            med_days = median(days_to_release),
+            sd_days = sd(days_to_release)) %>%
+  mutate(race_standard = ordered(race_standard, levels = c("Black", "White", "Hispanic", "Other"))) %>%
+  arrange(booking_charge_level, race_standard) %>%
+  select('Race' = race_standard, 'Charge Level' = booking_charge_level, 'Mean days' = mean_days, 'Median days' = med_days, 'SD days' = sd_days)
+
+
+```
+Avg time to arraignment by race
+```{r}
+full_df %>%
+  mutate(county = str_c(county, " County")) %>%
+  filter(county %in% countylist) %>%
+  filter(release_eligible_count ==1) %>%
+  filter(is_unmatched_booking == "No") %>%
+  filter(!is.na(arraignment_date)) %>%
+  mutate(race_standard = if_else(race %in% c("Black", "White", "Hispanic"), race_standard, "Other"),
+         booking_charge_level = case_when(booking_charge_level %in% c("F", "Felony") ~ "Felony",
+                                          booking_charge_level %in% c("M", "Misdemeanor") ~ "Misdemeanor",
+                                          T ~ "Other")) %>%
+  filter(booking_charge_level %in% c("Misdemeanor", "Felony")) %>%
+  mutate(days_to_arr = as.numeric(arraignment_date - booking_date)) %>%
+  group_by(race_standard, booking_charge_level) %>%
+  summarise(mean_days = mean(days_to_arr),
+            med_days = median(days_to_arr),
+            sd_days = sd(days_to_arr)) %>%
+  mutate(race_standard = ordered(race_standard, levels = c("Black", "White", "Hispanic", "Other"))) %>%
+  arrange(booking_charge_level, race_standard) %>%
+  select('Race' = race_standard, 'Charge Level' = booking_charge_level, 'Mean days' = mean_days, 'Median days' = med_days, 'SD days' = sd_days)
+
+
+```
+
+Diagnostic
+```{r}
+full_df %>%
+  mutate(county = str_c(county, " County")) %>%
+  filter(county %in% countylist) %>%
+  filter(release_eligible_count ==1) %>%
+  filter(is_unmatched_booking == "No") %>%
+  filter(released_pretrial_count == 1) %>%
+  mutate(race_standard = if_else(race %in% c("Black", "White", "Hispanic"), race_standard, "Other"),
+         booking_charge_level = case_when(booking_charge_level %in% c("F", "Felony") ~ "Felony",
+                                          booking_charge_level %in% c("M", "Misdemeanor") ~ "Misdemeanor",
+                                          T ~ "Other")) %>%
+  mutate(release_type = case_when(release_type %in% c("CiteR elease", "Zero Bail") ~ "Cite Release",
+                                  release_type %in% c("Pretrial Monitor") ~ "Own Recognizance",
+                                  release_type %in% c("Court Order", "Hold Release", "Unspec Cap", "Unknown", "Administrative",
+                                                      "NULL", "Undefined", "Unsent Cap", "Fed", "Time Served", "Prison", "Dismissed",
+                                                      "Detain Only") ~ "Other",
+                                  T ~ release_type)) %>%
+  filter(booking_charge_level %in% c("Misdemeanor", "Felony")) %>%
+  mutate(pre_arr = case_when(is.na(arraignment_date) ~ "Unknown",
+                             release_date < arraignment_date ~ "Before arraignment date",
+                             T ~ "On or after arraignment date")) %>%
+  count(county, pre_arr) %>%
+  group_by(county) %>%
+  mutate(percent = round(100*n/sum(n),1)) %>%
+  select(-n) %>%
+  pivot_wider(names_from = county, values_from = percent)
+
+
+#Look at timing re pre/post arraignment
+full_df %>%
+  mutate(county = str_c(county, " County")) %>%
+  filter(county %in% countylist) %>%
+  filter(release_eligible_count ==1) %>%
+  filter(is_unmatched_booking == "No") %>%
+  filter(released_pretrial_count == 1) %>%
+  mutate(race_standard = if_else(race %in% c("Black", "White", "Hispanic"), race_standard, "Other"),
+         booking_charge_level = case_when(booking_charge_level %in% c("F", "Felony") ~ "Felony",
+                                          booking_charge_level %in% c("M", "Misdemeanor") ~ "Misdemeanor",
+                                          T ~ "Other")) %>%
+  mutate(release_type = case_when(release_type %in% c("CiteR elease", "Zero Bail") ~ "Cite Release",
+                                  release_type %in% c("Pretrial Monitor") ~ "Own Recognizance",
+                                  release_type %in% c("Court Order", "Hold Release", "Unspec Cap", "Unknown", "Administrative",
+                                                      "NULL", "Undefined", "Unsent Cap", "Fed", "Time Served", "Prison", "Dismissed",
+                                                      "Detain Only") ~ "Other",
+                                  T ~ release_type)) %>%
+  filter(booking_charge_level %in% c("Misdemeanor", "Felony")) %>%
+  mutate(pre_arr = case_when(is.na(arraignment_date) ~ "Unknown",
+                             release_date < arraignment_date ~ "Before arraignment date",
+                             T ~ "On or after arraignment date")) %>%
+  group_by(race_standard, booking_charge_level, pre_arr) %>%
+  count(release_type) %>%
+  mutate(percent = round(100*n/sum(n),1)) %>%
+  select(-n) %>%
+  pivot_wider(names_from = race_standard, values_from = percent) %>%
+  mutate(release_type = ordered(release_type, levels = c("Cite Release", "Bail Bond", "Own Recognizance", "Other"))) %>%
+  arrange(pre_arr, booking_charge_level, release_type) %>%
+  select('Charge Level' = booking_charge_level, `Timing` = pre_arr, 'Release Type' = release_type, Black, White, Hispanic, Other)
+```
+
+Humphrey
+```{r}
+#Look at pre/post humphrey decision
+full_df %>%
+  mutate(county = str_c(county, " County")) %>%
+  filter(county %in% countylist) %>%
+  filter(release_eligible_count ==1) %>%
+  filter(is_unmatched_booking == "No") %>%
+  filter(released_pretrial_count == 1) %>%
+  mutate(race_standard = if_else(race %in% c("Black", "White", "Hispanic"), race_standard, "Other"),
+         booking_charge_level = case_when(booking_charge_level %in% c("F", "Felony") ~ "Felony",
+                                          booking_charge_level %in% c("M", "Misdemeanor") ~ "Misdemeanor",
+                                          T ~ "Other")) %>%
+  mutate(release_type = case_when(release_type %in% c("CiteR elease", "Zero Bail") ~ "Cite Release",
+                                  release_type %in% c("Pretrial Monitor") ~ "Own Recognizance",
+                                  release_type %in% c("Court Order", "Hold Release", "Unspec Cap", "Unknown", "Administrative",
+                                                      "NULL", "Undefined", "Unsent Cap", "Fed", "Time Served", "Prison", "Dismissed",
+                                                      "Detain Only") ~ "Other",
+                                  T ~ release_type)) %>%
+  filter(booking_charge_level %in% c("Misdemeanor", "Felony")) %>%
+  mutate(pre_arr = case_when(is.na(arraignment_date) ~ "Unknown",
+                             release_date < arraignment_date ~ "Before arraignment date",
+                             T ~ "On or after arraignment date")) %>%
+  mutate(pre_humphrey = if_else(booking_date <= as.Date("2021-03-25"), "Pre-Humphrey", "Post-Humphrey")) %>%
+  group_by(race_standard, booking_charge_level, pre_humphrey) %>%
+  count(release_type) %>%
+  mutate(percent = round(100*n/sum(n),1)) %>%
+  select(-n) %>%
+  pivot_wider(names_from = race_standard, values_from = percent) %>%
+  mutate(release_type = ordered(release_type, levels = c("Cite Release", "Bail Bond", "Own Recognizance", "Other"))) %>%
+  arrange(pre_humphrey, booking_charge_level, release_type) %>%
+  select('Humphrey' = pre_humphrey,'Charge Level' = booking_charge_level,  'Release Type' = release_type, Black, White, Hispanic, Other)
+```
+# Diagnostics
+Unmatched booking rate by race
+```{r}
+full_df %>%
+  mutate(county = str_c(county, " County")) %>%
+  filter(county %in% countylist) %>%
+  filter(release_eligible_count ==1) %>%
+  #filter(is_unmatched_booking == "Yes") %>%
+  mutate(race_standard = if_else(race %in% c("Black", "White", "Hispanic"), race_standard, "Other"),
+         booking_charge_level = case_when(booking_charge_level %in% c("F", "Felony") ~ "Felony",
+                                          booking_charge_level %in% c("M", "Misdemeanor") ~ "Misdemeanor",
+                                          T ~ "Other")) %>%
+  filter(booking_charge_level %in% c("Misdemeanor", "Felony")) %>%
+  group_by(county, race_standard, booking_charge_level) %>%
+  summarise(unmatched_rate = round(100*sum(unmatched_booking_count)/n(),1)) %>%
+  pivot_wider(names_from = race_standard, values_from = unmatched_rate) %>%
+  select(County = county, 'Charge Level' = booking_charge_level, Black, White, Hispanic, Other)
+
+
+```
+
