@@ -1,0 +1,103 @@
+# Settup and Library
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+	echo = FALSE,
+	message = FALSE,
+	warning = FALSE
+)
+knitr::opts_knit$set(root.dir = "C:/PretrialPilot/Pretrial-Pilot-County-Analysis")
+
+
+library(tidyverse)
+library(data.table)
+library(openxlsx)
+#library(readxl)
+library(lubridate)
+library(dplyr)
+library(broom)
+
+# shell.exec(getwd())
+```
+
+
+```{r}
+# pull list of jbsis files with full file path
+jbsis_list <- list.files("C:/Users/slempert/Judicial Council of California/CJS Research - Documents/JBSIS DOJ offense tables", full.names = T)
+# reverse list so most recent year is first
+jbsis_list <- rev(jbsis_list) 
+
+# pull just the file titles
+jbsis_yrs <- list.files("C:/Users/slempert/Judicial Council of California/CJS Research - Documents/JBSIS DOJ offense tables")
+# extract just the year
+jbsis_yrs <- substr(jbsis_yrs, 1, 4)
+# reverse list so most recent year is first
+jbsis_yrs <- rev(jbsis_yrs)
+
+jbsis_tabs <- lapply(jbsis_list,
+       function(i){
+         read.xlsx(i)
+       })
+
+#set all the column names to be the same so they can be joined later
+tab_names <- tolower(names(jbsis_tabs[[1]]))
+jbsis_tabs <- lapply(jbsis_tabs,
+       function(j){
+         setNames(j, tab_names)
+       })
+
+#combine tables and keep only distinct rows
+jbsis_comb <- jbsis_tabs %>% 
+  bind_rows %>% 
+  distinct()
+
+#standardize fields and create join var
+jbsis_comb <- jbsis_comb %>%
+  mutate(offense.level = toupper(offense.level),
+         offense.level = if_else(!offense.level %in% c("F", "I", "M"), "Other", offense.level),
+         code.section_std = toupper(gsub("\\/|\\(|\\)| |\\.|\\.*|^[A-Z]*|\\\\.*|\\{|\\}|EX|\\+|","", code.section)),
+         code.type = toupper(code.type),
+         code.type = if_else(!code.type %in% c("PC", "VC", "HS", "BP", "WI", "US"), "Other", code.type)) %>%
+  #distinct(charge, charge_code, charge_level, .keep_all = T) %>%
+  unite(join_var, offense.level, code.type, code.section_std, remove = F) 
+
+jbsis_comb <- jbsis_comb %>%
+  arrange(hierarchy) %>%
+  distinct(join_var, .keep_all = T)
+
+
+  
+#529 join_vars with multiple possible descriptions
+#54 join_vars with multiple possible hierarchy values
+
+# standardization of code section checked, does not create any major discrepancies 
+#-- a couple very small differences in offense description and hierachy but all within the same general offense and similar enough hierarchy values.
+
+
+```
+Diagnostic
+```{r}
+# look at details for join vars that have multiple hierarchy values
+jbsis_comb %>%
+  filter(join_var %in% (jbsis_comb %>%
+  distinct(join_var, hierarchy) %>%
+  group_by(join_var) %>%
+  add_count() %>%
+  mutate(n = max(n)) %>%
+  ungroup() %>%
+  filter(n>1) %>%
+  distinct(join_var) %>%
+    pull(join_var)))
+
+# check standardized code sections for problems
+jbsis_comb %>%
+  distinct(code.type, code.section, code.section_std, .keep_all = T) %>%
+  group_by(code.type, code.section_std) %>%
+  add_count() %>%
+  mutate(n = max(n)) %>%
+  ungroup() %>%
+  filter(n>1) %>%
+  arrange(code.type, code.section_std)
+  
+```
+
+
