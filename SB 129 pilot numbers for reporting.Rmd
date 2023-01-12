@@ -1,0 +1,188 @@
+---
+title: "SB 129"
+output: html_document
+date: '2022-11-28'
+---
+# Settup and Library
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+	echo = FALSE,
+	message = FALSE,
+	warning = FALSE
+)
+knitr::opts_knit$set(root.dir = "C:/PretrialPilot/Pretrial-Pilot-County-Analysis")
+
+# library(rlang)
+library(tidyverse)
+library(data.table)
+library(openxlsx)
+library(lubridate)
+library(dplyr)
+library(broom)
+library(DBI)
+library(dbplyr)
+library(odbc)
+
+# shell.exec(getwd())
+```
+
+# Get Snowflake data
+Connection
+```{r include=FALSE}
+con <- dbConnect(odbc::odbc(), "snowflake_pretrial", uid ="Sal.Lempert@jud.ca.gov", pwd = rstudioapi::askForPassword("Password"))
+
+
+```
+
+Pull live snowflake data -- join_df
+```{sql echo=TRUE, connection=con, output.var='join_df'}
+SELECT *
+FROM "DWH_PROD"."DATA_SCIENCE"."JOIN_DF_STD"
+;
+```
+
+Format data - join df 
+```{r warning=FALSE, include=FALSE}
+
+names(join_df) <- tolower(names(join_df))
+
+join_df <- join_df %>%
+  mutate(book_date = booking_date,
+         race_orig = race,
+         race = if_else(race_standard %in% c("White", "Black", "Hispanic"), race_standard, "Other/Unknown"),
+         age = individual_age,
+         charge_level_orig = charge_level,
+         charge_level = charge_level_standard)%>%
+  mutate(across(contains("_flag"), ~if_else(is.na(.x) | .x == "No" | .x == "Unknown" | .x == "0" | .x == 0, 0, as.numeric(1))))  
+
+```
+
+
+SB 129 numbers
+```{r}
+rep_df <- join_df %>%
+  filter(booking_date > as.Date("2021-07-01")) %>%
+  mutate(rep_q = case_when(booking_date < as.Date("2022-01-01") ~ "FY1 Q1-2",
+                           booking_date < as.Date("2022-04-01") ~ "FY1 Q3",
+                           booking_date < as.Date("2022-07-01") ~ "FY1 Q4",
+                           booking_date < as.Date("2022-10-01") ~ "FY2 Q1",
+                           booking_date < as.Date("2023-01-01") ~ "FY2 Q2")) %>%
+  mutate(rel_within_2days = case_when(
+    weekdays(book_date) == "Thursday" & release_date - book_date <= 4 ~ 1,
+    weekdays(book_date) == "Friday" & release_date - book_date <= 4 ~ 1,
+    weekdays(book_date) == "Saturday" & release_date - book_date <= 3 ~ 1,
+    !weekdays(book_date) %in% c("Thursday", "Friday", "Saturday") & release_date - book_date <= 2 ~ 1,
+    is.na(release_date) ~ 0,
+    T ~ 0)) %>%
+  mutate(rel_after_2days = if_else(!is.na(release_date) & rel_within_2days == 0, 1, 0)) %>%
+  mutate(age_grp = case_when(age %in% 18:25 ~ "18-25",
+                             age %in% 26:35 ~ "26-35",
+                             age %in% 36:45 ~ "36-45",
+                             age %in% 46:55 ~ "46-55",
+                             age > 55 ~ "Over 56",
+                             T ~ "Other")) %>%
+  mutate(race = if_else(race_standard %in% c("White", "Black", "Hispanic", "Asian"), race_standard, "Other/Unknown")) %>%
+  mutate(sex_standard = case_when(sex %in% c("Female") ~ "Female",
+                                  sex %in% c("M", "Male") ~ "Male",
+                                  T ~ "Other/Unknown")) %>%
+  mutate(release_type = case_when(release_type %in% c("Cite Release", "CiteR elease") ~ "Jail Cite and Release",
+                                  release_type %in% c("Bail Bond") ~ "Release on Bail",
+                                  release_type %in% c("Own Recognizance") ~ "Release by Judicial Officer on OR",
+                                  release_type %in% c("Pretrial Monitor") ~ "Pretrial Supervision",
+                                  release_type %in% c("Detain only", "Detain Only", "Dismissed") ~ "No Charges Filed/Charges Dismissed",
+                                  release_type %in% c("Prison", "Time Served") ~ "Charges Resolved (includes by plea)",
+                                  release_type %in% c("Zero Bail") ~ "Zero Bail",
+                                  T ~ "Other"))
+
+out <- createWorkbook()
+
+#Q1: Total bookings (all bookings even if not eligible for pretrial release)
+addWorksheet(out, "1 Total Bookings")
+
+q1 <- rep_df %>%
+  group_by(county, rep_q) %>%
+  count()
+
+writeData(out, sheet = "1 Total Bookings", x = q1)
+
+#Q2: New offense bookings by misdo/fel
+addWorksheet(out, "2 New offense misd.fel")
+q2 <- rep_df %>%
+  filter(county %in% c("Los Angeles", "Tulare", "Yuba") | booking_type %in% c("On View", "New Warrant", "Warrant")) %>%
+  filter(charge_level %in% c("M", "F")) %>%
+  group_by(county, rep_q, charge_level) %>%
+  count()
+
+writeData(out, sheet = "2 New offense misd.fel", x = q2)
+
+
+#Q3: New offense released within 2 days by release type and misd/fel
+addWorksheet(out, "3 Released within 2 days")
+q3 <- rep_df %>%
+  filter(county %in% c("Los Angeles", "Tulare", "Yuba") | booking_type %in% c("On View", "New Warrant", "Warrant")) %>%
+  filter(charge_level %in% c("M", "F")) %>%
+  filter(!is.na(release_date), rel_within_2days == 1) %>%
+  group_by(county, rep_q, charge_level, release_type) %>%
+  count()%>%
+  arrange(county, charge_level, release_type, rep_q)
+
+writeData(out, sheet = "3 Released within 2 days", x = q3)
+
+
+#Q3: New offense released after 2 days by release type and misd/fel
+addWorksheet(out, "4 Released after 2 days")
+q4 <- rep_df %>%
+  filter(county %in% c("Los Angeles", "Tulare", "Yuba") | booking_type %in% c("On View", "New Warrant", "Warrant")) %>%
+  filter(charge_level %in% c("M", "F")) %>%
+  filter(!is.na(release_date), rel_after_2days == 1) %>%
+  group_by(county, rep_q, charge_level, release_type) %>%
+  count()%>%
+  arrange(county, charge_level, release_type, rep_q)
+
+writeData(out, sheet = "4 Released after 2 days", x = q4)
+
+#Q5: Avg monthly bookings by demographics
+addWorksheet(out, "5 Avg monthly bookings by sex")
+
+q5_sex <- rep_df %>%
+  filter(sex %in% c("Male", "Female")) %>%
+  mutate(book_month = month(booking_date)) %>%
+  group_by(county, rep_q, book_month, sex) %>%
+  count() %>%
+  group_by(county, rep_q, sex) %>%
+  summarise(avg_bookings = round(mean(n),1))
+
+writeData(out, sheet = "5 Avg monthly bookings by sex", x = q5_sex)
+
+addWorksheet(out, "5 Avg monthly bookings by age")
+
+q5_age <- rep_df %>%
+  filter(age_grp != "Other") %>%
+  mutate(book_month = month(booking_date)) %>%
+  group_by(county, rep_q, book_month, age_grp) %>%
+  count() %>%
+  group_by(county, rep_q, age_grp) %>%
+  summarise(avg_bookings = round(mean(n),1)) 
+
+writeData(out, sheet = "5 Avg monthly bookings by age", x = q5_age)
+
+
+addWorksheet(out, "5 Avg monthly bookings by race")
+
+q5_race <- rep_df %>%
+  mutate(book_month = month(booking_date)) %>%
+  group_by(county, rep_q, book_month, race) %>%
+  count() %>%
+  group_by(county, rep_q, race) %>%
+  summarise(avg_bookings = round(mean(n),1)) 
+
+writeData(out, sheet = "5 Avg monthly bookings by race", x = q5_race)
+
+
+out
+saveWorkbook(out, "SB 129 pilot numbers for Deirdre 12.1.22.xlsx")
+
+
+  
+
+```
