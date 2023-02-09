@@ -1,0 +1,863 @@
+---
+title: "Untitled"
+output: html_document
+date: '2023-01-30'
+---
+
+
+# Settup and Library
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+	echo = FALSE,
+	message = FALSE,
+	warning = FALSE
+)
+knitr::opts_knit$set(root.dir = "C:/PretrialPilot/Pretrial-Pilot-County-Analysis")
+
+# library(rlang)
+library(tidyverse)
+library(data.table)
+library(openxlsx)
+#library(readxl)
+library(lubridate)
+library(gsubfn)
+library(fuzzyjoin)
+library(dplyr)
+# library(multidplyr)
+library(pROC)
+library(broom)
+library(kableExtra)
+library(stargazer)
+library(DBI)
+library(dbplyr)
+library(odbc)
+library(tinytex)
+library(gt)
+library(askpass)
+
+# shell.exec(getwd())
+```
+
+Connection
+```{r include=FALSE}
+
+con <- dbConnect(odbc::odbc(), "snowflake_pretrial", uid ="Sal.Lempert@jud.ca.gov", pwd = rstudioapi::askForPassword("Password"))
+
+```
+
+Pull live snowflake data -- join_df
+```{sql echo=TRUE, connection=con, output.var='join_df'}
+SELECT *
+FROM "DWH_PROD"."DATA_SCIENCE"."JOIN_DF_STD"
+;
+```
+
+Format data - join df 
+```{r warning=FALSE, include=FALSE}
+#snow_df <- join_df
+#join_df <- snow_df
+names(join_df) <- tolower(names(join_df))
+
+join_df <- join_df %>%
+  mutate(book_date = booking_date,
+         race_orig = race,
+         race = if_else(race_standard %in% c("White", "Black", "Hispanic"), race_standard, "Other/Unknown"),
+         age = individual_age,
+         charge_level_orig = charge_level,
+         charge_level = charge_level_standard,
+         pretrial_period_end_count = pretrial_period_end_count_standard,
+         fta_flag = fta_county_or_doj,
+         recid_arrested_flag = recid_county_or_doj,
+         tool_name = case_when(county == "Kings" ~ "VPRAI-O", 
+                               county == "Santa Barbara" & assessment_date < as.Date("2020-4-29") ~ "VPRAI",
+                               county == "Santa Barbara" & assessment_date >= as.Date("2020-4-29") ~ "VPRAI-R",
+                               tool_name == "VPRAIR" ~ "VPRAI-R",
+                               T ~ tool_name),
+         oras_risk_score = if_else(tool_name == "ORAS", risk_score_raw, NULL),
+         vprai_risk_score = if_else(tool_name == "VPRAI", risk_score_raw, NULL),
+         vprair_risk_score = if_else(tool_name == "VPRAI-R", risk_score_raw, NULL),
+         vpraio_risk_score = if_else(tool_name == "VPRAI-O", generic_tool_total_score_raw, NULL),
+         psa_fta_risk_score = score_failure_to_appear,
+         psa_nca_risk_score = score_new_criminal_activity,
+         psa_nvca_risk_score = score_new_criminal_violent_activity,
+         scored_assessment = if_else(tool_name %in% c("ORAS", "VPRAI", "VPRAI-R") & !is.na(risk_score_raw) |
+                                       tool_name == "PSA" & !is.na(score_new_criminal_activity) |
+                                       tool_name == "VPRAI-O" & !is.na(generic_tool_total_score_raw), 1, 0),
+         pretrial_period_end_date = if_else(is.na(pretrial_period_end_date), as.Date(pretrial_period_end_date_doj), as.Date(pretrial_period_end_date)))%>%
+  mutate(recid_filed_flag = recid_filed_flag_doj, 
+         recid_convicted_flag = recid_convicted_flag_doj, 
+         recid_arrest_violent_psa_flag = recid_arrest_violent_psa_flag_doj,
+         any_pretrial_failure_flag = if_else(recid_arrested_flag == 1 | fta_flag == 1, 1, 0)) %>% ## update this when we get county data on these
+  mutate(across(contains("_flag"), ~if_else(is.na(.x) | .x == "No" | .x == "Unknown" | .x == "0" | .x == 0, 0, as.numeric(1))))  
+
+full_df <- join_df %>%
+  filter(booking_date < as.Date("2022-01-01"))
+
+eval_df <- join_df %>%
+  filter(booking_assessed_count == 1,
+         scored_assessment == 1,
+         release_eligible_count ==1,
+         released_pretrial_count == 1,
+         pretrial_period_end_count == 1,
+         booking_date < as.Date("2022-01-01"),
+         tool_name %in% c("ORAS", "PSA", "VPRAI", "VPRAI-R", "VPRAI-O")
+         ) %>%
+  mutate(release_to_pretrial_end = pretrial_period_end_date - release_date)
+
+#create zero bail dummy for period of April 6 2020 through June 20 2020
+eval_df <- eval_df %>%
+  mutate(zero_bail_dummy = if_else(arrest_date >= as.Date("2020-04-06") & arrest_date <= as.Date("2020-06-20"), 1, 0)) 
+
+# create sup_or_none dummy for supervision
+eval_df <- eval_df %>%
+  mutate(monitoring_level_grouped = if_else(grepl("Own Recognizance", monitoring_level_grouped), "Own Recognizance", monitoring_level_grouped)) %>%
+  mutate(monitoring_level_grouped = if_else(monitoring_level_grouped %in% c("Lowest Levels", "Medium Levels", "Highest Levels", "Own Recognizance"), monitoring_level_grouped, NA_character_)) %>%
+  mutate(bail_or_sup = case_when(release_type %in% c("Bail Bond") ~ "Bail Bond",
+                                 !is.na(monitoring_level_grouped) ~ monitoring_level_grouped,
+                                 release_type %in% c("Own Recognizance") ~ "Own Recognizance",
+                                 release_type %in% c("Cite Release", "CiteR elease") ~ "Cite Release")) 
+```
+
+
+Change Raw Risk Scores to Risk Levels for eval_df -- toggle off to go back to raw scores
+```{r}
+eval_df <- eval_df %>%
+  mutate(vprai_risk_score_raw = vprai_risk_score,
+         vprair_risk_score_raw = vprair_risk_score,
+         oras_risk_score_raw = oras_risk_score) %>%
+  mutate(vprai_risk_score = case_when(vprai_risk_score_raw %in% 0:1 ~ 1,
+                                      vprai_risk_score_raw %in% 2 ~ 2,
+                                      vprai_risk_score_raw %in% 3 ~ 3,
+                                      vprai_risk_score_raw %in% 4 ~ 4,
+                                      vprai_risk_score_raw %in% 5:9 ~ 5,
+                                      T ~ vprai_risk_score_raw),
+         vprair_risk_score = case_when(vprair_risk_score_raw %in% 0:2 ~ 1,
+                                       vprair_risk_score_raw %in% 3:4 ~ 2,
+                                       vprair_risk_score_raw %in% 5:6 ~ 3,
+                                       vprair_risk_score_raw %in% 7:8 ~ 4,
+                                       vprair_risk_score_raw %in% 9:10 ~ 5,
+                                       vprair_risk_score_raw %in% 11:14 ~ 6,
+                                       T ~ vprair_risk_score_raw),
+         oras_risk_score = case_when(oras_risk_score_raw %in% 0:2 ~ 1,
+                                     oras_risk_score_raw %in% 3:5 ~ 2,
+                                     oras_risk_score_raw %in% 6:9 ~ 3,
+                                     T ~ oras_risk_score_raw))
+
+eval_df %>%
+  count(vprai_risk_score, vprai_risk_score_raw)
+
+eval_df %>%
+  count(vprair_risk_score, vprair_risk_score_raw)
+
+eval_df %>%
+  count(oras_risk_score, oras_risk_score_raw)
+```
+```{r}
+rm(join_df)
+```
+
+# Run everything above this line to load and format join_df and eval_df
+
+
+# Exploratory
+
+Look at Tulare trends over time
+```{r}
+# bookings and releases by month
+join_df %>%
+  filter(county == "Tulare") %>%
+  group_by(year = year(booking_date), month = month(booking_date)) %>%
+  summarise(bookings = n(),
+            release_eligible = sum(release_eligible_count),
+            pretrial_releases = sum(released_pretrial_count)) %>%
+  mutate(book_date = as.Date(str_c(year, "-", month, "-1"))) %>%
+  ungroup() %>%
+  select(book_date, bookings, release_eligible, pretrial_releases) %>%
+  pivot_longer(cols = c(bookings, release_eligible, pretrial_releases)) %>%
+  ggplot() +
+    geom_line(aes(x = book_date, y = value, color = name))
+
+# booking charge level by month
+join_df %>%
+  filter(county == "Tulare") %>%
+  group_by(year = year(booking_date), month = month(booking_date)) %>%
+  summarise(bookings = n(),
+            misdos = sum(if_else(charge_level == "M", 1, 0)),
+            fels = sum(if_else(charge_level == "F", 1, 0)),
+            unknown = sum(if_else(charge_level == "Other/Unknown", 1, 0))) %>%
+  mutate(book_date = as.Date(str_c(year, "-", month, "-1"))) %>%
+  ungroup() %>%
+  select(-year) %>%
+  select(-month) %>%
+  pivot_longer(cols = c(misdos, fels, unknown)) %>%
+  ggplot() +
+    geom_line(aes(x = book_date, y = value, color = name))
+
+# average days in jail by month
+join_df %>%
+  filter(county == "Tulare") %>%
+  filter(released_pretrial_count == 1) %>%
+  group_by(year = year(booking_date), month = month(booking_date)) %>%
+  summarise(avg_jail_days = mean(as.numeric(release_date - booking_date), na.rm = T)) %>%
+  mutate(book_date = as.Date(str_c(year, "-", month, "-1"))) %>%
+  ungroup() %>%
+  select(-year) %>%
+  select(-month) %>%
+  ggplot() +
+    geom_line(aes(x = book_date, y = avg_jail_days))
+
+join_df %>%
+  filter(county == "Tulare") %>%
+  filter(released_pretrial_count == 1) %>%
+  filter(booking_date > "2021-01-01") %>%
+  mutate(jail_days = as.numeric(release_date - booking_date)) %>%
+  count(jail_days, is_released_pretrial)
+  
+```
+Tulare
+Pretrial releases: Pretrial releases drop precipitously towards the end of 2020 (around July or August) while release eligible bookings are staying the same or going up. Pretrial releases go sharply down from July/August 2020 to around March 2022 when they reach a very low rate and then stay low until the end of the data (June 2022). Release eligible bookings take a Covid hit briefly around March-June 2020 but then go back up and remain pretty steady.
+
+Booking charge level: All booking charge levels are unknown until around March 2020.
+
+Time in jail: The average days in jail for people released pretrial declines from the start of the data (July 2018) until late 2020 (August/Sept) and then remains at 0 days until the end of the data period
+
+
+
+Look at San Joaquin trends over time
+```{r}
+# bookings and releases by month
+join_df %>%
+  filter(county == "San Joaquin") %>%
+  group_by(year = year(booking_date), month = month(booking_date)) %>%
+  summarise(bookings = n(),
+            release_eligible = sum(release_eligible_count),
+            pretrial_releases = sum(released_pretrial_count)) %>%
+  mutate(book_date = as.Date(str_c(year, "-", month, "-1"))) %>%
+  ungroup() %>%
+  select(book_date, bookings, release_eligible, pretrial_releases) %>%
+  pivot_longer(cols = c(bookings, release_eligible, pretrial_releases)) %>%
+  ggplot() +
+    geom_line(aes(x = book_date, y = value, color = name))
+
+# booking charge level by month
+join_df %>%
+  filter(county == "San Joaquin") %>%
+  group_by(year = year(booking_date), month = month(booking_date)) %>%
+  summarise(bookings = n(),
+            misdos = sum(if_else(charge_level == "M", 1, 0)),
+            fels = sum(if_else(charge_level == "F", 1, 0)),
+            unknown = sum(if_else(charge_level == "Other/Unknown", 1, 0))) %>%
+  mutate(book_date = as.Date(str_c(year, "-", month, "-1"))) %>%
+  ungroup() %>%
+  select(-year) %>%
+  select(-month) %>%
+  pivot_longer(cols = c(misdos, fels, unknown)) %>%
+  ggplot() +
+    geom_line(aes(x = book_date, y = value, color = name))
+
+# average days in jail by month
+join_df %>%
+  filter(county == "San Joaquin") %>%
+  filter(released_pretrial_count == 1) %>%
+  group_by(year = year(booking_date), month = month(booking_date)) %>%
+  summarise(mean_jail_days = mean(as.numeric(release_date - booking_date), na.rm = T),
+            median_jail_days = median(as.numeric(release_date - booking_date), na.rm = T)) %>%
+  mutate(book_date = as.Date(str_c(year, "-", month, "-1"))) %>%
+  ungroup() %>%
+  select(-year) %>%
+  select(-month) %>%
+  pivot_longer(cols = c(mean_jail_days, median_jail_days)) %>%
+  ggplot() +
+    geom_line(aes(x = book_date, y = value, color = name))
+
+join_df %>%
+  filter(county == "San Joaquin") %>%
+  filter(released_pretrial_count == 1) %>%
+  filter(booking_date > "2021-01-01") %>%
+  mutate(jail_days = as.numeric(release_date - booking_date)) %>%
+  count(jail_days, is_released_pretrial)
+
+```
+San Joaquin
+Pretrial releases: data start looking normal around January 2018 (bookings exist prior to that but not pretrial releases). Bookings take an initial sharp drop in March 2020 around covid and then recover though not quite to before levels. Pretrial releases decline gradually starting around the pandemic and continuing until the end of the data.
+
+Booking charge level: Most bookings have unknown charge level starting around March 2018. Number of Misdos vs Felonies is relatively even until the pandemic, when felonies remain constant and misdemeanors drop and stay lower. 
+
+Time in jail: The mean jail days declines from 2020 through 2022, median jail days remains mostly constant. 
+
+
+Look at Alameda trends over time
+```{r}
+# bookings and releases by month
+join_df %>%
+  filter(county == "Alameda") %>%
+  group_by(year = year(booking_date), month = month(booking_date)) %>%
+  summarise(bookings = n(),
+            release_eligible = sum(release_eligible_count),
+            pretrial_releases = sum(released_pretrial_count)) %>%
+  mutate(book_date = as.Date(str_c(year, "-", month, "-1"))) %>%
+  ungroup() %>%
+  select(book_date, bookings, release_eligible, pretrial_releases) %>%
+  pivot_longer(cols = c(bookings, release_eligible, pretrial_releases)) %>%
+  ggplot() +
+    geom_line(aes(x = book_date, y = value, color = name))
+
+# booking charge level by month
+join_df %>%
+  filter(county == "Alameda") %>%
+  group_by(year = year(booking_date), month = month(booking_date)) %>%
+  summarise(bookings = n(),
+            misdos = sum(if_else(charge_level == "M", 1, 0)),
+            fels = sum(if_else(charge_level == "F", 1, 0)),
+            unknown = sum(if_else(charge_level == "Other/Unknown", 1, 0))) %>%
+  mutate(book_date = as.Date(str_c(year, "-", month, "-1"))) %>%
+  ungroup() %>%
+  select(-year) %>%
+  select(-month) %>%
+  pivot_longer(cols = c(misdos, fels, unknown)) %>%
+  ggplot() +
+    geom_line(aes(x = book_date, y = value, color = name))
+
+# average days in jail by month
+join_df %>%
+  filter(county == "Alameda") %>%
+  filter(released_pretrial_count == 1) %>%
+  filter(booking_date > as.Date("2018-06-30")) %>%
+  group_by(year = year(booking_date), month = month(booking_date)) %>%
+  summarise(mean_jail_days = mean(as.numeric(release_date - booking_date), na.rm = T),
+            median_jail_days = median(as.numeric(release_date - booking_date), na.rm = T)) %>%
+  mutate(book_date = as.Date(str_c(year, "-", month, "-1"))) %>%
+  ungroup() %>%
+  select(-year) %>%
+  select(-month) %>%
+  pivot_longer(cols = c(mean_jail_days, median_jail_days)) %>%
+  ggplot() +
+    geom_line(aes(x = book_date, y = value, color = name))
+
+join_df %>%
+  filter(county == "Alameda") %>%
+  filter(released_pretrial_count == 1) %>%
+  filter(booking_date > "2021-01-01") %>%
+  mutate(jail_days = as.numeric(release_date - booking_date)) %>%
+  count(jail_days, is_released_pretrial)
+
+```
+
+
+
+Alameda
+
+Pretrial releases: Release eligible bookings start around March 2018, then shoot up in January 2020, drop in March 2020 and slowly go back up until March 2022 then spike sharply down and back up. Pretrial releases are very low March 2018 until the end of 2019, then go up in January 2020, dip in March 2020, and gradually go back up until mid-2021 then go gradually down until sharp drop mid-2022.
+
+Booking charge level: Entirely unknown until 2020. More misdos than felonies Jan-march 2020, then pandemic drops misdos to below felonies from march 2020 through the end of 2020, then misdos slightly above felonie 20201 until weird booking drop early 2022.
+
+Time in jail: Mean days in jail fluctuates from July 2018 until January 2020, then remains fairly constant and lower.
+
+
+
+# Look at county by county trends over time
+
+Bookings and releases by month & county
+```{r}
+countylist <- eval_df %>% distinct(county) %>% pull(county)
+
+lapply(countylist,
+       function(i){
+         # bookings and releases by month
+        join_df %>%
+          filter(county == i) %>%
+           filter(booking_date > as.Date("2018-06-30")) %>%
+          group_by(year = year(booking_date), month = month(booking_date)) %>%
+          summarise(bookings = n(),
+                    release_eligible = sum(release_eligible_count),
+                    pretrial_releases = sum(released_pretrial_count)) %>%
+          mutate(book_date = as.Date(str_c(year, "-", month, "-1"))) %>%
+          ungroup() %>%
+          select(book_date, bookings, release_eligible, pretrial_releases) %>%
+          pivot_longer(cols = c(bookings, release_eligible, pretrial_releases)) %>%
+          ggplot() +
+            geom_line(aes(x = book_date, y = value, color = name)) +
+            ggtitle(i)
+        
+       })
+```
+
+Booking charge level by month & county
+```{r}
+lapply(countylist,
+       function(i){
+        # booking charge level by month
+        join_df %>%
+          filter(county == i) %>%
+           filter(booking_date > as.Date("2018-06-30")) %>%
+          group_by(year = year(booking_date), month = month(booking_date)) %>%
+          summarise(bookings = n(),
+                    misdos = sum(if_else(charge_level == "M", 1, 0)),
+                    fels = sum(if_else(charge_level == "F", 1, 0)),
+                    unknown = sum(if_else(charge_level == "Other/Unknown", 1, 0))) %>%
+          mutate(book_date = as.Date(str_c(year, "-", month, "-1"))) %>%
+          ungroup() %>%
+          select(-year) %>%
+          select(-month) %>%
+          pivot_longer(cols = c(misdos, fels, unknown)) %>%
+          ggplot() +
+            geom_line(aes(x = book_date, y = value, color = name))+
+            ggtitle(i)
+       })
+```
+
+Average pretrial jail days by month and county
+```{r}
+lapply(countylist,
+       function(i){
+        # average days in jail by month
+        join_df %>%
+          filter(county == i) %>%
+           filter(booking_date > as.Date("2018-06-30")) %>%
+          filter(released_pretrial_count == 1) %>%
+          filter(booking_date > as.Date("2018-06-30")) %>%
+          group_by(year = year(booking_date), month = month(booking_date)) %>%
+          summarise(mean_jail_days = mean(as.numeric(release_date - booking_date), na.rm = T),
+                    median_jail_days = median(as.numeric(release_date - booking_date), na.rm = T)) %>%
+          mutate(book_date = as.Date(str_c(year, "-", month, "-1"))) %>%
+          ungroup() %>%
+          select(-year) %>%
+          select(-month) %>%
+          pivot_longer(cols = c(mean_jail_days, median_jail_days)) %>%
+          ggplot() +
+            geom_line(aes(x = book_date, y = value, color = name))+
+            ggtitle(i)
+        })
+
+
+```
+
+# Outcomes over time
+Add golive dates by county to full_df
+```{r}
+countylist <- full_df %>% distinct(county) %>% pull(county)
+
+prog_date <- data.frame(county = countylist) %>%
+  mutate(golive_date = case_when(county == "Alameda" ~ as.Date("2020-5-12"),
+                                 county == "Calaveras" ~ as.Date("2019-10-15"),
+                                 county == "Kings" ~ as.Date("2020-3-16"),
+                                 county == "Los Angeles" ~ as.Date("2020-3-23"),
+                                 county == "Modoc" ~ as.Date("2020-4-1"),
+                                 county == "Napa" ~ as.Date("2019-11-1"),
+                                 county == "Nevada" ~ as.Date("2020-6-30"),
+                                 county == "Sacramento" ~ as.Date("2020-2-15"),
+                                 county == "San Joaquin" ~ as.Date("2020-6-30"),
+                                 county == "San Mateo" ~ as.Date("2020-1-23"),
+                                 county == "Santa Barbara" ~ as.Date("2019-8-1"),
+                                 county == "Sierra" ~ as.Date("2020-6-30"),
+                                 county == "Sonoma" ~ as.Date("2019-8-1"), 
+                                 county == "Tulare" ~ as.Date("2020-3-1"),
+                                 county == "Tuolumne" ~ as.Date("2020-6-15"),
+                                 county == "Ventura" ~ as.Date("2020-6-30"),
+                                 county == "Yuba" ~ as.Date("2019-8-9")))
+
+prog_date
+
+
+
+full_df <- full_df %>%
+  left_join(prog_date, by = "county") %>%
+  mutate(golive_flag = if_else(booking_date >= golive_date, 1, 0))
+```
+
+Add covid flag
+```{r}
+full_df <- full_df %>%
+  mutate(covid_flag = if_else(booking_date >= as.Date("2020-3-1"), 1, 0))
+
+#flag for time period of statewide zero bail
+full_df <- full_df %>%
+  mutate(emerg_flag = if_else(booking_date >= as.Date("2020-4-6") & booking_date <= as.Date("2020-6-20"), 1, 0))
+```
+
+# Regressions of program implementation on FTA and NCA
+Run regression of program implementation on FTA, controlling for covid flag and emergency bail flag
+```{r}
+summary(lm(data = full_df %>% filter(released_pretrial_count ==1), fta_flag ~ booking_date + golive_flag + covid_flag + emerg_flag))
+```
+Booking date negative and significant
+Go-live flag is positive (0.0008) and not significant (p = 0.82), covid flag is positive (0.01) and significant (p < .001), emergency flag is positive (0.04) and significant (p < .0001)
+
+```{r}
+summary(lm(data = full_df %>% filter(released_pretrial_count ==1), recid_county_or_doj ~ booking_date + golive_flag + covid_flag + emerg_flag))
+```
+Booking date negative and significant
+Golive flag negative (-0.05) and significant (p < .0001)
+Covid flag positive and significant
+Emergency flag positive and significant
+
+Looking at only people with a pretrial period end, FTA controlling for days released and golive flag, covid flag, emergency flag
+```{r}
+summary(lm(data = full_df %>% 
+             filter(released_pretrial_count ==1, pretrial_period_end_count == 1) %>%
+             mutate(days_released = pretrial_period_end_date - release_date), fta_flag ~ days_released + golive_flag + covid_flag + emerg_flag))
+
+```
+Days released is significant and positive
+Golive flag is significant and negative
+Covid flag is significant and negative
+Emergency flag is significant and positive
+
+
+With booking date - Looking at only people with a pretrial period end, FTA controlling for days released and golive flag, covid flag, emergency flag
+```{r}
+summary(lm(data = full_df %>% 
+             filter(released_pretrial_count ==1, pretrial_period_end_count == 1) %>%
+             mutate(days_released = pretrial_period_end_date - release_date), fta_flag ~ booking_date + days_released + golive_flag + covid_flag + emerg_flag))
+
+```
+Booking date is significant and negative
+Days released is significant and positive
+Golive flag is not significant and negative
+Covid flag is not significant and positive
+Emergency flag is significant and positive
+
+
+Looking at only people with a pretrial period end, recid controlling for days released and golive flag, covid flag, emergency flag
+```{r}
+summary(lm(data = full_df %>% 
+             filter(released_pretrial_count ==1, pretrial_period_end_count == 1) %>%
+             mutate(days_released = pretrial_period_end_date - release_date), recid_county_or_doj ~ days_released + golive_flag + covid_flag + emerg_flag))
+
+```
+Days released significant and positive
+Golive flag significant and negative
+Covid flag significant and positive
+Emergency flag significant and positive
+
+With booking date - Looking at only people with a pretrial period end, recid controlling for days released and golive flag, covid flag, emergency flag
+```{r}
+summary(lm(data = full_df %>% 
+             filter(released_pretrial_count ==1, pretrial_period_end_count == 1) %>%
+             mutate(days_released = pretrial_period_end_date - release_date), recid_county_or_doj ~ booking_date + days_released + golive_flag + covid_flag + emerg_flag))
+
+```
+BOoking date significant and negative
+Days released significant and positive
+Golive flag significant and negative
+Covid flag significant and positive
+Emergency flag significant and positive
+
+# Look at changes in charge hierarchy -- NEED TO WAIT ON SNOWFLAKE FIX
+
+```{r}
+summary(lm(data = full_df %>%
+             mutate(charge_hier = as.numeric(booking_charge_hierarchy)), charge_hier ~ golive_flag + covid_flag + emerg_flag))
+
+```
+
+```{r}
+summary(lm(data = full_df %>%
+             mutate(charge_hier = as.numeric(booking_charge_hierarchy)) %>%
+             filter(released_pretrial_count == 1), charge_hier ~ golive_flag + covid_flag + emerg_flag))
+
+```
+
+# Look at go-live, covid, and emergency bail dates by county with bookings
+```{r}
+full_df %>%
+  filter(booking_date >= as.Date("2018-7-1"),
+         booking_date < as.Date("2023-1-1")) %>%
+  group_by(county, month = month(book_date), year = year(book_date)) %>%
+  summarise(bookings = n(), releases = sum(released_pretrial_count),
+            golive_date = mean(golive_date)) %>%
+  mutate(book_date = as.Date(str_c(year, "-", month, "-1"))) %>%
+  ggplot() +
+    geom_line(aes(x = book_date, y = bookings)) +
+    geom_vline(data = prog_date, aes(xintercept = golive_date), color = "green") +
+    geom_vline(xintercept = as.Date("2020-3-1"), color = "orange") +
+    annotate("rect", xmin=as.Date("2020-4-6"), xmax=as.Date("2020-6-20"), ymin=0, ymax=Inf, alpha=0.2, fill="red") +
+    facet_grid(rows = vars(county), scales = "free")
+
+ggsave("bookings with key dates by county.png", width = 7, height = 16)
+
+```
+
+separate misdo/fel bookings
+```{r}
+full_df %>%
+  filter(booking_date >= as.Date("2018-7-1"),
+         booking_date < as.Date("2023-1-1")) %>%
+  filter(!charge_level_standard %in% c("I")) %>%
+  group_by(county, month = month(book_date), year = year(book_date), charge_level_standard) %>%
+  summarise(bookings = n(), releases = sum(released_pretrial_count),
+            golive_date = mean(golive_date)) %>%
+  mutate(book_date = as.Date(str_c(year, "-", month, "-1"))) %>%
+  ggplot() +
+    geom_line(aes(x = book_date, y = bookings, color = charge_level_standard)) +
+    geom_vline(data = prog_date, aes(xintercept = golive_date), color = "green") +
+    geom_vline(xintercept = as.Date("2020-3-1"), color = "orange") +
+    annotate("rect", xmin=as.Date("2020-4-6"), xmax=as.Date("2020-6-20"), ymin=0, ymax=Inf, alpha=0.2, fill="red") +
+    facet_grid(rows = vars(county), scales = "free")
+
+ggsave("misdo fel bookings with key dates by county.png", width = 7, height = 16)
+
+```
+
+Bookings by race with key dates
+```{r}
+full_df %>%
+  filter(booking_date >= as.Date("2018-7-1"),
+         booking_date < as.Date("2023-1-1")) %>%
+  mutate(race_standard = if_else(race_standard %in% c("Black", "White", "Hispanic"), race_standard, "Other/Unknown")) %>%
+  group_by(county, month = month(book_date), year = year(book_date), race_standard) %>%
+  summarise(bookings = n(), releases = sum(released_pretrial_count),
+            golive_date = mean(golive_date)) %>%
+  mutate(book_date = as.Date(str_c(year, "-", month, "-1"))) %>%
+  ggplot() +
+    geom_line(aes(x = book_date, y = bookings, color = race_standard)) +
+    geom_vline(data = prog_date, aes(xintercept = golive_date), color = "green") +
+    geom_vline(xintercept = as.Date("2020-3-1"), color = "orange") +
+    annotate("rect", xmin=as.Date("2020-4-6"), xmax=as.Date("2020-6-20"), ymin=0, ymax=Inf, alpha=0.2, fill="red") +
+    facet_grid(rows = vars(county), scales = "free")
+
+ggsave("bookings by race with key dates by county.png", width = 7, height = 16)
+
+```
+
+Bookings percent by race with key dates
+```{r}
+full_df %>%
+  filter(booking_date >= as.Date("2018-7-1"),
+         booking_date < as.Date("2023-1-1")) %>%
+  mutate(race_standard = if_else(race_standard %in% c("Black", "White", "Hispanic"), race_standard, "Other/Unknown")) %>%
+  group_by(county, month = month(book_date), year = year(book_date), race_standard) %>%
+  summarise(bookings = n(), releases = sum(released_pretrial_count),
+            golive_date = mean(golive_date)) %>%
+  mutate(book_date = as.Date(str_c(year, "-", month, "-1"))) %>%
+  group_by(county, book_date) %>%
+  mutate(book_perc = bookings/sum(bookings)) %>%
+  ggplot() +
+    geom_line(aes(x = book_date, y = book_perc, color = race_standard)) +
+    geom_vline(data = prog_date, aes(xintercept = golive_date), color = "green") +
+    geom_vline(xintercept = as.Date("2020-3-1"), color = "orange") +
+    annotate("rect", xmin=as.Date("2020-4-6"), xmax=as.Date("2020-6-20"), ymin=0, ymax=Inf, alpha=0.2, fill="red") +
+    facet_grid(rows = vars(county), scales = "free") +
+    scale_y_continuous(labels = scales::percent)
+
+ggsave("bookings share by race with key dates by county.png", width = 7, height = 16)
+
+```
+
+
+Bookings by offense type with key dates
+```{r}
+full_df %>%
+  filter(booking_date >= as.Date("2018-7-1"),
+         booking_date < as.Date("2023-1-1")) %>%
+  mutate(offense_cat = case_when(arrest_violent_psa_flag == 1 ~ "Violent",
+                                 arrest_dv_flag == 1 ~ "DV",
+                                 arrest_dui_flag == 1 ~ "DUI",
+                                 arrest_drug_flag == 1 ~ "Drug",
+                                 arrest_property_flag == 1 ~ "Property",
+                                 T ~ "Other/Unknown")) %>%
+  group_by(county, month = month(book_date), year = year(book_date), offense_cat) %>%
+  summarise(bookings = n(), releases = sum(released_pretrial_count),
+            golive_date = mean(golive_date)) %>%
+  mutate(book_date = as.Date(str_c(year, "-", month, "-1"))) %>%
+  ggplot() +
+    geom_line(aes(x = book_date, y = bookings, color = offense_cat)) +
+    geom_vline(data = prog_date, aes(xintercept = golive_date), color = "green") +
+    geom_vline(xintercept = as.Date("2020-3-1"), color = "orange") +
+    annotate("rect", xmin=as.Date("2020-4-6"), xmax=as.Date("2020-6-20"), ymin=0, ymax=Inf, alpha=0.2, fill="red") +
+    facet_grid(rows = vars(county), scales = "free")
+
+ggsave("bookings by offense category with key dates by county.png", width = 7, height = 16)
+```
+
+Look at arrest charge flags
+```{r}
+full_df %>%
+  filter(booking_date >= as.Date("2018-7-1"),
+         booking_date < as.Date("2023-1-1")) %>%
+  filter(charge_level_standard %in% c("M", "F")) %>%
+  select(arrest_special_flag:arrest_dv_possible_flag) %>%
+  count(!!!rlang::syms(names(.)[1:15])) %>%
+  arrange(desc(n)) %>%
+  mutate(perc = round(100*n/sum(n),1))
+
+
+```
+37.2% of all bookings have no arrest offense flags
+26.7% of misdo or fel bookings have no arrest offense flags
+
+```{r}
+full_df %>%
+  count(recid_county_or_doj)
+
+ggplot(full_df,aes(booking_date, recid_county_or_doj)) +
+ # stat_summary(fun.data=mean_cl_normal) + 
+  geom_smooth(method='lm', formula= recid_county_or_doj ~ booking_date + golive_flag + covid_flag + emerg_flag)
+```
+
+Look at counties where we have some data before they went live
+```{r}
+prepost_countylist <- full_df %>%
+  filter(golive_flag == 0) %>%
+  count(county) %>%
+  filter(n>100) %>%
+  pull(county)
+
+prepost_countylist
+
+```
+
+```{r}
+full_df %>%
+  filter(released_pretrial_count == 1) %>%
+  filter(booking_date >= as.Date("2018-7-1")) %>%
+  filter(!is.na(golive_flag)) %>%
+  mutate(golive_flag = as.factor(golive_flag)) %>%
+  group_by(year = year(booking_date), month = month(booking_date), golive_flag) %>%
+  summarise(recid_rate = sum(recid_arrested_flag_doj, na.rm = T)/n()) %>%
+  ungroup() %>%
+  mutate(book_month = as.Date(str_c(year, "-", month, "-1"))) %>%
+  ggplot(aes(x = book_month, y = recid_rate)) +
+    geom_bar(aes(fill = golive_flag), position="dodge", stat="identity")
+    #geom_line(aes(x = book_month, y = recid_rate, color = golive_flag))
+
+
+
+
+
+```
+
+
+```{r}
+full_df %>%
+  filter(released_pretrial_count == 1) %>%
+  filter(booking_date >= as.Date("2018-7-1")) %>%
+  filter(booking_date < as.Date("2022-1-1")) %>%
+  filter(!is.na(golive_flag)) %>%
+  filter(county %in% prepost_countylist) %>%
+  mutate(golive_flag = as.factor(golive_flag)) %>%
+  group_by(year = year(booking_date), month = month(booking_date)) %>%
+  summarise(recid_rate = sum(recid_county_or_doj, na.rm = T)/n()) %>%
+  ungroup() %>%
+  mutate(book_month = as.Date(str_c(year, "-", month, "-1"))) %>%
+  ggplot(aes(x = book_month, y = recid_rate)) +
+    geom_bar(position="dodge", stat="identity") +
+    geom_vline(xintercept = as.Date("2020-3-1"), color = "red")
+    #geom_line(aes(x = book_month, y = recid_rate, color = golive_flag))
+```
+
+
+```{r}
+early_golive <- prog_date %>%
+  filter(golive_date < as.Date("2020-1-1")) %>%
+  pull(county)
+```
+
+
+```{r}
+full_df %>%
+  filter(released_pretrial_count == 1) %>%
+  filter(booking_date >= as.Date("2018-7-1")) %>%
+  filter(booking_date < as.Date("2022-1-1")) %>%
+  filter(!is.na(golive_flag)) %>%
+  filter(county %in% early_golive) %>%
+  mutate(golive_flag = as.factor(golive_flag)) %>%
+  group_by(year = year(booking_date), month = month(booking_date)) %>%
+  summarise(recid_rate = sum(recid_county_or_doj, na.rm = T)/n()) %>%
+  ungroup() %>%
+  mutate(book_month = as.Date(str_c(year, "-", month, "-1"))) %>%
+  ggplot(aes(x = book_month, y = recid_rate)) +
+    geom_bar(position="dodge", stat="identity") +
+    geom_vline(xintercept = as.Date("2020-3-1"), color = "red")
+```
+
+```{r}
+lapply(early_golive,
+       function(i){
+         full_df %>%
+  filter(released_pretrial_count == 1) %>%
+  filter(booking_date >= as.Date("2018-7-1")) %>%
+  filter(booking_date < as.Date("2020-3-1")) %>%
+  filter(!is.na(golive_flag)) %>%
+  filter(county ==i) %>%
+  mutate(golive_flag = as.factor(golive_flag)) %>%
+  group_by(year = year(booking_date), month = month(booking_date)) %>%
+  summarise(recid_rate = sum(recid_county_or_doj, na.rm = T)/n()) %>%
+  ungroup() %>%
+  mutate(book_month = as.Date(str_c(year, "-", month, "-1"))) %>%
+  ggplot(aes(x = book_month, y = recid_rate)) +
+    geom_bar(position="dodge", stat="identity") +
+    geom_vline(xintercept = as.Date("2020-3-1"), color = "red")+
+    geom_vline(xintercept = prog_date %>% filter(county ==i) %>% pull(golive_date), color = "green") +
+    ggtitle(i)
+         
+       })
+```
+```{r}
+
+```
+
+Santa Barbara-- FTA graph only by court_date_reminder_flag
+\newline
+```{r fig.height=6, fig.width=10, dpi=1200}
+risk_df <- eval_df %>%
+  filter(county == "Santa Barbara") %>%
+  filter(booking_date < as.Date("2020-3-1")) %>%
+  mutate(court_date_reminder_flag = factor(court_date_reminder_flag)) %>%
+  filter(tool_name == "VPRAI", !is.na(vprai_risk_score)) %>%
+  group_by(vprai_risk_score, court_date_reminder_flag) %>%
+  select(vprai_risk_score, court_date_reminder_flag, fta_flag) %>%
+  pivot_longer(fta_flag) %>%
+  mutate(name = case_when(name == "fta_flag" ~ "FTA"),
+         name = factor(name, levels = c("FTA"))) 
+
+ggplot(risk_df) +
+  aes(x = vprai_risk_score, y = value, color = court_date_reminder_flag) +
+  geom_smooth(method = "glm", method.args = list(family=binomial), alpha = .2) +
+  # geom_line() +
+  # geom_point() +
+  theme_bw() +
+  # ylim(0,100) +
+  facet_wrap(~name, scales = "free") +
+  labs(x = "Risk Category", y = "Percent",
+       title = "Comparison of Court Date Reminder Differences in Logistic Regression Curves--VPRAI, Santa Barbara pre-pandemic")# +
+  #scale_x_continuous(breaks = 0:14)
+
+eval_df %>%
+  filter(county == "Santa Barbara") %>%
+  filter(booking_date < as.Date("2020-3-1")) %>%
+  count(tool_name, court_date_reminder_flag)
+```
+\newpage
+
+```{r}
+eval_df %>%
+  filter(county == "Santa Barbara") %>%
+  count(arrest_violent_psa_flag, charge_level) %>%
+  mutate(perc = round(100*n/sum(n),1))
+  
+eval_df %>%
+  filter(county == "Santa Barbara") %>%
+  summarise(min(booking_date), max(booking_date))
+
+
+full_df %>%
+  filter(booking_date >= as.Date("2019-12-2")) %>%
+  filter(booking_date<= as.Date("2021-12-31")) %>%
+  filter(county == "Santa Barbara") %>%
+  count(arrest_violent_psa_flag, charge_level) %>%
+  mutate(perc = round(100*n/sum(n),1))
+
+
+  eval_df %>%
+  mutate(fel_flag = if_else(charge_level == "F", 1, 0),
+         misdo_flag = if_else(charge_level %in% c("M", "I"), 1, 0)) %>%
+  group_by(county) %>%
+  summarise_at(vars(fel_flag, misdo_flag, arrest_violent_psa_flag, arrest_property_flag, arrest_drug_flag,
+                    arrest_dui_flag, arrest_dv_flag), funs(round(mean(.)*100)))
+
+```
+
+
+# Space saver
+
