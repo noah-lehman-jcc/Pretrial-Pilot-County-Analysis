@@ -158,6 +158,85 @@ eval_df <- eval_df %>%
 rm(join_df)
 ```
 
+# Create PROG_DATE and join to full_df
+Add golive dates by county to full_df
+```{r}
+countylist <- full_df %>% distinct(county) %>% pull(county)
+
+prog_date <- data.frame(county = countylist) %>%
+  mutate(golive_date = case_when(county == "Alameda" ~ as.Date("2020-5-12"),
+                                 county == "Calaveras" ~ as.Date("2019-10-15"),
+                                 county == "Kings" ~ as.Date("2020-3-16"),
+                                 county == "Los Angeles" ~ as.Date("2020-3-23"),
+                                 county == "Modoc" ~ as.Date("2020-4-1"),
+                                 county == "Napa" ~ as.Date("2019-11-1"),
+                                 county == "Nevada" ~ as.Date("2020-6-30"),
+                                 county == "Sacramento" ~ as.Date("2020-2-15"),
+                                 county == "San Joaquin" ~ as.Date("2020-6-30"),
+                                 county == "San Mateo" ~ as.Date("2020-1-23"),
+                                 county == "Santa Barbara" ~ as.Date("2019-8-1"),
+                                 county == "Sierra" ~ as.Date("2020-6-30"),
+                                 county == "Sonoma" ~ as.Date("2019-8-1"), 
+                                 county == "Tulare" ~ as.Date("2020-3-1"),
+                                 county == "Tuolumne" ~ as.Date("2020-6-15"),
+                                 county == "Ventura" ~ as.Date("2020-6-30"),
+                                 county == "Yuba" ~ as.Date("2019-8-9"))) %>%
+  mutate(eb_start_date = case_when(county == "Alameda" ~ as.Date("2020-4-3"),
+                                 county == "Calaveras" ~ as.Date("2020-4-13"),
+                                 county == "Kings" ~ as.Date("2020-4-13"),
+                                 county == "Los Angeles" ~ as.Date("2020-3-26"),
+                                 county == "Modoc" ~ as.Date("2020-4-13"),
+                                 county == "Napa" ~ as.Date("2020-4-13"),
+                                 county == "Nevada" ~ as.Date("2020-4-13"),
+                                 county == "Sacramento" ~ as.Date("2020-4-13"),
+                                 county == "San Joaquin" ~ as.Date("2020-4-13"),
+                                 county == "San Mateo" ~ as.Date("2020-4-13"),
+                                 county == "Santa Barbara" ~ as.Date("2020-4-13"),
+                                 county == "Sierra" ~ as.Date("2020-4-13"),
+                                 county == "Sonoma" ~ as.Date("2020-4-13"), 
+                                 county == "Tulare" ~ as.Date("2020-4-13"),
+                                 county == "Tuolumne" ~ as.Date("2020-4-13"),
+                                 county == "Ventura" ~ as.Date("2020-4-13"),
+                                 county == "Yuba" ~ as.Date("2020-4-13"))) %>%
+   mutate(eb_end_date = case_when(county == "Alameda" ~ as.Date("2021-12-31"),
+                                 county == "Calaveras" ~ as.Date("2020-6-20"),
+                                 county == "Kings" ~ as.Date("2020-6-20"),
+                                 county == "Los Angeles" ~ as.Date("2021-12-31"),
+                                 county == "Modoc" ~ as.Date("2020-6-20"),
+                                 county == "Napa" ~ as.Date("2021-12-31"),
+                                 county == "Nevada" ~ as.Date("2020-6-20"),
+                                 county == "Sacramento" ~ as.Date("2021-12-31"),
+                                 county == "San Joaquin" ~ as.Date("2020-6-20"),
+                                 county == "San Mateo" ~ as.Date("2021-12-31"),
+                                 county == "Santa Barbara" ~ as.Date("2021-12-31"),
+                                 county == "Sierra" ~ as.Date("2020-6-20"),
+                                 county == "Sonoma" ~ as.Date("2021-12-31"), 
+                                 county == "Tulare" ~ as.Date("2021-5-4"),
+                                 county == "Tuolumne" ~ as.Date("2020-6-20"),
+                                 county == "Ventura" ~ as.Date("2020-6-20"),
+                                 county == "Yuba" ~ as.Date("2020-6-20")))
+
+
+prog_date
+
+
+full_df <- full_df %>%
+  left_join(prog_date, by = "county") %>%
+  mutate(golive_flag = if_else(booking_date >= golive_date, 1, 0),
+         eb_flag = if_else(booking_date >= eb_start_date & booking_date <= eb_end_date, 1, 0))
+
+```
+
+Add covid flag
+```{r}
+full_df <- full_df %>%
+  mutate(covid_flag = if_else(booking_date >= as.Date("2020-3-1"), 1, 0))
+
+#flag for time period of statewide zero bail
+full_df <- full_df %>%
+  mutate(emerg_flag = if_else(booking_date >= as.Date("2020-4-6") & booking_date <= as.Date("2020-6-20"), 1, 0))
+```
+
 # Run everything above this line to load and format join_df and eval_df
 
 
@@ -437,83 +516,6 @@ lapply(countylist,
 
 ```
 
-# Create PROG_DATE and join to full_df
-Add golive dates by county to full_df
-```{r}
-countylist <- full_df %>% distinct(county) %>% pull(county)
-
-prog_date <- data.frame(county = countylist) %>%
-  mutate(golive_date = case_when(county == "Alameda" ~ as.Date("2020-5-12"),
-                                 county == "Calaveras" ~ as.Date("2019-10-15"),
-                                 county == "Kings" ~ as.Date("2020-3-16"),
-                                 county == "Los Angeles" ~ as.Date("2020-3-23"),
-                                 county == "Modoc" ~ as.Date("2020-4-1"),
-                                 county == "Napa" ~ as.Date("2019-11-1"),
-                                 county == "Nevada" ~ as.Date("2020-6-30"),
-                                 county == "Sacramento" ~ as.Date("2020-2-15"),
-                                 county == "San Joaquin" ~ as.Date("2020-6-30"),
-                                 county == "San Mateo" ~ as.Date("2020-1-23"),
-                                 county == "Santa Barbara" ~ as.Date("2019-8-1"),
-                                 county == "Sierra" ~ as.Date("2020-6-30"),
-                                 county == "Sonoma" ~ as.Date("2019-8-1"), 
-                                 county == "Tulare" ~ as.Date("2020-3-1"),
-                                 county == "Tuolumne" ~ as.Date("2020-6-15"),
-                                 county == "Ventura" ~ as.Date("2020-6-30"),
-                                 county == "Yuba" ~ as.Date("2019-8-9"))) %>%
-  mutate(eb_start_date = case_when(county == "Alameda" ~ as.Date("2020-4-3"),
-                                 county == "Calaveras" ~ as.Date("2020-4-13"),
-                                 county == "Kings" ~ as.Date("2020-4-13"),
-                                 county == "Los Angeles" ~ as.Date("2020-3-26"),
-                                 county == "Modoc" ~ as.Date("2020-4-13"),
-                                 county == "Napa" ~ as.Date("2020-4-13"),
-                                 county == "Nevada" ~ as.Date("2020-4-13"),
-                                 county == "Sacramento" ~ as.Date("2020-4-13"),
-                                 county == "San Joaquin" ~ as.Date("2020-4-13"),
-                                 county == "San Mateo" ~ as.Date("2020-4-13"),
-                                 county == "Santa Barbara" ~ as.Date("2020-4-13"),
-                                 county == "Sierra" ~ as.Date("2020-4-13"),
-                                 county == "Sonoma" ~ as.Date("2020-4-13"), 
-                                 county == "Tulare" ~ as.Date("2020-4-13"),
-                                 county == "Tuolumne" ~ as.Date("2020-4-13"),
-                                 county == "Ventura" ~ as.Date("2020-4-13"),
-                                 county == "Yuba" ~ as.Date("2020-4-13"))) %>%
-   mutate(eb_end_date = case_when(county == "Alameda" ~ as.Date("2021-12-31"),
-                                 county == "Calaveras" ~ as.Date("2020-6-20"),
-                                 county == "Kings" ~ as.Date("2020-6-20"),
-                                 county == "Los Angeles" ~ as.Date("2021-12-31"),
-                                 county == "Modoc" ~ as.Date("2020-6-20"),
-                                 county == "Napa" ~ as.Date("2021-12-31"),
-                                 county == "Nevada" ~ as.Date("2020-6-20"),
-                                 county == "Sacramento" ~ as.Date("2021-12-31"),
-                                 county == "San Joaquin" ~ as.Date("2020-6-20"),
-                                 county == "San Mateo" ~ as.Date("2021-12-31"),
-                                 county == "Santa Barbara" ~ as.Date("2021-12-31"),
-                                 county == "Sierra" ~ as.Date("2020-6-20"),
-                                 county == "Sonoma" ~ as.Date("2021-12-31"), 
-                                 county == "Tulare" ~ as.Date("2021-5-4"),
-                                 county == "Tuolumne" ~ as.Date("2020-6-20"),
-                                 county == "Ventura" ~ as.Date("2020-6-20"),
-                                 county == "Yuba" ~ as.Date("2020-6-20")))
-
-
-prog_date
-
-
-full_df <- full_df %>%
-  left_join(prog_date, by = "county") %>%
-  mutate(golive_flag = if_else(booking_date >= golive_date, 1, 0),
-         eb_flag = if_else(booking_date >= eb_start_date & booking_date <= eb_end_date, 1, 0))
-```
-
-Add covid flag
-```{r}
-full_df <- full_df %>%
-  mutate(covid_flag = if_else(booking_date >= as.Date("2020-3-1"), 1, 0))
-
-#flag for time period of statewide zero bail
-full_df <- full_df %>%
-  mutate(emerg_flag = if_else(booking_date >= as.Date("2020-4-6") & booking_date <= as.Date("2020-6-20"), 1, 0))
-```
 
 # Regressions of program implementation on FTA and NCA
 Run regression of program implementation on FTA, controlling for covid flag and emergency bail flag
@@ -1459,7 +1461,14 @@ mob_bts %>%
 
 mob_bts %>%
   count(county)
+
+mob_bts %>%
+  filter(is.na(date))
+
+mob_bts <- as_tibble(mob_bts)
 ```
+
+
 Create function to calculate average bts mobility
 ```{r}
 get_bts_mob_mean <- function(loc_county, start, end){
@@ -1476,20 +1485,166 @@ get_bts_mob_mean_V <- Vectorize(get_bts_mob_mean)
 ```
 Apply function
 ```{r}
-test_b <- full_df %>%
+test_b_alameda <- full_df %>%
   filter(released_pretrial_count == 1,
          pretrial_period_end_count == 1) %>%
   filter(pretrial_period_end_date >= release_date) %>%
   filter(county == "Alameda") %>%
-  tail(10) %>%
   mutate(avg_bts_mob = 0) %>%
   mutate(avg_bts_mob = get_bts_mob_mean_V(county, release_date, pretrial_period_end_date))
 
-bts_means <- test_b %>%
-  select(release_date, pretrial_period_end_date, avg_bts_mob) %>%
+test_b_calaveras <- full_df %>%
+  filter(released_pretrial_count == 1,
+         pretrial_period_end_count == 1) %>%
+  filter(pretrial_period_end_date >= release_date) %>%
+  filter(county == "Calaveras") %>%
+  mutate(avg_bts_mob = 0) %>%
+  mutate(avg_bts_mob = get_bts_mob_mean_V(county, release_date, pretrial_period_end_date))
+
+test_b_kings <- full_df %>%
+  filter(released_pretrial_count == 1,
+         pretrial_period_end_count == 1) %>%
+  filter(pretrial_period_end_date >= release_date) %>%
+  filter(county == "Kings") %>%
+  mutate(avg_bts_mob = 0) %>%
+  mutate(avg_bts_mob = get_bts_mob_mean_V(county, release_date, pretrial_period_end_date))
+
+test_b_la <- full_df %>%
+  filter(released_pretrial_count == 1,
+         pretrial_period_end_count == 1) %>%
+  filter(pretrial_period_end_date >= release_date) %>%
+  filter(county == "Los Angeles") %>%
+  mutate(avg_bts_mob = 0) %>%
+  mutate(avg_bts_mob = get_bts_mob_mean_V(county, release_date, pretrial_period_end_date))
+
+test_b_modoc <- full_df %>%
+  filter(released_pretrial_count == 1,
+         pretrial_period_end_count == 1) %>%
+  filter(pretrial_period_end_date >= release_date) %>%
+  filter(county == "Modoc") %>%
+  mutate(avg_bts_mob = 0) %>%
+  mutate(avg_bts_mob = get_bts_mob_mean_V(county, release_date, pretrial_period_end_date))
+
+test_b_napa <- full_df %>%
+  filter(released_pretrial_count == 1,
+         pretrial_period_end_count == 1) %>%
+  filter(pretrial_period_end_date >= release_date) %>%
+  filter(county == "Napa") %>%
+  mutate(avg_bts_mob = 0) %>%
+  mutate(avg_bts_mob = get_bts_mob_mean_V(county, release_date, pretrial_period_end_date))
+
+test_b_nevada <- full_df %>%
+  filter(released_pretrial_count == 1,
+         pretrial_period_end_count == 1) %>%
+  filter(pretrial_period_end_date >= release_date) %>%
+  filter(county == "Nevada") %>%
+  mutate(avg_bts_mob = 0) %>%
+  mutate(avg_bts_mob = get_bts_mob_mean_V(county, release_date, pretrial_period_end_date))
+
+test_b_sac <- full_df %>%
+  filter(released_pretrial_count == 1,
+         pretrial_period_end_count == 1) %>%
+  filter(pretrial_period_end_date >= release_date) %>%
+  filter(county == "Sacramento") %>%
+  mutate(avg_bts_mob = 0) %>%
+  mutate(avg_bts_mob = get_bts_mob_mean_V(county, release_date, pretrial_period_end_date))
+
+test_b_sj <- full_df %>%
+  filter(released_pretrial_count == 1,
+         pretrial_period_end_count == 1) %>%
+  filter(pretrial_period_end_date >= release_date) %>%
+  filter(county == "San Joaquin") %>%
+  mutate(avg_bts_mob = 0) %>%
+  mutate(avg_bts_mob = get_bts_mob_mean_V(county, release_date, pretrial_period_end_date))
+
+test_b_sm <- full_df %>%
+  filter(released_pretrial_count == 1,
+         pretrial_period_end_count == 1) %>%
+  filter(pretrial_period_end_date >= release_date) %>%
+  filter(county == "San Mateo") %>%
+  mutate(avg_bts_mob = 0) %>%
+  mutate(avg_bts_mob = get_bts_mob_mean_V(county, release_date, pretrial_period_end_date))
+
+test_b_sb <- full_df %>%
+  filter(released_pretrial_count == 1,
+         pretrial_period_end_count == 1) %>%
+  filter(pretrial_period_end_date >= release_date) %>%
+  filter(county == "Santa Barbara") %>%
+  mutate(avg_bts_mob = 0) %>%
+  mutate(avg_bts_mob = get_bts_mob_mean_V(county, release_date, pretrial_period_end_date))
+
+test_b_sierra <- full_df %>%
+  filter(released_pretrial_count == 1,
+         pretrial_period_end_count == 1) %>%
+  filter(pretrial_period_end_date >= release_date) %>%
+  filter(county == "Sierra") %>%
+  mutate(avg_bts_mob = 0) %>%
+  mutate(avg_bts_mob = get_bts_mob_mean_V(county, release_date, pretrial_period_end_date))
+
+test_b_sonoma <- full_df %>%
+  filter(released_pretrial_count == 1,
+         pretrial_period_end_count == 1) %>%
+  filter(pretrial_period_end_date >= release_date) %>%
+  filter(county == "Sonoma") %>%
+  mutate(avg_bts_mob = 0) %>%
+  mutate(avg_bts_mob = get_bts_mob_mean_V(county, release_date, pretrial_period_end_date))
+
+test_b_tulare <- full_df %>%
+  filter(released_pretrial_count == 1,
+         pretrial_period_end_count == 1) %>%
+  filter(pretrial_period_end_date >= release_date) %>%
+  filter(county == "Tulare") %>%
+  mutate(avg_bts_mob = 0) %>%
+  mutate(avg_bts_mob = get_bts_mob_mean_V(county, release_date, pretrial_period_end_date))
+
+test_b_tuolumne <- full_df %>%
+  filter(released_pretrial_count == 1,
+         pretrial_period_end_count == 1) %>%
+  filter(pretrial_period_end_date >= release_date) %>%
+  filter(county == "Tuolumne") %>%
+  mutate(avg_bts_mob = 0) %>%
+  mutate(avg_bts_mob = get_bts_mob_mean_V(county, release_date, pretrial_period_end_date))
+
+test_b_ventura <- full_df %>%
+  filter(released_pretrial_count == 1,
+         pretrial_period_end_count == 1) %>%
+  filter(pretrial_period_end_date >= release_date) %>%
+  filter(county == "Ventura") %>%
+  mutate(avg_bts_mob = 0) %>%
+  mutate(avg_bts_mob = get_bts_mob_mean_V(county, release_date, pretrial_period_end_date))
+
+test_b_yuba <- full_df %>%
+  filter(released_pretrial_count == 1,
+         pretrial_period_end_count == 1) %>%
+  filter(pretrial_period_end_date >= release_date) %>%
+  filter(county == "Yuba") %>%
+  mutate(avg_bts_mob = 0) %>%
+  mutate(avg_bts_mob = get_bts_mob_mean_V(county, release_date, pretrial_period_end_date))
+
+full_bts <- test_b_alameda %>%
+  bind_rows(test_b_calaveras) %>%
+  bind_rows(test_b_kings) %>%
+  bind_rows(test_b_la) %>%
+  bind_rows(test_b_modoc) %>%
+  bind_rows(test_b_napa) %>%
+  bind_rows(test_b_nevada) %>%
+  bind_rows(test_b_sac) %>%
+  bind_rows(test_b_sj) %>%
+  bind_rows(test_b_sm) %>%
+  bind_rows(test_b_sb) %>%
+  bind_rows(test_b_sierra) %>%
+  bind_rows(test_b_sonoma) %>%
+  bind_rows(test_b_tulare) %>%
+  bind_rows(test_b_tuolumne) %>%
+  bind_rows(test_b_ventura) %>%
+  bind_rows(test_b_yuba)
+
+
+bts_means <- full_bts %>%
+  select(county, release_date, pretrial_period_end_date, avg_bts_mob) %>%
   distinct()
 
-save(bts_means, file = "C:/Users/slempert/Judicial Council of California/CJS Research - Documents/SB 36 Validation Reports/COVID data/bts_means.Rdata")
+# save(bts_means, file = "C:/Users/slempert/Judicial Council of California/CJS Research - Documents/SB 36 Validation Reports/COVID data/bts_means.Rdata")
 # 
 # full_df %>%
 #   filter(released_pretrial_count == 1,
@@ -1502,13 +1657,601 @@ save(bts_means, file = "C:/Users/slempert/Judicial Council of California/CJS Res
 #   mutate(avg_bts_mob = get_bts_mob_mean_V(county, release_date, pretrial_period_end_date)) %>%
 #   select(county, release_date, pretrial_period_end_date, avg_bts_mob)
 
-test_b %>%
+test_b_la %>%
   select(release_date, pretrial_period_end_date, avg_bts_mob)
 
 full_df %>%
   count(county)
 ```
+Join daily mobility data to dataset
+```{r}
+full_bts <- full_bts %>%
+  left_join(mob_bts, by = c("booking_date" = "date", "county")) 
+```
+
+FTA
+```{r}
+#Looking at only people with a pretrial period end, FTA controlling for days released and golive flag, covid flag, emergency flag, and driving mobility data, and booking date
+summary(lm(data = full_bts %>%
+             mutate(days_released = pretrial_period_end_date - release_date), 
+           fta_flag ~ days_released*avg_bts_mob + golive_flag + covid_flag + eb_flag + emerg_flag + county))
+```
+golive is significant (p = 0.0002) and negative (-0.0139)
 
 
+Rearrest
+```{r}
+#Looking at only people with a pretrial period end, new arrest controlling for days released and golive flag, covid flag, emergency flag, and driving mobility data, and booking date
+summary(lm(data = full_bts %>%
+             mutate(days_released = pretrial_period_end_date - release_date), 
+           recid_county_or_doj ~ days_released*avg_bts_mob + golive_flag + covid_flag + eb_flag + emerg_flag + county))
+
+full_bts %>%
+  summarise(min(booking_date), max(booking_date))
+```
+golive is significant (p < 0.0001) and negative (-0.0414)
+
+FTA - filtered timeline
+```{r}
+#Looking at only people with a pretrial period end, FTA controlling for days released and golive flag, covid flag, emergency flag, and driving mobility data, and booking date
+summary(lm(data = full_bts %>%
+             filter(release_date >= as.Date("2019-01-01"),
+                    pretrial_period_end_date <= as.Date("2022-04-30")) %>%
+             mutate(days_released = pretrial_period_end_date - release_date), 
+           fta_flag ~ days_released*avg_bts_mob + golive_flag + covid_flag + eb_flag + emerg_flag + county))
+```
+golive is not significant and positive (0.0019)
+
+
+
+Rearrest - filtered timeline
+```{r}
+#Looking at only people with a pretrial period end, new arrest controlling for days released and golive flag, covid flag, emergency flag, and driving mobility data, and booking date
+summary(lm(data = full_bts %>%
+             filter(release_date >= as.Date("2019-01-01"),
+                    pretrial_period_end_date <= as.Date("2022-04-30")) %>%
+             mutate(days_released = pretrial_period_end_date - release_date), 
+           recid_county_or_doj ~ days_released*avg_bts_mob + golive_flag + covid_flag + eb_flag + emerg_flag + county))
+```
+golive still significant (p < 0.0001) and negative (-0.0217), but effect is smaller
+
+```{r}
+mob_bts %>%
+  summarise(min(date), max(date))
+```
+
+# Regression on release rate
+Create bpr with monthly release rate
+```{r}
+full_df %>%
+             group_by(year(booking_date), month(booking_date), county) %>%
+             mutate(elg_book_count = sum(release_eligible_count)) %>%
+             group_by(year(release_date), month(release_date), county) %>%
+             mutate(pret_release_count = sum(released_pretrial_count)) %>%
+             pivot_longer(cols = c("booking_date", "release_date"), names_to = "date_type", values_to = "date") %>%
+             group_by(year = year(date), month = month(date), county) %>%
+             summarise(elg_book_count = max(elg_book_count, na.rm = T), pret_release_count = max(pret_release_count, na.rm = T))
+
+bookings <- full_df %>%
+              mutate(er4_flag = if_else(booking_date >= as.Date("2020-4-13") & booking_date <= as.Date("2020-6-20"), 1, 0),
+                     covid_flag = if_else(booking_date >= as.Date("2020-3-1"), 1, 0)) %>%
+              group_by(year = year(booking_date), month = month(booking_date), county) %>%
+              summarise(elg_book_count = sum(release_eligible_count),
+                        avg_mob = mean(mob_pop, na.rm = T),
+                        eb_flag = mean(eb_flag),
+                        golive_flag = mean(golive_flag),
+                        er4_flag = mean(er4_flag),
+                        covid_flag = mean(covid_flag))
+
+
+pret_releases <- full_df %>%
+                    group_by(year = year(release_date), month = month(release_date), county) %>%
+                    summarise(pret_release_count = sum(released_pretrial_count))
+
+bpr <- bookings %>%
+  left_join(pret_releases) %>%
+  mutate(date = as.Date(str_c(year, "-", month, "-1")))
+
+bpr <- bpr %>%
+  filter(date >= as.Date("2018-7-1")) %>%
+  ungroup() %>%
+  select(-year, -month)
+
+
+bpr <- bpr %>%
+  filter(date >= as.Date("2019-1-1"),
+         date < as.Date("2022-1-1"))
+
+bpr <- bpr %>%
+  mutate(rel_rate = pret_release_count/elg_book_count)
+
+bpr_long <- bpr %>%
+  pivot_longer(cols = c("elg_book_count", "pret_release_count"), names_to = "measure", values_to = "count") 
+
+
+bpr_long %>%
+  ggplot() +
+    geom_line(aes(x = date, y = count, color = measure)) +
+    facet_wrap("county", scales = "free")
+
+
+```
+
+
+```{r}
+lapply(countylist,
+       function(i){
+         # bookings and releases by month
+        bpr_long %>%
+          filter(county == i) %>%
+          ggplot() +
+            geom_line(aes(x = date, y = count, color = measure)) +
+            geom_vline(data = prog_date  %>% filter(county == i), aes(xintercept = golive_date), color = "green") +
+            geom_vline(xintercept = as.Date("2020-3-1"), color = "orange") +
+            geom_rect(data = prog_date %>% filter(county == i), aes(xmin = eb_start_date, xmax = eb_end_date, ymin = 0, ymax = Inf), fill = "red", alpha = 0.2) +
+            annotate("rect", xmin=as.Date("2020-4-13"), xmax=as.Date("2020-6-20"), ymin=0, ymax=Inf, alpha=0.2, fill="red") +
+            ggtitle(i)
+        
+       })
+
+```
+```{r}
+lapply(countylist,
+       function(i){
+         # bookings and releases by month
+        bpr %>%
+          filter(county == i) %>%
+          ggplot() +
+            geom_line(aes(x = date, y = rel_rate)) +
+            geom_vline(data = prog_date  %>% filter(county == i), aes(xintercept = golive_date), color = "green") +
+            geom_vline(xintercept = as.Date("2020-3-1"), color = "orange") +
+            geom_rect(data = prog_date %>% filter(county == i), aes(xmin = eb_start_date, xmax = eb_end_date, ymin = 0, ymax = Inf), fill = "red", alpha = 0.2) +
+            annotate("rect", xmin=as.Date("2020-4-13"), xmax=as.Date("2020-6-20"), ymin=0, ymax=Inf, alpha=0.2, fill="red") +
+            ggtitle(i)
+        
+       })
+```
+
+
+
+
+```{r}
+summary(lm(data = bpr %>%
+                    filter(rel_rate != Inf), 
+           rel_rate ~ avg_mob + golive_flag + covid_flag + eb_flag + er4_flag + county)) 
+
+```
+```{r}
+test_date = as.Date("2023-9-2")
+
+month(test_date)
+week(test_date)
+```
+Create bpr with weekly release rate
+```{r}
+
+bookings_w <- full_df %>%
+              mutate(er4_flag = if_else(booking_date >= as.Date("2020-4-13") & booking_date <= as.Date("2020-6-20"), 1, 0),
+                     covid_flag = if_else(booking_date >= as.Date("2020-3-1"), 1, 0)) %>%
+              mutate(datew = floor_date(booking_date, unit = "week")) %>%
+              group_by(datew, county) %>%
+              summarise(elg_book_count = sum(release_eligible_count),
+                        avg_mob = mean(mob_pop, na.rm = T),
+                        eb_flag = mean(eb_flag),
+                        golive_flag = mean(golive_flag),
+                        er4_flag = mean(er4_flag),
+                        covid_flag = mean(covid_flag))
+
+
+pret_releases_w <- full_df %>%
+                    mutate(datew = floor_date(release_date, unit = "week")) %>%
+                    group_by(datew, county) %>%
+                    summarise(pret_release_count = sum(released_pretrial_count))
+
+bprw <- bookings_w %>%
+  left_join(pret_releases_w) 
+
+
+bprw <- bprw %>%
+  ungroup() %>%
+  filter(datew >= as.Date("2019-1-1"),
+         datew < as.Date("2022-1-1"))
+
+bprw <- bprw %>%
+  mutate(rel_rate = pret_release_count/elg_book_count)
+
+
+```
+
+Create bpr with weekly release rate - Felony only
+```{r}
+
+bookings_wf <- full_df %>%
+              filter(charge_level == "F") %>%
+              mutate(er4_flag = if_else(booking_date >= as.Date("2020-4-13") & booking_date <= as.Date("2020-6-20"), 1, 0),
+                     covid_flag = if_else(booking_date >= as.Date("2020-3-1"), 1, 0)) %>%
+              mutate(datew = floor_date(booking_date, unit = "week")) %>%
+              group_by(datew, county) %>%
+              summarise(elg_book_count = sum(release_eligible_count),
+                        avg_mob = mean(mob_pop, na.rm = T),
+                        eb_flag = mean(eb_flag),
+                        golive_flag = mean(golive_flag),
+                        er4_flag = mean(er4_flag),
+                        covid_flag = mean(covid_flag))
+
+
+pret_releases_wf <- full_df %>%
+                    filter(charge_level == "F") %>%
+                    mutate(datew = floor_date(release_date, unit = "week")) %>%
+                    group_by(datew, county) %>%
+                    summarise(pret_release_count = sum(released_pretrial_count))
+
+bprwf <- bookings_wf %>%
+  left_join(pret_releases_wf) 
+
+
+bprwf <- bprwf %>%
+  ungroup() %>%
+  filter(datew >= as.Date("2019-1-1"),
+         datew < as.Date("2022-1-1"))
+
+bprwf <- bprwf %>%
+  mutate(rel_rate = pret_release_count/elg_book_count)
+
+
+```
+
+Create bpr with weekly release rate - Misdos only
+```{r}
+
+bookings_wm <- full_df %>%
+              filter(charge_level == "M") %>%
+              mutate(er4_flag = if_else(booking_date >= as.Date("2020-4-13") & booking_date <= as.Date("2020-6-20"), 1, 0),
+                     covid_flag = if_else(booking_date >= as.Date("2020-3-1"), 1, 0)) %>%
+              mutate(datew = floor_date(booking_date, unit = "week")) %>%
+              group_by(datew, county) %>%
+              summarise(elg_book_count = sum(release_eligible_count),
+                        avg_mob = mean(mob_pop, na.rm = T),
+                        eb_flag = mean(eb_flag),
+                        golive_flag = mean(golive_flag),
+                        er4_flag = mean(er4_flag),
+                        covid_flag = mean(covid_flag))
+
+
+pret_releases_wm <- full_df %>%
+                    filter(charge_level == "M") %>%
+                    mutate(datew = floor_date(release_date, unit = "week")) %>%
+                    group_by(datew, county) %>%
+                    summarise(pret_release_count = sum(released_pretrial_count))
+
+bprwm <- bookings_wm %>%
+  left_join(pret_releases_wm) 
+
+
+bprwm <- bprwm %>%
+  ungroup() %>%
+  filter(datew >= as.Date("2019-1-1"),
+         datew < as.Date("2022-1-1"))
+
+bprwm <- bprwm %>%
+  mutate(rel_rate = pret_release_count/elg_book_count)
+
+
+```
+Weekly
+```{r}
+summary(lm(data = bprw %>%
+                    filter(rel_rate != Inf) , 
+           rel_rate ~ avg_mob + golive_flag + covid_flag + eb_flag + er4_flag + county)) 
+
+```
+
+Weekly - Felonies
+```{r}
+summary(lm(data = bprwf %>%
+                    filter(rel_rate != Inf) , 
+           rel_rate ~ avg_mob + golive_flag + covid_flag + eb_flag + er4_flag + county)) 
+
+```
+
+Weekly - Misdos
+```{r}
+summary(lm(data = bprwm %>%
+                    filter(rel_rate != Inf) , 
+           rel_rate ~ avg_mob + golive_flag + covid_flag + eb_flag + er4_flag + county)) 
+
+```
+
+```{r}
+full_df %>%
+  count(booking_charge_hierarchy) %>%
+  arrange(desc(as.numeric(booking_charge_hierarchy)))
+  select(contains("hier"))
+  
+full_df %>%
+  filter(booking_charge_hierarchy == "1000000")
+```
+
+```{r}
+summary(lm(data = bprw %>%
+                    filter(county %in% c("Alameda", "Los Angeles", "Napa", "Sacramento", "San Joaquin", "San Mateo", "Santa Barbara", "Sonoma", "Tulare", "Ventura")) %>%
+                    filter(rel_rate != Inf), 
+           rel_rate ~ avg_mob + golive_flag + covid_flag + eb_flag + er4_flag + county)) 
+```
+
+# Graphs with BTS data
+```{r}
+full_df <- full_df %>%
+  left_join(mob_bts, by = c("booking_date" = "date", "county")) 
+
+
+countylist <- full_df %>% distinct(county) %>% pull(county)
+```
+
+Timeline with bookings, release eligible, pretrial releases, mobility, and key dates
+```{r}
+lapply(countylist,
+       function(i){
+         # bookings and releases by month
+        full_df %>%
+          filter(county == i) %>%
+           filter(booking_date >= as.Date("2019-1-1"),
+                  booking_date < as.Date("2023-1-1")) %>%
+          group_by(year = year(booking_date), month = month(booking_date)) %>%
+          summarise(bookings = n(),
+                    release_eligible = sum(release_eligible_count),
+                    pretrial_releases = sum(released_pretrial_count),
+                    mobility = 100*mean(mob_pop),
+                    golive_date = mean(golive_date),
+                    eb_start_date = mean(eb_start_date),
+                    eb_end_date = mean(eb_end_date)) %>%
+          mutate(book_date = as.Date(str_c(year, "-", month, "-1")),
+                 bookings = bookings/first(bookings),
+                 release_eligible = release_eligible/first(release_eligible),
+                 pretrial_releases = pretrial_releases/first(pretrial_releases),
+                 mobility = mobility/first(mobility)) %>%
+          ungroup() %>%
+          select(book_date, bookings, release_eligible, pretrial_releases, 
+                 mobility, golive_date, eb_start_date, eb_end_date) %>%
+          pivot_longer(cols = c(bookings, release_eligible, pretrial_releases, mobility)) %>%
+          ggplot() +
+            geom_line(aes(x = book_date, y = value, color = name)) +
+            geom_vline(data = prog_date  %>% filter(county == i), aes(xintercept = golive_date), color = "green") +
+            geom_vline(xintercept = as.Date("2020-3-1"), color = "orange") +
+            geom_rect(data = prog_date %>% filter(county == i), aes(xmin = eb_start_date, xmax = eb_end_date, ymin = 0, ymax = Inf), fill = "red", alpha = 0.2) +
+            annotate("rect", xmin=as.Date("2020-4-13"), xmax=as.Date("2020-6-20"), ymin=0, ymax=Inf, alpha=0.2, fill="red") +
+            ggtitle(i)
+        
+       })
+
+```
+
+```{r}
+lapply(countylist,
+       function(i){
+         # bookings and releases by month
+        full_df %>%
+          filter(county == i) %>%
+           filter(booking_date >= as.Date("2019-1-1"),
+                  booking_date < as.Date("2023-1-1")) %>%
+          group_by(year = year(booking_date), month = month(booking_date)) %>%
+          summarise(bookings = n(),
+                    release_eligible = sum(release_eligible_count),
+                    pretrial_releases = sum(released_pretrial_count),
+                    mobility = 100*mean(mob_pop),
+                    golive_date = mean(golive_date),
+                    eb_start_date = mean(eb_start_date),
+                    eb_end_date = mean(eb_end_date)) %>%
+          mutate(rel_rate = pretrial_releases/release_eligible) %>%
+          mutate(book_date = as.Date(str_c(year, "-", month, "-1")),
+                 bookings = bookings/first(bookings),
+                 release_eligible = release_eligible/first(release_eligible),
+                 pretrial_releases = pretrial_releases/first(pretrial_releases),
+                 rel_rate = rel_rate/first(rel_rate),
+                 mobility = mobility/first(mobility)) %>%
+          ungroup() %>%
+          select(book_date, bookings, rel_rate, 
+                 mobility, golive_date, eb_start_date, eb_end_date) %>%
+          pivot_longer(cols = c(bookings, rel_rate, mobility)) %>%
+          ggplot() +
+            geom_line(aes(x = book_date, y = value, color = name)) +
+            geom_vline(data = prog_date  %>% filter(county == i), aes(xintercept = golive_date), color = "green") +
+            geom_vline(xintercept = as.Date("2020-3-1"), color = "orange") +
+            geom_rect(data = prog_date %>% filter(county == i), aes(xmin = eb_start_date, xmax = eb_end_date, ymin = 0, ymax = Inf), fill = "red", alpha = 0.2) +
+            annotate("rect", xmin=as.Date("2020-4-13"), xmax=as.Date("2020-6-20"), ymin=0, ymax=Inf, alpha=0.2, fill="red") +
+            ggtitle(i)
+        
+       })
+
+```
+Felonies only
+```{r}
+lapply(countylist,
+       function(i){
+         # bookings and releases by month
+        full_df %>%
+          filter(county == i,
+                 charge_level == "F") %>%
+           filter(booking_date >= as.Date("2019-1-1"),
+                  booking_date < as.Date("2023-1-1")) %>%
+          group_by(book_date = floor_date(booking_date, unit = "month")) %>%
+          summarise(bookings = n(),
+                    release_eligible = sum(release_eligible_count),
+                    pretrial_releases = sum(released_pretrial_count),
+                    mobility = 100*mean(mob_pop),
+                    golive_date = mean(golive_date),
+                    eb_start_date = mean(eb_start_date),
+                    eb_end_date = mean(eb_end_date)) %>%
+          mutate(rel_rate = pretrial_releases/release_eligible) %>%
+          mutate(bookings = bookings/first(bookings),
+                 release_eligible = release_eligible/first(release_eligible),
+                 pretrial_releases = pretrial_releases/first(pretrial_releases),
+                 rel_rate = rel_rate/first(rel_rate),
+                 mobility = mobility/first(mobility)) %>%
+          ungroup() %>%
+          select(book_date, bookings, rel_rate, 
+                 mobility, golive_date, eb_start_date, eb_end_date) %>%
+          pivot_longer(cols = c(bookings, rel_rate, mobility)) %>%
+          ggplot() +
+            geom_line(aes(x = book_date, y = value, color = name)) +
+            geom_vline(data = prog_date  %>% filter(county == i), aes(xintercept = golive_date), color = "green") +
+            geom_vline(xintercept = as.Date("2020-3-1"), color = "orange") +
+            geom_rect(data = prog_date %>% filter(county == i), aes(xmin = eb_start_date, xmax = eb_end_date, ymin = 0, ymax = Inf), fill = "red", alpha = 0.2) +
+            annotate("rect", xmin=as.Date("2020-4-13"), xmax=as.Date("2020-6-20"), ymin=0, ymax=Inf, alpha=0.2, fill="red") +
+            ggtitle(str_c(i, " - Felonies"))
+        
+       })
+
+```
+Misdos only
+```{r}
+lapply(countylist,
+       function(i){
+         # bookings and releases by month
+        full_df %>%
+          filter(county == i,
+                 charge_level == "M") %>%
+           filter(booking_date >= as.Date("2019-1-1"),
+                  booking_date < as.Date("2023-1-1")) %>%
+          group_by(book_date = floor_date(booking_date, unit = "month")) %>%
+          summarise(bookings = n(),
+                    release_eligible = sum(release_eligible_count),
+                    pretrial_releases = sum(released_pretrial_count),
+                    mobility = 100*mean(mob_pop),
+                    golive_date = mean(golive_date),
+                    eb_start_date = mean(eb_start_date),
+                    eb_end_date = mean(eb_end_date)) %>%
+          mutate(rel_rate = pretrial_releases/release_eligible) %>%
+          mutate(bookings = bookings/first(bookings),
+                 release_eligible = release_eligible/first(release_eligible),
+                 pretrial_releases = pretrial_releases/first(pretrial_releases),
+                 rel_rate = rel_rate/first(rel_rate),
+                 mobility = mobility/first(mobility)) %>%
+          ungroup() %>%
+          select(book_date, bookings, rel_rate, 
+                 mobility, golive_date, eb_start_date, eb_end_date) %>%
+          pivot_longer(cols = c(bookings, rel_rate, mobility)) %>%
+          ggplot() +
+            geom_line(aes(x = book_date, y = value, color = name)) +
+            geom_vline(data = prog_date  %>% filter(county == i), aes(xintercept = golive_date), color = "green") +
+            geom_vline(xintercept = as.Date("2020-3-1"), color = "orange") +
+            geom_rect(data = prog_date %>% filter(county == i), aes(xmin = eb_start_date, xmax = eb_end_date, ymin = 0, ymax = Inf), fill = "red", alpha = 0.2) +
+            annotate("rect", xmin=as.Date("2020-4-13"), xmax=as.Date("2020-6-20"), ymin=0, ymax=Inf, alpha=0.2, fill="red") +
+            ggtitle(str_c(i, " - Misdemeanors"))
+        
+       })
+
+```
+
+
+```{r}
+# full_df %>%
+#   filter(booking_date >= as.Date("2018-7-1"),
+#          booking_date < as.Date("2023-1-1")) %>%
+#   group_by(county, month = month(book_date), year = year(book_date)) %>%
+#   summarise(bookings = n(), releases = sum(released_pretrial_count),
+#             golive_date = mean(golive_date),
+#             eb_start_date = mean(eb_start_date),
+#             eb_end_date = mean(eb_end_date)) %>%
+#   ungroup() %>%
+#   mutate(book_date = as.Date(str_c(year, "-", month, "-1"))) %>%
+#   ggplot() +
+#     geom_line(aes(x = book_date, y = bookings)) +
+#     geom_vline(data = prog_date, aes(xintercept = golive_date), color = "green") +
+#     geom_vline(xintercept = as.Date("2020-3-1"), color = "orange") +
+#     geom_rect(data = prog_date, aes(xmin = eb_start_date, xmax = eb_end_date, ymin = 0, ymax = Inf), fill = "red", alpha = 0.2) +
+#     annotate("rect", xmin=as.Date("2020-4-13"), xmax=as.Date("2020-6-20"), ymin=0, ymax=Inf, alpha=0.2, fill="red") +
+#     facet_grid(rows = vars(county), scales = "free")
+
+#ggsave("bookings with key local dates by county.png", width = 7, height = 16)
+```
+
+Statewide mobility over time
+```{r}
+full_df %>%
+  filter(booking_date >= as.Date("2019-1-1"),
+         booking_date < as.Date("2022-1-1")) %>%
+  group_by(book_date = floor_date(booking_date, unit = "week")) %>%
+  summarise(bookings = n(), releases = sum(released_pretrial_count),
+            avg_mob = mean(mob_pop, na.rm = T)) %>%
+  ungroup() %>%
+  ggplot() +
+    geom_line(aes(x = book_date, y = avg_mob)) +
+    geom_vline(xintercept = as.Date("2020-3-1"), color = "orange") +
+    annotate("rect", xmin=as.Date("2020-4-13"), xmax=as.Date("2020-6-20"), ymin=0, ymax=Inf, alpha=0.2, fill="red")
+```
+
+Statewide bookings and pretrial releases over time
+```{r}
+full_df %>%
+  filter(booking_date >= as.Date("2018-7-1"),
+         booking_date < as.Date("2022-1-1")) %>%
+  group_by(book_date = floor_date(booking_date, unit = "week")) %>%
+  summarise(bookings = n(), releases = sum(released_pretrial_count),
+            avg_mob = mean(mob_pop, na.rm = T)) %>%
+  ungroup() %>%
+  pivot_longer(cols = c("bookings", "releases")) %>%
+  ggplot() +
+    geom_line(aes(x = book_date, y = value, color = name)) +
+    geom_vline(xintercept = as.Date("2020-3-1"), color = "orange") +
+    annotate("rect", xmin=as.Date("2020-4-13"), xmax=as.Date("2020-6-20"), ymin=0, ymax=Inf, alpha=0.2, fill="red")
+```
+
+Statewide relative bookings, releases, mobility by week - Felonies
+```{r}
+ full_df %>%
+           filter(charge_level == "F") %>%
+           filter(booking_date >= as.Date("2019-1-1"),
+                  booking_date < as.Date("2023-1-1")) %>%
+          group_by(book_date = floor_date(booking_date, unit = "week")) %>%
+          summarise(bookings = n(),
+                    release_eligible = sum(release_eligible_count),
+                    pretrial_releases = sum(released_pretrial_count),
+                    mobility = 100*mean(mob_pop, na.rm = T)) %>%
+          mutate(rel_rate = pretrial_releases/release_eligible) %>%
+          mutate(bookings = bookings/first(bookings),
+                 release_eligible = release_eligible/first(release_eligible),
+                 pretrial_releases = pretrial_releases/first(pretrial_releases),
+                 rel_rate = rel_rate/first(rel_rate),
+                 mobility = mobility/first(mobility)) %>%
+          ungroup() %>%
+          select(book_date, bookings, rel_rate, mobility) %>%
+          pivot_longer(cols = c(bookings, rel_rate, mobility)) %>%
+          ggplot() +
+            geom_line(aes(x = book_date, y = value, color = name)) +
+            geom_vline(xintercept = as.Date("2020-3-1"), color = "orange") +
+            annotate("rect", xmin=as.Date("2020-4-13"), xmax=as.Date("2020-6-20"), ymin=0, ymax=Inf, alpha=0.2, fill="red") +
+            ggtitle("Statewide - Felonies")
+```
+
+
+Statewide relative bookings, releases, mobility by week - Misdos
+```{r}
+ full_df %>%
+           filter(charge_level == "M") %>%
+           filter(booking_date >= as.Date("2019-1-1"),
+                  booking_date < as.Date("2023-1-1")) %>%
+          group_by(book_date = floor_date(booking_date, unit = "week")) %>%
+          summarise(bookings = n(),
+                    release_eligible = sum(release_eligible_count),
+                    pretrial_releases = sum(released_pretrial_count),
+                    mobility = 100*mean(mob_pop, na.rm = T)) %>%
+          mutate(rel_rate = pretrial_releases/release_eligible) %>%
+          mutate(bookings = bookings/first(bookings),
+                 release_eligible = release_eligible/first(release_eligible),
+                 pretrial_releases = pretrial_releases/first(pretrial_releases),
+                 rel_rate = rel_rate/first(rel_rate),
+                 mobility = mobility/first(mobility)) %>%
+          ungroup() %>%
+          select(book_date, bookings, rel_rate, mobility) %>%
+          pivot_longer(cols = c(bookings, rel_rate, mobility)) %>%
+          ggplot() +
+            geom_line(aes(x = book_date, y = value, color = name)) +
+            geom_vline(xintercept = as.Date("2020-3-1"), color = "orange") +
+            annotate("rect", xmin=as.Date("2020-4-13"), xmax=as.Date("2020-6-20"), ymin=0, ymax=Inf, alpha=0.2, fill="red") +
+            ggtitle("Statewide - Misdemeanors")
+
+
+```
 # Space saver
 
