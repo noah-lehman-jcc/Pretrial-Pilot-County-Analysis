@@ -1,0 +1,2712 @@
+---
+title: "Untitled"
+output: html_document
+date: '2022-08-30'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(data.table)
+library(openxlsx)
+library(lubridate)
+library(gsubfn)
+library(fuzzyjoin)
+library(dplyr)
+library(pROC)
+library(broom)
+library(kableExtra)
+library(stargazer)
+library(DBI)
+library(dbplyr)
+library(odbc)
+library(tinytex)
+library(gt)
+```
+
+# DO NOT RUN
+```{r eval=FALSE, include=FALSE}
+tdf <- read.xlsx("G:/CrimJustice/PretrialAssessmentPilot/temp files 8 30 2022/temp.xlsx")
+
+tdf %>%
+  count(CCHG_CHARGE_CODE, sort = T)
+
+tdf %>%
+  count(is.na(CCHG_CHARGE_CODE))
+
+tdf %>%
+  count(CCHG_CHARGE_LEVEL_CODE, sort = T) %>%
+  mutate(tot = sum(n),
+         perc = round(n/tot*100,1))
+
+tdf %>%
+  count(is.na(DISP_CASE_CHRG_DISPO_DATE))
+```
+Do not run
+```{r}
+#tr <- fread("G:/CrimJustice/PretrialAssessmentPilot/temp files 8 30 2022/la_tool_response_detail.csv")
+
+#names(tr) <- tolower(names(tr))
+
+#tr 
+```
+ Reformat tool response data
+```{r}
+tr <- fread("G:/CrimJustice/PretrialAssessmentPilot/temp files 8 30 2022/Pretrial_PSA_Tool_Responses_Details.csv")
+
+names(tr) <- tolower(names(tr))
+
+tr <- tr %>%
+  mutate(across(c(current_violent_offense, current_violent_offense_and_age_under_20, 
+                  pending_charge_at_arrest, prior_misdemeanor_conviction,
+                  prior_felony_conviction,
+                  prior_conviction, prior_fta_older_than_24_months, 
+                  prior_sentence_to_incarceration), ~if_else(.x == "TRUE", "Y", "N"))) %>%
+  mutate(age = if_else(age < 23, 2, 0)) %>%
+  mutate(prior_violent_conviction = case_when(prior_violent_conviction == 0 ~ 0,
+                                              prior_violent_conviction %in% c(1, 2) ~ 1,
+                                              prior_violent_conviction >=3 ~ 2)) %>%
+  mutate(prior_fta_previous_24_months = case_when(prior_fta_previous_24_months >= 2 ~ 4,
+                                                  prior_fta_previous_24_months == 1 ~ 2,
+                                                  prior_fta_previous_24_months == 0 ~ 0)) %>%
+  mutate(current_violent_offense = if_else(current_violent_offense == "Y", 2, 0),
+         current_violent_offense_and_age_under_20 = if_else(current_violent_offense_and_age_under_20 == "Y", 1, 0),
+         pending_charge_at_arrest = if_else(pending_charge_at_arrest == "Y", 1, 0),
+         prior_misdemeanor_conviction = if_else(prior_misdemeanor_conviction == "Y", 1, 0),
+         prior_felony_conviction = if_else(prior_felony_conviction == "Y", 1, 0),
+         prior_conviction = if_else(prior_conviction == "Y", 1, 0),
+         prior_fta_older_than_24_months = if_else(prior_fta_older_than_24_months == "Y", 1, 0),
+         prior_sentence_to_incarceration = if_else(prior_sentence_to_incarceration == "Y", 2, 0))
+```
+
+# Connection
+```{r include=FALSE}
+con <- dbConnect(odbc::odbc(), "snowflake_pretrial", uid ="Sal.Lempert@jud.ca.gov", pwd = rstudioapi::askForPassword("Password"))
+
+
+```
+
+
+Pull 8.18.22 snowflake data for LA only -- join_df
+```{sql eval=FALSE, connection=con, include=FALSE, output.var='join_df'}
+SELECT *
+FROM "DWH_PROD"."DATA_SCIENCE"."JOIN_STD_20220818"
+WHERE COUNTY = 'Los Angeles'
+;
+```
+
+Format data - join df 
+```{r warning=FALSE, include=FALSE}
+names(join_df) <- tolower(names(join_df))
+
+join_df <- join_df %>%
+  mutate(book_date = booking_date,
+         race_orig = race,
+         race = if_else(race_standard %in% c("White", "Black", "Hispanic"), race_standard, "Other/Unknown"),
+         age = individual_age,
+         charge_level_orig = charge_level,
+         charge_level = charge_level_standard,
+         pretrial_period_end_count = pretrial_period_end_count_standard,
+         fta_flag = fta_county_or_doj,
+         recid_arrested_flag = recid_county_or_doj,
+         tool_name = case_when(county == "Kings" ~ "VPRAI-O", 
+                               county == "Santa Barbara" & assessment_date < as.Date("2020-4-29") ~ "VPRAI",
+                               county == "Santa Barbara" & assessment_date >= as.Date("2020-4-29") ~ "VPRAI-R",
+                               tool_name == "VPRAIR" ~ "VPRAI-R",
+                               T ~ tool_name),
+         oras_risk_score = if_else(tool_name == "ORAS", risk_score_raw, NULL),
+         vprai_risk_score = if_else(tool_name == "VPRAI", risk_score_raw, NULL),
+         vprair_risk_score = if_else(tool_name == "VPRAI-R", risk_score_raw, NULL),
+         vpraio_risk_score = if_else(tool_name == "VPRAI-O", generic_tool_total_score_raw, NULL),
+         psa_fta_risk_score = score_failure_to_appear,
+         psa_nca_risk_score = score_new_criminal_activity,
+         psa_nvca_risk_score = score_new_criminal_violent_activity,
+         scored_assessment = if_else(tool_name %in% c("ORAS", "VPRAI", "VPRAI-R") & !is.na(risk_score_raw) |
+                                       tool_name == "PSA" & !is.na(score_new_criminal_activity) |
+                                       tool_name == "VPRAI-O" & !is.na(generic_tool_total_score_raw), 1, 0),
+         pretrial_period_end_date = if_else(is.na(pretrial_period_end_date), as.Date(pretrial_period_end_date_doj), as.Date(pretrial_period_end_date)))%>%
+  mutate(recid_filed_flag = recid_filed_flag_doj, 
+         recid_convicted_flag = recid_convicted_flag_doj, 
+         recid_arrest_violent_psa_flag = recid_arrest_violent_psa_flag_doj,
+         any_pretrial_failure_flag = if_else(recid_arrested_flag == 1 | fta_flag == 1, 1, 0)) %>% ## update this when we get county data on these
+  mutate(across(contains("_flag"), ~if_else(is.na(.x) | .x == "No" | .x == "Unknown" | .x == "0" | .x == 0, 0, as.numeric(1))))  
+
+full_df <- join_df %>%
+  filter(booking_date < as.Date("2022-01-01"))
+
+eval_df <- join_df %>%
+  filter(booking_assessed_count == 1,
+         scored_assessment == 1,
+         release_eligible_count ==1,
+         released_pretrial_count == 1,
+         pretrial_period_end_count == 1,
+         booking_date < as.Date("2022-01-01"),
+         tool_name %in% c("ORAS", "PSA", "VPRAI", "VPRAI-R", "VPRAI-O")
+         ) %>%
+  mutate(release_to_pretrial_end = pretrial_period_end_date - release_date)
+
+#create zero bail dummy for period of April 6 2020 through June 20 2020
+eval_df <- eval_df %>%
+  mutate(zero_bail_dummy = if_else(arrest_date >= as.Date("2020-04-06") & arrest_date <= as.Date("2020-06-20"), 1, 0)) 
+
+# create sup_or_none dummy for supervision
+eval_df <- eval_df %>%
+  mutate(monitoring_level_grouped = if_else(grepl("Own Recognizance", monitoring_level_grouped), "Own Recognizance", monitoring_level_grouped)) %>%
+  mutate(monitoring_level_grouped = if_else(monitoring_level_grouped %in% c("Lowest Levels", "Medium Levels", "Highest Levels", "Own Recognizance"), monitoring_level_grouped, NA_character_)) %>%
+  mutate(bail_or_sup = case_when(release_type %in% c("Bail Bond") ~ "Bail Bond",
+                                 !is.na(monitoring_level_grouped) ~ monitoring_level_grouped,
+                                 release_type %in% c("Own Recognizance") ~ "Own Recognizance",
+                                 release_type %in% c("Cite Release", "CiteR elease") ~ "Cite Release")) 
+```
+
+```{r}
+link <- fread("G:/CrimJustice/PretrialAssessmentPilot/temp files 8 30 2022/pretrial_booking_keys.csv")
+
+names(link) <- tolower(names(link))
+
+```
+# Old things
+
+
+```{r}
+tr <- tr %>%
+  left_join(link) %>%
+  mutate(booking_key = as.character(booking_key)) %>%
+  rename(age_psa_response = age)
+
+eval_df <-  eval_df %>%
+  left_join(tr, by = c("booking_key"))
+
+```
+Los Angeles
+\newline
+```{r fig.height=6, fig.width=10, dpi=1200}
+risk_df <- eval_df %>%
+  filter(county == "Los Angeles") %>%
+  filter(tool_name == "PSA", !is.na(psa_fta_risk_score)) %>%
+  group_by(psa_fta_risk_score, race, county) %>%
+  select(fta_flag) %>%
+  pivot_longer(fta_flag) 
+
+names(risk_df)[1] <- "psa_risk_score"
+
+risk_df2 <- eval_df %>%
+  filter(county == "Los Angeles") %>%
+  filter(tool_name == "PSA", !is.na(psa_nca_risk_score)) %>%
+  group_by(psa_nca_risk_score, race, county) %>%
+  select(recid_arrested_flag, recid_filed_flag, recid_convicted_flag) %>%
+  pivot_longer(recid_arrested_flag:recid_convicted_flag) 
+
+names(risk_df2)[1] <- "psa_risk_score"
+
+risk_df3 <- eval_df %>%
+  filter(county == "Los Angeles") %>%
+  filter(tool_name == "PSA", !is.na(psa_nvca_risk_score)) %>%
+  group_by(psa_nvca_risk_score, race, county) %>%
+  select(recid_arrest_violent_psa_flag) %>%
+  pivot_longer(recid_arrest_violent_psa_flag) 
+
+names(risk_df3)[1] <- "psa_risk_score"
+
+risk_df <- bind_rows(risk_df, risk_df2, risk_df3)
+  
+rm(risk_df2, risk_df3)
+
+risk_df <- risk_df %>%
+  mutate(race = factor(race, levels = c("White", "Black", "Hispanic", "Other_Unknown"))) %>%
+  filter(race %in% c("White", "Black", "Hispanic")) %>%
+  mutate(name = case_when(name == "fta_flag" ~ "FTA",
+                          name == "recid_arrested_flag" ~ "New Arrest",
+                          name == "recid_filed_flag" ~ "New Filing",
+                          name == "recid_convicted_flag" ~ "New Conviction",
+                          name == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest"),
+         name = factor(name, levels = c("FTA", "New Arrest", "New Filing", "New Conviction", "New Violent Arrest"))) %>%
+  filter(county %in% c("Los Angeles", "Sacramento"))
+
+ggplot(risk_df) +
+  aes(x = psa_risk_score, y = value, color = race) +
+  geom_smooth(method = "glm", method.args = list(family=binomial), alpha = .2) +
+  # geom_line() +
+  # geom_point() +
+  theme_bw() +
+  # ylim(0,100) +
+  facet_wrap(~name, scales = "free") +
+  labs(x = "Risk Category", y = "Percent",
+       title = "Comparison of Racial Differences in Logistic Regression Curves--PSA, Los Angeles") +
+  scale_x_continuous(breaks = 1:6)
+
+# eval_df %>%
+#   filter(tool_name == "PSA") %>%
+#   count(county)
+```
+\newpage
+```{r}
+tr %>%
+  count(age_psa_response)
+
+tr %>%
+  count(current_violent_offense)
+
+tr %>%
+  count(current_violent_offense_and_age_under_20)
+
+tr %>%
+  count(pending_charge_at_arrest)
+
+tr %>%
+  count(prior_misdemeanor_conviction)
+
+tr %>%
+  count(prior_felony_conviction)
+
+tr %>%
+  count(prior_conviction)
+
+tr %>%
+  count(prior_violent_conviction)
+
+tr %>%
+  count(prior_fta_previous_24_months)
+
+tr %>%
+  count(prior_fta_older_than_24_months)
+
+tr %>%
+  count(prior_sentence_to_incarceration)
+```
+
+```{r}
+names(tr)
+
+eval_df %>%
+  count(age_psa_response)
+
+eval_df %>%
+  count(current_violent_offense)
+
+eval_df %>%
+  count(current_violent_offense_and_age_under_20)
+
+eval_df %>%
+  count(pending_charge_at_arrest)
+
+eval_df %>%
+  count(prior_misdemeanor_conviction)
+
+eval_df %>%
+  count(prior_felony_conviction)
+
+eval_df %>%
+  count(prior_conviction)
+
+eval_df %>%
+  count(prior_violent_conviction)
+
+eval_df %>%
+  count(prior_fta_previous_24_months)
+
+eval_df %>%
+  count(prior_fta_older_than_24_months)
+
+eval_df %>%
+  count(prior_sentence_to_incarceration)
+```
+
+```{r}
+eval_df %>%
+  count(age_psa_response) %>%
+  mutate(name = "age_psa_response") %>%
+  pivot_wider(names_from = age_psa_response, values_from = n) %>%
+  bind_rows(
+eval_df %>%
+  count(current_violent_offense)%>%
+  mutate(name = "current_violent_offense") %>%
+  pivot_wider(names_from = current_violent_offense, values_from = n)
+) %>%
+  bind_rows(
+eval_df %>%
+  count(current_violent_offense_and_age_under_20)%>%
+  mutate(name = "current_violent_offense_and_age_under_20") %>%
+  pivot_wider(names_from = current_violent_offense_and_age_under_20, values_from = n)
+) %>%
+  bind_rows(
+
+eval_df %>%
+  count(pending_charge_at_arrest)%>%
+  mutate(name = "pending_charge_at_arrest") %>%
+  pivot_wider(names_from = pending_charge_at_arrest, values_from = n)
+) %>%
+  bind_rows(
+
+eval_df %>%
+  count(prior_misdemeanor_conviction)%>%
+  mutate(name = "prior_misdemeanor_conviction") %>%
+  pivot_wider(names_from = prior_misdemeanor_conviction, values_from = n)
+) %>%
+  bind_rows(
+
+eval_df %>%
+  count(prior_felony_conviction)%>%
+  mutate(name = "prior_felony_conviction") %>%
+  pivot_wider(names_from = prior_felony_conviction, values_from = n)
+) %>%
+  bind_rows(
+
+eval_df %>%
+  count(prior_conviction)%>%
+  mutate(name = "prior_conviction") %>%
+  pivot_wider(names_from = prior_conviction, values_from = n)
+) %>%
+  bind_rows(
+
+eval_df %>%
+  count(prior_violent_conviction)%>%
+  mutate(name = "prior_violent_conviction") %>%
+  pivot_wider(names_from = prior_violent_conviction, values_from = n)
+) %>%
+  bind_rows(
+
+eval_df %>%
+  count(prior_fta_previous_24_months)%>%
+  mutate(name = "prior_fta_previous_24_months") %>%
+  pivot_wider(names_from = prior_fta_previous_24_months, values_from = n)
+) %>%
+  bind_rows(
+
+eval_df %>%
+  count(prior_fta_older_than_24_months)%>%
+  mutate(name = "prior_fta_older_than_24_months") %>%
+  pivot_wider(names_from = prior_fta_older_than_24_months, values_from = n)
+) %>%
+  bind_rows(
+
+eval_df %>%
+  count(prior_sentence_to_incarceration)%>%
+  mutate(name = "prior_sentence_to_incarceration") %>%
+  pivot_wider(names_from = prior_sentence_to_incarceration, values_from = n)
+)%>%
+  select('name', 'NA', '0', '1', '2', '4') %>%
+  rename(risk_element = name)
+```
+
+
+Los Angeles - age_psa_response
+\newline
+```{r fig.height=6, fig.width=10, dpi=1200}
+risk_df <- eval_df %>%
+  filter(county == "Los Angeles") %>%
+  filter(tool_name == "PSA", !is.na(age_psa_response)) %>%
+  group_by(age_psa_response, race, county) %>%
+  select(fta_flag) %>%
+  pivot_longer(fta_flag) 
+
+names(risk_df)[1] <- "psa_risk_score"
+
+risk_df2 <- eval_df %>%
+  filter(county == "Los Angeles") %>%
+  filter(tool_name == "PSA", !is.na(age_psa_response)) %>%
+  group_by(age_psa_response, race, county) %>%
+  select(recid_arrested_flag, recid_filed_flag, recid_convicted_flag) %>%
+  pivot_longer(recid_arrested_flag:recid_convicted_flag) 
+
+names(risk_df2)[1] <- "psa_risk_score"
+
+risk_df3 <- eval_df %>%
+  filter(county == "Los Angeles") %>%
+  filter(tool_name == "PSA", !is.na(age_psa_response)) %>%
+  group_by(age_psa_response, race, county) %>%
+  select(recid_arrest_violent_psa_flag) %>%
+  pivot_longer(recid_arrest_violent_psa_flag) 
+
+names(risk_df3)[1] <- "psa_risk_score"
+
+risk_df <- bind_rows(risk_df, risk_df2, risk_df3)
+  
+rm(risk_df2, risk_df3)
+
+risk_df <- risk_df %>%
+  mutate(race = factor(race, levels = c("White", "Black", "Hispanic", "Other_Unknown"))) %>%
+  filter(race %in% c("White", "Black", "Hispanic")) %>%
+  mutate(name = case_when(name == "fta_flag" ~ "FTA",
+                          name == "recid_arrested_flag" ~ "New Arrest",
+                          name == "recid_filed_flag" ~ "New Filing",
+                          name == "recid_convicted_flag" ~ "New Conviction",
+                          name == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest"),
+         name = factor(name, levels = c("FTA", "New Arrest", "New Filing", "New Conviction", "New Violent Arrest"))) %>%
+  filter(county %in% c("Los Angeles", "Sacramento"))
+
+ggplot(risk_df) +
+  aes(x = psa_risk_score, y = value, color = race) +
+  geom_smooth(method = "glm", method.args = list(family=binomial), alpha = .2) +
+  # geom_line() +
+  # geom_point() +
+  theme_bw() +
+  # ylim(0,100) +
+  facet_wrap(~name, scales = "free") +
+  labs(x = "Risk Category", y = "Percent",
+       title = "Comparison of Racial Differences in Logistic Regression Curves--age_psa_response, Los Angeles") +
+  scale_x_continuous(breaks = 1:6)
+
+# eval_df %>%
+#   filter(tool_name == "PSA") %>%
+#   count(county)
+```
+\newpage
+
+Los Angeles - current_violent_offense
+\newline
+```{r fig.height=6, fig.width=10, dpi=1200}
+risk_df <- eval_df %>%
+  filter(county == "Los Angeles") %>%
+  filter(tool_name == "PSA", !is.na(current_violent_offense)) %>%
+  group_by(current_violent_offense, race, county) %>%
+  select(fta_flag) %>%
+  pivot_longer(fta_flag) 
+
+names(risk_df)[1] <- "psa_risk_score"
+
+risk_df2 <- eval_df %>%
+  filter(county == "Los Angeles") %>%
+  filter(tool_name == "PSA", !is.na(current_violent_offense)) %>%
+  group_by(current_violent_offense, race, county) %>%
+  select(recid_arrested_flag, recid_filed_flag, recid_convicted_flag) %>%
+  pivot_longer(recid_arrested_flag:recid_convicted_flag) 
+
+names(risk_df2)[1] <- "psa_risk_score"
+
+risk_df3 <- eval_df %>%
+  filter(county == "Los Angeles") %>%
+  filter(tool_name == "PSA", !is.na(current_violent_offense)) %>%
+  group_by(current_violent_offense, race, county) %>%
+  select(recid_arrest_violent_psa_flag) %>%
+  pivot_longer(recid_arrest_violent_psa_flag) 
+
+names(risk_df3)[1] <- "psa_risk_score"
+
+risk_df <- bind_rows(risk_df, risk_df2, risk_df3)
+  
+rm(risk_df2, risk_df3)
+
+risk_df <- risk_df %>%
+  mutate(race = factor(race, levels = c("White", "Black", "Hispanic", "Other_Unknown"))) %>%
+  filter(race %in% c("White", "Black", "Hispanic")) %>%
+  mutate(name = case_when(name == "fta_flag" ~ "FTA",
+                          name == "recid_arrested_flag" ~ "New Arrest",
+                          name == "recid_filed_flag" ~ "New Filing",
+                          name == "recid_convicted_flag" ~ "New Conviction",
+                          name == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest"),
+         name = factor(name, levels = c("FTA", "New Arrest", "New Filing", "New Conviction", "New Violent Arrest"))) %>%
+  filter(county %in% c("Los Angeles", "Sacramento"))
+
+ggplot(risk_df) +
+  aes(x = psa_risk_score, y = value, color = race) +
+  geom_smooth(method = "glm", method.args = list(family=binomial), alpha = .2) +
+  # geom_line() +
+  # geom_point() +
+  theme_bw() +
+  # ylim(0,100) +
+  facet_wrap(~name, scales = "free") +
+  labs(x = "Risk Category", y = "Percent",
+       title = "Comparison of Racial Differences in Logistic Regression Curves--current_violent_offense, Los Angeles") +
+  scale_x_continuous(breaks = 1:6)
+
+```
+\newpage
+
+Los Angeles - current_violent_offense_and_age_under_20
+\newline
+```{r fig.height=6, fig.width=10, dpi=1200}
+risk_df <- eval_df %>%
+  filter(county == "Los Angeles") %>%
+  filter(tool_name == "PSA", !is.na(current_violent_offense_and_age_under_20)) %>%
+  group_by(current_violent_offense_and_age_under_20, race, county) %>%
+  select(fta_flag) %>%
+  pivot_longer(fta_flag) 
+
+names(risk_df)[1] <- "psa_risk_score"
+
+risk_df2 <- eval_df %>%
+  filter(county == "Los Angeles") %>%
+  filter(tool_name == "PSA", !is.na(current_violent_offense_and_age_under_20)) %>%
+  group_by(current_violent_offense_and_age_under_20, race, county) %>%
+  select(recid_arrested_flag, recid_filed_flag, recid_convicted_flag) %>%
+  pivot_longer(recid_arrested_flag:recid_convicted_flag) 
+
+names(risk_df2)[1] <- "psa_risk_score"
+
+risk_df3 <- eval_df %>%
+  filter(county == "Los Angeles") %>%
+  filter(tool_name == "PSA", !is.na(current_violent_offense_and_age_under_20)) %>%
+  group_by(current_violent_offense_and_age_under_20, race, county) %>%
+  select(recid_arrest_violent_psa_flag) %>%
+  pivot_longer(recid_arrest_violent_psa_flag) 
+
+names(risk_df3)[1] <- "psa_risk_score"
+
+risk_df <- bind_rows(risk_df, risk_df2, risk_df3)
+  
+rm(risk_df2, risk_df3)
+
+risk_df <- risk_df %>%
+  mutate(race = factor(race, levels = c("White", "Black", "Hispanic", "Other_Unknown"))) %>%
+  filter(race %in% c("White", "Black", "Hispanic")) %>%
+  mutate(name = case_when(name == "fta_flag" ~ "FTA",
+                          name == "recid_arrested_flag" ~ "New Arrest",
+                          name == "recid_filed_flag" ~ "New Filing",
+                          name == "recid_convicted_flag" ~ "New Conviction",
+                          name == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest"),
+         name = factor(name, levels = c("FTA", "New Arrest", "New Filing", "New Conviction", "New Violent Arrest"))) %>%
+  filter(county %in% c("Los Angeles", "Sacramento"))
+
+ggplot(risk_df) +
+  aes(x = psa_risk_score, y = value, color = race) +
+  geom_smooth(method = "glm", method.args = list(family=binomial), alpha = .2) +
+  # geom_line() +
+  # geom_point() +
+  theme_bw() +
+  # ylim(0,100) +
+  facet_wrap(~name, scales = "free") +
+  labs(x = "Risk Category", y = "Percent",
+       title = "Comparison of Racial Differences in Logistic Regression Curves--current_violent_offense_and_age_under_20, Los Angeles") +
+  scale_x_continuous(breaks = 1:6)
+
+```
+\newpage
+
+Los Angeles - pending_charge_at_arrest
+\newline
+```{r fig.height=6, fig.width=10, dpi=1200}
+risk_df <- eval_df %>%
+  filter(county == "Los Angeles") %>%
+  filter(tool_name == "PSA", !is.na(pending_charge_at_arrest)) %>%
+  group_by(pending_charge_at_arrest, race, county) %>%
+  select(fta_flag) %>%
+  pivot_longer(fta_flag) 
+
+names(risk_df)[1] <- "psa_risk_score"
+
+risk_df2 <- eval_df %>%
+  filter(county == "Los Angeles") %>%
+  filter(tool_name == "PSA", !is.na(pending_charge_at_arrest)) %>%
+  group_by(pending_charge_at_arrest, race, county) %>%
+  select(recid_arrested_flag, recid_filed_flag, recid_convicted_flag) %>%
+  pivot_longer(recid_arrested_flag:recid_convicted_flag) 
+
+names(risk_df2)[1] <- "psa_risk_score"
+
+risk_df3 <- eval_df %>%
+  filter(county == "Los Angeles") %>%
+  filter(tool_name == "PSA", !is.na(pending_charge_at_arrest)) %>%
+  group_by(pending_charge_at_arrest, race, county) %>%
+  select(recid_arrest_violent_psa_flag) %>%
+  pivot_longer(recid_arrest_violent_psa_flag) 
+
+names(risk_df3)[1] <- "psa_risk_score"
+
+risk_df <- bind_rows(risk_df, risk_df2, risk_df3)
+  
+rm(risk_df2, risk_df3)
+
+risk_df <- risk_df %>%
+  mutate(race = factor(race, levels = c("White", "Black", "Hispanic", "Other_Unknown"))) %>%
+  filter(race %in% c("White", "Black", "Hispanic")) %>%
+  mutate(name = case_when(name == "fta_flag" ~ "FTA",
+                          name == "recid_arrested_flag" ~ "New Arrest",
+                          name == "recid_filed_flag" ~ "New Filing",
+                          name == "recid_convicted_flag" ~ "New Conviction",
+                          name == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest"),
+         name = factor(name, levels = c("FTA", "New Arrest", "New Filing", "New Conviction", "New Violent Arrest"))) %>%
+  filter(county %in% c("Los Angeles", "Sacramento"))
+
+ggplot(risk_df) +
+  aes(x = psa_risk_score, y = value, color = race) +
+  geom_smooth(method = "glm", method.args = list(family=binomial), alpha = .2) +
+  # geom_line() +
+  # geom_point() +
+  theme_bw() +
+  # ylim(0,100) +
+  facet_wrap(~name, scales = "free") +
+  labs(x = "Risk Category", y = "Percent",
+       title = "Comparison of Racial Differences in Logistic Regression Curves--pending_charge_at_arrest, Los Angeles") +
+  scale_x_continuous(breaks = 1:6)
+
+```
+\newpage
+
+Los Angeles - prior_misdemeanor_conviction
+\newline
+```{r fig.height=6, fig.width=10, dpi=1200}
+risk_df <- eval_df %>%
+  filter(county == "Los Angeles") %>%
+  filter(tool_name == "PSA", !is.na(prior_misdemeanor_conviction)) %>%
+  group_by(prior_misdemeanor_conviction, race, county) %>%
+  select(fta_flag) %>%
+  pivot_longer(fta_flag) 
+
+names(risk_df)[1] <- "psa_risk_score"
+
+risk_df2 <- eval_df %>%
+  filter(county == "Los Angeles") %>%
+  filter(tool_name == "PSA", !is.na(prior_misdemeanor_conviction)) %>%
+  group_by(prior_misdemeanor_conviction, race, county) %>%
+  select(recid_arrested_flag, recid_filed_flag, recid_convicted_flag) %>%
+  pivot_longer(recid_arrested_flag:recid_convicted_flag) 
+
+names(risk_df2)[1] <- "psa_risk_score"
+
+risk_df3 <- eval_df %>%
+  filter(county == "Los Angeles") %>%
+  filter(tool_name == "PSA", !is.na(prior_misdemeanor_conviction)) %>%
+  group_by(prior_misdemeanor_conviction, race, county) %>%
+  select(recid_arrest_violent_psa_flag) %>%
+  pivot_longer(recid_arrest_violent_psa_flag) 
+
+names(risk_df3)[1] <- "psa_risk_score"
+
+risk_df <- bind_rows(risk_df, risk_df2, risk_df3)
+  
+rm(risk_df2, risk_df3)
+
+risk_df <- risk_df %>%
+  mutate(race = factor(race, levels = c("White", "Black", "Hispanic", "Other_Unknown"))) %>%
+  filter(race %in% c("White", "Black", "Hispanic")) %>%
+  mutate(name = case_when(name == "fta_flag" ~ "FTA",
+                          name == "recid_arrested_flag" ~ "New Arrest",
+                          name == "recid_filed_flag" ~ "New Filing",
+                          name == "recid_convicted_flag" ~ "New Conviction",
+                          name == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest"),
+         name = factor(name, levels = c("FTA", "New Arrest", "New Filing", "New Conviction", "New Violent Arrest"))) %>%
+  filter(county %in% c("Los Angeles", "Sacramento"))
+
+ggplot(risk_df) +
+  aes(x = psa_risk_score, y = value, color = race) +
+  geom_smooth(method = "glm", method.args = list(family=binomial), alpha = .2) +
+  # geom_line() +
+  # geom_point() +
+  theme_bw() +
+  # ylim(0,100) +
+  facet_wrap(~name, scales = "free") +
+  labs(x = "Risk Category", y = "Percent",
+       title = "Comparison of Racial Differences in Logistic Regression Curves--prior_misdemeanor_conviction, Los Angeles") +
+  scale_x_continuous(breaks = 1:6)
+
+```
+\newpage
+
+Los Angeles - prior_felony_conviction
+\newline
+```{r fig.height=6, fig.width=10, dpi=1200}
+risk_df <- eval_df %>%
+  filter(county == "Los Angeles") %>%
+  filter(tool_name == "PSA", !is.na(prior_felony_conviction)) %>%
+  group_by(prior_felony_conviction, race, county) %>%
+  select(fta_flag) %>%
+  pivot_longer(fta_flag) 
+
+names(risk_df)[1] <- "psa_risk_score"
+
+risk_df2 <- eval_df %>%
+  filter(county == "Los Angeles") %>%
+  filter(tool_name == "PSA", !is.na(prior_felony_conviction)) %>%
+  group_by(prior_felony_conviction, race, county) %>%
+  select(recid_arrested_flag, recid_filed_flag, recid_convicted_flag) %>%
+  pivot_longer(recid_arrested_flag:recid_convicted_flag) 
+
+names(risk_df2)[1] <- "psa_risk_score"
+
+risk_df3 <- eval_df %>%
+  filter(county == "Los Angeles") %>%
+  filter(tool_name == "PSA", !is.na(prior_felony_conviction)) %>%
+  group_by(prior_felony_conviction, race, county) %>%
+  select(recid_arrest_violent_psa_flag) %>%
+  pivot_longer(recid_arrest_violent_psa_flag) 
+
+names(risk_df3)[1] <- "psa_risk_score"
+
+risk_df <- bind_rows(risk_df, risk_df2, risk_df3)
+  
+rm(risk_df2, risk_df3)
+
+risk_df <- risk_df %>%
+  mutate(race = factor(race, levels = c("White", "Black", "Hispanic", "Other_Unknown"))) %>%
+  filter(race %in% c("White", "Black", "Hispanic")) %>%
+  mutate(name = case_when(name == "fta_flag" ~ "FTA",
+                          name == "recid_arrested_flag" ~ "New Arrest",
+                          name == "recid_filed_flag" ~ "New Filing",
+                          name == "recid_convicted_flag" ~ "New Conviction",
+                          name == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest"),
+         name = factor(name, levels = c("FTA", "New Arrest", "New Filing", "New Conviction", "New Violent Arrest"))) %>%
+  filter(county %in% c("Los Angeles", "Sacramento"))
+
+ggplot(risk_df) +
+  aes(x = psa_risk_score, y = value, color = race) +
+  geom_smooth(method = "glm", method.args = list(family=binomial), alpha = .2) +
+  # geom_line() +
+  # geom_point() +
+  theme_bw() +
+  # ylim(0,100) +
+  facet_wrap(~name, scales = "free") +
+  labs(x = "Risk Category", y = "Percent",
+       title = "Comparison of Racial Differences in Logistic Regression Curves--prior_felony_conviction, Los Angeles") +
+  scale_x_continuous(breaks = 1:6)
+
+```
+\newpage
+
+Los Angeles - prior_conviction
+\newline
+```{r fig.height=6, fig.width=10, dpi=1200}
+risk_df <- eval_df %>%
+  filter(county == "Los Angeles") %>%
+  filter(tool_name == "PSA", !is.na(prior_conviction)) %>%
+  group_by(prior_conviction, race, county) %>%
+  select(fta_flag) %>%
+  pivot_longer(fta_flag) 
+
+names(risk_df)[1] <- "psa_risk_score"
+
+risk_df2 <- eval_df %>%
+  filter(county == "Los Angeles") %>%
+  filter(tool_name == "PSA", !is.na(prior_conviction)) %>%
+  group_by(prior_conviction, race, county) %>%
+  select(recid_arrested_flag, recid_filed_flag, recid_convicted_flag) %>%
+  pivot_longer(recid_arrested_flag:recid_convicted_flag) 
+
+names(risk_df2)[1] <- "psa_risk_score"
+
+risk_df3 <- eval_df %>%
+  filter(county == "Los Angeles") %>%
+  filter(tool_name == "PSA", !is.na(prior_conviction)) %>%
+  group_by(prior_conviction, race, county) %>%
+  select(recid_arrest_violent_psa_flag) %>%
+  pivot_longer(recid_arrest_violent_psa_flag) 
+
+names(risk_df3)[1] <- "psa_risk_score"
+
+risk_df <- bind_rows(risk_df, risk_df2, risk_df3)
+  
+rm(risk_df2, risk_df3)
+
+risk_df <- risk_df %>%
+  mutate(race = factor(race, levels = c("White", "Black", "Hispanic", "Other_Unknown"))) %>%
+  filter(race %in% c("White", "Black", "Hispanic")) %>%
+  mutate(name = case_when(name == "fta_flag" ~ "FTA",
+                          name == "recid_arrested_flag" ~ "New Arrest",
+                          name == "recid_filed_flag" ~ "New Filing",
+                          name == "recid_convicted_flag" ~ "New Conviction",
+                          name == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest"),
+         name = factor(name, levels = c("FTA", "New Arrest", "New Filing", "New Conviction", "New Violent Arrest"))) %>%
+  filter(county %in% c("Los Angeles", "Sacramento"))
+
+ggplot(risk_df) +
+  aes(x = psa_risk_score, y = value, color = race) +
+  geom_smooth(method = "glm", method.args = list(family=binomial), alpha = .2) +
+  # geom_line() +
+  # geom_point() +
+  theme_bw() +
+  # ylim(0,100) +
+  facet_wrap(~name, scales = "free") +
+  labs(x = "Risk Category", y = "Percent",
+       title = "Comparison of Racial Differences in Logistic Regression Curves--prior_conviction, Los Angeles") +
+  scale_x_continuous(breaks = 1:6)
+
+```
+\newpage
+
+Los Angeles - prior_violent_conviction
+\newline
+```{r fig.height=6, fig.width=10, dpi=1200}
+risk_df <- eval_df %>%
+  filter(county == "Los Angeles") %>%
+  filter(tool_name == "PSA", !is.na(prior_violent_conviction)) %>%
+  group_by(prior_violent_conviction, race, county) %>%
+  select(fta_flag) %>%
+  pivot_longer(fta_flag) 
+
+names(risk_df)[1] <- "psa_risk_score"
+
+risk_df2 <- eval_df %>%
+  filter(county == "Los Angeles") %>%
+  filter(tool_name == "PSA", !is.na(prior_violent_conviction)) %>%
+  group_by(prior_violent_conviction, race, county) %>%
+  select(recid_arrested_flag, recid_filed_flag, recid_convicted_flag) %>%
+  pivot_longer(recid_arrested_flag:recid_convicted_flag) 
+
+names(risk_df2)[1] <- "psa_risk_score"
+
+risk_df3 <- eval_df %>%
+  filter(county == "Los Angeles") %>%
+  filter(tool_name == "PSA", !is.na(prior_violent_conviction)) %>%
+  group_by(prior_violent_conviction, race, county) %>%
+  select(recid_arrest_violent_psa_flag) %>%
+  pivot_longer(recid_arrest_violent_psa_flag) 
+
+names(risk_df3)[1] <- "psa_risk_score"
+
+risk_df <- bind_rows(risk_df, risk_df2, risk_df3)
+  
+rm(risk_df2, risk_df3)
+
+risk_df <- risk_df %>%
+  mutate(race = factor(race, levels = c("White", "Black", "Hispanic", "Other_Unknown"))) %>%
+  filter(race %in% c("White", "Black", "Hispanic")) %>%
+  mutate(name = case_when(name == "fta_flag" ~ "FTA",
+                          name == "recid_arrested_flag" ~ "New Arrest",
+                          name == "recid_filed_flag" ~ "New Filing",
+                          name == "recid_convicted_flag" ~ "New Conviction",
+                          name == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest"),
+         name = factor(name, levels = c("FTA", "New Arrest", "New Filing", "New Conviction", "New Violent Arrest"))) %>%
+  filter(county %in% c("Los Angeles", "Sacramento"))
+
+ggplot(risk_df) +
+  aes(x = psa_risk_score, y = value, color = race) +
+  geom_smooth(method = "glm", method.args = list(family=binomial), alpha = .2) +
+  # geom_line() +
+  # geom_point() +
+  theme_bw() +
+  # ylim(0,100) +
+  facet_wrap(~name, scales = "free") +
+  labs(x = "Risk Category", y = "Percent",
+       title = "Comparison of Racial Differences in Logistic Regression Curves--prior_violent_conviction, Los Angeles") +
+  scale_x_continuous(breaks = 1:6)
+
+```
+\newpage
+
+Los Angeles - prior_fta_previous_24_months
+\newline
+```{r fig.height=6, fig.width=10, dpi=1200}
+risk_df <- eval_df %>%
+  filter(county == "Los Angeles") %>%
+  filter(tool_name == "PSA", !is.na(prior_fta_previous_24_months)) %>%
+  group_by(prior_fta_previous_24_months, race, county) %>%
+  select(fta_flag) %>%
+  pivot_longer(fta_flag) 
+
+names(risk_df)[1] <- "psa_risk_score"
+
+risk_df2 <- eval_df %>%
+  filter(county == "Los Angeles") %>%
+  filter(tool_name == "PSA", !is.na(prior_fta_previous_24_months)) %>%
+  group_by(prior_fta_previous_24_months, race, county) %>%
+  select(recid_arrested_flag, recid_filed_flag, recid_convicted_flag) %>%
+  pivot_longer(recid_arrested_flag:recid_convicted_flag) 
+
+names(risk_df2)[1] <- "psa_risk_score"
+
+risk_df3 <- eval_df %>%
+  filter(county == "Los Angeles") %>%
+  filter(tool_name == "PSA", !is.na(prior_fta_previous_24_months)) %>%
+  group_by(prior_fta_previous_24_months, race, county) %>%
+  select(recid_arrest_violent_psa_flag) %>%
+  pivot_longer(recid_arrest_violent_psa_flag) 
+
+names(risk_df3)[1] <- "psa_risk_score"
+
+risk_df <- bind_rows(risk_df, risk_df2, risk_df3)
+  
+rm(risk_df2, risk_df3)
+
+risk_df <- risk_df %>%
+  mutate(race = factor(race, levels = c("White", "Black", "Hispanic", "Other_Unknown"))) %>%
+  filter(race %in% c("White", "Black", "Hispanic")) %>%
+  mutate(name = case_when(name == "fta_flag" ~ "FTA",
+                          name == "recid_arrested_flag" ~ "New Arrest",
+                          name == "recid_filed_flag" ~ "New Filing",
+                          name == "recid_convicted_flag" ~ "New Conviction",
+                          name == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest"),
+         name = factor(name, levels = c("FTA", "New Arrest", "New Filing", "New Conviction", "New Violent Arrest"))) %>%
+  filter(county %in% c("Los Angeles", "Sacramento"))
+
+ggplot(risk_df) +
+  aes(x = psa_risk_score, y = value, color = race) +
+  geom_smooth(method = "glm", method.args = list(family=binomial), alpha = .2) +
+  # geom_line() +
+  # geom_point() +
+  theme_bw() +
+  # ylim(0,100) +
+  facet_wrap(~name, scales = "free") +
+  labs(x = "Risk Category", y = "Percent",
+       title = "Comparison of Racial Differences in Logistic Regression Curves--prior_fta_previous_24_months, Los Angeles") +
+  scale_x_continuous(breaks = 1:6)
+
+```
+\newpage
+
+Los Angeles - prior_fta_older_than_24_months
+\newline
+```{r fig.height=6, fig.width=10, dpi=1200}
+risk_df <- eval_df %>%
+  filter(county == "Los Angeles") %>%
+  filter(tool_name == "PSA", !is.na(prior_fta_older_than_24_months)) %>%
+  group_by(prior_fta_older_than_24_months, race, county) %>%
+  select(fta_flag) %>%
+  pivot_longer(fta_flag) 
+
+names(risk_df)[1] <- "psa_risk_score"
+
+risk_df2 <- eval_df %>%
+  filter(county == "Los Angeles") %>%
+  filter(tool_name == "PSA", !is.na(prior_fta_older_than_24_months)) %>%
+  group_by(prior_fta_older_than_24_months, race, county) %>%
+  select(recid_arrested_flag, recid_filed_flag, recid_convicted_flag) %>%
+  pivot_longer(recid_arrested_flag:recid_convicted_flag) 
+
+names(risk_df2)[1] <- "psa_risk_score"
+
+risk_df3 <- eval_df %>%
+  filter(county == "Los Angeles") %>%
+  filter(tool_name == "PSA", !is.na(prior_fta_older_than_24_months)) %>%
+  group_by(prior_fta_older_than_24_months, race, county) %>%
+  select(recid_arrest_violent_psa_flag) %>%
+  pivot_longer(recid_arrest_violent_psa_flag) 
+
+names(risk_df3)[1] <- "psa_risk_score"
+
+risk_df <- bind_rows(risk_df, risk_df2, risk_df3)
+  
+rm(risk_df2, risk_df3)
+
+risk_df <- risk_df %>%
+  mutate(race = factor(race, levels = c("White", "Black", "Hispanic", "Other_Unknown"))) %>%
+  filter(race %in% c("White", "Black", "Hispanic")) %>%
+  mutate(name = case_when(name == "fta_flag" ~ "FTA",
+                          name == "recid_arrested_flag" ~ "New Arrest",
+                          name == "recid_filed_flag" ~ "New Filing",
+                          name == "recid_convicted_flag" ~ "New Conviction",
+                          name == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest"),
+         name = factor(name, levels = c("FTA", "New Arrest", "New Filing", "New Conviction", "New Violent Arrest"))) %>%
+  filter(county %in% c("Los Angeles", "Sacramento"))
+
+ggplot(risk_df) +
+  aes(x = psa_risk_score, y = value, color = race) +
+  geom_smooth(method = "glm", method.args = list(family=binomial), alpha = .2) +
+  # geom_line() +
+  # geom_point() +
+  theme_bw() +
+  # ylim(0,100) +
+  facet_wrap(~name, scales = "free") +
+  labs(x = "Risk Category", y = "Percent",
+       title = "Comparison of Racial Differences in Logistic Regression Curves--prior_fta_older_than_24_months, Los Angeles") +
+  scale_x_continuous(breaks = 1:6)
+
+```
+\newpage
+
+Los Angeles - prior_sentence_to_incarceration
+\newline
+```{r fig.height=6, fig.width=10, dpi=1200}
+risk_df <- eval_df %>%
+  filter(county == "Los Angeles") %>%
+  filter(tool_name == "PSA", !is.na(prior_sentence_to_incarceration)) %>%
+  group_by(prior_sentence_to_incarceration, race, county) %>%
+  select(fta_flag) %>%
+  pivot_longer(fta_flag) 
+
+names(risk_df)[1] <- "psa_risk_score"
+
+risk_df2 <- eval_df %>%
+  filter(county == "Los Angeles") %>%
+  filter(tool_name == "PSA", !is.na(prior_sentence_to_incarceration)) %>%
+  group_by(prior_sentence_to_incarceration, race, county) %>%
+  select(recid_arrested_flag, recid_filed_flag, recid_convicted_flag) %>%
+  pivot_longer(recid_arrested_flag:recid_convicted_flag) 
+
+names(risk_df2)[1] <- "psa_risk_score"
+
+risk_df3 <- eval_df %>%
+  filter(county == "Los Angeles") %>%
+  filter(tool_name == "PSA", !is.na(prior_sentence_to_incarceration)) %>%
+  group_by(prior_sentence_to_incarceration, race, county) %>%
+  select(recid_arrest_violent_psa_flag) %>%
+  pivot_longer(recid_arrest_violent_psa_flag) 
+
+names(risk_df3)[1] <- "psa_risk_score"
+
+risk_df <- bind_rows(risk_df, risk_df2, risk_df3)
+  
+rm(risk_df2, risk_df3)
+
+risk_df <- risk_df %>%
+  mutate(race = factor(race, levels = c("White", "Black", "Hispanic", "Other_Unknown"))) %>%
+  filter(race %in% c("White", "Black", "Hispanic")) %>%
+  mutate(name = case_when(name == "fta_flag" ~ "FTA",
+                          name == "recid_arrested_flag" ~ "New Arrest",
+                          name == "recid_filed_flag" ~ "New Filing",
+                          name == "recid_convicted_flag" ~ "New Conviction",
+                          name == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest"),
+         name = factor(name, levels = c("FTA", "New Arrest", "New Filing", "New Conviction", "New Violent Arrest"))) %>%
+  filter(county %in% c("Los Angeles", "Sacramento"))
+
+ggplot(risk_df) +
+  aes(x = psa_risk_score, y = value, color = race) +
+  geom_smooth(method = "glm", method.args = list(family=binomial), alpha = .2) +
+  # geom_line() +
+  # geom_point() +
+  theme_bw() +
+  # ylim(0,100) +
+  facet_wrap(~name, scales = "free") +
+  labs(x = "Risk Category", y = "Percent",
+       title = "Comparison of Racial Differences in Logistic Regression Curves--prior_sentence_to_incarceration, Los Angeles") +
+  scale_x_continuous(breaks = 1:6)
+
+```
+\newpage
+
+```{r}
+join_df %>%
+  filter(booking_assessed_count == 1,
+         scored_assessment == 1,
+         release_eligible_count ==1,
+         #released_pretrial_count == 1,
+         pretrial_period_end_count == 1,
+         booking_date < as.Date("2022-01-01"),
+         tool_name %in% c("ORAS", "PSA", "VPRAI", "VPRAI-R", "VPRAI-O")
+         ) %>%
+  mutate(release_to_pretrial_end = pretrial_period_end_date - release_date) %>%
+  mutate(release_cat = case_when(released_pretrial_count == 0 ~ "Detained",
+                                 release_type == "Bail Bond" ~ "Bail",
+                                 release_type == "Cite Release" ~ "Cite Release",
+                                 release_type %in% c("Detain Only", "Dismissed", "Time Served", "Prison") ~ "Disposition",
+                                 release_type == "Own Recognizance" ~ "OR",
+                                 T ~ "Other")) %>%
+  count(release_cat, race, psa_nca_risk_score) %>%
+  pivot_wider(names_from = race, values_from = n) %>%
+  filter(release_cat %in% c("Detained", "Bail", "OR")) %>%
+  group_by(psa_nca_risk_score) %>%
+  mutate(Black_perc = round(100*Black/sum(Black)),
+         Hisp_perc = round(100*Hispanic/sum(Hispanic)),
+         Wh_perc = round(100*White/sum(White))) %>%
+  select(-Black, -Hispanic, -White , -'Other/Unknown') %>%
+  pivot_wider(names_from = psa_nca_risk_score, values_from = c(Black_perc, Hisp_perc, Wh_perc)) 
+
+```
+
+```{r}
+join_df %>%
+  filter(booking_assessed_count == 1,
+         scored_assessment == 1,
+         release_eligible_count ==1,
+         #released_pretrial_count == 1,
+         pretrial_period_end_count == 1,
+         booking_date < as.Date("2022-01-01"),
+         tool_name %in% c("ORAS", "PSA", "VPRAI", "VPRAI-R", "VPRAI-O")
+         ) %>%
+  mutate(release_to_pretrial_end = pretrial_period_end_date - release_date) %>%
+  mutate(release_cat = case_when(released_pretrial_count == 0 ~ "Detained",
+                                 release_type == "Bail Bond" ~ "Bail",
+                                 release_type == "Cite Release" ~ "Cite Release",
+                                 release_type %in% c("Detain Only", "Dismissed", "Time Served", "Prison") ~ "Disposition",
+                                 release_type == "Own Recognizance" ~ "OR",
+                                 T ~ "Other")) %>%
+  count(release_cat, race, psa_nca_risk_score) %>%
+  group_by(psa_nca_risk_score, race) %>%
+  mutate(perc = round(100*n/sum(n))) %>%
+  filter(race %in% c("Black", "Hispanic", "White")) %>%
+  ggplot(aes(x = psa_nca_risk_score, y = perc, fill = race)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  facet_wrap(~release_cat, scales = "free")
+
+
+#release_cat %in% c("Detained", "Bail", "OR"),
+         
+```
+
+Just detention
+```{r}
+join_df %>%
+  filter(booking_assessed_count == 1,
+         scored_assessment == 1,
+         release_eligible_count ==1,
+         #released_pretrial_count == 1,
+         pretrial_period_end_count == 1,
+         booking_date < as.Date("2022-01-01"),
+         tool_name %in% c("ORAS", "PSA", "VPRAI", "VPRAI-R", "VPRAI-O")
+         ) %>%
+  mutate(release_to_pretrial_end = pretrial_period_end_date - release_date) %>%
+  mutate(release_cat = case_when(released_pretrial_count == 0 ~ "Detained",
+                                 release_type == "Bail Bond" ~ "Bail",
+                                 release_type == "Cite Release" ~ "Cite Release",
+                                 release_type %in% c("Detain Only", "Dismissed", "Time Served", "Prison") ~ "Disposition",
+                                 release_type == "Own Recognizance" ~ "OR",
+                                 T ~ "Other")) %>%
+  count(release_cat, race, psa_nca_risk_score) %>%
+  group_by(psa_nca_risk_score, race) %>%
+  mutate(perc = round(100*n/sum(n))) %>%
+  filter(race %in% c("Black", "Hispanic", "White"),
+         release_cat == "Detained") %>%
+  ggplot(aes(x = psa_nca_risk_score, y = perc, fill = race)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  
+```
+
+```{r}
+join_df %>%
+  filter(booking_assessed_count == 1,
+         scored_assessment == 1,
+         release_eligible_count ==1,
+         #released_pretrial_count == 1,
+         pretrial_period_end_count == 1,
+         booking_date < as.Date("2022-01-01"),
+         tool_name %in% c("ORAS", "PSA", "VPRAI", "VPRAI-R", "VPRAI-O")
+         ) %>%
+  mutate(book_to_release = release_date - booking_date) %>%
+  mutate(release_cat = case_when(released_pretrial_count == 0 ~ "Detained",
+                                 release_type == "Bail Bond" ~ "Bail",
+                                 release_type == "Cite Release" ~ "Cite Release",
+                                 release_type %in% c("Detain Only", "Dismissed", "Time Served", "Prison") ~ "Disposition",
+                                 release_type == "Own Recognizance" ~ "OR",
+                                 T ~ "Other")) %>%
+  filter(race %in% c("Black", "Hispanic", "White")) %>%
+  group_by(race, release_cat) %>%
+  summarise(time_to_bail = mean(book_to_release)) %>%
+  pivot_wider(names_from = race, values_from = time_to_bail)
+```
+
+
+```{r}
+join_df %>%
+  filter(booking_assessed_count == 1,
+         scored_assessment == 1,
+         release_eligible_count ==1,
+         #released_pretrial_count == 1,
+         pretrial_period_end_count == 1,
+         booking_date < as.Date("2022-01-01"),
+         tool_name %in% c("ORAS", "PSA", "VPRAI", "VPRAI-R", "VPRAI-O")
+         ) %>%
+  mutate(release_to_pretrial_end = pretrial_period_end_date - release_date) %>%
+  mutate(release_cat = case_when(released_pretrial_count == 0 ~ "Detained",
+                                 release_type == "Bail Bond" ~ "Bail",
+                                 release_type == "Cite Release" ~ "Cite Release",
+                                 release_type %in% c("Detain Only", "Dismissed", "Time Served", "Prison") ~ "Disposition",
+                                 release_type == "Own Recognizance" ~ "OR",
+                                 T ~ "Other")) %>%
+  count(release_cat, race, psa_nca_risk_score) %>%
+  pivot_wider(names_from = release_cat, values_from = n) %>%
+  filter(race %in% c("Black", "White", "Hispanic")) %>%
+  group_by(psa_nca_risk_score, race) %>%
+  mutate(Bail_perc = round(100*Bail/sum(Bail)),
+         Detained_perc = round(100*Detained/sum(Detained)),
+         OR_perc = round(100*OR/sum(OR))) %>%
+  select(race, psa_nca_risk_score, Bail_perc, Detained_perc, OR_perc) %>%
+  pivot_wider(names_from = race, values_from = c(Bail_perc, Detained_perc, OR_perc)) 
+```
+
+# Create filtered dataframe including non-released individuals
+```{r}
+adf <- join_df %>%
+  filter(booking_assessed_count == 1,
+         scored_assessment == 1,
+         release_eligible_count ==1,
+         #released_pretrial_count == 1,
+         pretrial_period_end_count == 1,
+         booking_date < as.Date("2022-01-01"),
+         tool_name %in% c("ORAS", "PSA", "VPRAI", "VPRAI-R", "VPRAI-O")
+         ) %>%
+  mutate(release_to_pretrial_end = pretrial_period_end_date - release_date) %>%
+  mutate(release_cat = case_when(released_pretrial_count == 0 ~ "Detained pretrial",
+                                 release_type == "Bail Bond" ~ "Bail",
+                                 release_type == "Cite Release" ~ "Cite Release",
+                                 release_type %in% c("Detain Only", "Dismissed") ~ "Other", 
+                                 release_type %in% c("Time Served", "Prison") ~ "Other",
+                                 release_type == "Own Recognizance" ~ "OR",
+                                 T ~ "Other")) %>%
+  mutate(jail_time = as.numeric(release_date - booking_date)) %>%
+  mutate(jail_timecat = case_when(jail_time %in% 0:1 ~ "Less than 2 days",
+                                  jail_time >=2 ~ "Two or more days",
+                                  T ~ "Unknown")) %>%
+  mutate(arrest_cat = case_when(arrest_charge_level %in% c("F", "Felony") & arrest_violent_psa_flag == 1 ~ "F - Violent",
+                                arrest_charge_level %in% c("F", "Felony") & arrest_dv_flag == 1 ~ "F - DV",
+                                arrest_charge_level %in% c("F", "Felony") & arrest_drug_flag == 1 ~ "F - Drug",
+                                arrest_charge_level %in% c("F", "Felony") & arrest_property_flag == 1 ~ "F - Property",
+                                arrest_charge_level %in% c("F", "Felony") & arrest_dui_flag == 1 ~ "F - DUI",
+                                arrest_charge_level %in% c("F", "Felony") ~ "F - Other",
+                                arrest_charge_level %in% c("M", "Misdemeanor") & arrest_violent_psa_flag == 1 ~ "M - Violent",
+                                arrest_charge_level %in% c("M", "Misdemeanor") & arrest_dv_flag == 1 ~ "M - DV",
+                                arrest_charge_level %in% c("M", "Misdemeanor") & arrest_drug_flag == 1 ~ "M - Drug",
+                                arrest_charge_level %in% c("M", "Misdemeanor") & arrest_property_flag == 1 ~ "M - Property",
+                                arrest_charge_level %in% c("M", "Misdemeanor") & arrest_dui_flag == 1 ~ "M - DUI",
+                                arrest_charge_level %in% c("M", "Misdemeanor") ~ "M - Other",
+                                T ~ "Other" )) %>%
+  mutate(arrest_charge_cat = case_when(arrest_charge_level %in% c("F", "Felony") ~ "F",
+                                       arrest_charge_level %in% c("M", "Misdemeanor") ~ "M",
+                                       T ~ "Other")) %>%
+  left_join(tr, by = c("booking_key"))
+
+
+  
+```
+
+# Create FTA-only predictor for FTA, as suggested by Sharad
+```{r}
+adf <- adf %>%
+  mutate(fta_pred = prior_fta_older_than_24_months + prior_fta_previous_24_months) 
+```
+
+Graph fta_flag by fta_pred and race
+\newline
+```{r fig.height=6, fig.width=10, dpi=1200}
+risk_df <- adf %>%
+  filter(county == "Los Angeles",
+         released_pretrial_count == 1) %>%
+  filter(tool_name == "PSA", !is.na(fta_pred)) %>%
+  group_by(fta_pred, race, county) %>%
+  select(fta_flag) %>%
+  pivot_longer(fta_flag) 
+
+
+risk_df <- risk_df %>%
+  mutate(race = factor(race, levels = c("White", "Black", "Hispanic", "Other_Unknown"))) %>%
+  filter(race %in% c("White", "Black", "Hispanic")) %>%
+  mutate(name = case_when(name == "fta_flag" ~ "FTA")) %>%
+  filter(county %in% c("Los Angeles", "Sacramento"))
+
+ggplot(risk_df) +
+  aes(x = fta_pred, y = value, color = race) +
+  geom_smooth(method = "glm", method.args = list(family=binomial), alpha = .2) +
+  # geom_line() +
+  # geom_point() +
+  theme_bw() +
+  # ylim(0,100) +
+  labs(x = "fta_pred score", y = "Percent",
+       title = "Comparison of Racial Differences in Logistic Regression Curves--FTA by fta_pred, Los Angeles") +
+  scale_x_continuous(breaks = 1:6)
+
+```
+\newpage
+
+
+PSA--Without Interactions
+\newline
+```{r, results='asis'}
+race_df <- adf %>%
+  mutate(race = factor(race, levels = c("White", "Black", "Hispanic", "Other_Unknown"))) %>%
+  filter(released_pretrial_count == 1,
+         race %in% c("White", "Black", "Hispanic"))
+
+m1 <- glm(family = binomial(),fta_flag ~ fta_pred + race + release_to_pretrial_end , data = race_df)
+
+summary(m1)
+```
+\newpage
+
+PSA--With Interactions at fta_pred score 0
+\newline
+```{r, results='asis'}
+m1 <- glm(family = binomial(),fta_flag ~ fta_pred * race + release_to_pretrial_end , data = race_df)
+
+summary(m1)
+```
+\newpage
+
+PSA--With Interactions at fta_pred score 5
+\newline
+```{r, results='asis'}
+m1 <- glm(family = binomial(),fta_flag ~ fta_pred * race + release_to_pretrial_end , data = race_df %>%  mutate(fta_pred = fta_pred-5))
+
+summary(m1)
+
+```
+\newpage
+
+As suggested by Sharad, I created a compound measure, fta_pred, that is the sum of the weights for the two PSA fta-related risk elements (prior FTA within 24 months and prior FTA older than 24 months). Then looked at fta_pred’s predictiveness of FTA by race. Below is the graph and regression output. There is a significant interaction between fta_pred score and Black race such that race is not predictive at fta_pred score 0, but Black race significantly predicts a lower rate of FTA at fta_pred score 5. Hispanic race did not interact with fta_pred, but did have a significant main effect such that Hispanic race significantly predicted a lower rate of FTA.
+
+# Explore release/detention
+
+Of those released, what share got each release type by race?
+```{r}
+adf %>%
+  filter(released_pretrial_count == 1,
+         race %in% c("Black", "Hispanic", "White")) %>%
+  group_by(race) %>%
+  mutate(tot = n()) %>%
+  group_by(race, release_cat) %>%
+  mutate(n = n()) %>%
+  ungroup() %>%
+  mutate(perc = round(100*n/tot, 1)) %>%
+  count(race, perc, release_cat) %>%
+  select(-n) %>%
+  pivot_wider(names_from = race, values_from = perc) %>%
+  arrange(desc(White))
+```
+I looked out of assessed people released pretrial, how they got out by race. White individuals predominantly get out through cite and release while the share of cite and release for Black individuals is much lower. Black individuals are nearly twice as likely as Whites to get out via bail.
+
+
+
+Including people not released, what share got each release type
+```{r}
+adf %>%
+  filter(race %in% c("Black", "Hispanic", "White")) %>%
+  group_by(race) %>%
+  mutate(tot = n()) %>%
+  group_by(race, release_cat) %>%
+  mutate(n = n()) %>%
+  ungroup() %>%
+  mutate(perc = round(100*n/tot, 1)) %>%
+  count(race, perc, release_cat) %>%
+  select(-n) %>%
+  pivot_wider(names_from = race, values_from = perc) %>%
+  arrange(desc(White))
+```
+
+If you include people who were not released, Black individuals are detained at a slightly higher rate than Whites.
+
+Felony only, release rates
+```{r}
+adf %>%
+  filter(race %in% c("Black", "Hispanic", "White"),
+         arrest_charge_level %in% c("F", "Felony")) %>%
+  group_by(race) %>%
+  mutate(tot = n()) %>%
+  group_by(race, release_cat) %>%
+  mutate(n = n()) %>%
+  ungroup() %>%
+  mutate(perc = round(100*n/tot, 1)) %>%
+  count(race, perc, release_cat) %>%
+  select(-n) %>%
+  pivot_wider(names_from = race, values_from = perc) %>%
+  arrange(desc(White))
+```
+If you look only at felony arrests, Black individuals are still detained at a slightly higher rate, are cited and released at a lower rate, and bail out at a higher rate compared to White individuals. Black individuals also receive OR at a lower rate than Whites.
+
+Misdo only, release rates
+```{r}
+adf %>%
+  filter(race %in% c("Black", "Hispanic", "White"),
+         arrest_charge_level %in% c("M", "Misdemeanor")) %>%
+  group_by(race) %>%
+  mutate(tot = n()) %>%
+  group_by(race, release_cat) %>%
+  mutate(n = n()) %>%
+  ungroup() %>%
+  mutate(perc = round(100*n/tot, 1)) %>%
+  count(race, perc, release_cat) %>%
+  select(-n) %>%
+  pivot_wider(names_from = race, values_from = perc) %>%
+  arrange(desc(White))
+```
+If you look only at misdemeanors, Black individuals again are detained at a slightly higher rate than Whites, are cited and released less frequently, and bail more frequently. However, unlike with felonies, for misdemeanors Black individuals are OR'd more frequently than Whites. 
+
+Distribution of arrest types by race
+```{r}
+adf %>%
+  filter(race %in% c("Black", "Hispanic", "White")) %>%
+  count(arrest_cat, race) %>%
+  group_by(race) %>%
+  mutate(perc = round(100*n/sum(n), 1)) %>%
+  select(-n) %>%
+  pivot_wider(names_from = race, values_from = perc) 
+
+
+```
+
+Graph of release types by race and arrest category
+```{r}
+adf %>%
+  filter(race %in% c("Black", "Hispanic", "White")) %>%
+  count(arrest_cat, race, release_cat) %>%
+  group_by(race, arrest_cat) %>%
+  mutate(perc = round(100*n/sum(n), 1)) %>%
+  select(-n) %>%
+  #pivot_wider(names_from = race, values_from = perc)  %>%
+  ggplot(aes(x = release_cat, y = perc, fill = race)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  facet_wrap(~arrest_cat, scales = "free")
+
+```
+
+Graph of release types by race and arrest category for individuals in jail at least 2 days
+```{r}
+adf %>%
+  filter(race %in% c("Black", "Hispanic", "White"),
+         jail_timecat == "Two or more days") %>%
+  count(arrest_cat, race, release_cat) %>%
+  group_by(race, arrest_cat) %>%
+  mutate(perc = round(100*n/sum(n), 1)) %>%
+  select(-n) %>%
+  #pivot_wider(names_from = race, values_from = perc)  %>%
+  ggplot(aes(x = release_cat, y = perc, fill = race)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  facet_wrap(~arrest_cat, scales = "free")
+```
+Graph of release types by race and arrest category for individuals in jail fewer than 2 days
+```{r}
+adf %>%
+  filter(race %in% c("Black", "Hispanic", "White"),
+         jail_timecat == "Less than 2 days") %>%
+  count(arrest_cat, race, release_cat) %>%
+  group_by(race, arrest_cat) %>%
+  mutate(perc = round(100*n/sum(n), 1)) %>%
+  select(-n) %>%
+  #pivot_wider(names_from = race, values_from = perc)  %>%
+  ggplot(aes(x = release_cat, y = perc, fill = race)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  facet_wrap(~arrest_cat, scales = "free")
+```
+Graph of release types by race and arrest charge level for individuals in jail fewer than 2 days
+```{r}
+adf %>%
+  filter(race %in% c("Black", "Hispanic", "White"),
+         jail_timecat != "Unknown",
+         arrest_charge_cat != "Other") %>%
+  count(arrest_charge_cat, race, release_cat, jail_timecat) %>%
+  group_by(race, arrest_charge_cat, jail_timecat) %>%
+  mutate(perc = round(100*n/sum(n), 1)) %>%
+  select(-n) %>%
+  #pivot_wider(names_from = race, values_from = perc)  %>%
+  ggplot(aes(x = release_cat, y = perc, fill = race)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  facet_grid(rows = vars(jail_timecat), cols = vars(arrest_charge_cat))
+```
+
+Graph of release types by race and risk score for violent arrest offense types, Black and White only
+```{r}
+adf %>%
+  filter(race %in% c("Black", "White"),
+         arrest_violent_psa_flag == 1) %>%
+  count(psa_nca_risk_score, race, release_cat) %>%
+  group_by(race, psa_nca_risk_score) %>%
+  mutate(perc = round(100*n/sum(n), 1)) %>%
+  select(-n) %>%
+  #pivot_wider(names_from = race, values_from = perc)  %>%
+  ggplot(aes(x = psa_nca_risk_score, y = perc, fill = race)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  facet_wrap(~release_cat)
+```
+
+Graph of new arrest outcome by release type, race, and risk score, Black and White only
+```{r}
+adf %>%
+  filter(race %in% c("Black", "White"),
+         !release_cat %in% c("Detained pretrial", "Other")) %>%
+  group_by(race, psa_nca_risk_score, release_cat) %>%
+  select(recid_arrested_flag) %>%
+  pivot_longer(recid_arrested_flag)  %>%
+  ggplot(aes(x = psa_nca_risk_score, y = value, color = race)) +
+  geom_smooth(method = "glm", method.args = list(family=binomial), alpha = .2) +
+  facet_wrap(~release_cat) +
+  labs(x = "Risk Category", y = "Percent") +
+  scale_x_continuous(breaks = 1:6)
+
+```
+Graph of new filing outcome by release type, race, and risk score, Black and White only
+```{r}
+adf %>%
+  filter(race %in% c("Black", "White"),
+         !release_cat %in% c("Detained pretrial", "Other")) %>%
+  group_by(race, psa_nca_risk_score, release_cat) %>%
+  select(recid_filed_flag) %>%
+  pivot_longer(recid_filed_flag)  %>%
+  ggplot(aes(x = psa_nca_risk_score, y = value, color = race)) +
+  geom_smooth(method = "glm", method.args = list(family=binomial), alpha = .2) +
+  facet_wrap(~release_cat) +
+  labs(x = "Risk Category", y = "Percent") +
+  scale_x_continuous(breaks = 1:6)
+
+```
+
+
+Graph of new conviction outcome by release type, race, and risk score, Black and White only
+```{r}
+adf %>%
+  filter(race %in% c("Black", "White"),
+         !release_cat %in% c("Detained pretrial", "Other")) %>%
+  group_by(race, psa_nca_risk_score, release_cat) %>%
+  select(recid_convicted_flag) %>%
+  pivot_longer(recid_convicted_flag)  %>%
+  ggplot(aes(x = psa_nca_risk_score, y = value, color = race)) +
+  geom_smooth(method = "glm", method.args = list(family=binomial), alpha = .2) +
+  facet_wrap(~release_cat) +
+  labs(x = "Risk Category", y = "Percent") +
+  scale_x_continuous(breaks = 1:6)
+
+```
+
+
+Graph of new violent outcome by release type, race, and risk score, Black and White only
+```{r}
+adf %>%
+  filter(race %in% c("Black", "White"),
+         !release_cat %in% c("Detained pretrial", "Other")) %>%
+  group_by(race, psa_nvca_risk_score, release_cat) %>%
+  select(recid_arrest_violent_psa_flag) %>%
+  pivot_longer(recid_arrest_violent_psa_flag)  %>%
+  ggplot(aes(x = psa_nvca_risk_score, y = value, color = race)) +
+  geom_smooth(method = "glm", method.args = list(family=binomial), alpha = .2) +
+  facet_wrap(~release_cat) +
+  labs(x = "Risk Category", y = "Percent") +
+  scale_x_continuous(breaks = 0:1)
+
+```
+
+Pretrial release rate by race and nca risk score
+```{r}
+adf %>%
+  mutate(released_pretrial_count = if_else(released_pretrial_count == 1, "Released pretrial", "Detained pretrial")) %>%
+  filter(race %in% c("Black", "Hispanic", "White")) %>%
+  count(released_pretrial_count, race, psa_nca_risk_score) %>%
+  group_by(race, psa_nca_risk_score) %>%
+  mutate(perc = round(100*n/sum(n), 1)) %>%
+  select(-n) %>%
+  filter(released_pretrial_count == "Released pretrial") %>%
+  ggplot(aes(x = psa_nca_risk_score, y = perc, fill = race)) +
+  geom_bar(stat = "identity", position = "dodge")+
+  labs(x = "Risk Category", y = "Percent released pretrial", title = "Pretrial release rates by race and PSA NCA risk score") +
+  scale_x_continuous(breaks = 1:6)
+```
+Pretrial detention rate by race and nca risk score
+```{r}
+adf %>%
+  mutate(released_pretrial_count = if_else(released_pretrial_count == 1, "Released pretrial", "Detained pretrial")) %>%
+  filter(race %in% c("Black", "Hispanic", "White")) %>%
+  count(released_pretrial_count, race, psa_nca_risk_score) %>%
+  group_by(race, psa_nca_risk_score) %>%
+  mutate(perc = round(100*n/sum(n), 1)) %>%
+  select(-n) %>%
+  filter(released_pretrial_count == "Detained pretrial") %>%
+  ggplot(aes(x = psa_nca_risk_score, y = perc, fill = race)) +
+  geom_bar(stat = "identity", position = "dodge")+
+  labs(x = "Risk Category", y = "Percent detained pretrial", title = "Pretrial detention rates by race and PSA NCA risk score") +
+  scale_x_continuous(breaks = 1:6)
+```
+
+# Pull LA data -- START HERE
+# Connection - LA
+```{r include=FALSE}
+con <- dbConnect(odbc::odbc(), "la_snowflake", uid ="Sal.Lempert@jud.ca.gov", pwd = rstudioapi::askForPassword("Password"))
+
+```
+
+Pull tool response
+```{sql eval=FALSE, connection=con, include=FALSE, output.var='tr'}
+SELECT *
+FROM "DWH_PROD"."DATA_STORE"."DS_PRETRIAL_PSA_TOOL_RESPONSE_DETAIL"
+;
+```
+
+Pull pretrial assessment attribute (need for getting booking key to join back to other data)
+```{sql eval=FALSE, connection=con, include=FALSE, output.var='paa'}
+SELECT *
+FROM "DWH_PROD"."DATA_STORE"."DS_PRETRIAL_ASSESSMENT_ATTRIBUTE"
+;
+```
+
+Connect JCC tenant
+```{r include=FALSE}
+con <- dbConnect(odbc::odbc(), "snowflake_pretrial", uid ="Sal.Lempert@jud.ca.gov", pwd = rstudioapi::askForPassword("Password"))
+
+```
+
+
+Pull 8.18.22 snowflake data for LA only -- join_df
+```{sql eval=FALSE, connection=con, include=FALSE, output.var='join_df_la'}
+SELECT *
+FROM "DWH_PROD"."DATA_SCIENCE"."JOIN_STD_20220818"
+WHERE COUNTY = 'Los Angeles'
+;
+```
+
+Pull live snowflake data for LA only -- join_df
+```{sql eval=FALSE, connection=con, include=FALSE, output.var='join_df_la'}
+SELECT *
+FROM "DWH_PROD"."DATA_SCIENCE"."JOIN_DF_STD"
+WHERE COUNTY = 'Los Angeles'
+;
+```
+
+Join data
+```{r}
+names(tr) <- tolower(names(tr))
+names(paa) <- tolower(names(paa))
+names(join_df_la) <- tolower(names(join_df_la))
+paa
+tr
+join_df_la
+
+#join tool responses to rest of data
+agg_tr <- tr %>%
+  left_join(paa %>% select(booking_key, pretrial_assessment_key), by = "pretrial_assessment_key") %>%
+  select(-contains("hashkey"), -contains("concat")) %>%
+  left_join(join_df_la, by = "booking_key")
+
+#reset weights and filter for analytical dataset
+tdf <- agg_tr  %>% 
+  mutate(age = age/2,
+         current_violent_offense = current_violent_offense/2,
+         prior_fta_previous_24_months = prior_fta_previous_24_months/2,
+         prior_sentence_to_incarceration = prior_sentence_to_incarceration/2) %>%
+  filter(booking_assessed_count == 1,
+         release_eligible_count ==1,
+         released_pretrial_count == 1,
+         pretrial_period_end_count == 1,
+         booking_date < as.Date("2022-01-01"))
+
+
+```
+Pull in public website DOJ arrest data
+```{r}
+arr <- fread("C:/Users/slempert/Documents/OnlineArrestData1980to2021.csv")
+
+names(arr) <- tolower(names(arr))
+
+arr_la <- arr %>%
+  filter(county == "Los Angeles County",
+         year %in% 2021,
+         age_group != "Under 18")
+
+arrest_breakdown <- arr_la  %>%
+  group_by(race) %>%
+  summarise(all_f = sum(f_total),
+            all_m = sum(m_total),
+            arrested = sum(all_f, all_m)) %>%
+  ungroup() %>%
+  mutate(arrest_f = round(100*all_f/sum(all_f),1), 
+         arrest_m = round(100*all_m/sum(all_m),1),
+         arrest_perc = round(100*arrested/sum(arrested),1)) %>%
+  select(race, arrested, arrest_perc)
+```
+
+Compile racial breakdown at each stage
+```{r}
+booking_breakdown <- join_df_la %>%
+  filter(year(booking_date) == 2021) %>%
+  mutate(race = if_else(race %in% c("Black", "White", "Hispanic"), race, "Other")) %>%
+  group_by(race) %>%
+  summarise(booked = n()) %>%
+  ungroup() %>%
+  mutate(book_perc = round(100*booked/sum(booked), 1))
+
+pretrial_detention_breakdown <- join_df_la  %>% 
+  filter(release_eligible_count ==1,
+         pretrial_period_end_count == 1,
+         released_pretrial_count == 0,
+         is_unmatched_booking == "No", 
+         year(booking_date) == 2021) %>%
+  mutate(race = if_else(race %in% c("Black", "White", "Hispanic"), race, "Other")) %>%
+  group_by(race) %>%
+  summarise(detained = n()) %>%
+  ungroup() %>%
+  mutate(detain_perc = round(100*detained/sum(detained), 1))
+
+arrest_breakdown %>%
+  left_join(booking_breakdown, by = "race") %>%
+  left_join(pretrial_detention_breakdown, by = "race")
+
+
+```
+
+Share detained over time
+```{r}
+join_df_la  %>% 
+  filter(release_eligible_count ==1,
+         race %in% c("Black", "White", "Hispanic")) %>%
+  mutate(race = if_else(race %in% c("Black", "White", "Hispanic"), race, "Other")) %>%
+  group_by(race, book_year = year(booking_date), book_month = month(booking_date)) %>%
+  summarise(detained = sum(released_pretrial_count, na.rm = T),
+            detained_perc = round(100*mean(released_pretrial_count, na.rm = T),1)) %>%
+  pivot_wider(names_from = race, values_from = c(detained_perc, detained))
+```
+```{r}
+
+```
+
+
+Calculate impact
+```{r}
+# n at each score --- n
+# OR release % at each score  -- r
+
+# sum[score 4-6](n[s]*r[s]) - sum[score 4-6](n[s]*r[s-1])
+
+join_df_la %>%
+  filter(race_standard %in% c("Black", "White")) %>%
+  count(race_standard, score_new_criminal_activity) %>%
+  pivot_wider(names_from = "race_standard", values_from = n)
+
+# Black
+# 4 - 10,331
+# 5 - 9,224
+# 6 - 7,412
+
+
+join_df_la %>%
+  filter(race_standard %in% c("Black", "White")) %>%
+  filter(release_eligible_count ==1) %>%
+  filter(is_unmatched_booking == "No") %>%
+  mutate(or_flag = if_else(release_type == "Own Recognizance", 1, 0)) %>%
+  group_by(race_standard, score_new_criminal_activity) %>%
+  summarize(or_rate = sum(released_pretrial_count*or_flag)/n()) %>%
+  pivot_wider(names_from = "race_standard", values_from = or_rate)
+  
+ # Black
+# 3 - 0.1943245
+# 4 - 0.1507564	
+# 5 - 0.1558152	
+# 6 - 0.1352941
+
+
+10331*(0.1507564-0.1943245) + 9224*(0.1558152-0.1507564) + 7412*(0.1352941-0.1558152)
+#555.5 
+
+
+join_df_la %>%
+  filter(race_standard %in% c("Black", "White")) %>%
+  filter(release_eligible_count ==1) %>%
+  filter(is_unmatched_booking == "No") %>%
+  filter(has_pretrial_period_end == "Yes") %>%
+  filter(is_released_pretrial == "Yes") %>%
+  mutate(or_flag = if_else(release_type == "Own Recognizance", 1, 0)) %>%
+  #filter(or_flag == 1) %>%
+  group_by(race_standard, score_new_criminal_activity) %>%
+  summarize(rearr_rate = sum(recid_county_or_doj)/n()) %>%
+  pivot_wider(names_from = "race_standard", values_from = rearr_rate)
+
+# Black
+# 3 - 0.4155206
+# 4 - 0.5181422
+# 5 - 0.5618681
+# 6 - 0.6954256
+
+
+10331*(0.1507564-0.1943245)*0.6954256 + 9224*(0.1558152-0.1507564)*0.5618681 + 7412*(0.1352941-0.1558152)*0.5181422
+# 365.6
+
+
+
+join_df_la %>%
+  filter(race_standard %in% c("Black", "White")) %>%
+  filter(release_eligible_count ==1) %>%
+  filter(is_unmatched_booking == "No") %>%
+  filter(has_pretrial_period_end == "Yes") %>%
+  filter(is_released_pretrial == "Yes") %>%
+  mutate(or_flag = if_else(release_type == "Own Recognizance", 1, 0)) %>%
+  filter(or_flag == 1) %>%
+  group_by(race_standard) %>%
+  summarize(rearr_rate = sum(recid_county_or_doj)/n()) %>%
+  pivot_wider(names_from = "race_standard", values_from = rearr_rate)
+
+
+join_df_la %>%
+  filter(race_standard %in% c("Black")) %>%
+  filter(release_eligible_count ==1) %>%
+  filter(is_unmatched_booking == "No") %>%
+  filter(is_released_pretrial == "No") %>%
+  group_by(score_new_criminal_activity) %>%
+  count()
+
+#30,142
+
+555/30142
+  
+645*0.1838791	
+
+```
+
+
+
+
+Distribution of offenses
+```{r}
+join_df_la %>%
+  filter(year(booking_date) == 2021) %>%
+  mutate(race = if_else(race %in% c("Black", "White", "Hispanic"), race, "Other")) %>%
+  count(booking_charge_code, booking_charge, booking_charge_level, race) %>%
+  arrange(desc(n)) %>%
+  group_by(booking_charge_code, booking_charge, booking_charge_level) %>%
+  mutate(perc = round(100*n/sum(n),1)) %>%
+  pivot_wider(names_from = race, values_from = c(perc, n))
+
+```
+
+```{r}
+
+```
+
+NCA risk score by race and offense
+```{r}
+join_df_la %>%
+  filter(year(booking_date) == 2021) %>%
+  mutate(race = if_else(race %in% c("Black", "White", "Hispanic"), race, "Other")) %>%
+  group_by(booking_charge_code, booking_charge, booking_charge_level, race) %>%
+  summarise(meanNCA = round(mean(score_new_criminal_activity, na.rm = T),1),
+            count = n()) %>%
+  group_by(booking_charge_code, booking_charge, booking_charge_level) %>%
+  mutate(n = sum(count)) %>%
+  arrange(desc(n)) %>%
+  select(-count) %>%
+  pivot_wider(names_from = race, values_from = c(meanNCA))
+
+  join_df_la %>%
+    select(contains("score"))
+```
+
+Look at breakdown by booking charge code
+```{r}
+join_df_la %>%
+  filter(year(booking_date) == 2021) %>%
+  mutate(race = if_else(race %in% c("Black", "White", "Hispanic"), race, "Other")) %>%
+  count(booking_charge_code, race) %>%
+  arrange(desc(n)) %>%
+  group_by(booking_charge_code) %>%
+  mutate(perc = round(100*n/sum(n),1)) %>%
+  pivot_wider(names_from = race, values_from = c(perc, n)) %>%
+  filter(booking_charge_code %in% c("PC", "VC", "HS"))
+
+
+```
+```{r}
+join_df_la %>%
+  filter(year(booking_date) == 2021) %>%
+  mutate(race = if_else(race %in% c("Black", "White", "Hispanic"), race, "Other")) %>%
+  group_by(booking_charge_code, race) %>%
+  summarise(mean_recid = round(100*mean(as.numeric(recid_arrested_flag_doj), na.rm = T), 1)) %>%
+  pivot_wider(names_from = race, values_from = c(mean_recid)) %>%
+  filter(booking_charge_code %in% c("PC", "VC", "HS"))
+
+join_df_la %>%
+  count(recid_arrested_flag_doj)
+```
+
+Plot
+```{r}
+ggplot(join_df_la %>% filter(race %in% c("White", "Black", "Hispanic"))) +
+  aes(x = score_new_criminal_activity, y = nca_county_or_doj, color = race) +
+  #geom_smooth(method = "glm", method.args = list(family=binomial), alpha = .2) +
+  #geom_smooth(alpha = .2) +
+  # geom_line() +
+  # geom_point() +
+  #theme_bw() +
+  # ylim(0,.5) +
+  #xlim(0, .5) +
+  labs(x = "nca_pred score", y = "Percent",
+       title = "Comparison of Racial Differences in Logistic Regression Curves--nca by nca_pred, Los Angeles") +
+  geom_abline() #+
+
+join_df_la %>%
+  select(contains("nca"))
+
+# ,
+#                              is_booking_assessed == "Yes",
+#                              is_release_eligible == "Yes",
+#                              is_released_pretrial == "Yes",
+#                              has_pretrial_period_end == "Yes",
+#                              !is.na(score_new_criminal_activity)
+
+```
+
+
+Get fta weights
+```{r}
+
+# tdf <- agg_tr  %>% 
+#   mutate(prior_fta_previous_24_months = prior_fta_previous_24_months/2) %>%
+#   filter(booking_assessed_count == 1,
+#          release_eligible_count ==1,
+#          released_pretrial_count == 1,
+#          pretrial_period_end_count == 1,
+#          booking_date < as.Date("2022-01-01"))
+
+all_fta <- lm(fta_county_or_doj ~ prior_conviction + prior_fta_previous_24_months + pending_charge_at_arrest + prior_fta_older_than_24_months + age + sex +  booking_charge_level + race, data = tdf %>% filter(race %in% c("White", "Black", "Hispanic"), sex %in% c("Male", "Female"), booking_charge_level %in% c("M", "F")))
+black_fta <- lm(fta_county_or_doj ~ prior_conviction + prior_fta_previous_24_months + pending_charge_at_arrest + prior_fta_older_than_24_months + age + sex +  booking_charge_level, data = tdf %>% filter(race == "Black") %>% filter(sex %in% c("Male", "Female"), booking_charge_level %in% c("M", "F")))
+white_fta <- lm(fta_county_or_doj ~ prior_conviction + prior_fta_previous_24_months + pending_charge_at_arrest + prior_fta_older_than_24_months + age + sex +  booking_charge_level, data = tdf %>% filter(race == "White") %>% filter(sex %in% c("Male", "Female"), booking_charge_level %in% c("M", "F")))
+
+all_fta <- tidy(all_fta)
+black_fta <- tidy(black_fta)
+white_fta <- tidy(white_fta)
+
+coeffs_by_race <- all_fta %>%
+  select(term, "all_fta" = estimate) %>%
+  left_join(black_fta %>% select(term, "black_fta" = estimate)) %>%
+  left_join(white_fta %>% select(term, "white_fta" = estimate)) #%>%
+  # mutate(all_mult = round(all_fta*18),
+  #        black_mult = round(black_fta*45),
+  #        white_mult = round(white_fta*12))
+
+agg_tr %>%
+  count(pending_charge_at_arrest, prior_conviction, prior_fta_previous_24_months, prior_fta_older_than_24_months )
+
+coeffs_by_race %>%
+  filter(term != "(Intercept)") %>%
+  select(term, black_mult, white_mult, all_mult)
+
+test<- agg_tr %>%
+  mutate(prior_fta_previous_24_months = prior_fta_previous_24_months/2) %>%
+  mutate(pending_charge_at_arrest = case_when(race == "White" ~ pending_charge_at_arrest*1,
+                                              race == "Black" ~ prior_conviction*1),
+         prior_conviction = case_when(race == "White" ~ prior_conviction*1,
+                                      race == "Black" ~ prior_conviction*4),
+         prior_fta_previous_24_months = case_when(race == "White" ~ prior_fta_previous_24_months*1,
+                                                  race == "Black" ~ prior_fta_previous_24_months*4),
+         fta_pred = pending_charge_at_arrest + prior_conviction + prior_fta_previous_24_months + prior_fta_older_than_24_months)
+
+test <- tdf %>% 
+  filter(sex %in% c("Male", "Female"), booking_charge_level %in% c("M", "F")) %>%
+  mutate(fta_pred = predict(all_fta, .),
+         b_fta_pred = predict(black_fta, .))
+
+
+test %>%
+  select(fta_pred)
+
+
+
+tdf %>%
+  filter(race %in% c("Black", "White", "Hispanic")) %>%
+  group_by(race) %>%
+  summarise(mean(pending_charge_at_arrest), mean(prior_conviction), mean(prior_fta_previous_24_months), mean(prior_fta_older_than_24_months), mean(fta_county_or_doj) )
+
+tdf %>%
+  filter(race %in% c("Black", "White", "Hispanic")) %>%
+  count(race)
+
+tdf %>%
+  filter(race %in% c("Black", "White")) %>%
+  group_by(race, prior_fta_previous_24_months) %>%
+  summarise(mean(fta_county_or_doj))
+
+tdf %>%
+  filter(race %in% c("Black", "White")) %>%
+  group_by(race, prior_conviction, prior_fta_previous_24_months) %>%
+  summarise(mean(fta_county_or_doj))
+
+tdf %>%
+  filter(race %in% c("Black", "White")) %>%
+  group_by(race, prior_conviction, prior_fta_previous_24_months, pending_charge_at_arrest, prior_fta_older_than_24_months, age, sex,  
+           booking_charge_level, court_charge_level) %>%
+  summarise(fta_rate = mean(fta_county_or_doj), count = n()) %>%
+  pivot_wider(names_from = race, values_from = c(fta_rate, count)) %>%
+  filter(count_Black >=20, count_White >=20) %>%
+  ggplot(aes(fta_rate_Black, fta_rate_White)) +
+  geom_point(aes(size = count_Black)) +
+  geom_abline()
+
+tdf %>%
+  count(booking_charge_level)
+```
+
+Get nca weights
+```{r}
+
+# tdf <- agg_tr  %>% 
+#   mutate(prior_fta_previous_24_months = prior_fta_previous_24_months/2) %>%
+#   filter(booking_assessed_count == 1,
+#          release_eligible_count ==1,
+#          released_pretrial_count == 1,
+#          pretrial_period_end_count == 1,
+#          booking_date < as.Date("2022-01-01"))
+
+all_nca <- lm( recid_county_or_doj~ age + pending_charge_at_arrest + prior_misdemeanor_conviction + prior_felony_conviction + prior_violent_conviction + prior_fta_previous_24_months + prior_sentence_to_incarceration, data = tdf %>% filter(race %in% c("White", "Black", "Hispanic"), sex %in% c("Male", "Female"), booking_charge_level %in% c("M", "F")))
+black_nca <- lm(recid_county_or_doj~ age + pending_charge_at_arrest + prior_misdemeanor_conviction + prior_felony_conviction + prior_violent_conviction + prior_fta_previous_24_months + prior_sentence_to_incarceration, data = tdf %>% filter(race == "Black") %>% filter(sex %in% c("Male", "Female"), booking_charge_level %in% c("M", "F")))
+white_nca <- lm(recid_county_or_doj~ age + pending_charge_at_arrest + prior_misdemeanor_conviction + prior_felony_conviction + prior_violent_conviction + prior_fta_previous_24_months + prior_sentence_to_incarceration, data = tdf %>% filter(race == "White") %>% filter(sex %in% c("Male", "Female"), booking_charge_level %in% c("M", "F")))
+
+all_nca <- tidy(all_nca)
+black_nca <- tidy(black_nca)
+white_nca <- tidy(white_nca)
+
+coeffs_by_race <- all_nca %>%
+  select(term, "all_nca" = estimate) %>%
+  left_join(black_nca %>% select(term, "black_nca" = estimate)) %>%
+  left_join(white_nca %>% select(term, "white_nca" = estimate)) #%>%
+
+
+
+test <- tdf %>% 
+  filter(sex %in% c("Male", "Female"), booking_charge_level %in% c("M", "F")) %>%
+  mutate(nca_pred = predict(all_nca, .),
+         b_nca_pred = predict(black_nca, .))
+
+
+tdf %>%
+  filter(race %in% c("Black", "White", "Hispanic")) %>%
+  group_by(race) %>%
+  summarise(mean(pending_charge_at_arrest), mean(prior_conviction), mean(prior_nca_previous_24_months), mean(prior_nca_older_than_24_months), mean(nca_county_or_doj) )
+
+tdf %>%
+  filter(race %in% c("Black", "White", "Hispanic")) %>%
+  count(race)
+
+tdf %>%
+  filter(race %in% c("Black", "White")) %>%
+  group_by(race, prior_nca_previous_24_months) %>%
+  summarise(mean(nca_county_or_doj))
+
+tdf %>%
+  filter(race %in% c("Black", "White")) %>%
+  group_by(race, prior_conviction, prior_nca_previous_24_months) %>%
+  summarise(mean(nca_county_or_doj))
+
+tdf %>%
+  filter(race %in% c("Black", "White")) %>%
+  group_by(race, age, pending_charge_at_arrest, prior_misdemeanor_conviction, prior_felony_conviction, prior_violent_conviction, prior_fta_previous_24_months, prior_sentence_to_incarceration) %>%
+  summarise(nca_rate = mean(recid_county_or_doj), count = n()) %>%
+  pivot_wider(names_from = race, values_from = c(nca_rate, count)) %>%
+  filter(count_Black >=20, count_White >=20) %>%
+  ggplot(aes(nca_rate_Black, nca_rate_White)) +
+  geom_point(aes(size = count_Black)) +
+  geom_abline()
+
+
+  
+ggplot(test %>% filter(race %in% c("White", "Black", "Hispanic"))) +
+  aes(x = b_nca_pred, y = recid_county_or_doj, color = race) +
+  geom_smooth(method = "glm", method.args = list(family=binomial), alpha = .2) +
+  labs(x = "nca_pred score", y = "Percent",
+       title = "Comparison of Racial Differences in Logistic Regression Curves--nca by nca_pred, Los Angeles") +
+  geom_abline() #+
+
+tdf %>%
+  count(zip_code_of_residency)
+```
+```{r}
+ggplot(test %>% filter(race %in% c("White", "Black", "Hispanic"),
+                       booking_charge_code %in% c("HS"))) +
+  aes(x = score_new_criminal_activity.x, y = recid_county_or_doj, color = race) +
+  geom_smooth(method = "glm", method.args = list(family=binomial), alpha = .2) +
+  labs(x = "nca_pred score", y = "Percent",
+       title = "Comparison of Racial Differences in Logistic Regression Curves--nca by nca_pred, Los Angeles") +
+  geom_abline()
+
+join_df_la %>%
+  select(contains("recid"))
+```
+
+```{r}
+ggplot(tdf %>% filter(race %in% c("White", "Black", "Hispanic"))) +
+  aes(x = score_new_criminal_violent_activity.x, y = recid_county_or_doj, color = race) +
+  geom_smooth(method = "glm", method.args = list(family=binomial), alpha = .2) +
+  #geom_smooth(alpha = .2) +
+  # labs(x = "nca score", y = "Percent",
+  #      title = "Comparison of Racial Differences in Logistic Regression Curves--nca by nca score, Los Angeles") +
+  scale_x_continuous(breaks = tdf$score_new_criminal_violent_activity.x, labels = as.factor(tdf$score_new_criminal_activity.x))
+  #scale_x_discrete(labels = c(1:6))
+  #coord_cartesian(xlim = c(0, 6), ylim = c(0, 1))
+
+tdf %>%
+  count(score_new_criminal_activity.x)    
+
+
+tdf %>%
+  count(recid_county_or_doj)    
+```
+#Release rates by race and NCA score
+Pretrial release rates by race and NCA score
+```{r}
+risk_df <- join_df_la %>%
+    filter(booking_assessed_count == 1,
+         release_eligible_count ==1,
+         pretrial_period_end_count == 1,
+         booking_date < as.Date("2022-01-01")) %>%
+  filter(!is.na(score_new_criminal_activity)) %>%
+  group_by(score_new_criminal_activity, race) %>%
+  select(released_pretrial_count) %>%
+  pivot_longer(released_pretrial_count) 
+
+
+risk_df <- risk_df %>%
+  mutate(race = factor(race, levels = c("White", "Black", "Hispanic", "Other_Unknown"))) %>%
+  filter(race %in% c("White", "Black", "Hispanic"))
+
+ggplot(risk_df) +
+  aes(x = score_new_criminal_activity, y = value, color = race) +
+  geom_smooth(method = "glm", method.args = list(family=binomial), alpha = .2) +
+  labs(x = "PSA NCA score", y = "Percent",
+       title = "Pretrial Release rates by NCA score and race, Los Angeles")
+
+```
+Bail release rates by race and NCA score
+```{r}
+risk_df <- join_df_la %>%
+    filter(booking_assessed_count == 1,
+         release_eligible_count ==1,
+         pretrial_period_end_count == 1,
+         booking_date < as.Date("2022-01-01")) %>%
+  filter(!is.na(score_new_criminal_activity)) %>%
+  mutate(bail_flag = if_else(released_pretrial_count == 1 & release_type == "Bail Bond", 1, 0)) %>%
+  group_by(score_new_criminal_activity, race) %>%
+  select(bail_flag) %>%
+  pivot_longer(bail_flag) 
+
+
+risk_df <- risk_df %>%
+  mutate(race = factor(race, levels = c("White", "Black", "Hispanic", "Other_Unknown"))) %>%
+  filter(race %in% c("White", "Black", "Hispanic"))
+
+ggplot(risk_df) +
+  aes(x = score_new_criminal_activity, y = value, color = race) +
+  geom_smooth(method = "glm", method.args = list(family=binomial), alpha = .2) +
+  labs(x = "PSA NCA score", y = "Percent",
+       title = "Bail Release rates by NCA score and race, Los Angeles")
+
+```
+OR release rates by race and NCA score
+```{r}
+risk_df <- join_df_la %>%
+    filter(booking_assessed_count == 1,
+         release_eligible_count ==1,
+         pretrial_period_end_count == 1,
+         booking_date < as.Date("2022-01-01")) %>%
+  filter(!is.na(score_new_criminal_activity)) %>%
+  mutate(or_flag = if_else(released_pretrial_count == 1 & release_type == "Own Recognizance", 1, 0)) %>%
+  group_by(score_new_criminal_activity, race) %>%
+  select(or_flag) %>%
+  pivot_longer(or_flag) 
+
+
+risk_df <- risk_df %>%
+  mutate(race = factor(race, levels = c("White", "Black", "Hispanic", "Other_Unknown"))) %>%
+  filter(race %in% c("White", "Black", "Hispanic"))
+
+ggplot(risk_df) +
+  aes(x = score_new_criminal_activity, y = value, color = race) +
+  geom_smooth(method = "glm", method.args = list(family=binomial), alpha = .2) +
+  labs(x = "PSA NCA score", y = "Percent",
+       title = "OR Release rates by NCA score and race, Los Angeles")
+
+
+```
+Cite release rates by race and NCA score
+```{r}
+risk_df <- join_df_la %>%
+    filter(booking_assessed_count == 1,
+         release_eligible_count ==1,
+         pretrial_period_end_count == 1,
+         booking_date < as.Date("2022-01-01")) %>%
+  filter(!is.na(score_new_criminal_activity)) %>%
+  mutate(cite_flag = if_else(released_pretrial_count == 1 & release_type %in% c("Cite Release", "CiteR elease"), 1, 0)) %>%
+  group_by(score_new_criminal_activity, race) %>%
+  select(cite_flag) %>%
+  pivot_longer(cite_flag) 
+
+
+risk_df <- risk_df %>%
+  mutate(race = factor(race, levels = c("White", "Black", "Hispanic", "Other_Unknown"))) %>%
+  filter(race %in% c("White", "Black", "Hispanic"))
+
+ggplot(risk_df) +
+  aes(x = score_new_criminal_activity, y = value, color = race) +
+  geom_smooth(method = "glm", method.args = list(family=binomial), alpha = .2) +
+  labs(x = "PSA NCA score", y = "Percent",
+       title = "Cite Release rates by NCA score and race, Los Angeles")
+
+```
+Conviction release rates by race and NCA score
+```{r}
+risk_df <- join_df_la %>%
+    filter(booking_assessed_count == 1,
+         release_eligible_count ==1,
+         pretrial_period_end_count == 1,
+         booking_date < as.Date("2022-01-01")) %>%
+  filter(!is.na(score_new_criminal_activity)) %>%
+  #mutate(conv_flag = if_else(released_pretrial_count == 0 & release_type %in% c("Prison", "Time Served"), 1, 0)) %>%
+  mutate(conv_flag = if_else(disposition_type == "Convicted", 1, 0)) %>%
+  group_by(score_new_criminal_activity, race) %>%
+  select(conv_flag) %>%
+  pivot_longer(conv_flag) 
+
+
+risk_df <- risk_df %>%
+  mutate(race = factor(race, levels = c("White", "Black", "Hispanic", "Other_Unknown"))) %>%
+  filter(race %in% c("White", "Black", "Hispanic"))
+
+ggplot(risk_df) +
+  aes(x = score_new_criminal_activity, y = value, color = race) +
+  geom_smooth(method = "glm", method.args = list(family=binomial), alpha = .2) +
+  labs(x = "PSA NCA score", y = "Percent",
+       title = "Conviction rates by NCA score and race, Los Angeles")
+
+
+```
+
+#Release rates by race and NCA score, broken out by misdo/fel
+Pretrial release rates by race and NCA score and booking charge level
+```{r}
+risk_df <- join_df_la %>%
+    filter(booking_assessed_count == 1,
+         release_eligible_count ==1,
+         pretrial_period_end_count == 1,
+         booking_date < as.Date("2022-01-01")) %>%
+  filter(!is.na(score_new_criminal_activity)) %>%
+  mutate(booking_charge_level = case_when(booking_charge_level %in% c("Misdemeanor", "M") ~ "M",
+                                          booking_charge_level %in% c("Felony", "F") ~ "F",
+                                          T ~ "O")) %>%
+  filter(booking_charge_level %in% c("M", "F")) %>%
+  group_by(score_new_criminal_activity, race, booking_charge_level) %>%
+  select(released_pretrial_count) %>%
+  pivot_longer(released_pretrial_count) 
+
+
+risk_df <- risk_df %>%
+  mutate(race = factor(race, levels = c("White", "Black", "Hispanic", "Other_Unknown"))) %>%
+  filter(race %in% c("White", "Black", "Hispanic"))
+
+ggplot(risk_df) +
+  aes(x = score_new_criminal_activity, y = value, color = race) +
+  geom_smooth(method = "glm", method.args = list(family=binomial), alpha = .2) +
+  labs(x = "PSA NCA score", y = "Percent",
+       title = "Pretrial Release rates by NCA score and race, Los Angeles") +
+  facet_wrap("booking_charge_level")
+
+
+```
+Bail release rates by race and NCA score
+```{r}
+risk_df <- join_df_la %>%
+    filter(booking_assessed_count == 1,
+         release_eligible_count ==1,
+         pretrial_period_end_count == 1,
+         booking_date < as.Date("2022-01-01")) %>%
+  filter(!is.na(score_new_criminal_activity)) %>%
+  mutate(bail_flag = if_else(released_pretrial_count == 1 & release_type == "Bail Bond", 1, 0)) %>%
+  mutate(booking_charge_level = case_when(booking_charge_level %in% c("Misdemeanor", "M") ~ "M",
+                                          booking_charge_level %in% c("Felony", "F") ~ "F",
+                                          T ~ "O")) %>%
+  filter(booking_charge_level %in% c("M", "F")) %>%
+  group_by(score_new_criminal_activity, race, booking_charge_level) %>%
+  select(bail_flag) %>%
+  pivot_longer(bail_flag) 
+
+
+risk_df <- risk_df %>%
+  mutate(race = factor(race, levels = c("White", "Black", "Hispanic", "Other_Unknown"))) %>%
+  filter(race %in% c("White", "Black", "Hispanic"))
+
+ggplot(risk_df) +
+  aes(x = score_new_criminal_activity, y = value, color = race) +
+  geom_smooth(method = "glm", method.args = list(family=binomial), alpha = .2) +
+  labs(x = "PSA NCA score", y = "Percent",
+       title = "Bail Release rates by NCA score and race, Los Angeles")+
+  facet_wrap("booking_charge_level")
+
+```
+OR release rates by race and NCA score
+```{r}
+risk_df <- join_df_la %>%
+    filter(booking_assessed_count == 1,
+         release_eligible_count ==1,
+         pretrial_period_end_count == 1,
+         booking_date < as.Date("2022-01-01")) %>%
+  filter(!is.na(score_new_criminal_activity)) %>%
+  mutate(or_flag = if_else(released_pretrial_count == 1 & release_type == "Own Recognizance", 1, 0)) %>%
+    mutate(booking_charge_level = case_when(booking_charge_level %in% c("Misdemeanor", "M") ~ "M",
+                                          booking_charge_level %in% c("Felony", "F") ~ "F",
+                                          T ~ "O")) %>%
+  filter(booking_charge_level %in% c("M", "F")) %>%
+  group_by(score_new_criminal_activity, race, booking_charge_level) %>%
+  select(or_flag) %>%
+  pivot_longer(or_flag) 
+
+
+risk_df <- risk_df %>%
+  mutate(race = factor(race, levels = c("White", "Black", "Hispanic", "Other_Unknown"))) %>%
+  filter(race %in% c("White", "Black", "Hispanic"))
+
+ggplot(risk_df) +
+  aes(x = score_new_criminal_activity, y = value, color = race) +
+  geom_smooth(method = "glm", method.args = list(family=binomial), alpha = .2) +
+  labs(x = "PSA NCA score", y = "Percent",
+       title = "OR Release rates by NCA score and race, Los Angeles")+
+  facet_wrap("booking_charge_level")
+
+
+```
+Cite release rates by race and NCA score
+```{r}
+risk_df <- join_df_la %>%
+    filter(booking_assessed_count == 1,
+         release_eligible_count ==1,
+         pretrial_period_end_count == 1,
+         booking_date < as.Date("2022-01-01")) %>%
+  filter(!is.na(score_new_criminal_activity)) %>%
+  mutate(cite_flag = if_else(released_pretrial_count == 1 & release_type %in% c("Cite Release", "CiteR elease"), 1, 0)) %>%
+    mutate(booking_charge_level = case_when(booking_charge_level %in% c("Misdemeanor", "M") ~ "M",
+                                          booking_charge_level %in% c("Felony", "F") ~ "F",
+                                          T ~ "O")) %>%
+  filter(booking_charge_level %in% c("M", "F")) %>%
+  group_by(score_new_criminal_activity, race, booking_charge_level) %>%
+  select(cite_flag) %>%
+  pivot_longer(cite_flag) 
+
+
+risk_df <- risk_df %>%
+  mutate(race = factor(race, levels = c("White", "Black", "Hispanic", "Other_Unknown"))) %>%
+  filter(race %in% c("White", "Black", "Hispanic"))
+
+ggplot(risk_df) +
+  aes(x = score_new_criminal_activity, y = value, color = race) +
+  geom_smooth(method = "glm", method.args = list(family=binomial), alpha = .2) +
+  labs(x = "PSA NCA score", y = "Percent",
+       title = "Cite Release rates by NCA score and race, Los Angeles")+
+  facet_wrap("booking_charge_level")
+
+```
+Conviction release rates by race and NCA score
+```{r}
+risk_df <- join_df_la %>%
+    filter(booking_assessed_count == 1,
+         release_eligible_count ==1,
+         pretrial_period_end_count == 1,
+         booking_date < as.Date("2022-01-01")) %>%
+  filter(!is.na(score_new_criminal_activity)) %>%
+  #mutate(conv_flag = if_else(released_pretrial_count == 0 & release_type %in% c("Prison", "Time Served"), 1, 0)) %>%
+  mutate(conv_flag = if_else(disposition_type == "Convicted", 1, 0)) %>%
+    mutate(booking_charge_level = case_when(booking_charge_level %in% c("Misdemeanor", "M") ~ "M",
+                                          booking_charge_level %in% c("Felony", "F") ~ "F",
+                                          T ~ "O")) %>%
+  filter(booking_charge_level %in% c("M", "F")) %>%
+  group_by(score_new_criminal_activity, race, booking_charge_level) %>%
+  select(conv_flag) %>%
+  pivot_longer(conv_flag) 
+
+
+risk_df <- risk_df %>%
+  mutate(race = factor(race, levels = c("White", "Black", "Hispanic", "Other_Unknown"))) %>%
+  filter(race %in% c("White", "Black", "Hispanic"))
+
+ggplot(risk_df) +
+  aes(x = score_new_criminal_activity, y = value, color = race) +
+  geom_smooth(method = "glm", method.args = list(family=binomial), alpha = .2) +
+  labs(x = "PSA NCA score", y = "Percent",
+       title = "Conviction rates by NCA score and race, Los Angeles")+
+  facet_wrap("booking_charge_level")
+
+
+```
+Cite release rates by race and NCA score and offense
+```{r}
+risk_df <- join_df_la %>%
+    filter(booking_assessed_count == 1,
+         release_eligible_count ==1,
+         pretrial_period_end_count == 1,
+         booking_date < as.Date("2022-01-01")) %>%
+  filter(!is.na(score_new_criminal_activity)) %>%
+  # count(booking_charge_code, booking_charge, booking_charge_level, booking_charge_hierarchy) %>%
+  # arrange(desc(n))
+  mutate(cite_flag = if_else(released_pretrial_count == 1 & release_type %in% c("Cite Release", "CiteR elease"), 1, 0)) %>%
+  # mutate(offense_spec = case_when(booking_charge_code == "VC" & booking_charge == "23152((A)" & booking_charge_level == "M" ~ "M_VC_23152A",
+  #                                 booking_charge_code == "HS" & booking_charge == "-11364(A)" & booking_charge_level == "M" ~ "M_HS_11364A",
+  #                                 booking_charge_code == "VC" & booking_charge == "14601 1 A" & booking_charge_level == "M" ~ "M_VC_14601.1A",
+  #                                 booking_charge_code == "PC" & booking_charge == "273 5(A)" & booking_charge_level == "F" ~ "F_PC_273.5A",
+  #                                 booking_charge_code == "PC" & booking_charge == "245(A)(1)" & booking_charge_level == "F" ~ "F_PC_245A1",
+  #                                 booking_charge_code == "PC" & booking_charge == "273 6(A)" & booking_charge_level == "M" ~ "M_PC_273.6A",
+  #                                 booking_charge_code == "PC" & booking_charge == "243(E)(1)" & booking_charge_level == "M" ~ "M_PC_243.E1A",
+  #                                 booking_charge_code == "PC" & booking_charge == "459 PC" & booking_charge_level == "F" ~ "F_PC_459",
+  #                                 booking_charge_code == "PC" & booking_charge == "29800(A)1" & booking_charge_level == "F" ~ "F_PC_29800A1",
+  #                                 booking_charge_code == "VC" & booking_charge == "10851(A)" & booking_charge_level == "F" ~ "F_VC_10851A",
+  #                                 booking_charge_code == "PC" & booking_charge == "211" & booking_charge_level == "F" ~ "F_PC_211",
+  #                                 T ~ "Other")) %>%
+  # filter(offense_spec != "Other") %>%
+  group_by(score_new_criminal_activity, race, arrest_drug_flag) %>%
+  select(cite_flag) %>%
+  pivot_longer(cite_flag) 
+
+
+risk_df <- risk_df %>%
+  mutate(race = factor(race, levels = c("White", "Black", "Hispanic", "Other_Unknown"))) %>%
+  filter(race %in% c("White", "Black", "Hispanic"))
+
+ggplot(risk_df) +
+  aes(x = score_new_criminal_activity, y = value, color = race) +
+  geom_smooth(method = "glm", method.args = list(family=binomial), alpha = .2) +
+  labs(x = "PSA NCA score", y = "Percent",
+       title = "Cite Release rates by NCA score and race, Los Angeles")+
+  facet_wrap("arrest_drug_flag")
+
+
+join_df_la %>%
+  count(booking_charge_code, booking_charge, booking_charge_level, booking_charge_hierarchy) %>%
+  arrange(desc(n))
+
+join_df_la %>%
+  select(contains("arrest")) %>%
+  select(contains("flag"))
+```
+
+
+```{r}
+join_df_la %>%
+  mutate(booking_charge_hierarchy = as.numeric(booking_charge_hierarchy)) %>%
+  filter(!is.na(booking_charge_hierarchy)) %>%
+  mutate(hier_std = (booking_charge_hierarchy-mean(booking_charge_hierarchy))/sd(booking_charge_hierarchy)) %>%
+  mutate(hier_cat = case_when(hier_std < -0.1 ~ "<-0.3",
+                              hier_std < 0.3 ~ "-0.3-0.3",
+                              T ~ "> 0.3")) %>%
+  ggplot() +
+  geom_bar(aes(x = hier_std)) 
+
+join_df_la %>%
+  select(booking_charge_hierarchy)
+
+
+```
+
+# Other graphs
+Graph nca_flag by nca_pred and race
+\newline
+```{r fig.height=6, fig.width=10, dpi=1200}
+risk_df <- test %>%
+  filter(booking_assessed_count == 1,
+         release_eligible_count ==1,
+         released_pretrial_count == 1,
+         pretrial_period_end_count == 1,
+         booking_date < as.Date("2022-01-01")) %>%
+  filter(!is.na(nca_pred)) %>%
+  #mutate(nca_pred = if_else(race == "Black", nca_pred, nca_pred)) %>%
+  group_by(b_nca_pred, race, county) %>%
+  select(nca_county_or_doj) %>%
+  pivot_longer(nca_county_or_doj) 
+
+
+risk_df <- risk_df %>%
+  mutate(race = factor(race, levels = c("White", "Black", "Hispanic", "Other_Unknown"))) %>%
+  filter(race %in% c("White", "Black", "Hispanic")) %>%
+  mutate(name = case_when(name == "nca_flag" ~ "nca")) %>%
+  filter(county %in% c("Los Angeles", "Sacramento"))
+
+ggplot(test %>% filter(race %in% c("White", "Black", "Hispanic"))) +
+  aes(x = nca_pred, y = nca_county_or_doj, color = race) +
+  geom_smooth(method = "glm", method.args = list(family=binomial), alpha = .2) +
+  #geom_smooth(alpha = .2) +
+  # geom_line() +
+  # geom_point() +
+  #theme_bw() +
+  # ylim(0,.5) +
+  #xlim(0, .5) +
+  labs(x = "nca_pred score", y = "Percent",
+       title = "Comparison of Racial Differences in Logistic Regression Curves--nca by nca_pred, Los Angeles") +
+  geom_abline() #+
+  #scale_x_continuous(limits = c(0, 0.5)) +
+  #scale_y_continuous(limits = c(0, 0.6))
+
+hist(test$nca_pred)
+```
+
+FTA tem responses by race
+```{r}
+fta_tab <- tdf %>%
+  filter(race %in% c("White", "Black", "Hispanic")) %>%
+  filter(booking_assessed_count == 1,
+         release_eligible_count ==1,
+         released_pretrial_count == 1,
+         pretrial_period_end_count == 1,
+         booking_date < as.Date("2022-01-01")) %>%
+  group_by(race) %>%
+  summarise(fta = round(100*mean(if_else(fta_county_or_doj == 1, 1, 0)),1),
+            pending_charge = round(100*mean(pending_charge_at_arrest),1),
+            prior_conv = round(100*mean(prior_conviction),1),
+            prior_fta_within24mo_none = round(100*mean(if_else(prior_fta_previous_24_months == 0, 1, 0)),1),
+            prior_fta_within24mo_one = round(100*mean(if_else(prior_fta_previous_24_months == 1, 1, 0)),1),
+            prior_fta_within24mo_two_or_more = round(100*mean(if_else(prior_fta_previous_24_months == 2, 1, 0)),1),
+            prior_fta_older = round(100*mean(prior_fta_older_than_24_months),1))
+
+
+fta_long <- fta_tab %>%
+  pivot_longer(cols = 2:8) %>%
+  pivot_wider(names_from = race, values_from = value) %>%
+  mutate(scale = "FTA")
+
+```
+NCA item responses by race
+```{r}
+nca_tab <- tdf %>%
+  filter(race %in% c("White", "Black", "Hispanic")) %>%
+  filter(booking_assessed_count == 1,
+         release_eligible_count ==1,
+         released_pretrial_count == 1,
+         pretrial_period_end_count == 1,
+         booking_date < as.Date("2022-01-01")) %>%
+  group_by(race) %>%
+  summarise(nca = round(100*mean(if_else(recid_county_or_doj == 1, 1, 0)),1),
+            pending_charge = round(100*mean(pending_charge_at_arrest),1),
+            prior_misd_conv = round(100*mean(prior_misdemeanor_conviction),1),
+            prior_fel_conv = round(100*mean(prior_felony_conviction),1),
+            prior_viol_conv_none = round(100*mean(if_else(prior_violent_conviction == 0, 1, 0)),1),
+            prior_viol_conv_oneortwo = round(100*mean(if_else(prior_violent_conviction == 1, 1, 0)),1),
+            prior_viol_conv_threeormore = round(100*mean(if_else(prior_violent_conviction == 2, 1, 0)),1),
+            prior_fta_within24mo_none = round(100*mean(if_else(prior_fta_previous_24_months == 0, 1, 0)),1),
+            prior_fta_within24mo_one = round(100*mean(if_else(prior_fta_previous_24_months == 1, 1, 0)),1),
+            prior_fta_within24mo_two_or_more = round(100*mean(if_else(prior_fta_previous_24_months == 2, 1, 0)),1),
+            prior_incarc = round(100*mean(prior_sentence_to_incarceration),1))
+
+nca_long <- nca_tab %>%
+  pivot_longer(cols = 2:12) %>%
+  pivot_wider(names_from = race, values_from = value) %>%
+  mutate(scale = "NCA")
+```
+NVCA item responses by race
+```{r}
+nvca_tab <- tdf %>%
+  filter(race %in% c("White", "Black", "Hispanic")) %>%
+  filter(booking_assessed_count == 1,
+         release_eligible_count ==1,
+         released_pretrial_count == 1,
+         pretrial_period_end_count == 1,
+         booking_date < as.Date("2022-01-01")) %>%
+  group_by(race) %>%
+  summarise(nvca = round(100*mean(if_else(recid_arrest_violent_psa_flag_doj == 1, 1, 0)),1),
+            current_viol = round(100*mean(current_violent_offense),1),
+            current_viol_andunder20 = round(100*mean(current_violent_offense_and_age_under_20),1),
+            pending_charge = round(100*mean(pending_charge_at_arrest),1),
+            prior_conv = round(100*mean(prior_conviction),1),
+            prior_viol_conv_none = round(100*mean(if_else(prior_violent_conviction == 0, 1, 0)),1),
+            prior_viol_conv_oneortwo = round(100*mean(if_else(prior_violent_conviction == 1, 1, 0)),1),
+            prior_viol_conv_threeormore = round(100*mean(if_else(prior_violent_conviction == 2, 1, 0)),1))
+
+
+nvca_long <- nvca_tab %>%
+  pivot_longer(cols = 2:9) %>%
+  pivot_wider(names_from = race, values_from = value) %>%
+  mutate(scale = "NVCA")
+```
+Combine all items by race
+```{r}
+fta_long %>%
+  bind_rows(nca_long) %>%
+  bind_rows(nvca_long) %>%
+  select(scale, name, Black, White, Hispanic)
+
+
+
+fta_long %>%
+  bind_rows(nca_long) %>%
+  bind_rows(nvca_long) %>%
+  select(scale, name, Black, White, Hispanic) %>%
+  pivot_wider(names_from = scale, values_from = 1) %>%
+  unite(c(FTA, NCA, NVCA), col = scales, sep = ",", na.rm = T)
+
+
+```
+Pull additional recid flags
+```{sql eval=FALSE, connection=con, include=FALSE,  output.var='addon_la'}
+SELECT BOOKING_KEY, RECID_ARREST_VIOLENT_PSA_FLAG_DOJ, RECID_ARREST_DV_FLAG_DOJ, RECID_ARREST_DUI_FLAG_DOJ, RECID_ARREST_PROPERTY_FLAG_DOJ, RECID_ARREST_DRUG_FLAG_DOJ
+FROM "DWH_PROD"."REPORTING"."AGG_PRETRIAL_KPI_DOJ_ENHANCED"
+WHERE county = 'Los Angeles';
+
+```
+Format additional recid flags
+```{r eval=FALSE, include=FALSE}
+names(addon_la) <- tolower(names(addon_la))
+
+addon_la <- addon_la %>%
+  mutate(across(contains("_flag"), ~if_else(is.na(.x) | .x == "No" | .x == "Unknown" | .x == "0" | .x == 0, 0, as.numeric(1))))  
+```
+
+Join additional flags to tdf
+```{r}
+tdf_x <- tdf %>%
+  left_join(addon_la, by = "booking_key")
+
+agg_tr_x <- agg_tr %>%
+  left_join(addon_la, by = "booking_key")
+
+
+names(addon_la)
+
+tdf_x %>%
+  select(contains("recid"))
+```
+
+Outcomes by race
+```{r}
+outcome_tab <- agg_tr_x %>%
+  mutate(booking_assessed_count = if_else(is.na(booking_assessed_count), 0, booking_assessed_count)) %>%
+  filter(race %in% c("White", "Black", "Hispanic")) %>%
+  filter(booking_assessed_count ==0,
+         release_eligible_count ==1,
+         released_pretrial_count == 1,
+         pretrial_period_end_count == 1,
+         release_type %in% c("Bail Bond"),
+         booking_date < as.Date("2022-01-01")) %>%
+  group_by(race) %>%
+  summarise(fta = round(100*mean(if_else(fta_county_or_doj == 1, 1, 0)),1),
+            recid_arrest = round(100*mean(if_else(recid_county_or_doj == 1, 1, 0)),1),
+            recid_filing = round(100*mean(if_else(recid_filed_flag_doj == 1, 1, 0)),1),
+            recid_conv = round(100*mean(if_else(recid_convicted_flag_doj == 1, 1, 0)),1),
+            recid_psa_violent = round(100*mean(as.numeric(recid_arrest_violent_psa_flag_doj.x)),1),
+            recid_dv = round(100*mean(recid_arrest_dv_flag_doj),1),
+            recid_dui = round(100*mean(recid_arrest_dui_flag_doj),1),
+            recid_prop = round(100*mean(recid_arrest_property_flag_doj),1),
+            recid_drug = round(100*mean(recid_arrest_drug_flag_doj),1))
+
+
+outcome_long <- outcome_tab %>%
+  pivot_longer(cols = 2:10) %>%
+  pivot_wider(names_from = race, values_from = value) %>%
+  select(outcome = name, Black, White, Hispanic)
+
+outcome_long
+
+agg_tr_x %>%
+  mutate(booking_assessed_count = if_else(is.na(booking_assessed_count), 0, booking_assessed_count)) %>%
+  filter(booking_assessed_count != 1) %>%
+  count(release_type)
+  count(booking_assessed_count)
+
+  agg_tr_x %>%
+    mutate(booking_assessed_count = if_else(is.na(booking_assessed_count), 0, booking_assessed_count)) %>%
+    count(release_eligible_count, booking_assessed_count)
+  
+agg_tr_x %>%
+  filter(race %in% c("White", "Black", "Hispanic"),
+         release_eligible_count == 1,
+         released_pretrial_count == 1, 
+         booking_charge_level %in% c("F", "Felony")) %>%
+  mutate(release_eligible_count = if_else(is.na(release_eligible_count), 0, release_eligible_count)) %>%
+  count(race, release_type) %>%
+  group_by(race) %>%
+  mutate(perc = round(100*n/sum(n),1)) %>%
+  filter(release_type %in% c("Bail Bond", "Cite Release", "Own Recognizance")) %>%
+  select(-n) %>%
+  pivot_wider(names_from = race, values_from = perc)
+
+agg_tr_x %>%
+  count(booking_charge_level)
+```
+```{r}
+agg_tr_x %>%
+  filter(race %in% c("White", "Black", "Hispanic"),
+         release_eligible_count == 1,
+         released_pretrial_count == 1, 
+         booking_charge_level %in% c("M", "Misdemeanor")) %>%
+  mutate(release_eligible_count = if_else(is.na(release_eligible_count), 0, release_eligible_count)) %>%
+  count(race, release_type) %>%
+  group_by(race) %>%
+  mutate(perc = round(100*n/sum(n),1)) %>%   
+  filter(release_type %in% c("Bail Bond", "Cite Release", "Own Recognizance")) %>%
+  select(-n) %>%
+  pivot_wider(names_from = race, values_from = perc)
+```
+
+Pretrial release rate by race and nca risk score
+```{r}
+agg_tr %>%
+  mutate(released_pretrial_count = if_else(released_pretrial_count == 1, "Released pretrial", "Detained pretrial")) %>%
+  filter(race %in% c("Black", "Hispanic", "White")) %>%
+  count(released_pretrial_count, race, score_new_criminal_activity.x) %>%
+  group_by(race, score_new_criminal_activity.x) %>%
+  mutate(perc = round(100*n/sum(n), 1)) %>%
+  select(-n) %>%
+  filter(released_pretrial_count == "Released pretrial") %>%
+  ggplot(aes(x = score_new_criminal_activity.x, y = perc, fill = race)) +
+  geom_bar(stat = "identity", position = "dodge")+
+  labs(x = "Risk Category", y = "Percent released pretrial", title = "Pretrial release rates by race and PSA NCA risk score") +
+  scale_x_continuous(breaks = 1:6)
+```
+Pretrial detention rate by race and nca risk score
+```{r}
+agg_tr %>%
+  mutate(released_pretrial_count = if_else(released_pretrial_count == 1, "Released pretrial", "Detained pretrial")) %>%
+  filter(race %in% c("Black", "Hispanic", "White")) %>%
+  count(released_pretrial_count, race, score_new_criminal_activity.x) %>%
+  group_by(race, score_new_criminal_activity.x) %>%
+  mutate(perc = round(100*n/sum(n), 1)) %>%
+  select(-n) %>%
+  filter(released_pretrial_count == "Detained pretrial") %>%
+  ggplot(aes(x = score_new_criminal_activity.x, y = perc, fill = race)) +
+  geom_bar(stat = "identity", position = "dodge")+
+  labs(x = "Risk Category", y = "Percent detained pretrial", title = "Pretrial detention rates by race and PSA NCA risk score") +
+  scale_x_continuous(breaks = 1:6)
+
+agg_tr %>%
+  select(contains("score"))
+```
+

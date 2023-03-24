@@ -41,7 +41,7 @@ FROM "DWH_PROD"."DATA_SCIENCE"."JOIN_DF_STD"
 ;
 ```
 
-Format data - join df 
+Format data - join df  
 ```{r warning=FALSE, include=FALSE}
 
 names(join_df) <- tolower(names(join_df))
@@ -61,12 +61,14 @@ join_df <- join_df %>%
 SB 129 numbers
 ```{r}
 rep_df <- join_df %>%
-  filter(booking_date > as.Date("2021-07-01")) %>%
+  filter(booking_date >= as.Date("2021-07-01")) %>%
   mutate(rep_q = case_when(booking_date < as.Date("2022-01-01") ~ "FY1 Q1-2",
                            booking_date < as.Date("2022-04-01") ~ "FY1 Q3",
                            booking_date < as.Date("2022-07-01") ~ "FY1 Q4",
                            booking_date < as.Date("2022-10-01") ~ "FY2 Q1",
-                           booking_date < as.Date("2023-01-01") ~ "FY2 Q2")) %>%
+                           booking_date < as.Date("2023-01-01") ~ "FY2 Q2",
+                           booking_date < as.Date("2023-04-01") ~ "FY2 Q3",
+                           booking_date < as.Date("2023-07-01") ~ "FY2 Q3")) %>%
   mutate(rel_within_2days = case_when(
     weekdays(book_date) == "Thursday" & release_date - book_date <= 4 ~ 1,
     weekdays(book_date) == "Friday" & release_date - book_date <= 4 ~ 1,
@@ -178,11 +180,230 @@ q5_race <- rep_df %>%
 
 writeData(out, sheet = "5 Avg monthly bookings by race", x = q5_race)
 
+#Q6: Total assessments
+addWorksheet(out, "6 Total Assessments")
+
+q6 <- rep_df %>%
+  mutate(aq = case_when(assessment_date < as.Date("2022-01-01") ~ "FY1 Q1-2",
+                           assessment_date < as.Date("2022-04-01") ~ "FY1 Q3",
+                           assessment_date < as.Date("2022-07-01") ~ "FY1 Q4",
+                           assessment_date < as.Date("2022-10-01") ~ "FY2 Q1",
+                           assessment_date < as.Date("2023-01-01") ~ "FY2 Q2",
+                           booking_date < as.Date("2023-04-01") ~ "FY2 Q3",
+                           booking_date < as.Date("2023-07-01") ~ "FY2 Q4")) %>%
+  mutate(scored_assessment = if_else(is.na(risk_score_raw) & is.na(score_new_criminal_activity) & is.na(generic_tool_total_score_raw), 0,1)) %>%
+  filter(is_booking_assessed == "Yes" & scored_assessment == 1) %>%
+  group_by(county, aq) %>%
+  count()
+
+writeData(out, sheet = "6 Total Assessments", x = q6)
+
+#Q7: Total monitored
+addWorksheet(out, "7 Total Monitored")
+
+# maybe make flags for each quarter??
+q7 <- rep_df %>%
+  filter(release_type == "Pretrial Supervision" | monitoring_level_grouped %in% c("Lowest Levels", "Medium Levels", "Highest Levels")) %>%
+  mutate(rq = case_when(release_date < as.Date("2022-01-01") ~ "FY1 Q1-2",
+                           release_date < as.Date("2022-04-01") ~ "FY1 Q3",
+                           release_date < as.Date("2022-07-01") ~ "FY1 Q4",
+                           release_date < as.Date("2022-10-01") ~ "FY2 Q1",
+                           release_date < as.Date("2023-01-01") ~ "FY2 Q2",
+                           release_date < as.Date("2023-04-01") ~ "FY2 Q3",
+                           release_date < as.Date("2023-07-01") ~ "FY2 Q4")) %>%
+  group_by(county, rep_q) %>%
+  count()
+
+writeData(out, sheet = "7 Total Monitored", x = q7)
+
+#Q7a: Total EM
+addWorksheet(out, "7a Total EM")
+
+q7a <- rep_df %>%
+  filter(release_type == "Pretrial Supervision" | monitoring_level_grouped %in% c("Lowest Levels", "Medium Levels", "Highest Levels")) %>%
+  mutate(rq = case_when(release_date < as.Date("2022-01-01") ~ "FY1 Q1-2",
+                           release_date < as.Date("2022-04-01") ~ "FY1 Q3",
+                           release_date < as.Date("2022-07-01") ~ "FY1 Q4",
+                           release_date < as.Date("2022-10-01") ~ "FY2 Q1",
+                           release_date < as.Date("2023-01-01") ~ "FY2 Q2",
+                           release_date < as.Date("2023-04-01") ~ "FY2 Q3",
+                           release_date < as.Date("2023-07-01") ~ "FY2 Q4")) %>%
+  group_by(county, rep_q) %>%
+  count()
+
+writeData(out, sheet = "7a Total EM", x = q7a)
+
+#Q7b: Total support
+addWorksheet(out, "7b Total support")
+
+# maybe make flags for each quarter??
+q7b <- rep_df %>%
+  filter(release_type == "Pretrial Supervision" | monitoring_level_grouped %in% c("Lowest Levels", "Medium Levels", "Highest Levels")) %>%
+  mutate(rq = case_when(release_date < as.Date("2022-01-01") ~ "FY1 Q1-2",
+                           release_date < as.Date("2022-04-01") ~ "FY1 Q3",
+                           release_date < as.Date("2022-07-01") ~ "FY1 Q4",
+                           release_date < as.Date("2022-10-01") ~ "FY2 Q1",
+                           release_date < as.Date("2023-01-01") ~ "FY2 Q2",
+                           release_date < as.Date("2023-04-01") ~ "FY2 Q3",
+                           release_date < as.Date("2023-07-01") ~ "FY2 Q4")) %>%
+  group_by(county, rep_q) %>%
+  count()
+
+writeData(out, sheet = "7b Total support", x = q7b)
+
+#Q7c: New monitoring cases
+addWorksheet(out, "7c New Monitoring Cases")
+
+q7c <- rep_df %>%
+  filter(release_type == "Pretrial Supervision" | monitoring_level_grouped %in% c("Lowest Levels", "Medium Levels", "Highest Levels")) %>%
+  mutate(rq = case_when(release_date < as.Date("2022-01-01") ~ "FY1 Q1-2",
+                           release_date < as.Date("2022-04-01") ~ "FY1 Q3",
+                           release_date < as.Date("2022-07-01") ~ "FY1 Q4",
+                           release_date < as.Date("2022-10-01") ~ "FY2 Q1",
+                           release_date < as.Date("2023-01-01") ~ "FY2 Q2",
+                           release_date < as.Date("2023-04-01") ~ "FY2 Q3",
+                           release_date < as.Date("2023-07-01") ~ "FY2 Q4")) %>%
+  group_by(county, rep_q) %>%
+  count()
+
+writeData(out, sheet = "7c New Monitoring Cases", x = q7c)
+
 
 out
-saveWorkbook(out, "SB 129 pilot numbers for Deirdre 12.1.22.xlsx")
+#saveWorkbook(out, "SB 129 pilot numbers for Deirdre 12.1.22.xlsx")
+saveWorkbook(out, "SB 129 pilot numbers for Deirdre 3.3.22.xlsx")
 
+rep_df %>%
+  count(monitoring_level_grouped, release_type) %>%
+  arrange(desc(n))
+  select(contains("monitor"))
+```
 
+Something is wrong with Calaveras
+```{r}
+rep_df %>%
+  filter(county == "Calaveras",
+         is_booking_assessed == "Yes") %>%
+  select(contains("risk"))
   
 
 ```
+
+FTAs
+```{r}
+fta_county <- rep_df %>%
+  mutate(scored_assessment = if_else(is.na(risk_score_raw) & is.na(score_new_criminal_activity) & is.na(generic_tool_total_score_raw), 0,1)) %>%
+  filter(book_date < as.Date("2022-07-01"),
+         is_released_pretrial == "Yes",
+         is_booking_assessed == "Yes",
+         scored_assessment == 1) %>%
+  group_by(county) %>%
+  summarise(total_assessed_released_pretrial = n(), ftas = sum(fta_county_or_doj), fta_rate = ftas/total_assessed_released_pretrial)
+
+#write.csv(fta_county, file = "FTA numbers for Deirdre 1.23.23.csv")
+write.csv(fta_county, file = "FTA numbers for Deirdre 3.2.23.csv")
+
+
+```
+# Court date reminder tables
+```{r}
+rep_df %>%
+  group_by(county) %>%
+  count(court_date_reminder_flag) %>%
+  mutate(perc = round(100*n/sum(n), 1), N = sum(n)) %>%
+  filter(court_date_reminder_flag == 1 | perc == 100) %>%
+  mutate(perc = if_else(court_date_reminder_flag == 0 & perc == 100, 0, perc)) %>%
+  select(county, perc, N) %>%
+    distinct()
+```
+By quarter
+```{r}
+
+qdf <- rep_df %>%
+  group_by(county, rep_q) %>%
+  count(court_date_reminder_flag) %>%
+  mutate(perc = round(100*n/sum(n), 1), N = sum(n)) %>%
+  filter(court_date_reminder_flag == 1 & n > 10) %>%
+  mutate(perc = if_else(court_date_reminder_flag == 0 & perc == 100, 0, perc)) %>%
+  select(rep_q, county, perc, N) %>%
+    distinct()
+
+write.csv(qdf, file = "quarterly court date reminder percent of all bookings by county 3.3.23.csv")
+```
+
+Only matched bookings
+```{r}
+rep_df %>%
+  filter(is_unmatched_booking == "No") %>%
+  group_by(county) %>%
+  count(court_date_reminder_flag) %>%
+  mutate(perc = round(100*n/sum(n), 1), N = sum(n)) %>%
+  filter(court_date_reminder_flag == 1 | perc == 100) %>%
+  mutate(perc = if_else(court_date_reminder_flag == 0 & perc == 100, 0, perc)) %>%
+  select(county, perc, N) %>%
+    distinct()
+```
+Quarterly, matched bookings
+```{r}
+qdf <- rep_df %>%
+  filter(is_unmatched_booking == "No") %>%
+  group_by(county, rep_q) %>%
+  count(court_date_reminder_flag) %>%
+  mutate(perc = round(100*n/sum(n), 1), N = sum(n)) %>%
+  filter(court_date_reminder_flag == 1 & n > 10) %>%
+  mutate(perc = if_else(court_date_reminder_flag == 0 & perc == 100, 0, perc)) %>%
+  select(rep_q, county, perc, N) %>%
+    distinct()
+
+write.csv(qdf, file = "quarterly court date reminder percent of bookings with case by county 3.3.23.csv")
+```
+
+Only matched booking with filing after booking
+```{r}
+rep_df %>%
+  filter(is_unmatched_booking == "No",
+         case_filed_date >= booking_date) %>%
+  group_by(county) %>%
+  count(court_date_reminder_flag) %>%
+  mutate(perc = round(100*n/sum(n), 1), N = sum(n)) %>%
+  filter(court_date_reminder_flag == 1 | perc == 100) %>%
+  mutate(perc = if_else(court_date_reminder_flag == 0 & perc == 100, 0, perc)) %>%
+  select(county, perc, N) %>%
+    distinct()
+
+# all counties, filing on or after booking
+rep_df %>%
+  filter(is_unmatched_booking == "No",
+         case_filed_date >= booking_date) %>%
+  count(court_date_reminder_flag) %>%
+  mutate(perc = round(100*n/sum(n), 1), N = sum(n))
+```
+
+
+```{r}
+# all counties, all bookings with cases, just 2022
+rep_df %>%
+  filter(is_unmatched_booking == "No",
+         booking_date >= as.Date("2022-1-1"),
+         booking_date < as.Date("2023-1-1")) %>%
+  count(court_date_reminder_flag) %>%
+  mutate(perc = round(100*n/sum(n), 1), N = sum(n))
+
+```
+
+
+```{r}
+full_df %>%
+  filter(is_unmatched_booking == "No") %>%
+  group_by(county) %>%
+  count(court_date_reminder_flag) %>%
+  mutate(perc = round(100*n/sum(n), 1), N = sum(n)) %>%
+  filter(court_date_reminder_flag == 1 | perc == 100) %>%
+  mutate(perc = if_else(court_date_reminder_flag == 0 & perc == 100, 0, perc)) %>%
+  select(county, perc, N) %>%
+    distinct() %>%
+  ungroup() %>%
+  summarise(tot = sum(N), reminders = sum(N*perc/100))
+
+```
+
