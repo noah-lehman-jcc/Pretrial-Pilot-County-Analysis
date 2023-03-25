@@ -2069,7 +2069,7 @@ summary(lm(data = bprw %>%
 ```
 Golive not significant 
 # Regression on release/not-released at individual level (would need more controls)
-```{r}
+```{r eval=FALSE, include=FALSE}
 summary(lm(data = full_bts %>%
              filter(pretrial_period_end_count ==1) %>%
              # filter(release_date >= as.Date("2019-01-01"),
@@ -2893,7 +2893,97 @@ full_df %>%
 ```{r}
 
 ```
+Add control for charge hierarchy value - rearrest, full timeline
+```{r}
+#Looking at only people with a pretrial period end and released pretrial, fta controlling for days released and golive flag, covid flag, emergency flag (county only!), and driving mobility data, and booking date
+summary(lm(data = full_bts %>%
+             filter(released_pretrial_count == 1,
+                    pretrial_period_end_count ==1) %>%
+             mutate(days_released = pretrial_period_end_date - release_date,
+                    charge_hier = scale(as.numeric(if_else(booking_charge_hierarchy %in% c("1000000", "999999"), "Undefined", booking_charge_hierarchy)))), 
+           recid_county_or_doj ~ days_released*avg_bts_mob + golive_flag + covid_flag + eb_flag + charge_hier + county))
+```
+Emergency bail significant (p < 0.0001) and positive (0.017)
+
+Add control for charge hierarchy value - rearrest, filtered timeline
+```{r}
+#Looking at only people with a pretrial period end, fta controlling for days released and golive flag, covid flag, emergency flag, and driving mobility data, and booking date
+summary(lm(data = full_bts %>%
+             filter(released_pretrial_count == 1,
+                    pretrial_period_end_count ==1) %>%
+             filter(release_date >= as.Date("2019-01-01"),
+                    pretrial_period_end_date <= as.Date("2022-04-30")) %>%
+             mutate(days_released = pretrial_period_end_date - release_date,
+                    charge_hier = scale(as.numeric(if_else(booking_charge_hierarchy %in% c("1000000", "999999"), "Undefined", booking_charge_hierarchy)))), 
+           recid_county_or_doj ~ days_released*avg_bts_mob + golive_flag + covid_flag + eb_flag + charge_hier + county))
+```
+Emergency bail significant (p<0.0001) and positive (0.026)
+
+Add control for charge hierarchy value - FTA, full timeline
+```{r}
+#Looking at only people with a pretrial period end and released pretrial, fta controlling for days released and golive flag, covid flag, emergency flag (county only!), and driving mobility data, and booking date
+summary(lm(data = full_bts %>%
+             filter(released_pretrial_count == 1,
+                    pretrial_period_end_count ==1) %>%
+             mutate(days_released = pretrial_period_end_date - release_date,
+                    charge_hier = scale(as.numeric(if_else(booking_charge_hierarchy %in% c("1000000", "999999"), "Undefined", booking_charge_hierarchy)))), 
+           fta_flag ~ days_released*avg_bts_mob + golive_flag + covid_flag + eb_flag + charge_hier + county))
+```
+Emergency bail is significant (p = 0.045) and positive (0.006)
+
+Add control for charge hierarchy value - FTA, filtered timeline
+```{r}
+#Looking at only people with a pretrial period end, fta controlling for days released and golive flag, covid flag, emergency flag, and driving mobility data, and booking date
+summary(lm(data = full_bts %>%
+             filter(released_pretrial_count == 1,
+                    pretrial_period_end_count ==1) %>%
+             filter(release_date >= as.Date("2019-01-01"),
+                    pretrial_period_end_date <= as.Date("2022-04-30")) %>%
+             mutate(days_released = pretrial_period_end_date - release_date,
+                    charge_hier = scale(as.numeric(if_else(booking_charge_hierarchy %in% c("1000000", "999999"), "Undefined", booking_charge_hierarchy)))), 
+           fta_flag ~ days_released*avg_bts_mob + golive_flag + covid_flag + eb_flag + charge_hier + county))
+```
+Emergency bail is significant (p < 0.0001) and positive (0.018)
 
 # Race/ethnicity impact analyses
+Racial breakdown of individuals released pretrial
+```{r}
+#Stacked
+full_df %>%
+  filter(booking_date >= as.Date("2018-7-1")) %>%
+  filter(is_release_eligible == "Yes") %>%
+  filter(county != "Los Angeles") %>%
+  filter(charge_level %in% c("M", "F")) %>%
+  filter(is_released_pretrial == "Yes") %>%
+  mutate(race_standard = if_else(is.na(race_standard), "Other/Unknown", race_standard)) %>%
+  group_by(book_month = floor_date(booking_date, unit = "month"), race_standard, charge_level) %>%
+  summarise(n = n()) %>%
+  group_by(book_month, charge_level) %>%
+  mutate(tot = sum(n), perc = n/tot) %>%
+  ggplot(aes(fill = race_standard, y = perc, x = book_month)) +
+  geom_bar(position = "stack", stat = "identity") +
+  scale_fill_manual(values=c("#68023F", "#008169", "#EF0096", "#00DCB5", "#FFCFE2", "#003C86", "#9400E6", "#009FFA",
+                             "#FF71FD", "#7CFFFA", "#3D3C04", "#008607", "#F60239", "#00E307", "#FFDC3D")) +
+  facet_grid(cols = vars(charge_level))
+
+#Faceted
+full_df %>%
+  filter(booking_date >= as.Date("2018-7-1")) %>%
+  filter(is_release_eligible == "Yes") %>%
+  filter(county != "Los Angeles") %>%
+  filter(charge_level %in% c("M", "F")) %>%
+  filter(is_released_pretrial == "Yes") %>%
+  mutate(race_standard = if_else(is.na(race_standard), "Other/Unknown", race_standard)) %>%
+  group_by(book_month = floor_date(booking_date, unit = "month"), race_standard, charge_level) %>%
+  summarise(n = n()) %>%
+  group_by(book_month, charge_level) %>%
+  mutate(tot = sum(n), perc = n/tot) %>%
+  ggplot(aes(y = perc, x = book_month)) +
+  geom_bar(position = "stack", stat = "identity") +
+  ylim(0,1)+
+  facet_grid(cols = vars(race_standard), rows = vars(charge_level))
+
+
+```
 # Space saver
 
