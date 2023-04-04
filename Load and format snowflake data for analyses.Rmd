@@ -2889,10 +2889,71 @@ full_df %>%
 
 
 
-# Zero bail analyses
+# Missing booking charge hierarchy values investigation
 ```{r}
+full_bts %>%
+             filter(released_pretrial_count == 1,
+                    pretrial_period_end_count ==1) %>%
+  mutate(days_released = pretrial_period_end_date - release_date,
+                    charge_hier = scale(as.numeric(if_else(booking_charge_hierarchy %in% c("1000000", "999999"), "Undefined", booking_charge_hierarchy)))) %>%
+  count(county, charge_hier) %>%
+  filter(county %in% c("Calaveras", "Kings", "Sierra", "Modoc", "Yuba"))
 
+# percent missing charge hierarchy value
+full_bts %>%
+             # filter(released_pretrial_count == 1,
+             #        pretrial_period_end_count ==1) %>%
+  mutate(days_released = pretrial_period_end_date - release_date,
+                    charge_hier = scale(as.numeric(if_else(booking_charge_hierarchy %in% c("1000000", "999999"), "Undefined", booking_charge_hierarchy)))) %>%
+  mutate(charge_hier_na_flag = if_else(is.na(charge_hier), 1, 0)) %>%
+  count(county, charge_hier_na_flag) %>%
+  group_by(county) %>%
+  mutate(tot = sum(n), perc = n/tot) %>%
+  filter(charge_hier_na_flag == 1 | perc == 1) %>%
+  select(county, tot, perc) %>%
+  mutate(perc = scales::percent(perc, accuracy = 1)) %>%
+  rename(percent_missing_charge_hierarchy = perc)
 ```
+```{r}
+#percent with "Unknown" booking charge
+full_bts %>%
+             # filter(released_pretrial_count == 1,
+             #        pretrial_period_end_count ==1) %>%
+  mutate(days_released = pretrial_period_end_date - release_date,
+                    charge_hier = scale(as.numeric(if_else(booking_charge_hierarchy %in% c("1000000", "999999"), "Undefined", booking_charge_hierarchy)))) %>%
+  mutate(charge_hier_na_flag = if_else(is.na(charge_hier), 1, 0)) %>%
+  count(county, charge_hier_na_flag) %>%
+  group_by(county) %>%
+  mutate(tot = sum(n), perc = n/tot) %>%
+  filter(charge_hier_na_flag == 1 | perc == 1) %>%
+  select(county, tot, perc) %>%
+  mutate(perc = scales::percent(perc, accuracy = 1)) %>%
+  rename(percent_missing_charge_hierarchy = perc) %>%
+  left_join(full_bts %>%
+             # filter(released_pretrial_count == 1,
+             #        pretrial_period_end_count ==1) %>%
+  mutate(days_released = pretrial_period_end_date - release_date,
+                    charge_hier = scale(as.numeric(if_else(booking_charge_hierarchy %in% c("1000000", "999999"), "Undefined", booking_charge_hierarchy)))) %>%
+  mutate(charge_unknown = if_else(booking_charge == "Unknown", 1, 0)) %>%
+  count(county, charge_unknown) %>%
+  group_by(county) %>%
+  mutate(tot = sum(n), perc = n/tot) %>%
+  filter(charge_unknown == 1) %>%
+  select(county, perc) %>%
+  mutate(perc = scales::percent(perc, accuracy = 1)) %>%
+  rename(percent_unknown_charge = perc))
+```
+
+
+```{r}
+full_bts %>%
+  mutate(charge_hier = scale(as.numeric(if_else(booking_charge_hierarchy %in% c("1000000", "999999"), "Undefined", booking_charge_hierarchy)))) %>%
+  filter(is.na(charge_hier)) %>%
+  count(county, booking_charge_level, booking_charge_code, booking_charge, charge_hier) %>%
+  arrange(desc(n)) %>%
+  filter(county %in% c("Yuba"))
+```
+# Zero bail analyses
 Add control for charge hierarchy value - rearrest, full timeline
 ```{r}
 #Looking at only people with a pretrial period end and released pretrial, fta controlling for days released and golive flag, covid flag, emergency flag (county only!), and driving mobility data, and booking date
@@ -2944,6 +3005,25 @@ summary(lm(data = full_bts %>%
            fta_flag ~ days_released*avg_bts_mob + golive_flag + covid_flag + eb_flag + charge_hier + county))
 ```
 Emergency bail is significant (p < 0.0001) and positive (0.018)
+
+```{r}
+zero_bail_offenses <- full_bts %>%
+  filter(release_type == "Zero Bail") %>%
+  filter(booking_charge_level != "Unknown", booking_charge_code != "Unknown", booking_charge != "Unknown") %>%
+  mutate(booking_charge_level = case_when(booking_charge_level == "Misdemeanor" ~ "M",
+                                          booking_charge_level == "Felony" ~ "F",
+                                          T ~ booking_charge_level)) %>%
+  distinct(booking_charge_level, booking_charge_code, booking_charge) %>%
+  mutate(booking_charge = gsub(booking_charge_code, "", booking_charge)) %>%
+  mutate(booking_charge = toupper(gsub("\\/|\\(|\\)| |\\.|\\.*|^[A-Z]*|\\\\.*|\\{|\\}|\\+|\\&|>|\\-|<","", booking_charge))) %>%
+  mutate(booking_charge = gsub("VC$|PC$|HS$", "", booking_charge)) %>%
+  unite(join_var, booking_charge_level, booking_charge_code, booking_charge, remove = F) %>%
+  filter(nchar(booking_charge_code) == 2)
+
+#write.csv(zero_bail_offenses, file = "zero bail offense list.csv")
+
+```
+
 
 # Race/ethnicity impact analyses
 Racial breakdown of individuals released pretrial
