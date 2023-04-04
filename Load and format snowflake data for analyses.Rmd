@@ -236,6 +236,262 @@ full_df <- full_df %>%
 full_df <- full_df %>%
   mutate(emerg_flag = if_else(booking_date >= as.Date("2020-4-6") & booking_date <= as.Date("2020-6-20"), 1, 0))
 ```
+# Upload BTS data
+https://data.bts.gov/Research-and-Statistics/Trips-by-Distance/w96p-f2qv
+```{r}
+bts <- fread("C:/Users/slempert/Judicial Council of California/CJS Research - Documents/SB 36 Validation Reports/COVID data/Trips_by_Distance.csv", header = T)
+
+# fips <- read_excel("C:/Users/slempert/Judicial Council of California/CJS Research - Documents/SB 36 Validation Reports/COVID data/US_FIPS_Codes.xls", skip = 1)
+# 
+# fips <- fips %>%
+#   filter(State == "California") %>%
+#   mutate(county_fips = str_c("6", `FIPS County`))
+
+bts <- bts %>%
+  filter(`State FIPS` == 6) %>%
+  filter(Level == "County")
+
+bts <- bts %>%
+  mutate(total_pop = `Population Staying at Home` + `Population Not Staying at Home`) %>%
+  mutate(mob_pop = `Population Not Staying at Home`/total_pop) %>%
+  mutate(Date = ymd(Date))
+
+bts %>%
+  ggplot() +
+  geom_line(aes(x = Date, y = mob_pop, color = `County Name`))
+
+mob_bts <- bts %>%
+  select(date = Date, county = `County Name`, mob_pop)
+
+mob_bts <- mob_bts %>%
+  mutate(county = gsub(" County", "", county))
+
+mob_bts <- mob_bts %>%
+  filter(!is.na(mob_pop))
+
+mob_bts %>%
+  summarise(min(date), max(date))
+
+mob_bts %>%
+  filter(is.na(mob_pop))
+
+mob_bts %>%
+  count(county)
+
+mob_bts %>%
+  filter(is.na(date))
+
+mob_bts <- as_tibble(mob_bts)
+```
+
+
+Create function to calculate average bts mobility
+```{r eval=FALSE, include=FALSE}
+get_bts_mob_mean <- function(loc_county, start, end){
+  mob_bts %>%
+    filter(county == loc_county, 
+           date >=start,
+           date <= end) %>%
+    summarise(mmp = mean(mob_pop)) %>%
+    pull(mmp)
+}
+
+get_bts_mob_mean_V <- Vectorize(get_bts_mob_mean)
+
+```
+Apply function - TEMPORARILY REMOVED BECAUSE TAKES FOREVER TO RUN
+```{r eval=FALSE, include=FALSE}
+# test_b_alameda <- full_df %>%
+#   filter(released_pretrial_count == 1,
+#          pretrial_period_end_count == 1) %>%
+#   filter(pretrial_period_end_date >= release_date) %>%
+#   filter(county == "Alameda") %>%
+#   mutate(avg_bts_mob = 0) %>%
+#   mutate(avg_bts_mob = get_bts_mob_mean_V(county, release_date, pretrial_period_end_date))
+# 
+# test_b_calaveras <- full_df %>%
+#   filter(released_pretrial_count == 1,
+#          pretrial_period_end_count == 1) %>%
+#   filter(pretrial_period_end_date >= release_date) %>%
+#   filter(county == "Calaveras") %>%
+#   mutate(avg_bts_mob = 0) %>%
+#   mutate(avg_bts_mob = get_bts_mob_mean_V(county, release_date, pretrial_period_end_date))
+# 
+# test_b_kings <- full_df %>%
+#   filter(released_pretrial_count == 1,
+#          pretrial_period_end_count == 1) %>%
+#   filter(pretrial_period_end_date >= release_date) %>%
+#   filter(county == "Kings") %>%
+#   mutate(avg_bts_mob = 0) %>%
+#   mutate(avg_bts_mob = get_bts_mob_mean_V(county, release_date, pretrial_period_end_date))
+# 
+# test_b_la <- full_df %>%
+#   filter(released_pretrial_count == 1,
+#          pretrial_period_end_count == 1) %>%
+#   filter(pretrial_period_end_date >= release_date) %>%
+#   filter(county == "Los Angeles") %>%
+#   mutate(avg_bts_mob = 0) %>%
+#   mutate(avg_bts_mob = get_bts_mob_mean_V(county, release_date, pretrial_period_end_date))
+# 
+# test_b_modoc <- full_df %>%
+#   filter(released_pretrial_count == 1,
+#          pretrial_period_end_count == 1) %>%
+#   filter(pretrial_period_end_date >= release_date) %>%
+#   filter(county == "Modoc") %>%
+#   mutate(avg_bts_mob = 0) %>%
+#   mutate(avg_bts_mob = get_bts_mob_mean_V(county, release_date, pretrial_period_end_date))
+# 
+# test_b_napa <- full_df %>%
+#   filter(released_pretrial_count == 1,
+#          pretrial_period_end_count == 1) %>%
+#   filter(pretrial_period_end_date >= release_date) %>%
+#   filter(county == "Napa") %>%
+#   mutate(avg_bts_mob = 0) %>%
+#   mutate(avg_bts_mob = get_bts_mob_mean_V(county, release_date, pretrial_period_end_date))
+# 
+# test_b_nevada <- full_df %>%
+#   filter(released_pretrial_count == 1,
+#          pretrial_period_end_count == 1) %>%
+#   filter(pretrial_period_end_date >= release_date) %>%
+#   filter(county == "Nevada") %>%
+#   mutate(avg_bts_mob = 0) %>%
+#   mutate(avg_bts_mob = get_bts_mob_mean_V(county, release_date, pretrial_period_end_date))
+# 
+# test_b_sac <- full_df %>%
+#   filter(released_pretrial_count == 1,
+#          pretrial_period_end_count == 1) %>%
+#   filter(pretrial_period_end_date >= release_date) %>%
+#   filter(county == "Sacramento") %>%
+#   mutate(avg_bts_mob = 0) %>%
+#   mutate(avg_bts_mob = get_bts_mob_mean_V(county, release_date, pretrial_period_end_date))
+# 
+# test_b_sj <- full_df %>%
+#   filter(released_pretrial_count == 1,
+#          pretrial_period_end_count == 1) %>%
+#   filter(pretrial_period_end_date >= release_date) %>%
+#   filter(county == "San Joaquin") %>%
+#   mutate(avg_bts_mob = 0) %>%
+#   mutate(avg_bts_mob = get_bts_mob_mean_V(county, release_date, pretrial_period_end_date))
+# 
+# test_b_sm <- full_df %>%
+#   filter(released_pretrial_count == 1,
+#          pretrial_period_end_count == 1) %>%
+#   filter(pretrial_period_end_date >= release_date) %>%
+#   filter(county == "San Mateo") %>%
+#   mutate(avg_bts_mob = 0) %>%
+#   mutate(avg_bts_mob = get_bts_mob_mean_V(county, release_date, pretrial_period_end_date))
+# 
+# test_b_sb <- full_df %>%
+#   filter(released_pretrial_count == 1,
+#          pretrial_period_end_count == 1) %>%
+#   filter(pretrial_period_end_date >= release_date) %>%
+#   filter(county == "Santa Barbara") %>%
+#   mutate(avg_bts_mob = 0) %>%
+#   mutate(avg_bts_mob = get_bts_mob_mean_V(county, release_date, pretrial_period_end_date))
+# 
+# test_b_sierra <- full_df %>%
+#   filter(released_pretrial_count == 1,
+#          pretrial_period_end_count == 1) %>%
+#   filter(pretrial_period_end_date >= release_date) %>%
+#   filter(county == "Sierra") %>%
+#   mutate(avg_bts_mob = 0) %>%
+#   mutate(avg_bts_mob = get_bts_mob_mean_V(county, release_date, pretrial_period_end_date))
+# 
+# test_b_sonoma <- full_df %>%
+#   filter(released_pretrial_count == 1,
+#          pretrial_period_end_count == 1) %>%
+#   filter(pretrial_period_end_date >= release_date) %>%
+#   filter(county == "Sonoma") %>%
+#   mutate(avg_bts_mob = 0) %>%
+#   mutate(avg_bts_mob = get_bts_mob_mean_V(county, release_date, pretrial_period_end_date))
+# 
+# test_b_tulare <- full_df %>%
+#   filter(released_pretrial_count == 1,
+#          pretrial_period_end_count == 1) %>%
+#   filter(pretrial_period_end_date >= release_date) %>%
+#   filter(county == "Tulare") %>%
+#   mutate(avg_bts_mob = 0) %>%
+#   mutate(avg_bts_mob = get_bts_mob_mean_V(county, release_date, pretrial_period_end_date))
+# 
+# test_b_tuolumne <- full_df %>%
+#   filter(released_pretrial_count == 1,
+#          pretrial_period_end_count == 1) %>%
+#   filter(pretrial_period_end_date >= release_date) %>%
+#   filter(county == "Tuolumne") %>%
+#   mutate(avg_bts_mob = 0) %>%
+#   mutate(avg_bts_mob = get_bts_mob_mean_V(county, release_date, pretrial_period_end_date))
+# 
+# test_b_ventura <- full_df %>%
+#   filter(released_pretrial_count == 1,
+#          pretrial_period_end_count == 1) %>%
+#   filter(pretrial_period_end_date >= release_date) %>%
+#   filter(county == "Ventura") %>%
+#   mutate(avg_bts_mob = 0) %>%
+#   mutate(avg_bts_mob = get_bts_mob_mean_V(county, release_date, pretrial_period_end_date))
+# 
+# test_b_yuba <- full_df %>%
+#   filter(released_pretrial_count == 1,
+#          pretrial_period_end_count == 1) %>%
+#   filter(pretrial_period_end_date >= release_date) %>%
+#   filter(county == "Yuba") %>%
+#   mutate(avg_bts_mob = 0) %>%
+#   mutate(avg_bts_mob = get_bts_mob_mean_V(county, release_date, pretrial_period_end_date))
+# 
+# full_bts <- test_b_alameda %>%
+#   bind_rows(test_b_calaveras) %>%
+#   bind_rows(test_b_kings) %>%
+#   bind_rows(test_b_la) %>%
+#   bind_rows(test_b_modoc) %>%
+#   bind_rows(test_b_napa) %>%
+#   bind_rows(test_b_nevada) %>%
+#   bind_rows(test_b_sac) %>%
+#   bind_rows(test_b_sj) %>%
+#   bind_rows(test_b_sm) %>%
+#   bind_rows(test_b_sb) %>%
+#   bind_rows(test_b_sierra) %>%
+#   bind_rows(test_b_sonoma) %>%
+#   bind_rows(test_b_tulare) %>%
+#   bind_rows(test_b_tuolumne) %>%
+#   bind_rows(test_b_ventura) %>%
+#   bind_rows(test_b_yuba)
+# 
+# 
+# bts_means <- full_bts %>%
+#   select(county, release_date, pretrial_period_end_date, avg_bts_mob) %>%
+#   distinct()
+# 
+# # save(bts_means, file = "C:/Users/slempert/Judicial Council of California/CJS Research - Documents/SB 36 Validation Reports/COVID data/bts_means.Rdata")
+# # 
+# # full_df %>%
+# #   filter(released_pretrial_count == 1,
+# #          pretrial_period_end_count == 1) %>%
+# #   count(is.na(release_date), is.na(pretrial_period_end_date), is.na(county))
+# #   filter(!is.na(release_date),
+# #          !is.na(pretrial_period_end_date)) %>%
+# #   head(10) %>%
+# #   mutate(avg_bts_mob = 0) %>%
+# #   mutate(avg_bts_mob = get_bts_mob_mean_V(county, release_date, pretrial_period_end_date)) %>%
+# #   select(county, release_date, pretrial_period_end_date, avg_bts_mob)
+# 
+# test_b_la %>%
+#   select(release_date, pretrial_period_end_date, avg_bts_mob)
+# 
+# full_df %>%
+#   count(county)
+```
+
+Load and join saved mobility means to dataset
+```{r}
+load("C:/Users/slempert/Judicial Council of California/CJS Research - Documents/SB 36 Validation Reports/COVID data/bts_means.Rdata")
+full_bts <- full_df %>%
+  left_join(bts_means)
+```
+Join daily mobility data to dataset
+```{r}
+
+full_bts <- full_bts %>%
+  left_join(mob_bts, by = c("booking_date" = "date", "county")) 
+```
 
 # Run everything above this line to load and format join_df and eval_df
 
@@ -1432,262 +1688,7 @@ summary(lm(data = test_m %>%
 ```{r}
 prog_date
 ```
-# Upload BTS data
-https://data.bts.gov/Research-and-Statistics/Trips-by-Distance/w96p-f2qv
-```{r}
-bts <- fread("C:/Users/slempert/Judicial Council of California/CJS Research - Documents/SB 36 Validation Reports/COVID data/Trips_by_Distance.csv", header = T)
-
-# fips <- read_excel("C:/Users/slempert/Judicial Council of California/CJS Research - Documents/SB 36 Validation Reports/COVID data/US_FIPS_Codes.xls", skip = 1)
-# 
-# fips <- fips %>%
-#   filter(State == "California") %>%
-#   mutate(county_fips = str_c("6", `FIPS County`))
-
-bts <- bts %>%
-  filter(`State FIPS` == 6) %>%
-  filter(Level == "County")
-
-bts <- bts %>%
-  mutate(total_pop = `Population Staying at Home` + `Population Not Staying at Home`) %>%
-  mutate(mob_pop = `Population Not Staying at Home`/total_pop) %>%
-  mutate(Date = ymd(Date))
-
-bts %>%
-  ggplot() +
-  geom_line(aes(x = Date, y = mob_pop, color = `County Name`))
-
-mob_bts <- bts %>%
-  select(date = Date, county = `County Name`, mob_pop)
-
-mob_bts <- mob_bts %>%
-  mutate(county = gsub(" County", "", county))
-
-mob_bts <- mob_bts %>%
-  filter(!is.na(mob_pop))
-
-mob_bts %>%
-  summarise(min(date), max(date))
-
-mob_bts %>%
-  filter(is.na(mob_pop))
-
-mob_bts %>%
-  count(county)
-
-mob_bts %>%
-  filter(is.na(date))
-
-mob_bts <- as_tibble(mob_bts)
-```
-
-
-Create function to calculate average bts mobility
-```{r}
-get_bts_mob_mean <- function(loc_county, start, end){
-  mob_bts %>%
-    filter(county == loc_county, 
-           date >=start,
-           date <= end) %>%
-    summarise(mmp = mean(mob_pop)) %>%
-    pull(mmp)
-}
-
-get_bts_mob_mean_V <- Vectorize(get_bts_mob_mean)
-
-```
-Apply function
-```{r eval=FALSE, include=FALSE}
-test_b_alameda <- full_df %>%
-  filter(released_pretrial_count == 1,
-         pretrial_period_end_count == 1) %>%
-  filter(pretrial_period_end_date >= release_date) %>%
-  filter(county == "Alameda") %>%
-  mutate(avg_bts_mob = 0) %>%
-  mutate(avg_bts_mob = get_bts_mob_mean_V(county, release_date, pretrial_period_end_date))
-
-test_b_calaveras <- full_df %>%
-  filter(released_pretrial_count == 1,
-         pretrial_period_end_count == 1) %>%
-  filter(pretrial_period_end_date >= release_date) %>%
-  filter(county == "Calaveras") %>%
-  mutate(avg_bts_mob = 0) %>%
-  mutate(avg_bts_mob = get_bts_mob_mean_V(county, release_date, pretrial_period_end_date))
-
-test_b_kings <- full_df %>%
-  filter(released_pretrial_count == 1,
-         pretrial_period_end_count == 1) %>%
-  filter(pretrial_period_end_date >= release_date) %>%
-  filter(county == "Kings") %>%
-  mutate(avg_bts_mob = 0) %>%
-  mutate(avg_bts_mob = get_bts_mob_mean_V(county, release_date, pretrial_period_end_date))
-
-test_b_la <- full_df %>%
-  filter(released_pretrial_count == 1,
-         pretrial_period_end_count == 1) %>%
-  filter(pretrial_period_end_date >= release_date) %>%
-  filter(county == "Los Angeles") %>%
-  mutate(avg_bts_mob = 0) %>%
-  mutate(avg_bts_mob = get_bts_mob_mean_V(county, release_date, pretrial_period_end_date))
-
-test_b_modoc <- full_df %>%
-  filter(released_pretrial_count == 1,
-         pretrial_period_end_count == 1) %>%
-  filter(pretrial_period_end_date >= release_date) %>%
-  filter(county == "Modoc") %>%
-  mutate(avg_bts_mob = 0) %>%
-  mutate(avg_bts_mob = get_bts_mob_mean_V(county, release_date, pretrial_period_end_date))
-
-test_b_napa <- full_df %>%
-  filter(released_pretrial_count == 1,
-         pretrial_period_end_count == 1) %>%
-  filter(pretrial_period_end_date >= release_date) %>%
-  filter(county == "Napa") %>%
-  mutate(avg_bts_mob = 0) %>%
-  mutate(avg_bts_mob = get_bts_mob_mean_V(county, release_date, pretrial_period_end_date))
-
-test_b_nevada <- full_df %>%
-  filter(released_pretrial_count == 1,
-         pretrial_period_end_count == 1) %>%
-  filter(pretrial_period_end_date >= release_date) %>%
-  filter(county == "Nevada") %>%
-  mutate(avg_bts_mob = 0) %>%
-  mutate(avg_bts_mob = get_bts_mob_mean_V(county, release_date, pretrial_period_end_date))
-
-test_b_sac <- full_df %>%
-  filter(released_pretrial_count == 1,
-         pretrial_period_end_count == 1) %>%
-  filter(pretrial_period_end_date >= release_date) %>%
-  filter(county == "Sacramento") %>%
-  mutate(avg_bts_mob = 0) %>%
-  mutate(avg_bts_mob = get_bts_mob_mean_V(county, release_date, pretrial_period_end_date))
-
-test_b_sj <- full_df %>%
-  filter(released_pretrial_count == 1,
-         pretrial_period_end_count == 1) %>%
-  filter(pretrial_period_end_date >= release_date) %>%
-  filter(county == "San Joaquin") %>%
-  mutate(avg_bts_mob = 0) %>%
-  mutate(avg_bts_mob = get_bts_mob_mean_V(county, release_date, pretrial_period_end_date))
-
-test_b_sm <- full_df %>%
-  filter(released_pretrial_count == 1,
-         pretrial_period_end_count == 1) %>%
-  filter(pretrial_period_end_date >= release_date) %>%
-  filter(county == "San Mateo") %>%
-  mutate(avg_bts_mob = 0) %>%
-  mutate(avg_bts_mob = get_bts_mob_mean_V(county, release_date, pretrial_period_end_date))
-
-test_b_sb <- full_df %>%
-  filter(released_pretrial_count == 1,
-         pretrial_period_end_count == 1) %>%
-  filter(pretrial_period_end_date >= release_date) %>%
-  filter(county == "Santa Barbara") %>%
-  mutate(avg_bts_mob = 0) %>%
-  mutate(avg_bts_mob = get_bts_mob_mean_V(county, release_date, pretrial_period_end_date))
-
-test_b_sierra <- full_df %>%
-  filter(released_pretrial_count == 1,
-         pretrial_period_end_count == 1) %>%
-  filter(pretrial_period_end_date >= release_date) %>%
-  filter(county == "Sierra") %>%
-  mutate(avg_bts_mob = 0) %>%
-  mutate(avg_bts_mob = get_bts_mob_mean_V(county, release_date, pretrial_period_end_date))
-
-test_b_sonoma <- full_df %>%
-  filter(released_pretrial_count == 1,
-         pretrial_period_end_count == 1) %>%
-  filter(pretrial_period_end_date >= release_date) %>%
-  filter(county == "Sonoma") %>%
-  mutate(avg_bts_mob = 0) %>%
-  mutate(avg_bts_mob = get_bts_mob_mean_V(county, release_date, pretrial_period_end_date))
-
-test_b_tulare <- full_df %>%
-  filter(released_pretrial_count == 1,
-         pretrial_period_end_count == 1) %>%
-  filter(pretrial_period_end_date >= release_date) %>%
-  filter(county == "Tulare") %>%
-  mutate(avg_bts_mob = 0) %>%
-  mutate(avg_bts_mob = get_bts_mob_mean_V(county, release_date, pretrial_period_end_date))
-
-test_b_tuolumne <- full_df %>%
-  filter(released_pretrial_count == 1,
-         pretrial_period_end_count == 1) %>%
-  filter(pretrial_period_end_date >= release_date) %>%
-  filter(county == "Tuolumne") %>%
-  mutate(avg_bts_mob = 0) %>%
-  mutate(avg_bts_mob = get_bts_mob_mean_V(county, release_date, pretrial_period_end_date))
-
-test_b_ventura <- full_df %>%
-  filter(released_pretrial_count == 1,
-         pretrial_period_end_count == 1) %>%
-  filter(pretrial_period_end_date >= release_date) %>%
-  filter(county == "Ventura") %>%
-  mutate(avg_bts_mob = 0) %>%
-  mutate(avg_bts_mob = get_bts_mob_mean_V(county, release_date, pretrial_period_end_date))
-
-test_b_yuba <- full_df %>%
-  filter(released_pretrial_count == 1,
-         pretrial_period_end_count == 1) %>%
-  filter(pretrial_period_end_date >= release_date) %>%
-  filter(county == "Yuba") %>%
-  mutate(avg_bts_mob = 0) %>%
-  mutate(avg_bts_mob = get_bts_mob_mean_V(county, release_date, pretrial_period_end_date))
-
-full_bts <- test_b_alameda %>%
-  bind_rows(test_b_calaveras) %>%
-  bind_rows(test_b_kings) %>%
-  bind_rows(test_b_la) %>%
-  bind_rows(test_b_modoc) %>%
-  bind_rows(test_b_napa) %>%
-  bind_rows(test_b_nevada) %>%
-  bind_rows(test_b_sac) %>%
-  bind_rows(test_b_sj) %>%
-  bind_rows(test_b_sm) %>%
-  bind_rows(test_b_sb) %>%
-  bind_rows(test_b_sierra) %>%
-  bind_rows(test_b_sonoma) %>%
-  bind_rows(test_b_tulare) %>%
-  bind_rows(test_b_tuolumne) %>%
-  bind_rows(test_b_ventura) %>%
-  bind_rows(test_b_yuba)
-
-
-bts_means <- full_bts %>%
-  select(county, release_date, pretrial_period_end_date, avg_bts_mob) %>%
-  distinct()
-
-# save(bts_means, file = "C:/Users/slempert/Judicial Council of California/CJS Research - Documents/SB 36 Validation Reports/COVID data/bts_means.Rdata")
-# 
-# full_df %>%
-#   filter(released_pretrial_count == 1,
-#          pretrial_period_end_count == 1) %>%
-#   count(is.na(release_date), is.na(pretrial_period_end_date), is.na(county))
-#   filter(!is.na(release_date),
-#          !is.na(pretrial_period_end_date)) %>%
-#   head(10) %>%
-#   mutate(avg_bts_mob = 0) %>%
-#   mutate(avg_bts_mob = get_bts_mob_mean_V(county, release_date, pretrial_period_end_date)) %>%
-#   select(county, release_date, pretrial_period_end_date, avg_bts_mob)
-
-test_b_la %>%
-  select(release_date, pretrial_period_end_date, avg_bts_mob)
-
-full_df %>%
-  count(county)
-```
-
-Load and join saved mobility means to dataset
-```{r}
-load("C:/Users/slempert/Judicial Council of California/CJS Research - Documents/SB 36 Validation Reports/COVID data/bts_means.Rdata")
-full_bts <- full_df %>%
-  left_join(bts_means)
-```
-Join daily mobility data to dataset
-```{r}
-
-full_bts <- full_bts %>%
-  left_join(mob_bts, by = c("booking_date" = "date", "county")) 
-```
+## BTS section
 # Regressions old
 FTA
 ```{r}
@@ -3006,6 +3007,7 @@ summary(lm(data = full_bts %>%
 ```
 Emergency bail is significant (p < 0.0001) and positive (0.018)
 
+Identify zero bail offenses
 ```{r}
 zero_bail_offenses <- full_bts %>%
   filter(release_type == "Zero Bail") %>%
@@ -3022,6 +3024,63 @@ zero_bail_offenses <- full_bts %>%
 
 #write.csv(zero_bail_offenses, file = "zero bail offense list.csv")
 
+```
+Load zero bail offenses and match 
+```{r}
+zb <- read.csv("zero bail offense list.csv") %>%
+  select(join_var) %>%
+  mutate(zb_flag = 1)
+
+full_zb <- full_bts %>%
+  mutate(booking_charge_level = case_when(booking_charge_level == "Misdemeanor" ~ "M",
+                                          booking_charge_level == "Felony" ~ "F",
+                                          T ~ booking_charge_level)) %>%
+  mutate(booking_charge_std = gsub(booking_charge_code, "", booking_charge)) %>%
+  mutate(booking_charge_std = toupper(gsub("\\/|\\(|\\)| |\\.|\\.*|^[A-Z]*|\\\\.*|\\{|\\}|\\+|\\&|>|\\-|<","", booking_charge_std))) %>%
+  mutate(booking_charge_std = gsub("VC$|PC$|HS$", "", booking_charge_std)) %>%
+  unite(join_var, booking_charge_level, booking_charge_code, booking_charge_std, remove = F) %>%
+  left_join(zb) %>%
+  mutate(zb_flag = if_else(is.na(zb_flag), 0, zb_flag))
+
+full_zb %>%
+  count(zb_flag, release_type == "Zero Bail")
+
+full_zb %>%
+  filter(zb_flag == 0 & release_type == "Zero Bail") %>%
+  select(county, join_var, booking_charge_level, booking_charge_code, booking_charge_std)
+```
+```{r}
+full_zb %>%
+  count(zb_flag)
+
+full_zb %>%
+  filter(is_released_pretrial == "Yes" & has_pretrial_period_end == "Yes") %>%
+  group_by(zb_flag, eb_flag) %>%
+  summarise(fta_rate = sum(fta_flag)/n(), nca_rate = sum(recid_county_or_doj)/n())
+
+full_zb %>%
+  filter(is_released_pretrial == "Yes") %>%
+  filter(zb_flag == 1) %>%
+  count(release_type) %>%
+  arrange(desc(n)) %>%
+  mutate(perc = round(n/sum(n)*100,1))
+
+full_zb %>%
+  filter(zb_flag == 1) %>%
+  filter(booking_date >= as.Date("2018-07-01")) %>%
+  group_by(book_month = floor_date(booking_date, unit = "month")) %>%
+  summarise(rel_pretrial = sum(released_pretrial_count)/n()) %>%
+  ggplot(aes(x = book_month, y = rel_pretrial)) +
+           geom_line()
+
+
+```
+```{r}
+full_bts %>%
+  filter(is_released_pretrial == "Yes" & has_pretrial_period_end == "Yes") %>%
+  group_by(covid_flag, booking_charge_level) %>%
+  mutate(days_released = pretrial_period_end_date - release_date) %>%
+  summarise(mean(days_released))
 ```
 
 
