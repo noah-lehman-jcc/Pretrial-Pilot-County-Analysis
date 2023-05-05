@@ -1304,7 +1304,7 @@ ggsave("bookings by offense category with key dates by county.png", width = 7, h
 
 # * Graph of recidivism by date
 
-Combine counties, look at recidivism arrests by recidivism date
+X Combine counties, look at recidivism arrests by recidivism date
 ```{r}
 full_bts %>%
   filter(recid_date_doj >= as.Date("2018-7-1"),
@@ -1323,7 +1323,7 @@ ggsave("recid arrests with key dates statewide.png", width = 10, height = 7)
 
 ```
 
-Look at recidivism rate by booking date
+X Look at recidivism rate by booking date
 ```{r}
 full_bts %>%
   filter(is_release_eligible == "Yes") %>%
@@ -1350,7 +1350,7 @@ full_bts %>%
   count(released_pretrial_count, recid_county_or_doj)
 ```
 
-Look at counts of bookings, releases, recidivism by booking date
+X Look at counts of bookings, releases, recidivism by booking date
 ```{r}
 full_bts %>%
   filter(is_release_eligible == "Yes") %>%
@@ -1376,7 +1376,59 @@ ggsave("bookings, releases, and rearrest counts with key dates statewide.png", w
 
 ```
 
-Look at counts of bookings, releases, recidivism by booking date by misdo/fel and zb/non-zb
+* Look at counts of all bookings by booking date by misdo/fel and zb/non-zb
+```{r}
+full_bts %>%
+  filter(is_release_eligible == "Yes") %>%
+  #filter(is_released_pretrial == "Yes") %>%
+  #filter(has_pretrial_period_end == "Yes") %>%
+  filter(booking_date >= as.Date("2018-7-1"),
+         booking_date < as.Date("2023-1-1")) %>%
+  filter(charge_level %in% c("M", "F")) %>%
+  mutate(zb_flag = if_else(zb_flag == 1, "Zero bail eligible offense", "Not zero bail eligible offense")) %>%
+  group_by(month = month(book_date), year = year(book_date), charge_level, zb_flag) %>%
+  summarise(bookings = n()) %>%
+  pivot_longer(cols = c("bookings")) %>%
+  mutate(book_date = as.Date(str_c(year, "-", month, "-1"))) %>%
+  ggplot() +
+    geom_line(aes(x = book_date, y = value, color = name)) +
+    #geom_vline(data = prog_date, aes(xintercept = golive_date), color = "green") +
+    geom_vline(xintercept = as.Date("2020-3-1"), color = "orange") +
+    annotate("rect", xmin=as.Date("2020-4-6"), xmax=as.Date("2020-6-20"), ymin=-Inf, ymax=Inf, alpha=0.2, fill="red") +
+    facet_grid(rows = vars(charge_level), cols = vars(zb_flag))
+
+ggsave("all bookings counts with key dates statewide by charge level and zb.png", width = 10, height = 7)
+  
+
+```
+
+Look at counts of all bookings by race and booking date by misdo/fel and zb/non-zb
+```{r}
+full_bts %>%
+  filter(is_release_eligible == "Yes") %>%
+  #filter(is_released_pretrial == "Yes") %>%
+  #filter(has_pretrial_period_end == "Yes") %>%
+  filter(booking_date >= as.Date("2018-7-1"),
+         booking_date < as.Date("2023-1-1")) %>%
+  filter(charge_level %in% c("M", "F")) %>%
+  mutate(zb_flag = if_else(zb_flag == 1, "Zero bail eligible offense", "Not zero bail eligible offense")) %>%
+  group_by(month = month(book_date), year = year(book_date), charge_level, zb_flag, race) %>%
+  summarise(bookings = n()) %>%
+  #pivot_longer(cols = c("bookings")) %>%
+  mutate(book_date = as.Date(str_c(year, "-", month, "-1"))) %>%
+  ggplot() +
+    geom_line(aes(x = book_date, y = bookings, color = race)) +
+    #geom_vline(data = prog_date, aes(xintercept = golive_date), color = "green") +
+    geom_vline(xintercept = as.Date("2020-3-1"), color = "orange") +
+    annotate("rect", xmin=as.Date("2020-4-6"), xmax=as.Date("2020-6-20"), ymin=-Inf, ymax=Inf, alpha=0.2, fill="red") +
+    facet_grid(rows = vars(charge_level), cols = vars(zb_flag))
+
+ggsave("all bookings counts by race with key dates statewide by charge level and zb.png", width = 10, height = 7)
+  
+
+```
+
+* Look at counts of bookings, releases, recidivism by booking date by misdo/fel and zb/non-zb
 ```{r}
 full_bts %>%
   filter(is_release_eligible == "Yes") %>%
@@ -1399,6 +1451,64 @@ full_bts %>%
     facet_grid(rows = vars(charge_level), cols = vars(zb_flag))
 
 ggsave("bookings, releases, and rearrest counts with key dates statewide by charge level and zb.png", width = 10, height = 7)
+  
+
+```
+
+* Look at counts of bookings, releases, recidivism and FTA by booking date by misdo/fel and zb/non-zb
+```{r}
+full_bts %>%
+  filter(is_release_eligible == "Yes") %>%
+  #filter(is_released_pretrial == "Yes") %>%
+  filter(has_pretrial_period_end == "Yes") %>%
+  filter(booking_date >= as.Date("2018-7-1"),
+         booking_date < as.Date("2023-1-1")) %>%
+  filter(charge_level %in% c("M", "F")) %>%
+  mutate(zb_flag = if_else(zb_flag == 1, "Zero bail eligible offense", "Not zero bail eligible offense")) %>%
+  group_by(month = month(book_date), year = year(book_date), charge_level, zb_flag) %>%
+  summarise(bookings = n(), releases = sum(released_pretrial_count),
+            rearrest = sum(recid_county_or_doj*released_pretrial_count),
+            fta = sum(fta_flag)) %>%
+  pivot_longer(cols = c("bookings", "releases", "rearrest", "fta")) %>%
+  mutate(book_date = as.Date(str_c(year, "-", month, "-1"))) %>%
+  ggplot() +
+    geom_line(aes(x = book_date, y = value, color = name)) +
+    #geom_vline(data = prog_date, aes(xintercept = golive_date), color = "green") +
+    geom_vline(xintercept = as.Date("2020-3-1"), color = "orange") +
+    annotate("rect", xmin=as.Date("2020-4-6"), xmax=as.Date("2020-6-20"), ymin=-Inf, ymax=Inf, alpha=0.2, fill="red") +
+    facet_grid(rows = vars(charge_level), cols = vars(zb_flag))
+
+ggsave("bookings, releases, rearrest, and FTA counts with key dates statewide by charge level and zb.png", width = 10, height = 7)
+  
+
+```
+
+* Look at counts of all bookings, disposed bookings, releases, recidivism and FTA by booking date by misdo/fel and zb/non-zb
+```{r}
+full_bts %>%
+  filter(is_release_eligible == "Yes") %>%
+  #filter(is_released_pretrial == "Yes") %>%
+  #filter(has_pretrial_period_end == "Yes") %>%
+  filter(booking_date >= as.Date("2018-7-1"),
+         booking_date < as.Date("2023-1-1")) %>%
+  filter(charge_level %in% c("M", "F")) %>%
+  mutate(zb_flag = if_else(zb_flag == 1, "Zero bail eligible offense", "Not zero bail eligible offense")) %>%
+  group_by(month = month(book_date), year = year(book_date), charge_level, zb_flag) %>%
+  summarise(all_bookings = n(), 
+            disposed_bookings = sum(pretrial_period_end_count),
+            releases = sum(released_pretrial_count*pretrial_period_end_count),
+            rearrest = sum(recid_county_or_doj*released_pretrial_count*pretrial_period_end_count),
+            fta = sum(fta_flag*pretrial_period_end_count)) %>%
+  pivot_longer(cols = c("all_bookings", "disposed_bookings", "releases", "rearrest", "fta")) %>%
+  mutate(book_date = as.Date(str_c(year, "-", month, "-1"))) %>%
+  ggplot() +
+    geom_line(aes(x = book_date, y = value, color = name)) +
+    #geom_vline(data = prog_date, aes(xintercept = golive_date), color = "green") +
+    geom_vline(xintercept = as.Date("2020-3-1"), color = "orange") +
+    annotate("rect", xmin=as.Date("2020-4-6"), xmax=as.Date("2020-6-20"), ymin=-Inf, ymax=Inf, alpha=0.2, fill="red") +
+    facet_grid(rows = vars(charge_level), cols = vars(zb_flag))
+
+ggsave("all bookings, disposed bookings, releases, rearrest, and FTA counts with key dates statewide by charge level and zb.png", width = 10, height = 7)
   
 
 ```
@@ -1430,6 +1540,7 @@ ggsave("bookings, releases, and rearrest counts with key dates statewide by offe
   
 
 ```
+
 ```{r}
 full_bts %>%
   filter(is_release_eligible == "Yes") %>%
@@ -1497,6 +1608,33 @@ full_bts %>%
 ggsave("release and recid rates by zb with key dates statewide.png", width = 10, height = 7)
   
 ```
+
+ Look at recidivism rate and fta rate by booking date by zb/non-zb
+```{r}
+full_bts %>%
+  filter(is_release_eligible == "Yes") %>%
+  #filter(is_released_pretrial == "Yes") %>%
+  filter(has_pretrial_period_end == "Yes") %>%
+  filter(booking_date >= as.Date("2018-7-1"),
+         booking_date < as.Date("2023-1-1")) %>%
+  filter(charge_level %in% c("M", "F")) %>%
+  mutate(zb_flag = if_else(zb_flag == 1, "Zero Bail eligible offense", "NOT Zero Bail eligible offense")) %>%
+  group_by(month = month(book_date), year = year(book_date), zb_flag) %>%
+  summarise(release_rate = sum(released_pretrial_count)/n(),
+            recid_rate = sum(recid_county_or_doj*released_pretrial_count)/sum(released_pretrial_count),
+            fta_rate = sum(fta_flag)/sum(released_pretrial_count)) %>%
+  pivot_longer(cols = c("release_rate", "recid_rate", "fta_rate")) %>%
+  mutate(book_date = as.Date(str_c(year, "-", month, "-1"))) %>%
+  ggplot() +
+    geom_line(aes(x = book_date, y = value, color = name)) +
+    #geom_vline(data = prog_date, aes(xintercept = golive_date), color = "green") +
+    geom_vline(xintercept = as.Date("2020-3-1"), color = "orange") +
+    annotate("rect", xmin=as.Date("2020-4-6"), xmax=as.Date("2020-6-20"), ymin=-Inf, ymax=Inf, alpha=0.2, fill="red") +
+    facet_grid(rows = vars(zb_flag))
+
+ggsave("release, recid, and fta rates by zb with key dates statewide.png", width = 10, height = 7)
+  
+```
 Look at recidivism rate by booking date by offense category
 ```{r}
 full_bts %>%
@@ -1525,7 +1663,7 @@ ggsave("release and recid rates by offense category with key dates statewide.png
 ```
 
 
-Look at recidivism rate by booking date by zb/non-zb and charge level
+* Look at recidivism rate by booking date by zb/non-zb and charge level
 ```{r}
 full_bts %>%
   filter(is_release_eligible == "Yes") %>%
@@ -1549,6 +1687,34 @@ full_bts %>%
     scale_y_continuous(labels = scales::percent, limits = c(0,1))
 
 ggsave("release and recid rates by zb and charge level with key dates statewide.png", width = 10, height = 7)
+  
+```
+
+* Look at recidivism rate and fta rate by booking date by zb/non-zb and charge level
+```{r}
+full_bts %>%
+  filter(is_release_eligible == "Yes") %>%
+  #filter(is_released_pretrial == "Yes") %>%
+  filter(has_pretrial_period_end == "Yes") %>%
+  filter(booking_date >= as.Date("2018-7-1"),
+         booking_date < as.Date("2023-1-1")) %>%
+  filter(charge_level %in% c("M", "F")) %>%
+  mutate(zb_flag = if_else(zb_flag == 1, "Zero bail eligible offense", "Not zero bail eligible offense")) %>%
+  group_by(month = month(book_date), year = year(book_date), zb_flag, charge_level) %>%
+  summarise(release_rate = sum(released_pretrial_count)/n(),
+            recid_rate = sum(recid_county_or_doj*released_pretrial_count)/sum(released_pretrial_count),
+            fta_rate = sum(fta_flag)/sum(released_pretrial_count)) %>%
+  pivot_longer(cols = c("release_rate", "recid_rate", "fta_rate")) %>%
+  mutate(book_date = as.Date(str_c(year, "-", month, "-1"))) %>%
+  ggplot() +
+    geom_line(aes(x = book_date, y = value, color = name)) +
+    #geom_vline(data = prog_date, aes(xintercept = golive_date), color = "green") +
+    geom_vline(xintercept = as.Date("2020-3-1"), color = "orange") +
+    annotate("rect", xmin=as.Date("2020-4-6"), xmax=as.Date("2020-6-20"), ymin=-Inf, ymax=Inf, alpha=0.2, fill="red") +
+    facet_grid(rows = vars(charge_level), cols = vars(zb_flag)) +
+    scale_y_continuous(labels = scales::percent, limits = c(0,1))
+
+ggsave("release, recid, and fta rates by zb and charge level with key dates statewide.png", width = 10, height = 7)
   
 ```
 
@@ -2680,7 +2846,7 @@ nobs(mod)
 Golive nonsignificant (p =.3) and negative (-0.006), n = 72,767
 
 
-#  * non-zero bail-eligible MISDO/FEL only - with month fixed effect removing first 6 mos of 2020
+#  non-zero bail-eligible MISDO/FEL only - with month fixed effect removing first 6 mos of 2020
 
 NCA - MISDO - Add control for charge hierarchy value - new arrest, filtered timeline -- WITH MONTH FIXED EFFECT
 ```{r}
@@ -2777,7 +2943,7 @@ nobs(mod)
 
 ```
 
-#  * non-zero bail-eligible MISDO/FEL only - with month fixed effect removing first 6 mos of 2020 LIMITED CONTROLS
+#  non-zero bail-eligible MISDO/FEL only - with month fixed effect removing first 6 mos of 2020 LIMITED CONTROLS
 
 NCA - MISDO - new arrest, filtered timeline -- WITH MONTH FIXED EFFECT
 ```{r}
@@ -3775,7 +3941,7 @@ nobs(mod)
 
 ```
 
-# * Regression on release/not-released at individual level removing first 6 mos of 2020
+# Regression on release/not-released at individual level removing first 6 mos of 2020
 Felony non-ZB
 ```{r eval=FALSE, include=FALSE}
 mod <- lm(data = full_bts %>%
@@ -3919,7 +4085,7 @@ nobs(mod)
 ```
 
 
-# Race and gender analyses on pretrial release with zb*eb interaction
+# *** Race and gender analyses on pretrial release with zb*eb interaction
 Race - Felony including ZB with zb*eb interaction
 ```{r eval=FALSE, include=FALSE}
 mod <- lm(data = full_bts %>%
@@ -3967,6 +4133,72 @@ nobs(mod)
 
 
 ```
+Race - Misdo interaction with different base levels of race
+```{r}
+races <- lapply(c("Black", "White", "Hispanic", "Other/Unknown"), 
+       function(i){
+         mod <- lm(data = full_bts %>%
+             filter(is_release_eligible == "Yes") %>%
+             filter(pretrial_period_end_count ==1) %>%
+             filter(charge_level == "M") %>%
+             #filter(zb_flag == 0) %>%
+              filter(release_type %in% c("Own Recognizance", "Pretrial Monitor") | is_released_pretrial == "No") %>%
+             filter(release_date >= as.Date("2019-01-01"),
+                    pretrial_period_end_date < as.Date("2020-01-01") | release_date >= as.Date("2020-07-01"),
+                    release_date < as.Date("2021-07-01"),
+                    pretrial_period_end_date <= as.Date("2022-04-30")) %>%
+             mutate(race = fct_relevel(race, ref = i)) %>%
+             mutate(days_released = pretrial_period_end_date - release_date,
+                    charge_hier = scale(as.numeric(if_else(booking_charge_hierarchy %in% c("1000000", "999999"), "Undefined", booking_charge_hierarchy)))) %>%
+             filter(!is.na(charge_hier)) %>%
+             mutate(book_month = as.factor(month(booking_date))), 
+           released_pretrial_count ~ mob_pop + golive_flag*race + charge_hier + county + book_month + ch_dv_flag + ch_violent_psa_flag + ch_dui_flag + zb_flag:eb_flag + zb_flag)
+
+                  tab <- tidy(mod) %>%
+                             mutate(race = i) %>%
+                             mutate(n = nobs(mod)) %>%
+                             select(race, term, estimate, p.value, n) %>%
+                             filter(term == "golive_flag")
+                           }) %>% bind_rows()
+
+races
+```
+
+Look at pre/post-golive race coefficients for misdemeanors
+```{r}
+prepost <- lapply(c("Pre","Post"), 
+       function(i){
+         mod <- lm(data = full_bts %>%
+             filter(is_release_eligible == "Yes") %>%
+             filter(pretrial_period_end_count ==1) %>%
+             filter(charge_level == "M") %>%
+             #filter(zb_flag == 0) %>%
+              filter(release_type %in% c("Own Recognizance", "Pretrial Monitor") | is_released_pretrial == "No") %>%
+             filter(release_date >= as.Date("2019-01-01"),
+                    pretrial_period_end_date < as.Date("2020-01-01") | release_date >= as.Date("2020-07-01"),
+                    release_date < as.Date("2021-07-01"),
+                    pretrial_period_end_date <= as.Date("2022-04-30")) %>%
+             mutate(golive_flag = if_else(golive_flag == 1, "Post", "Pre")) %>%
+             mutate(golive_flag = fct_relevel(factor(golive_flag), ref = i)) %>%
+             mutate(race = fct_relevel(race, ref = "White")) %>%
+             mutate(days_released = pretrial_period_end_date - release_date,
+                    charge_hier = scale(as.numeric(if_else(booking_charge_hierarchy %in% c("1000000", "999999"), "Undefined", booking_charge_hierarchy)))) %>%
+             filter(!is.na(charge_hier)) %>%
+             mutate(book_month = as.factor(month(booking_date))), 
+           released_pretrial_count ~ mob_pop + golive_flag*race + charge_hier + county + book_month + ch_dv_flag + ch_violent_psa_flag + ch_dui_flag + zb_flag:eb_flag + zb_flag)
+
+                  tab <- tidy(mod) %>%
+                             mutate(golive = i) %>%
+                             mutate(n = nobs(mod)) %>%
+                             select(golive, term, estimate, p.value, n) %>%
+                             filter(term %in% c("raceBlack", "raceHispanic", "raceWhite", "raceOther/Unknown"))
+                           }) %>% bind_rows()
+
+prepost
+```
+
+
+
 
 Sex - Felony including ZB with zb*eb interaction
 ```{r eval=FALSE, include=FALSE}
@@ -3992,6 +4224,73 @@ nobs(mod)
 
 
 ```
+
+Sex - Felony with different base sexes
+```{r}
+sexesF <- lapply(c("Male", "Female"), 
+       function(i){
+         mod <- lm(data = full_bts %>%
+             filter(is_release_eligible == "Yes") %>%
+             filter(pretrial_period_end_count ==1) %>%
+             filter(charge_level == "F") %>%
+             #filter(zb_flag == 0) %>%
+             filter(sex %in% c("Male", "Female")) %>%
+              mutate(sex = fct_relevel(sex, ref = i)) %>%
+             filter(release_type %in% c("Own Recognizance", "Pretrial Monitor") | is_released_pretrial == "No") %>%
+             filter(release_date >= as.Date("2019-01-01"),
+                    pretrial_period_end_date < as.Date("2020-01-01") | release_date >= as.Date("2020-07-01"),
+                    release_date < as.Date("2021-07-01"),
+                    pretrial_period_end_date <= as.Date("2022-04-30")) %>%
+             mutate(days_released = pretrial_period_end_date - release_date,
+                    charge_hier = scale(as.numeric(if_else(booking_charge_hierarchy %in% c("1000000", "999999"), "Undefined", booking_charge_hierarchy)))) %>%
+             filter(!is.na(charge_hier)) %>%
+             mutate(book_month = as.factor(month(booking_date))), 
+           released_pretrial_count ~ mob_pop + golive_flag*sex + charge_hier + county + book_month + ch_dv_flag + ch_violent_felony_flag + ch_violent_psa_flag + ch_dui_flag + ch_property_flag + ch_drug_flag + ch_serious_felony_flag + zb_flag:eb_flag + zb_flag)
+
+                  tab <- tidy(mod) %>%
+                             mutate(sex = i) %>%
+                            mutate(charge_level = "F") %>%
+                             mutate(n = nobs(mod)) %>%
+                             select(sex, charge_level, term, estimate, p.value, n) %>%
+                             filter(term == "golive_flag")
+                           }) %>% bind_rows()
+
+sexesF
+```
+Sex - Felony with different pre/post base levels
+```{r}
+prepostF <- lapply(c("Pre","Post"), 
+       function(i){
+         mod <- lm(data = full_bts %>%
+             filter(is_release_eligible == "Yes") %>%
+             filter(pretrial_period_end_count ==1) %>%
+             filter(charge_level == "F") %>%
+             #filter(zb_flag == 0) %>%
+             filter(sex %in% c("Male", "Female")) %>%
+             mutate(golive_flag = if_else(golive_flag == 1, "Post", "Pre")) %>%
+             mutate(golive_flag = fct_relevel(factor(golive_flag), ref = i)) %>%
+             filter(release_type %in% c("Own Recognizance", "Pretrial Monitor") | is_released_pretrial == "No") %>%
+             filter(release_date >= as.Date("2019-01-01"),
+                    pretrial_period_end_date < as.Date("2020-01-01") | release_date >= as.Date("2020-07-01"),
+                    release_date < as.Date("2021-07-01"),
+                    pretrial_period_end_date <= as.Date("2022-04-30")) %>%
+             mutate(days_released = pretrial_period_end_date - release_date,
+                    charge_hier = scale(as.numeric(if_else(booking_charge_hierarchy %in% c("1000000", "999999"), "Undefined", booking_charge_hierarchy)))) %>%
+             filter(!is.na(charge_hier)) %>%
+             mutate(book_month = as.factor(month(booking_date))), 
+           released_pretrial_count ~ mob_pop + golive_flag*sex + charge_hier + county + book_month + ch_dv_flag + ch_violent_felony_flag + ch_violent_psa_flag + ch_dui_flag + ch_property_flag + ch_drug_flag + ch_serious_felony_flag + zb_flag:eb_flag + zb_flag)
+
+                  tab <- tidy(mod) %>%
+                             mutate(golive = i) %>%
+                             mutate(charge_level = "F") %>%
+                             mutate(n = nobs(mod)) %>%
+                             select(golive, charge_level, term, estimate, p.value, n) %>%
+                             filter(term %in% c("sexMale", "sexFemale"))
+                           }) %>% bind_rows()
+
+prepostF
+```
+
 Sex - Misdo zb and non-zb with zb*eb interaction
 ```{r eval=FALSE, include=FALSE}
 mod <- lm(data = full_bts %>%
@@ -4016,6 +4315,73 @@ nobs(mod)
 
 
 ```
+
+Sex - Misdo with different base sexes
+```{r}
+sexesM <- lapply(c("Male", "Female"), 
+       function(i){
+         mod <- lm(data = full_bts %>%
+             filter(is_release_eligible == "Yes") %>%
+             filter(pretrial_period_end_count ==1) %>%
+             filter(charge_level == "M") %>%
+             #filter(zb_flag == 0) %>%
+             filter(sex %in% c("Male", "Female")) %>%
+              mutate(sex = fct_relevel(sex, ref = i)) %>%
+             filter(release_type %in% c("Own Recognizance", "Pretrial Monitor") | is_released_pretrial == "No") %>%
+             filter(release_date >= as.Date("2019-01-01"),
+                    pretrial_period_end_date < as.Date("2020-01-01") | release_date >= as.Date("2020-07-01"),
+                    release_date < as.Date("2021-07-01"),
+                    pretrial_period_end_date <= as.Date("2022-04-30")) %>%
+             mutate(days_released = pretrial_period_end_date - release_date,
+                    charge_hier = scale(as.numeric(if_else(booking_charge_hierarchy %in% c("1000000", "999999"), "Undefined", booking_charge_hierarchy)))) %>%
+             filter(!is.na(charge_hier)) %>%
+             mutate(book_month = as.factor(month(booking_date))), 
+           released_pretrial_count ~ mob_pop + golive_flag*sex + charge_hier + county + book_month + ch_dv_flag + ch_violent_psa_flag + ch_dui_flag + zb_flag:eb_flag + zb_flag)
+
+                  tab <- tidy(mod) %>%
+                             mutate(sex = i) %>%
+                            mutate(charge_level = "M") %>%
+                             mutate(n = nobs(mod)) %>%
+                             select(sex, charge_level, term, estimate, p.value, n) %>%
+                             filter(term == "golive_flag")
+                           }) %>% bind_rows()
+
+sexesM
+```
+Sex - Misdo with different pre/post base levels
+```{r}
+prepostM <- lapply(c("Pre","Post"), 
+       function(i){
+         mod <- lm(data = full_bts %>%
+             filter(is_release_eligible == "Yes") %>%
+             filter(pretrial_period_end_count ==1) %>%
+             filter(charge_level == "M") %>%
+             #filter(zb_flag == 0) %>%
+             filter(sex %in% c("Male", "Female")) %>%
+             mutate(golive_flag = if_else(golive_flag == 1, "Post", "Pre")) %>%
+             mutate(golive_flag = fct_relevel(factor(golive_flag), ref = i)) %>%
+             filter(release_type %in% c("Own Recognizance", "Pretrial Monitor") | is_released_pretrial == "No") %>%
+             filter(release_date >= as.Date("2019-01-01"),
+                    pretrial_period_end_date < as.Date("2020-01-01") | release_date >= as.Date("2020-07-01"),
+                    release_date < as.Date("2021-07-01"),
+                    pretrial_period_end_date <= as.Date("2022-04-30")) %>%
+             mutate(days_released = pretrial_period_end_date - release_date,
+                    charge_hier = scale(as.numeric(if_else(booking_charge_hierarchy %in% c("1000000", "999999"), "Undefined", booking_charge_hierarchy)))) %>%
+             filter(!is.na(charge_hier)) %>%
+             mutate(book_month = as.factor(month(booking_date))), 
+           released_pretrial_count ~ mob_pop + golive_flag*sex + charge_hier + county + book_month + ch_dv_flag + ch_violent_psa_flag + ch_dui_flag + zb_flag:eb_flag + zb_flag)
+
+                  tab <- tidy(mod) %>%
+                             mutate(golive = i) %>%
+                             mutate(charge_level = "M") %>%
+                             mutate(n = nobs(mod)) %>%
+                             select(golive, charge_level, term, estimate, p.value, n) %>%
+                             filter(term %in% c("sexMale", "sexFemale"))
+                           }) %>% bind_rows()
+
+prepostM
+```
+
 
 # Live with Magnus
 ```{r}
@@ -5960,6 +6326,156 @@ full_bts %>%
   group_by(covid_flag, zb_flag) %>%
   summarise(avg_days = mean(days_released, na.rm = T), med_days = median(days_released, na.rm = T))
 ```
+
+# Time to release
+misdo
+```{r}
+mod <- lm(data = full_bts %>%
+             filter(is_release_eligible == "Yes") %>%
+             filter(release_date >= booking_date) %>%
+             filter(charge_level %in% c("M")) %>%
+             #filter(zb_flag == 0) %>%
+             filter(release_type %in% c("Own Recognizance", "Pretrial Monitor")) %>%
+             filter(released_pretrial_count == 1,
+                    pretrial_period_end_count ==1) %>%
+             filter(release_date >= as.Date("2019-01-01"),
+                    pretrial_period_end_date < as.Date("2020-01-01") | release_date >= as.Date("2020-07-01"),
+                    release_date < as.Date("2021-07-01"),
+                    pretrial_period_end_date <= as.Date("2022-01-01")) %>%
+             mutate(book_month = as.factor(month(booking_date)),
+                    book_day = as.factor(wday(booking_date))) %>%
+             mutate(days_to_release = as.numeric(release_date - booking_date),
+                    charge_hier = scale(as.numeric(if_else(booking_charge_hierarchy %in% c("1000000", "999999"), "Undefined", booking_charge_hierarchy))),
+                    mob_pop = scale(mob_pop)) %>%
+             mutate(charge_hier = scale(charge_hier)), 
+           days_to_release ~ mob_pop + golive_flag + county + book_month + book_day + zb_flag:eb_flag + zb_flag + ch_dv_flag + ch_violent_psa_flag + ch_dui_flag + charge_hier)
+
+summary(mod)
+nobs(mod)
+
+full_bts %>%
+  mutate(days_to_release = release_date - booking_date) %>%
+  count(as.numeric(days_to_release))
+
+wday("2023-5-24")
+```
+```{r}
+mod <- lm(data = full_bts %>%
+             filter(charge_level %in% c("F")) %>%
+             #filter(zb_flag == 0) %>%
+             filter(released_pretrial_count == 1,
+                    pretrial_period_end_count ==1) %>%
+             filter(release_date >= as.Date("2019-01-01"),
+                    pretrial_period_end_date < as.Date("2020-01-01") | release_date >= as.Date("2020-07-01"),
+                    release_date < as.Date("2021-07-01"),
+                    pretrial_period_end_date <= as.Date("2022-01-01")) %>%
+            mutate(book_month = as.factor(month(booking_date)),
+                   book_day = as.factor(wday(booking_date))) %>%
+             mutate(days_to_release = as.numeric(release_date - booking_date),
+                    charge_hier = scale(as.numeric(if_else(booking_charge_hierarchy %in% c("1000000", "999999"), "Undefined", booking_charge_hierarchy))),
+                    mob_pop = scale(mob_pop)), 
+           days_to_release ~ mob_pop + golive_flag + county + book_month + book_day + zb_flag:eb_flag + zb_flag + ch_dv_flag + ch_violent_felony_flag + ch_violent_psa_flag + ch_dui_flag + ch_property_flag + ch_drug_flag + ch_serious_felony_flag + charge_hier)
+
+summary(mod)
+nobs(mod)
+```
+
+Graph of days to release by release type by release date
+```{r}
+full_bts %>%
+  filter(is_release_eligible == "Yes") %>%
+  filter(is_released_pretrial == "Yes") %>%
+  filter(has_pretrial_period_end == "Yes") %>%
+  filter(booking_date >= as.Date("2018-7-1"),
+         release_date >= as.Date("2019-1-1"),
+         release_date < as.Date("2022-1-1")) %>%
+  filter(charge_level %in% c("M", "F")) %>%
+  filter(release_date >= booking_date) %>%
+  mutate(zb_flag = if_else(zb_flag == 1, "Zero bail eligible offense", "Not zero bail eligible offense")) %>%
+  mutate(release_cat = case_when(release_type %in% c("Cite Release", "Own Recognizance", "Bail Bond") ~ release_type,
+                                 release_type == "Pretrial Monitor" ~ "Own Recognizance",
+                                 release_type == "Zero Bail" ~ "Cite Release",
+                                 T ~ "Other")) %>%
+  filter(release_cat != "Other") %>%
+  group_by(month = month(release_date), year = year(release_date), zb_flag, charge_level, release_cat) %>%
+  summarise(avg_days_to_release = mean(as.numeric(release_date - booking_date))) %>%
+  mutate(release_date = as.Date(str_c(year, "-", month, "-1"))) %>%
+  ggplot() +
+    geom_line(aes(x = release_date, y = avg_days_to_release, color = release_cat)) +
+    #geom_vline(data = prog_date, aes(xintercept = golive_date), color = "green") +
+    geom_vline(xintercept = as.Date("2020-3-1"), color = "orange") +
+    annotate("rect", xmin=as.Date("2020-4-6"), xmax=as.Date("2020-6-20"), ymin=-Inf, ymax=Inf, alpha=0.2, fill="red") +
+    facet_grid(rows = vars(charge_level), cols = vars(zb_flag))
+
+ggsave("days to release by release type without other, charge_level, and zb by release date.png", width = 10, height = 7)
+
+
+```
+
+MISDO - Graph of days to release by release type by release date
+```{r}
+full_bts %>%
+  filter(is_release_eligible == "Yes") %>%
+  filter(is_released_pretrial == "Yes") %>%
+  filter(has_pretrial_period_end == "Yes") %>%
+  filter(booking_date >= as.Date("2018-7-1"),
+         release_date >= as.Date("2019-1-1"),
+         release_date < as.Date("2022-1-1")) %>%
+  filter(charge_level %in% c("M")) %>%
+  filter(release_date >= booking_date) %>%
+  mutate(zb_flag = if_else(zb_flag == 1, "Zero bail eligible offense", "Not zero bail eligible offense")) %>%
+  mutate(release_cat = case_when(release_type %in% c("Cite Release", "Own Recognizance", "Bail Bond") ~ release_type,
+                                 release_type == "Pretrial Monitor" ~ "Own Recognizance",
+                                 release_type == "Zero Bail" ~ "Cite Release",
+                                 T ~ "Other")) %>%
+  filter(release_cat != "Other") %>%
+  group_by(month = month(release_date), year = year(release_date), zb_flag, release_cat) %>%
+  summarise(avg_days_to_release = mean(as.numeric(release_date - booking_date))) %>%
+  mutate(release_date = as.Date(str_c(year, "-", month, "-1"))) %>%
+  ggplot() +
+    geom_line(aes(x = release_date, y = avg_days_to_release, color = release_cat)) +
+    #geom_vline(data = prog_date, aes(xintercept = golive_date), color = "green") +
+    geom_vline(xintercept = as.Date("2020-3-1"), color = "orange") +
+    annotate("rect", xmin=as.Date("2020-4-6"), xmax=as.Date("2020-6-20"), ymin=-Inf, ymax=Inf, alpha=0.2, fill="red") +
+    facet_grid(rows = vars(zb_flag))
+
+ggsave("misdo only days to release by release type without other, and zb by release date.png", width = 10, height = 7)
+
+
+```
+
+FEL - Graph of days to release by release type by release date
+```{r}
+full_bts %>%
+  filter(is_release_eligible == "Yes") %>%
+  filter(is_released_pretrial == "Yes") %>%
+  filter(has_pretrial_period_end == "Yes") %>%
+  filter(booking_date >= as.Date("2018-7-1"),
+         release_date >= as.Date("2019-1-1"),
+         release_date < as.Date("2022-1-1")) %>%
+  filter(charge_level %in% c("F")) %>%
+  filter(release_date >= booking_date) %>%
+  mutate(zb_flag = if_else(zb_flag == 1, "Zero bail eligible offense", "Not zero bail eligible offense")) %>%
+  mutate(release_cat = case_when(release_type %in% c("Cite Release", "Own Recognizance", "Bail Bond") ~ release_type,
+                                 release_type == "Pretrial Monitor" ~ "Own Recognizance",
+                                 release_type == "Zero Bail" ~ "Cite Release",
+                                 T ~ "Other")) %>%
+  filter(release_cat != "Other") %>%
+  group_by(month = month(release_date), year = year(release_date), zb_flag, release_cat) %>%
+  summarise(avg_days_to_release = mean(as.numeric(release_date - booking_date))) %>%
+  mutate(release_date = as.Date(str_c(year, "-", month, "-1"))) %>%
+  ggplot() +
+    geom_line(aes(x = release_date, y = avg_days_to_release, color = release_cat)) +
+    #geom_vline(data = prog_date, aes(xintercept = golive_date), color = "green") +
+    geom_vline(xintercept = as.Date("2020-3-1"), color = "orange") +
+    annotate("rect", xmin=as.Date("2020-4-6"), xmax=as.Date("2020-6-20"), ymin=-Inf, ymax=Inf, alpha=0.2, fill="red") +
+    facet_grid(rows = vars(zb_flag))
+
+ggsave("fel only days to release by release type without other, and zb by release date.png", width = 10, height = 7)
+
+
+```
+
 
 # Space saver
 
