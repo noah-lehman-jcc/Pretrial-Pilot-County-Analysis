@@ -93,7 +93,7 @@ join_df <- join_df %>%
   mutate(across(contains("_flag"), ~if_else(is.na(.x) | .x == "No" | .x == "Unknown" | .x == "0" | .x == 0, 0, as.numeric(1))))  
 
 full_df <- join_df %>%
-  filter(booking_date < as.Date("2022-01-01"))
+  filter(booking_date < as.Date("2023-01-01"))
 
 eval_df <- join_df %>%
   filter(booking_assessed_count == 1,
@@ -241,7 +241,7 @@ full_df <- full_df %>%
 # Upload BTS data
 https://data.bts.gov/Research-and-Statistics/Trips-by-Distance/w96p-f2qv
 ```{r}
-bts <- fread("C:/Users/slempert/Judicial Council of California/CJS Research - Documents/Pretrial Pilot/SB 36 Validation Reports/COVID data/Trips_by_Distance.csv", header = T)
+bts <- fread("C:/Users/slempert/Judicial Council of California/CJS Research - Documents/Pretrial Pilot/SB 36 Reports/COVID data/Trips_by_Distance.csv", header = T)
 
 # fips <- read_excel("C:/Users/slempert/Judicial Council of California/CJS Research - Documents/SB 36 Validation Reports/COVID data/US_FIPS_Codes.xls", skip = 1)
 # 
@@ -484,7 +484,7 @@ Apply function - TEMPORARILY REMOVED BECAUSE TAKES FOREVER TO RUN
 
 Load and join saved mobility means to dataset
 ```{r}
-load("C:/Users/slempert/Judicial Council of California/CJS Research - Documents/Pretrial Pilot/SB 36 Validation Reports/COVID data/bts_means.Rdata")
+load("C:/Users/slempert/Judicial Council of California/CJS Research - Documents/Pretrial Pilot/SB 36 Reports/COVID data/bts_means.Rdata")
 full_bts <- full_df %>%
   left_join(bts_means)
 ```
@@ -1385,17 +1385,20 @@ full_bts %>%
   filter(booking_date >= as.Date("2018-7-1"),
          booking_date < as.Date("2023-1-1")) %>%
   filter(charge_level %in% c("M", "F")) %>%
+  mutate(charge_level = if_else(charge_level == "F", "Felony", "Misdemeanor")) %>%
   mutate(zb_flag = if_else(zb_flag == 1, "Zero bail eligible offense", "Not zero bail eligible offense")) %>%
   group_by(month = month(book_date), year = year(book_date), charge_level, zb_flag) %>%
-  summarise(bookings = n()) %>%
-  pivot_longer(cols = c("bookings")) %>%
+  summarise(Bookings = n()) %>%
+  pivot_longer(cols = c("Bookings")) %>%
   mutate(book_date = as.Date(str_c(year, "-", month, "-1"))) %>%
   ggplot() +
     geom_line(aes(x = book_date, y = value, color = name)) +
     #geom_vline(data = prog_date, aes(xintercept = golive_date), color = "green") +
     geom_vline(xintercept = as.Date("2020-3-1"), color = "orange") +
     annotate("rect", xmin=as.Date("2020-4-6"), xmax=as.Date("2020-6-20"), ymin=-Inf, ymax=Inf, alpha=0.2, fill="red") +
-    facet_grid(rows = vars(charge_level), cols = vars(zb_flag))
+    facet_grid(rows = vars(charge_level), cols = vars(zb_flag)) +
+    theme(strip.text.x = element_text(size = 14), strip.text.y = element_text(size = 14), legend.text=element_text(size=10)) +
+    labs(x = "Booking Date", y = "Count", color = element_blank())
 
 ggsave("all bookings counts with key dates statewide by charge level and zb.png", width = 10, height = 7)
   
@@ -1435,7 +1438,7 @@ full_bts %>%
   #filter(is_released_pretrial == "Yes") %>%
   filter(has_pretrial_period_end == "Yes") %>%
   filter(booking_date >= as.Date("2018-7-1"),
-         booking_date < as.Date("2023-1-1")) %>%
+         booking_date < as.Date("2022-1-1")) %>%
   filter(charge_level %in% c("M", "F")) %>%
   mutate(zb_flag = if_else(zb_flag == 1, "Zero bail eligible offense", "Not zero bail eligible offense")) %>%
   group_by(month = month(book_date), year = year(book_date), charge_level, zb_flag) %>%
@@ -1462,21 +1465,28 @@ full_bts %>%
   #filter(is_released_pretrial == "Yes") %>%
   filter(has_pretrial_period_end == "Yes") %>%
   filter(booking_date >= as.Date("2018-7-1"),
-         booking_date < as.Date("2023-1-1")) %>%
+         booking_date < as.Date("2022-1-1")) %>%
   filter(charge_level %in% c("M", "F")) %>%
+  mutate(charge_level = if_else(charge_level == "F", "Felony", "Misdemeanor")) %>%
   mutate(zb_flag = if_else(zb_flag == 1, "Zero bail eligible offense", "Not zero bail eligible offense")) %>%
   group_by(month = month(book_date), year = year(book_date), charge_level, zb_flag) %>%
   summarise(bookings = n(), releases = sum(released_pretrial_count),
             rearrest = sum(recid_county_or_doj*released_pretrial_count),
             fta = sum(fta_flag)) %>%
   pivot_longer(cols = c("bookings", "releases", "rearrest", "fta")) %>%
+  mutate(name = case_when(name == "bookings" ~ "Bookings with case disposition",
+                          name == "releases" ~ "Pretrial releases",
+                          name == "rearrest" ~ "Rearrest or rebooking",
+                          name == "fta" ~ "FTA")) %>%
   mutate(book_date = as.Date(str_c(year, "-", month, "-1"))) %>%
   ggplot() +
     geom_line(aes(x = book_date, y = value, color = name)) +
     #geom_vline(data = prog_date, aes(xintercept = golive_date), color = "green") +
     geom_vline(xintercept = as.Date("2020-3-1"), color = "orange") +
     annotate("rect", xmin=as.Date("2020-4-6"), xmax=as.Date("2020-6-20"), ymin=-Inf, ymax=Inf, alpha=0.2, fill="red") +
-    facet_grid(rows = vars(charge_level), cols = vars(zb_flag))
+    facet_grid(rows = vars(charge_level), cols = vars(zb_flag)) +
+    theme(strip.text.x = element_text(size = 14), strip.text.y = element_text(size = 14)) +
+    labs(x = "Booking Date", y = "Count", color = element_blank())
 
 ggsave("bookings, releases, rearrest, and FTA counts with key dates statewide by charge level and zb.png", width = 10, height = 7)
   
@@ -1490,7 +1500,7 @@ full_bts %>%
   #filter(is_released_pretrial == "Yes") %>%
   #filter(has_pretrial_period_end == "Yes") %>%
   filter(booking_date >= as.Date("2018-7-1"),
-         booking_date < as.Date("2023-1-1")) %>%
+         booking_date < as.Date("2022-1-1")) %>%
   filter(charge_level %in% c("M", "F")) %>%
   mutate(zb_flag = if_else(zb_flag == 1, "Zero bail eligible offense", "Not zero bail eligible offense")) %>%
   group_by(month = month(book_date), year = year(book_date), charge_level, zb_flag) %>%
@@ -1520,7 +1530,7 @@ full_bts %>%
   #filter(is_released_pretrial == "Yes") %>%
   filter(has_pretrial_period_end == "Yes") %>%
   filter(booking_date >= as.Date("2018-7-1"),
-         booking_date < as.Date("2023-1-1")) %>%
+         booking_date < as.Date("2022-1-1")) %>%
   filter(charge_level %in% c("M", "F")) %>%
   filter(arrest_cat != "Other") %>%
   mutate(zb_flag = if_else(zb_flag == 1, "Zero bail eligible offense", "Not zero bail eligible offense")) %>%
@@ -1699,12 +1709,16 @@ full_bts %>%
   filter(booking_date >= as.Date("2018-7-1"),
          booking_date < as.Date("2023-1-1")) %>%
   filter(charge_level %in% c("M", "F")) %>%
+  mutate(charge_level = if_else(charge_level == "F", "Felony", "Misdemeanor")) %>%
   mutate(zb_flag = if_else(zb_flag == 1, "Zero bail eligible offense", "Not zero bail eligible offense")) %>%
   group_by(month = month(book_date), year = year(book_date), zb_flag, charge_level) %>%
   summarise(release_rate = sum(released_pretrial_count)/n(),
             recid_rate = sum(recid_county_or_doj*released_pretrial_count)/sum(released_pretrial_count),
             fta_rate = sum(fta_flag)/sum(released_pretrial_count)) %>%
   pivot_longer(cols = c("release_rate", "recid_rate", "fta_rate")) %>%
+  mutate(name = case_when(name == "release_rate" ~ "Pretrial release rate",
+                          name == "recid_rate" ~ "Pretrial rearrest or rebooking rate",
+                          name == "fta_rate" ~ "Pretrial FTA rate")) %>%
   mutate(book_date = as.Date(str_c(year, "-", month, "-1"))) %>%
   ggplot() +
     geom_line(aes(x = book_date, y = value, color = name)) +
@@ -1712,7 +1726,9 @@ full_bts %>%
     geom_vline(xintercept = as.Date("2020-3-1"), color = "orange") +
     annotate("rect", xmin=as.Date("2020-4-6"), xmax=as.Date("2020-6-20"), ymin=-Inf, ymax=Inf, alpha=0.2, fill="red") +
     facet_grid(rows = vars(charge_level), cols = vars(zb_flag)) +
-    scale_y_continuous(labels = scales::percent, limits = c(0,1))
+    scale_y_continuous(labels = scales::percent, limits = c(0,1)) +
+    theme(strip.text.x = element_text(size = 14), strip.text.y = element_text(size = 14)) +
+    labs(x = "Booking Date", y = "Rate", color = element_blank())
 
 ggsave("release, recid, and fta rates by zb and charge level with key dates statewide.png", width = 10, height = 7)
   
@@ -3049,7 +3065,6 @@ NCA - MISDO - new arrest, filtered timeline -- WITH MONTH FIXED EFFECT
 mod <- lm(data = full_bts %>%
             filter(is_release_eligible == "Yes") %>%
              filter(charge_level %in% c("M")) %>%
-             #filter(zb_flag == 0) %>%
             filter(release_type %in% c("Own Recognizance", "Pretrial Monitor")) %>%
              filter(released_pretrial_count == 1,
                     pretrial_period_end_count ==1) %>%
@@ -3067,6 +3082,20 @@ summary(mod)
 nobs(mod)
 
 
+
+htmlTable(tidy(mod) %>%
+            mutate(across(c(estimate, std.error, statistic, p.value), ~signif(.x, digits = 2))),
+          rnames = element_blank(),
+          ctable = c("solid", "double"),
+          pos.caption = "bottom",
+          align = "l",
+          caption = str_c("N = ", formatC(nobs(mod), big.mark = ",")),
+          col.rgroup = c("none", "#F7F7F7"),
+          css.cell = "padding-left: .5em; padding-right: .5em;")
+
+
+m_nca <- tidy(mod) %>%
+  filter(term == "golive_flag")
 ```
 
 NCA - FEL  - new arrest, filtered timeline -- WITH MONTH FIXED EFFECT
@@ -3089,6 +3118,18 @@ mod <- lm(data = full_bts %>%
 summary(mod)
 nobs(mod)
 
+htmlTable(tidy(mod) %>%
+            mutate(across(c(estimate, std.error, statistic, p.value), ~signif(.x, digits = 2))),
+          rnames = element_blank(),
+          ctable = c("solid", "double"),
+          pos.caption = "bottom",
+          align = "l",
+          caption = str_c("N = ", formatC(nobs(mod), big.mark = ",")),
+          col.rgroup = c("none", "#F7F7F7"),
+          css.cell = "padding-left: .5em; padding-right: .5em;")
+
+f_nca <- tidy(mod) %>%
+  filter(term == "golive_flag")
 ```
 
 FTA - MISD, filtered timeline -- WITH MONTH FIXED EFFECT
@@ -3111,7 +3152,19 @@ mod <- lm(data = full_bts %>%
 summary(mod)
 nobs(mod)
 
+htmlTable(tidy(mod) %>%
+            mutate(across(c(estimate, std.error, statistic, p.value), ~signif(.x, digits = 2))),
+          rnames = element_blank(),
+          ctable = c("solid", "double"),
+          pos.caption = "bottom",
+          align = "l",
+          caption = str_c("N = ", formatC(nobs(mod), big.mark = ",")),
+          col.rgroup = c("none", "#F7F7F7"),
+          css.cell = "padding-left: .5em; padding-right: .5em;")
 
+
+m_fta <- tidy(mod) %>%
+  filter(term == "golive_flag")
 ```
 
 
@@ -3135,7 +3188,18 @@ mod <- lm(data = full_bts %>%
 summary(mod)
 nobs(mod)
 
+htmlTable(tidy(mod) %>%
+            mutate(across(c(estimate, std.error, statistic, p.value), ~signif(.x, digits = 2))),
+          rnames = element_blank(),
+          ctable = c("solid", "double"),
+          pos.caption = "bottom",
+          align = "l",
+          caption = str_c("N = ", formatC(nobs(mod), big.mark = ",")),
+          col.rgroup = c("none", "#F7F7F7"),
+          css.cell = "padding-left: .5em; padding-right: .5em;")
 
+f_fta <- tidy(mod) %>%
+  filter(term == "golive_flag")
 ```
 
 # Try predicting new violence
@@ -4010,8 +4074,24 @@ mod <- lm(data = full_bts %>%
 summary(mod)
 nobs(mod)
 
+htmlTable(tidy(mod) %>%
+            mutate(across(c(estimate, std.error, statistic, p.value), ~signif(.x, digits = 2))),
+          rnames = element_blank(),
+          ctable = c("solid", "double"),
+          pos.caption = "bottom",
+          align = "l",
+          caption = str_c("N = ", formatC(nobs(mod), big.mark = ",")),
+          col.rgroup = c("none", "#F7F7F7"),
+          css.cell = "padding-left: .5em; padding-right: .5em;")
+
+
+f_rel <- tidy(mod) %>%
+  filter(term == "golive_flag")
 
 ```
+
+
+
 Misdo zb and non-zb with zb*eb interaction
 ```{r eval=FALSE, include=FALSE}
 mod <- lm(data = full_bts %>%
@@ -4033,7 +4113,18 @@ mod <- lm(data = full_bts %>%
 summary(mod)
 nobs(mod)
 
+htmlTable(tidy(mod) %>%
+            mutate(across(c(estimate, std.error, statistic, p.value), ~signif(.x, digits = 2))),
+          rnames = element_blank(),
+          ctable = c("solid", "double"),
+          pos.caption = "bottom",
+          align = "l",
+          caption = str_c("N = ", formatC(nobs(mod), big.mark = ",")),
+          col.rgroup = c("none", "#F7F7F7"),
+          css.cell = "padding-left: .5em; padding-right: .5em;")
 
+m_rel <- tidy(mod) %>%
+  filter(term == "golive_flag")
 ```
 # Other old
 Felony non-ZB
@@ -4107,7 +4198,15 @@ mod <- lm(data = full_bts %>%
 summary(mod)
 nobs(mod)
 
-
+htmlTable(tidy(mod) %>%
+            mutate(across(c(estimate, std.error, statistic, p.value), ~signif(.x, digits = 2))),
+          rnames = element_blank(),
+          ctable = c("solid", "double"),
+          pos.caption = "bottom",
+          align = "l",
+          caption = str_c("N = ", formatC(nobs(mod), big.mark = ",")),
+          col.rgroup = c("none", "#F7F7F7"),
+          css.cell = "padding-left: .5em; padding-right: .5em;")
 ```
 
 Race - Misdo zb and non-zb with zb*eb interaction
@@ -4131,11 +4230,19 @@ mod <- lm(data = full_bts %>%
 summary(mod)
 nobs(mod)
 
-
+htmlTable(tidy(mod) %>%
+            mutate(across(c(estimate, std.error, statistic, p.value), ~signif(.x, digits = 2))),
+          rnames = element_blank(),
+          ctable = c("solid", "double"),
+          pos.caption = "bottom",
+          align = "l",
+          caption = str_c("N = ", formatC(nobs(mod), big.mark = ",")),
+          col.rgroup = c("none", "#F7F7F7"),
+          css.cell = "padding-left: .5em; padding-right: .5em;")
 ```
 Race - Misdo interaction with different base levels of race
 ```{r}
-races <- lapply(c("Black", "White", "Hispanic", "Other/Unknown"), 
+racesm <- lapply(c("Black", "White", "Hispanic", "Other/Unknown"), 
        function(i){
          mod <- lm(data = full_bts %>%
              filter(is_release_eligible == "Yes") %>%
@@ -4157,11 +4264,21 @@ races <- lapply(c("Black", "White", "Hispanic", "Other/Unknown"),
                   tab <- tidy(mod) %>%
                              mutate(race = i) %>%
                              mutate(n = nobs(mod)) %>%
-                             select(race, term, estimate, p.value, n) %>%
+                             select(race, term, estimate, std.error, statistic, p.value, n) %>%
                              filter(term == "golive_flag")
                            }) %>% bind_rows()
 
-races
+racesm
+
+htmlTable(racesm %>%
+            select(-n) %>%
+            mutate(across(c(estimate, std.error, statistic, p.value), ~signif(.x, digits = 2))),
+          rnames = element_blank(),
+          ctable = c("solid", "double"),
+          pos.caption = "bottom",
+          align = "l",
+          col.rgroup = c("none", "#F7F7F7"),
+          css.cell = "padding-left: .9em; padding-right: .9em;")
 ```
 
 Look at pre/post-golive race coefficients for misdemeanors
@@ -4190,11 +4307,21 @@ prepost <- lapply(c("Pre","Post"),
                   tab <- tidy(mod) %>%
                              mutate(golive = i) %>%
                              mutate(n = nobs(mod)) %>%
-                             select(golive, term, estimate, p.value, n) %>%
+                             select(golive, term, estimate, std.error, statistic, p.value, n) %>%
                              filter(term %in% c("raceBlack", "raceHispanic", "raceWhite", "raceOther/Unknown"))
                            }) %>% bind_rows()
 
 prepost
+
+htmlTable(prepost %>%
+            select(-n) %>%
+            mutate(across(c(estimate, std.error, statistic, p.value), ~signif(.x, digits = 2))),
+          rnames = element_blank(),
+          ctable = c("solid", "double"),
+          pos.caption = "bottom",
+          align = "l",
+          col.rgroup = c("none", "#F7F7F7"),
+          css.cell = "padding-left: .9em; padding-right: .9em;")
 ```
 
 
@@ -4222,7 +4349,15 @@ mod <- lm(data = full_bts %>%
 summary(mod)
 nobs(mod)
 
-
+htmlTable(tidy(mod) %>%
+            mutate(across(c(estimate, std.error, statistic, p.value), ~signif(.x, digits = 2))),
+          rnames = element_blank(),
+          ctable = c("solid", "double"),
+          pos.caption = "bottom",
+          align = "l",
+          caption = str_c("N = ", formatC(nobs(mod), big.mark = ",")),
+          col.rgroup = c("none", "#F7F7F7"),
+          css.cell = "padding-left: .5em; padding-right: .5em;")
 ```
 
 Sex - Felony with different base sexes
@@ -4251,11 +4386,21 @@ sexesF <- lapply(c("Male", "Female"),
                              mutate(sex = i) %>%
                             mutate(charge_level = "F") %>%
                              mutate(n = nobs(mod)) %>%
-                             select(sex, charge_level, term, estimate, p.value, n) %>%
+                             select(sex, charge_level, term, estimate, std.error, statistic, p.value, n) %>%
                              filter(term == "golive_flag")
                            }) %>% bind_rows()
 
 sexesF
+
+htmlTable(sexesF %>%
+            select(-n) %>%
+            mutate(across(c(estimate, std.error, statistic, p.value), ~signif(.x, digits = 2))),
+          rnames = element_blank(),
+          ctable = c("solid", "double"),
+          pos.caption = "bottom",
+          align = "l",
+          col.rgroup = c("none", "#F7F7F7"),
+          css.cell = "padding-left: .9em; padding-right: .9em;")
 ```
 Sex - Felony with different pre/post base levels
 ```{r}
@@ -4284,12 +4429,23 @@ prepostF <- lapply(c("Pre","Post"),
                              mutate(golive = i) %>%
                              mutate(charge_level = "F") %>%
                              mutate(n = nobs(mod)) %>%
-                             select(golive, charge_level, term, estimate, p.value, n) %>%
+                             select(golive, charge_level, term, estimate, std.error, statistic, p.value, n) %>%
                              filter(term %in% c("sexMale", "sexFemale"))
                            }) %>% bind_rows()
 
 prepostF
+
+htmlTable(prepostF %>%
+            select(-n) %>%
+            mutate(across(c(estimate, std.error, statistic, p.value), ~signif(.x, digits = 2))),
+          rnames = element_blank(),
+          ctable = c("solid", "double"),
+          pos.caption = "bottom",
+          align = "l",
+          col.rgroup = c("none", "#F7F7F7"),
+          css.cell = "padding-left: .9em; padding-right: .9em;")
 ```
+
 
 Sex - Misdo zb and non-zb with zb*eb interaction
 ```{r eval=FALSE, include=FALSE}
@@ -4313,7 +4469,15 @@ mod <- lm(data = full_bts %>%
 summary(mod)
 nobs(mod)
 
-
+htmlTable(tidy(mod) %>%
+            mutate(across(c(estimate, std.error, statistic, p.value), ~signif(.x, digits = 2))),
+          rnames = element_blank(),
+          ctable = c("solid", "double"),
+          pos.caption = "bottom",
+          align = "l",
+          caption = str_c("N = ", formatC(nobs(mod), big.mark = ",")),
+          col.rgroup = c("none", "#F7F7F7"),
+          css.cell = "padding-left: .5em; padding-right: .5em;")
 ```
 
 Sex - Misdo with different base sexes
@@ -4342,11 +4506,21 @@ sexesM <- lapply(c("Male", "Female"),
                              mutate(sex = i) %>%
                             mutate(charge_level = "M") %>%
                              mutate(n = nobs(mod)) %>%
-                             select(sex, charge_level, term, estimate, p.value, n) %>%
+                             select(sex, charge_level, term, estimate, std.error, statistic, p.value, n) %>%
                              filter(term == "golive_flag")
                            }) %>% bind_rows()
 
 sexesM
+
+htmlTable(sexesM %>%
+            select(-n) %>%
+            mutate(across(c(estimate, std.error, statistic, p.value), ~signif(.x, digits = 2))),
+          rnames = element_blank(),
+          ctable = c("solid", "double"),
+          pos.caption = "bottom",
+          align = "l",
+          col.rgroup = c("none", "#F7F7F7"),
+          css.cell = "padding-left: .9em; padding-right: .9em;")
 ```
 Sex - Misdo with different pre/post base levels
 ```{r}
@@ -4375,11 +4549,21 @@ prepostM <- lapply(c("Pre","Post"),
                              mutate(golive = i) %>%
                              mutate(charge_level = "M") %>%
                              mutate(n = nobs(mod)) %>%
-                             select(golive, charge_level, term, estimate, p.value, n) %>%
+                             select(golive, charge_level, term, estimate, std.error, statistic, p.value, n) %>%
                              filter(term %in% c("sexMale", "sexFemale"))
                            }) %>% bind_rows()
 
 prepostM
+
+htmlTable(prepostM %>%
+            select(-n) %>%
+            mutate(across(c(estimate, std.error, statistic, p.value), ~signif(.x, digits = 2))),
+          rnames = element_blank(),
+          ctable = c("solid", "double"),
+          pos.caption = "bottom",
+          align = "l",
+          col.rgroup = c("none", "#F7F7F7"),
+          css.cell = "padding-left: .9em; padding-right: .9em;")
 ```
 
 
@@ -6175,7 +6359,7 @@ full_bts %>%
   count(race_standard, zb_flag, is_released_pretrial)
 ```
 
-# * Pretrial release by race
+#  Pretrial release by race
 Felony non-ZB
 ```{r eval=FALSE, include=FALSE}
 mod <- lm(data = full_bts %>%
@@ -6223,7 +6407,7 @@ nobs(mod)
 ```
 
 
-# * Pretrial release by gender
+#  Pretrial release by gender
 Felony non-ZB
 ```{r eval=FALSE, include=FALSE}
 mod <- lm(data = full_bts %>%
@@ -6475,7 +6659,251 @@ ggsave("fel only days to release by release type without other, and zb by releas
 
 
 ```
+Time to dispo for people not released pretrial
+```{r}
+full_bts %>%
+  filter(is_release_eligible == "Yes") %>%
+  filter(is_released_pretrial == "No",
+         pretrial_period_end_count == 1,
+         charge_level %in% c("M", "F")) %>%
+  filter(pretrial_period_end_date >= booking_date) %>%
+  filter(is_unmatched_booking == "No") %>%
+  mutate(days_to_dispo = as.numeric(pretrial_period_end_date - booking_date)) %>%
+  group_by(covid_flag, charge_level, zb_flag) %>%
+  summarise(avg_days_to_dispo = mean(days_to_dispo))
 
+
+```
+# Graphs for tool validation section, maybe?
+ORAS
+```{r}
+eval_df %>%
+  filter(pretrial_period_end_date < "2022-1-1") %>%
+  count(tool_name)
+
+eval_df %>%
+  filter(tool_name == "ORAS") %>%
+  filter(pretrial_period_end_date < "2022-1-1") %>%
+  group_by(oras_risk_score) %>%
+  summarise(new_arrest_rate = sum(recid_county_or_doj)/n()) %>%
+  ggplot(aes(x = oras_risk_score, y = new_arrest_rate)) +
+  geom_col() +
+  labs(x = "ORAS Risk Level", y = "New Arrest Rate") +
+  scale_y_continuous(labels = scales::percent_format(), limits = c(0,1)) +
+  geom_text(aes(label = scales::percent(new_arrest_rate, scale = 100, accuracy = 1)), size = 8, vjust = 1.5, colour = "white") +
+  ggtitle("ORAS", subtitle = "New arrest during the pretrial period by risk level") 
+
+```
+VPRAI
+```{r}
+eval_df %>%
+  filter(tool_name == "VPRAI") %>%
+  filter(pretrial_period_end_date < "2022-1-1") %>%
+  group_by(vprai_risk_score) %>%
+  summarise(new_arrest_rate = sum(recid_county_or_doj)/n()) %>%
+  ggplot(aes(x = vprai_risk_score, y = new_arrest_rate)) +
+  geom_col() +
+  labs(x = "VPRAI Risk Level", y = "New Arrest Rate") +
+  scale_y_continuous(labels = scales::percent_format(), limits = c(0,1)) +
+  geom_text(aes(label = scales::percent(new_arrest_rate, scale = 100, accuracy = 1)), size = 8, vjust = 1.5, colour = "white") +
+  ggtitle("VPRAI", subtitle = "New arrest during the pretrial period by risk level")
+```
+VPRAI-R
+```{r}
+eval_df %>%
+  filter(tool_name == "VPRAI-R") %>%
+  filter(pretrial_period_end_date < "2022-1-1") %>%
+  group_by(vprair_risk_score) %>%
+  summarise(new_arrest_rate = sum(recid_county_or_doj)/n()) %>%
+  ggplot(aes(x = vprair_risk_score, y = new_arrest_rate)) +
+  geom_col() +
+  labs(x = "VPRAI-R Risk Level", y = "New Arrest Rate") +
+  scale_y_continuous(labels = scales::percent_format(), limits = c(0,1)) +
+  geom_text(aes(label = scales::percent(new_arrest_rate, scale = 100, accuracy = 1)), size = 8, vjust = 1.5, colour = "white") +
+  ggtitle("VPRAI-R", subtitle = "New arrest during the pretrial period by risk level")
+```
+PSA-NCA
+```{r}
+eval_df %>%
+  filter(tool_name == "PSA") %>%
+  filter(pretrial_period_end_date < "2022-1-1") %>%
+  group_by(psa_nca_risk_score) %>%
+  summarise(new_arrest_rate = sum(recid_county_or_doj)/n()) %>%
+  ggplot(aes(x = psa_nca_risk_score, y = new_arrest_rate)) +
+  geom_col() +
+  labs(x = "PSA NCA Risk Level", y = "New Arrest Rate") +
+  scale_y_continuous(labels = scales::percent_format(), limits = c(0,1)) +
+  geom_text(aes(label = scales::percent(new_arrest_rate, scale = 100, accuracy = 1)), size = 8, vjust = 1.5, colour = "white") +
+  ggtitle("PSA", subtitle = "New arrest during the pretrial period by risk level")
+```
+```{r}
+eval_df %>%
+  summarise(min(pretrial_period_end_date), max(pretrial_period_end_date))
+
+eval_df %>%
+  summarise(max(recid_date_doj, na.rm = T))
+
+eval_df %>%
+  select(contains("date_doj"))
+```
+
+# Visualization for regressions
+Visualization 
+```{r}
+out_comb <- f_nca %>%
+  mutate(charge_level = "Felony",
+         outcome = "New arrest/booking") %>%
+  bind_rows(f_fta %>%
+              mutate(charge_level = "Felony",
+         outcome = "FTA")) %>%
+  bind_rows(m_nca %>%
+              mutate(charge_level = "Misdemeanor",
+         outcome = "New arrest/booking")) %>%
+  bind_rows(m_fta %>%
+              mutate(charge_level = "Misdemeanor",
+         outcome = "FTA")) %>%
+  bind_rows(f_rel %>%
+              mutate(charge_level = "Felony",
+         outcome = "Pretrial release")) %>%
+  bind_rows(m_rel %>%
+              mutate(charge_level = "Misdemeanor",
+         outcome = "Pretrial release"))
+
+out_comb <- out_comb %>%
+  unite("type", c(charge_level, outcome), sep = " - ")
+
+out_comb %>%
+  group_by(type) %>%
+  summarize(term = term,
+            beta = estimate,
+            lower = estimate - qnorm(0.975)*std.error,
+            upper = estimate + qnorm(0.975)*std.error) %>%
+  ggplot(mapping = aes(x = type, y = beta, 
+                       ymin = lower, ymax = upper, color = type)) +
+  geom_linerange(size = 2) +
+  geom_point(size = 5) +
+  geom_point(size = 3, color = "white") +
+  scale_y_continuous(labels = scales::percent, limits = c(-.1,.1)) +
+  geom_hline(yintercept = 0) +
+  coord_flip() +
+  labs(x = element_blank(),
+       y = "Estimated program impact") +
+  guides(color = "none") 
+```
+
+Visualization 
+```{r}
+out_comb <- f_nca %>%
+  mutate(charge_level = "Felony",
+         outcome = "New arrest/booking") %>%
+  bind_rows(f_fta %>%
+              mutate(charge_level = "Felony",
+         outcome = "FTA")) %>%
+  bind_rows(m_nca %>%
+              mutate(charge_level = "Misdemeanor",
+         outcome = "New arrest/booking")) %>%
+  bind_rows(m_fta %>%
+              mutate(charge_level = "Misdemeanor",
+         outcome = "FTA")) %>%
+  bind_rows(f_rel %>%
+              mutate(charge_level = "Felony",
+         outcome = "Pretrial release")) %>%
+  bind_rows(m_rel %>%
+              mutate(charge_level = "Misdemeanor",
+         outcome = "Pretrial release"))
+
+out_comb2 <- out_comb %>%
+  unite("type", c(charge_level, outcome), sep = " - ")
+
+out_comb2 %>%
+  group_by(type) %>%
+  summarize(term = term,
+            beta = estimate,
+            lower = estimate - qnorm(0.975)*std.error,
+            upper = estimate + qnorm(0.975)*std.error) %>%
+  ggplot(mapping = aes(x = type, y = beta, 
+                       ymin = lower, ymax = upper, color = type)) +
+  geom_linerange(size = 2) +
+  geom_point(size = 5) +
+  geom_point(size = 3, color = "white") +
+  scale_y_continuous(labels = scales::percent, limits = c(-.1,.1)) +
+  geom_hline(yintercept = 0) +
+  coord_flip() +
+  labs(x = element_blank(),
+       y = "Estimated program impact") +
+  guides(color = "none") 
+```
+
+```{r}
+out_comb %>%
+  mutate(outcome = factor(outcome, levels = c("Pretrial release", "New arrest/booking", "FTA"))) %>%
+  group_by(charge_level, outcome) %>%
+  summarize(term = term,
+            beta = estimate,
+            lower = estimate - qnorm(0.975)*std.error,
+            upper = estimate + qnorm(0.975)*std.error) %>%
+  ggplot(mapping = aes(x = charge_level, y = beta, 
+                       ymin = lower, ymax = upper, color = charge_level)) +
+  geom_linerange(size = 2) +
+  geom_point(size = 5) +
+  geom_point(size = 3, color = "white") +
+  scale_y_continuous(labels = scales::percent, limits = c(-.1,.1)) +
+  geom_text(aes(x = charge_level, y = beta, label= scales::percent(beta, accuracy = .1)), nudge_x = .3) +
+  geom_hline(yintercept = 0) +
+  coord_flip() +
+  labs(x = element_blank(),
+       y = "Estimated program impact") +
+  guides(color = "none") +
+  facet_grid(rows = vars(outcome))
+```
+
+
+Visualization - Race go_live betas
+```{r}
+racesm %>%
+  mutate(race = factor(race, levels = c("Other/Unknown", "White", "Hispanic", "Black"))) %>%
+  group_by(race) %>%
+  summarize(term = term,
+            beta = estimate,
+            lower = estimate - qnorm(0.975)*std.error,
+            upper = estimate + qnorm(0.975)*std.error) %>%
+  ggplot(mapping = aes(x = race, y = beta, 
+                       ymin = lower, ymax = upper, color = race)) +
+  geom_linerange(size = 2) +
+  geom_point(size = 5) +
+  geom_point(size = 3, color = "white") +
+  scale_y_continuous(labels = scales::percent, limits = c(-0.01,.11)) +
+  geom_text(aes(x = race, y = beta, label= scales::percent(beta)), nudge_x = .2) +
+  geom_hline(yintercept = 0) +
+  coord_flip() +
+  labs(x = element_blank(),
+       y = "Estimated impact of program implementation on OR/PM release rate by race") +
+  guides(color = "none") 
+```
+
+Visualization - Race pre-post
+```{r}
+prepost %>%
+  mutate(race = factor(gsub("race", "", term), levels = c("Other/Unknown", "Hispanic", "Black"))) %>%
+  mutate(golive = factor(if_else(golive == "Pre", "Before pilot implementation", "After pilot implementation"), levels = c("Before pilot implementation", "After pilot implementation"))) %>%
+  group_by(golive, race) %>%
+  summarize(beta = estimate,
+            lower = estimate - qnorm(0.975)*std.error,
+            upper = estimate + qnorm(0.975)*std.error) %>%
+  ggplot(mapping = aes(x = race, y = beta, 
+                       ymin = lower, ymax = upper, color = race)) +
+  geom_linerange(size = 2) +
+  geom_point(size = 5) +
+  geom_point(size = 3, color = "white") +
+  scale_y_continuous(labels = scales::percent, limits = c(-0.05,.05)) +
+  geom_text(aes(x = race, y = beta, label= scales::percent(beta, accuracy = .1)), nudge_x = .2) +
+  geom_hline(yintercept = 0) +
+  coord_flip() +
+  labs(x = element_blank(),
+       y = "Estimated probability of pretrial OR/PM release compared to White individuals\nbefore and after pilot implementation") +
+  guides(color = "none") +
+  facet_grid(cols = vars(golive))
+```
 
 # Space saver
 
