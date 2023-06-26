@@ -49,7 +49,7 @@ my_kable <- function(x){
 Connection
 ```{r}
 
-con <- dbConnect(odbc::odbc(), "snowflake_pretrial", uid ="Sal.Lempert@jud.ca.gov", pwd = rstudioapi::askForPassword("Password"))
+con <- dbConnect(odbc::odbc(), "snowflake_pretrial", uid ="jeffrey.wu@jud.ca.gov", pwd = rstudioapi::askForPassword("Password"))
 
 ```
 
@@ -104,7 +104,7 @@ df <- df %>%
                             county %in% c("Kings", "Napa", "Nevada", "Sierra") ~ "Small/Medium Counties",
                             T ~ county),
          County = ordered(County),
-         County = fct_relevel(County, levels = c("Small Counties", "Small/Medium Counties")),
+         County = factor(County, levels = c("Small Counties", "Small/Medium Counties")),
          charge_level_orig = charge_level,
          charge_level = charge_level_standard,
          arrest_charge_level = charge_level,
@@ -113,10 +113,10 @@ df <- df %>%
          sex = if_else(sex %in% c("Male", "Female"), sex, "Other/Unknown"),
          race_orig = race,
          race = if_else(race_standard == "American Indian", "Other/Unknown", race_standard),
-         oras_risk_score = if_else(tool_name == "ORAS", risk_score_raw, NULL),
-         vprai_risk_score = if_else(tool_name == "VPRAI", risk_score_raw, NULL),
-         vprair_risk_score = if_else(tool_name == "VPRAI-R", risk_score_raw, NULL),
-         vpraio_risk_score = if_else(tool_name == "VPRAI-O", generic_tool_total_score_raw, NULL),
+         oras_risk_score = if_else(tool_name == "ORAS", risk_score_raw, NA_real_),
+         vprai_risk_score = if_else(tool_name == "VPRAI", risk_score_raw, NA_real_),
+         vprair_risk_score = if_else(tool_name == "VPRAI-R", risk_score_raw, NA_real_),
+         vpraio_risk_score = if_else(tool_name == "VPRAI-O", generic_tool_total_score_raw, NA_real_),
          psa_fta_risk_score = score_failure_to_appear,
          psa_nca_risk_score = score_new_criminal_activity,
          psa_nvca_risk_score = score_new_criminal_violent_activity,
@@ -144,7 +144,7 @@ join_df <- join_df %>%
                             county %in% c("Kings", "Napa", "Nevada", "Sierra") ~ "Small/Medium Counties",
                             T ~ county),
          County = ordered(County),
-         County = fct_relevel(County, levels = c("Small Counties", "Small/Medium Counties")),
+         County = factor(County, levels = c("Small Counties", "Small/Medium Counties")),
          release_type = if_else(release_type == "CiteR elease", "Cite Release", release_type), # fix LA's typo
          convicted_flag = if_else(disposition_type == "Convicted", 1, 0),
          new_arrest_flag = release_eligible_count,
@@ -164,10 +164,10 @@ join_df <- join_df %>%
                                county == "Santa Barbara" & assessment_date >= as.Date("2020-4-29") ~ "VPRAI-R",
                                tool_name == "VPRAIR" ~ "VPRAI-R",
                                T ~ tool_name),
-         oras_risk_score = if_else(tool_name == "ORAS", risk_score_raw, NULL),
-         vprai_risk_score = if_else(tool_name == "VPRAI", risk_score_raw, NULL),
-         vprair_risk_score = if_else(tool_name == "VPRAI-R", risk_score_raw, NULL),
-         vpraio_risk_score = if_else(tool_name == "VPRAIO", generic_tool_total_score_raw, NULL),
+         oras_risk_score = if_else(tool_name == "ORAS", risk_score_raw, NA_real_),
+         vprai_risk_score = if_else(tool_name == "VPRAI", risk_score_raw, NA_real_),
+         vprair_risk_score = if_else(tool_name == "VPRAI-R", risk_score_raw, NA_real_),
+         vpraio_risk_score = if_else(tool_name == "VPRAIO", generic_tool_total_score_raw, NA_real_),
          psa_fta_risk_score = score_failure_to_appear,
          psa_nca_risk_score = score_new_criminal_activity,
          psa_nvca_risk_score = score_new_criminal_violent_activity,
@@ -212,7 +212,7 @@ date_range <- join_df %>%
             `Earliest book date` = min(book_date),
             `Latest book date` = max(book_date))
 
-write.xlsx(date_range, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/All bookings date ranges by county.xlsx", asTable = F)
+write.xlsx(date_range, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/All bookings date ranges by county.xlsx", asTable = F)
 
 join_df %>%
   filter(new_arrest_flag == 1) %>%
@@ -228,7 +228,7 @@ date_range <- eval_df %>%
             `Earliest assessment date` = min(assessment_date, na.rm = T),
             `Latest assessment date` = max(assessment_date, na.rm = T))
 
-write.xlsx(date_range, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/Assessments with outcomes, date ranges by county.xlsx", asTable = F)
+write.xlsx(date_range, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/Assessments with outcomes, date ranges by county.xlsx", asTable = F)
 
  eval_df %>%
   filter(new_arrest_flag == 1) %>%
@@ -378,7 +378,7 @@ gender_df <- join_df %>%
   filter(sex %in% c("Male", "Female")) %>%
   rename(`Gender` = sex)
 
-write.xlsx(gender_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/2A Gender fresh.xlsx", asTable = F)
+write.xlsx(gender_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/2A Gender fresh.xlsx", asTable = F)
 
 join_df %>%
   filter(new_arrest_flag == 1) %>%
@@ -454,7 +454,7 @@ race_df <- join_df %>%
             `OR release type after 2 days` = mean(later_or_type_flag)) %>%
   rename(`Race` = race) 
 
-write.xlsx(race_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/2A Race fresh.xlsx", asTable = F)
+write.xlsx(race_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/2A Race fresh.xlsx", asTable = F)
 
 
 join_df %>%
@@ -533,7 +533,7 @@ arrest_charge_level_df <- join_df %>%
   rename(`Arrest Charge Level` = arrest_charge_level) %>%
   arrange(desc(`Arrest Charge Level`))
 
-write.xlsx(arrest_charge_level_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/2A Offense Type fresh.xlsx", asTable = F)
+write.xlsx(arrest_charge_level_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/2A Offense Type fresh.xlsx", asTable = F)
 
 join_df %>%
   filter(new_arrest_flag == 1) %>%
@@ -598,7 +598,7 @@ gender_df <- join_df %>%
   filter(sex %in% c("Male", "Female")) %>%
   rename(`Gender` = sex)
 
-write.xlsx(gender_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/2A Gender LA.xlsx", asTable = F)
+write.xlsx(gender_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/2A Gender LA.xlsx", asTable = F)
 
 # join_df %>%
 #   filter(new_arrest_flag == 1) %>%
@@ -663,7 +663,7 @@ race_df <- join_df %>%
             `OR release type after 2 days` = mean(later_or_type_flag)) %>%
   rename(`Race` = race) 
 
-write.xlsx(race_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/2A Race LA.xlsx", asTable = F)
+write.xlsx(race_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/2A Race LA.xlsx", asTable = F)
 
 
 ```
@@ -728,7 +728,7 @@ arrest_charge_level_df <- join_df %>%
   rename(`Arrest Charge Level` = arrest_charge_level) %>%
   arrange(desc(`Arrest Charge Level`))
 
-write.xlsx(arrest_charge_level_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/2A Offense Type LA.xlsx", asTable = F)
+write.xlsx(arrest_charge_level_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/2A Offense Type LA.xlsx", asTable = F)
 
 # join_df %>%
 #   filter(new_arrest_flag == 1) %>%
@@ -827,7 +827,7 @@ fta_df <- fta_df %>%
 
 names(fta_df) <- c("County", "Release Type/Risk Level", "Offense Type", "Total", "Court Appearance Rate", "Sort")
   
-write.xlsx(fta_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/2B.xlsx", asTable = T)
+write.xlsx(fta_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/2B.xlsx", asTable = T)
 
 # Aggregated
 fta_df <- eval_df %>%
@@ -864,7 +864,7 @@ fta_df <- fta_df %>%
 
 names(fta_df) <- c("Release Type/Risk Level", "Offense Type", "Total", "Court Appearance Rate", "Sort")
  
-write.xlsx(fta_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/2B Aggregated.xlsx", asTable = T)
+write.xlsx(fta_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/2B Aggregated.xlsx", asTable = T)
 
 
 # For PPT
@@ -945,7 +945,7 @@ new_charge_df <- new_charge_df %>%
 
 names(new_charge_df) <- c("County", "Release Type/Risk Level", "Offense Type", "Total", "No New Charge Rate", "Sort")
   
-write.xlsx(new_charge_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/2C.xlsx", asTable = T)
+write.xlsx(new_charge_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/2C.xlsx", asTable = T)
 
 # Aggregated
 new_charge_df <- eval_df %>%
@@ -984,7 +984,7 @@ new_charge_df <- new_charge_df %>%
 
 names(new_charge_df) <- c("Release Type/Risk Level", "Offense Type", "Total", "No New Charge Rate", "Sort")
 
-write.xlsx(new_charge_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/2C Aggregated.xlsx", asTable = T)
+write.xlsx(new_charge_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/2C Aggregated.xlsx", asTable = T)
 
 # For PPT
 eval_df %>%
@@ -1050,7 +1050,7 @@ age_df <- df %>%
   group_by(County) %>%
   mutate(Total = sum(n))
 
-write.xlsx(age_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/2D Age.xlsx", asTable = T)
+write.xlsx(age_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/2D Age.xlsx", asTable = T)
 
 # shell.exec("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022")
 
@@ -1067,7 +1067,7 @@ age_df <- df %>%
   count(age) %>%
   mutate(Total = sum(n)) 
 
-write.xlsx(age_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/2D Age Aggregated.xlsx", asTable = T)
+write.xlsx(age_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/2D Age Aggregated.xlsx", asTable = T)
 
 # df %>%
 #   filter(County == "Los Angeles") %>%
@@ -1087,7 +1087,7 @@ zip_df <- join_df %>%
   group_by(County) %>%
   mutate(Total = sum(n))
 
-write.xlsx(zip_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/2D Zipcode.xlsx", asTable = T)
+write.xlsx(zip_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/2D Zipcode.xlsx", asTable = T)
 ```
 \newpage
 
@@ -1098,7 +1098,7 @@ gender_df <- df %>%
   group_by(County) %>%
   mutate(Total = sum(n)) 
 
-write.xlsx(gender_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/2D Gender.xlsx", asTable = T)
+write.xlsx(gender_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/2D Gender.xlsx", asTable = T)
 
 # Aggregated
 gender_df <- df %>%
@@ -1106,7 +1106,7 @@ gender_df <- df %>%
   # group_by(County) %>%
   mutate(Total = sum(n)) 
 
-write.xlsx(gender_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/2D Gender Aggregated.xlsx", asTable = T)
+write.xlsx(gender_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/2D Gender Aggregated.xlsx", asTable = T)
 
 df %>%
   count()
@@ -1127,7 +1127,7 @@ race_df <- df %>%
   group_by(County) %>%
   mutate(Total = sum(n)) 
 
-write.xlsx(race_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/2D Race.xlsx", asTable = T)
+write.xlsx(race_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/2D Race.xlsx", asTable = T)
 
 # shell.exec("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022")
 
@@ -1144,7 +1144,7 @@ race_df <- df %>%
   # group_by(County) %>%
   mutate(Total = sum(n)) 
 
-write.xlsx(race_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/2D Race Aggregated.xlsx", asTable = T)
+write.xlsx(race_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/2D Race Aggregated.xlsx", asTable = T)
 
 df %>%
   count()
@@ -1180,7 +1180,7 @@ assess_df <- df %>%
          )) %>%
   arrange(County, risk_level)
 
-write.xlsx(assess_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/2E Risk Level.xlsx", asTable = T)
+write.xlsx(assess_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/2E Risk Level.xlsx", asTable = T)
 
 # Aggregated
 assess_df <- df %>%
@@ -1202,7 +1202,7 @@ assess_df <- df %>%
          )) %>%
   arrange(risk_level)
 
-write.xlsx(assess_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/2E Risk Level Aggregated.xlsx", asTable = T)
+write.xlsx(assess_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/2E Risk Level Aggregated.xlsx", asTable = T)
 
 
 ```
@@ -1213,7 +1213,7 @@ zip_df <- join_df %>%
   filter(!is.na(assessment_date)) %>%
   count(County, zip_code) 
 
-write.xlsx(zip_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/2E Zipcode.xlsx", asTable = T)
+write.xlsx(zip_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/2E Zipcode.xlsx", asTable = T)
 ```
 
 
@@ -1224,7 +1224,7 @@ charge_level_df <- join_df %>%
 
   count(County, arrest_charge_level)
 
-write.xlsx(charge_level_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/2E Charge Level.xlsx", asTable = T)
+write.xlsx(charge_level_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/2E Charge Level.xlsx", asTable = T)
 
 # Aggregated
 charge_level_df <- join_df %>%
@@ -1232,7 +1232,7 @@ charge_level_df <- join_df %>%
 
   count(arrest_charge_level)
 
-write.xlsx(charge_level_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/2E Charge Level Aggregated.xlsx", asTable = T)
+write.xlsx(charge_level_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/2E Charge Level Aggregated.xlsx", asTable = T)
 
 join_df %>%
   filter(!is.na(assessment_date)) %>%
@@ -1275,7 +1275,7 @@ release_df <- df %>%
 # names(release_df) <- c("County", "Granted Program Release", "Denied Program Release")
 
 
-write.xlsx(release_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/2E Release Decision Pre-Arraignment.xlsx", asTable = T)
+write.xlsx(release_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/2E Release Decision Pre-Arraignment.xlsx", asTable = T)
 # San Joaquin and Sonoma did not provide release decision information. 
 
 # # Aggregated
@@ -1285,7 +1285,7 @@ write.xlsx(release_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Progra
 #          release_decision = if_else(release_decision %in% c("Deny Release"), "Denied Program Release", release_decision)) %>%
 #   count(release_decision) 
 # 
-# write.xlsx(release_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/2E Release Decision Aggregated.xlsx", asTable = T)  
+# write.xlsx(release_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/2E Release Decision Aggregated.xlsx", asTable = T)  
 # 
 # # Aggregated without LA
 # release_df <- df %>%
@@ -1294,7 +1294,7 @@ write.xlsx(release_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Progra
 #          release_decision = if_else(release_decision %in% c("Deny Release"), "Denied Program Release", release_decision)) %>%
 #   count(release_decision) 
 # 
-# write.xlsx(release_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/2E Release Decision Aggregated without LA.xlsx", asTable = T)  
+# write.xlsx(release_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/2E Release Decision Aggregated without LA.xlsx", asTable = T)  
 
 ```
 Release decision at arraignment
@@ -1323,7 +1323,7 @@ release_df <- df %>%
 # names(release_df) <- c("County", "Granted Program Release", "Denied Program Release")
 
 
-write.xlsx(release_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/2E Release Decision Arraignment.xlsx", asTable = T)
+write.xlsx(release_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/2E Release Decision Arraignment.xlsx", asTable = T)
 # San Joaquin and Sonoma did not provide release decision information. 
 
 # # Aggregated
@@ -1333,7 +1333,7 @@ write.xlsx(release_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Progra
 #          release_decision = if_else(release_decision %in% c("Deny Release"), "Denied Program Release", release_decision)) %>%
 #   count(release_decision) 
 # 
-# write.xlsx(release_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/2E Release Decision Aggregated.xlsx", asTable = T)  
+# write.xlsx(release_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/2E Release Decision Aggregated.xlsx", asTable = T)  
 # 
 # # Aggregated without LA
 # release_df <- df %>%
@@ -1342,7 +1342,7 @@ write.xlsx(release_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Progra
 #          release_decision = if_else(release_decision %in% c("Deny Release"), "Denied Program Release", release_decision)) %>%
 #   count(release_decision) 
 # 
-# write.xlsx(release_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/2E Release Decision Aggregated without LA.xlsx", asTable = T)  
+# write.xlsx(release_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/2E Release Decision Aggregated without LA.xlsx", asTable = T)  
 
 ```
 Notes: 'Denied Program Release' indicates individuals who judicial officers did not choose to release through the pretrial program. These individuals may still have gotten out on bail. 'Granted Program Release' includes individuals released on OR or monitoring. 
@@ -1425,7 +1425,7 @@ release_df <- df %>%
 # names(release_df) <- c("County", "Granted Program Release", "Denied Program Release")
 
 
-write.xlsx(release_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/2E Release Decision LA only.xlsx", asTable = T)
+write.xlsx(release_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/2E Release Decision LA only.xlsx", asTable = T)
 # San Joaquin and Sonoma did not provide release decision information. 
 
 # # Aggregated
@@ -1435,7 +1435,7 @@ write.xlsx(release_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Progra
 #          release_decision = if_else(release_decision %in% c("Deny Release"), "Denied Program Release", release_decision)) %>%
 #   count(release_decision) 
 # 
-# write.xlsx(release_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/2E Release Decision Aggregated.xlsx", asTable = T)  
+# write.xlsx(release_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/2E Release Decision Aggregated.xlsx", asTable = T)  
 # 
 # # Aggregated without LA
 # release_df <- df %>%
@@ -1444,7 +1444,7 @@ write.xlsx(release_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Progra
 #          release_decision = if_else(release_decision %in% c("Deny Release"), "Denied Program Release", release_decision)) %>%
 #   count(release_decision) 
 # 
-# write.xlsx(release_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/2E Release Decision Aggregated without LA.xlsx", asTable = T)  
+# write.xlsx(release_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/2E Release Decision Aggregated without LA.xlsx", asTable = T)  
 
 ```
 Notes: 'Denied Program Release' indicates individuals who judicial officers did not choose to release through the pretrial program. These individuals may still have gotten out on bail. 'Granted Program Release' includes individuals released on OR or monitoring. 
@@ -1527,7 +1527,7 @@ monitor_df <- df %>%
 
 # names(monitor_df) <- gsub("_.*", "", names(monitor_df))
   
-write.xlsx(monitor_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/2F Supervision Level.xlsx", asTable = T)
+write.xlsx(monitor_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/2F Supervision Level.xlsx", asTable = T)
 
 # Aggregated
 monitor_df <- df %>%
@@ -1546,7 +1546,7 @@ monitor_df <- df %>%
 
 # names(monitor_df) <- gsub("_.*", "", names(monitor_df))
   
-write.xlsx(monitor_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/2F Supervision Level Aggregated.xlsx", asTable = T)
+write.xlsx(monitor_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/2F Supervision Level Aggregated.xlsx", asTable = T)
 
 
 # df %>%
@@ -1578,13 +1578,13 @@ outcome_df <- sup_df %>%
   summarise(FTA_Count = round(mean(fta_flag)*n()), New_Arrest_Count = round(mean(recid_arrested_flag)*n()), Total = n())%>%
   mutate(across(matches("Total|Count$|Rate|Perc"), ~if_else(Total < 30 & Total >= 1, "< 30", as.character(.x))))
 
-write.xlsx(outcome_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/2G Supervision Level.xlsx", asTable = T) 
+write.xlsx(outcome_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/2G Supervision Level.xlsx", asTable = T) 
 
 outcome_per_df <- outcome_df %>%
   mutate(FTA_percent = as.numeric(FTA_Count) / as.numeric(Total),
          New_Arrest_Percent = as.numeric(New_Arrest_Count) / as.numeric(Total))
 
-write.xlsx(outcome_per_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/2G Supervision Level Percent.xlsx", asTable = T)
+write.xlsx(outcome_per_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/2G Supervision Level Percent.xlsx", asTable = T)
 
 #Aggregated 
 
@@ -1592,13 +1592,13 @@ outcome_df <- sup_df %>%
   group_by(monitor_level) %>%
   summarise(FTA = round(mean(fta_flag)*n()), New_Arrest = round(mean(recid_arrested_flag)*n()), Total = n())
 
-write.xlsx(outcome_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/2G Supervision Level Aggregated.xlsx", asTable = T) 
+write.xlsx(outcome_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/2G Supervision Level Aggregated.xlsx", asTable = T) 
 
 outcome_per_df <- outcome_df %>%
   mutate(FTA_percent = FTA / Total,
          New_Arrest_Percent = New_Arrest / Total)
 
-write.xlsx(outcome_per_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/2G Supervision Level Aggregated Percent.xlsx", asTable = T)
+write.xlsx(outcome_per_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/2G Supervision Level Aggregated Percent.xlsx", asTable = T)
 
 eval_df %>%
   filter(monitor_level %in% c("Lowest Levels", "Medium Levels", "Highest Levels")) %>%
@@ -1633,7 +1633,7 @@ risk_df_oras <- eval_df %>%
                         `Non New Charge Rate` = paste(round(100 - mean(recid_filed_flag)*100), "%")) %>%
               mutate(oras_risk_score = "Total"))
 
-write.xlsx(risk_df_oras, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/3A Oras.xlsx", asTable = T)  
+write.xlsx(risk_df_oras, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/3A Oras.xlsx", asTable = T)  
 
 eval_df %>%
   filter(tool_name == "ORAS",
@@ -1668,7 +1668,7 @@ risk_df_oras <- eval_df %>%
                         `Non New Charge Rate` = paste(round(100 - mean(recid_filed_flag)*100), "%")) %>%
               mutate(oras_risk_score = "Total"))
 
-write.xlsx(risk_df_oras, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/3A Oras categories.xlsx", asTable = T)  
+write.xlsx(risk_df_oras, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/3A Oras categories.xlsx", asTable = T)  
 ```
 Source: Pretrial Pilot Program Probation Data (10-01-2019 through 03-31-2021) from Modoc, Napa, Nevada, Ventura, and Yuba.
 \newpage
@@ -1692,7 +1692,7 @@ risk_df_vprai <- eval_df %>%
               mutate(vprai_risk_score = "Total"))%>%
   mutate(across(matches("Total|Count$|Rate|Perc"), ~if_else(Total < 30 & Total >= 1, "< 30", as.character(.x))))
 
-write.xlsx(risk_df_vprai, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/3A Vprai.xlsx", asTable = T)  
+write.xlsx(risk_df_vprai, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/3A Vprai.xlsx", asTable = T)  
 
 eval_df %>%
   filter(tool_name == "VPRAI",
@@ -1729,7 +1729,7 @@ risk_df_vprai <- eval_df %>%
               mutate(vprai_risk_score = "Total"))%>%
   mutate(across(matches("Total|Count$|Rate|Perc"), ~if_else(Total < 30 & Total >= 1, "< 30", as.character(.x))))
 
-write.xlsx(risk_df_vprai, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/3A Vprai categories.xlsx", asTable = T)  
+write.xlsx(risk_df_vprai, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/3A Vprai categories.xlsx", asTable = T)  
 ```
 Source: Pretrial Pilot Program Probation Data (10-01-2019 through 03-31-2021) from San Joaquin and Santa Barbara.
 \newpage
@@ -1754,7 +1754,7 @@ risk_df_vprair <- eval_df %>%
   mutate(across(matches("Total|Count$|Rate|Perc"), ~if_else(Total < 30 & Total >= 1, "< 30", as.character(.x))))
 
 
-write.xlsx(risk_df_vprair, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/3A VpraiR.xlsx", asTable = T) 
+write.xlsx(risk_df_vprair, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/3A VpraiR.xlsx", asTable = T) 
 
 eval_df %>%
   filter(tool_name == "VPRAI-R",
@@ -1801,7 +1801,7 @@ risk_df_vprair <- eval_df %>%
          ))
 
 
-write.xlsx(risk_df_vprair, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/3A VpraiR categories.xlsx", asTable = T) 
+write.xlsx(risk_df_vprair, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/3A VpraiR categories.xlsx", asTable = T) 
 ```
 Source: Pretrial Pilot Program Probation Data (10-01-2019 through 03-31-2021) from Alameda, San Mateo and Santa Barbara.
 \newpage
@@ -1825,7 +1825,7 @@ risk_df_vpraio <- eval_df %>%
               mutate(vpraio_risk_score = "Total")) %>%
   mutate(across(matches("Total|Count$|Rate|Perc"), ~if_else(Total < 30 & Total >= 1, "< 30", as.character(.x))))
 
-write.xlsx(risk_df_vpraio, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/3A VpraiO.xlsx", asTable = T)
+write.xlsx(risk_df_vpraio, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/3A VpraiO.xlsx", asTable = T)
 
 eval_df %>%
   filter(tool_name == "VPRAIO",
@@ -1861,7 +1861,7 @@ risk_df_vpraio <- eval_df %>%
               mutate(vpraio_risk_score = "Total")) %>%
   mutate(across(matches("Total|Count$|Rate|Perc"), ~if_else(Total < 30 & Total >= 1, "< 30", as.character(.x))))
 
-write.xlsx(risk_df_vpraio, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/3A VpraiO categories.xlsx", asTable = T)
+write.xlsx(risk_df_vpraio, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/3A VpraiO categories.xlsx", asTable = T)
 ```
 Source: Pretrial Pilot Program Probation Data (10-01-2019 through 03-31-2021) from Kings.
 \newpage
@@ -1900,9 +1900,9 @@ risk_df_psa_nca <- eval_df %>%
               mutate(psa_nca_risk_score = "Total")) %>%
   mutate(across(matches("Total|Count$|Rate|Perc"), ~if_else(Total < 30 & Total >= 1, "< 30", as.character(.x))))
 
-write.xlsx(risk_df_psa_fta, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/3A PSA FTA.xlsx", asTable = T)
+write.xlsx(risk_df_psa_fta, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/3A PSA FTA.xlsx", asTable = T)
 
-write.xlsx(risk_df_psa_nca, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/3A PSA NCA.xlsx", asTable = T)
+write.xlsx(risk_df_psa_nca, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/3A PSA NCA.xlsx", asTable = T)
 
 eval_df %>%
   filter(tool_name == "PSA",
@@ -1981,7 +1981,7 @@ release_oras <- join_df %>%
          )) %>%
   count(oras_risk_score, release_decision, risk_category)
 
-write.xlsx(list(race_oras, gender_oras, offense_type_oras, release_oras), file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/3B ORAS.xlsx", asTable = T, sheetName = c("Race", "Gender", "Offense Type",  "Release"))
+write.xlsx(list(race_oras, gender_oras, offense_type_oras, release_oras), file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/3B ORAS.xlsx", asTable = T, sheetName = c("Race", "Gender", "Offense Type",  "Release"))
 
 df %>%
   filter(tool_name == "ORAS",
@@ -2078,7 +2078,7 @@ release_vprai <- join_df %>%
 
 
 
-write.xlsx(list(race_vprai, gender_vprai, offense_type_vprai,  release_vprai), file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/3B VPRAI.xlsx", asTable = T, sheetName = c("Race", "Gender", "Offense Type", "Release"))
+write.xlsx(list(race_vprai, gender_vprai, offense_type_vprai,  release_vprai), file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/3B VPRAI.xlsx", asTable = T, sheetName = c("Race", "Gender", "Offense Type", "Release"))
 
 
 df %>%
@@ -2182,7 +2182,7 @@ release_vprair <- join_df %>%
          )) %>%
   count(vprair_risk_score, release_decision, risk_score_sort)
 
-write.xlsx(list(race_vprair, gender_vprair, offense_type_vprair, release_vprair), file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/3B VPRAIR.xlsx", asTable = T, sheetName = c("Race", "Gender", "Offense Type",  "Release"))
+write.xlsx(list(race_vprair, gender_vprair, offense_type_vprair, release_vprair), file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/3B VPRAIR.xlsx", asTable = T, sheetName = c("Race", "Gender", "Offense Type",  "Release"))
 
 df %>%
   filter(tool_name == "VPRAI-R",
@@ -2248,7 +2248,7 @@ release_vpraio <- join_df %>%
          )) %>%
   count(vpraio_risk_score, release_decision)
 
-write.xlsx(list(race_vpraio, gender_vpraio, offense_type_vpraio,  release_vpraio), file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/3B VPRAIO.xlsx", asTable = T, sheetName = c("Race", "Gender", "Offense Type",  "Release"))
+write.xlsx(list(race_vpraio, gender_vpraio, offense_type_vpraio,  release_vpraio), file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/3B VPRAIO.xlsx", asTable = T, sheetName = c("Race", "Gender", "Offense Type",  "Release"))
 
 
 df %>%
@@ -2293,7 +2293,7 @@ release_psa <- join_df %>%
                                       T ~ "Other")) %>%
   count(psa_fta_risk_score, release_decision)
 
-write.xlsx(list(race_psa, gender_psa, offense_type_psa,  release_psa), file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/3B PSA FTA.xlsx", asTable = T, sheetName = c("Race", "Gender", "Offense Type",  "Release"))
+write.xlsx(list(race_psa, gender_psa, offense_type_psa,  release_psa), file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/3B PSA FTA.xlsx", asTable = T, sheetName = c("Race", "Gender", "Offense Type",  "Release"))
 
 df %>%
   filter(tool_name == "PSA",
@@ -2338,7 +2338,7 @@ release_psa <- join_df %>%
                                       T ~ "Other")) %>%
   count(psa_nca_risk_score, release_decision)
 
-write.xlsx(list(race_psa, gender_psa, offense_type_psa,  release_psa), file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/3B PSA NCA.xlsx", asTable = T, sheetName = c("Race", "Gender", "Offense Type",  "Release"))
+write.xlsx(list(race_psa, gender_psa, offense_type_psa,  release_psa), file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/3B PSA NCA.xlsx", asTable = T, sheetName = c("Race", "Gender", "Offense Type",  "Release"))
 
 df %>%
   filter(tool_name == "PSA",
@@ -2378,7 +2378,7 @@ release_psa <- join_df %>%
                                       T ~ "Other")) %>%
   count(psa_nvca_risk_score, release_decision)
 
-write.xlsx(list(race_psa, gender_psa, offense_type_psa,  release_psa), file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/3B PSA NVCA.xlsx", asTable = T, sheetName = c("Race", "Gender", "Offense Type",  "Release"))
+write.xlsx(list(race_psa, gender_psa, offense_type_psa,  release_psa), file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/3B PSA NVCA.xlsx", asTable = T, sheetName = c("Race", "Gender", "Offense Type",  "Release"))
 
 
 df %>%
@@ -2427,7 +2427,7 @@ risk_df_oras_offense <- eval_df %>%
   arrange(arrest_charge_level, oras_risk_score) %>%
   mutate(across(matches("Total|Count$|Rate|Perc"), ~if_else(Total < 30 & Total >= 1, "< 30", as.character(.x))))
 
-write.xlsx(list(risk_df_oras_gender, risk_df_oras_race, risk_df_oras_offense), file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/3C Oras.xlsx", asTable = T, sheetName = c("Gender", "Race", "Offense Type"))  
+write.xlsx(list(risk_df_oras_gender, risk_df_oras_race, risk_df_oras_offense), file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/3C Oras.xlsx", asTable = T, sheetName = c("Gender", "Race", "Offense Type"))  
 ```
 Source: Pretrial Pilot Program Probation Data (10-01-2019 through 03-31-2021) from Modoc, Napa, Nevada, Ventura, and Yuba.
 \newpage
@@ -2482,7 +2482,7 @@ risk_df_oras_offense <- eval_df %>%
   arrange(arrest_charge_level, oras_risk_score) %>%
   mutate(across(matches("Total|Count$|Rate|Perc"), ~if_else(Total < 30 & Total >= 1, "< 30", as.character(.x)))) 
 
-write.xlsx(list(risk_df_oras_gender, risk_df_oras_race, risk_df_oras_offense), file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/3C Oras categories.xlsx", asTable = T, sheetName = c("Gender", "Race", "Offense Type"))  
+write.xlsx(list(risk_df_oras_gender, risk_df_oras_race, risk_df_oras_offense), file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/3C Oras categories.xlsx", asTable = T, sheetName = c("Gender", "Race", "Offense Type"))  
 ```
 Source: Pretrial Pilot Program Probation Data (10-01-2019 through 03-31-2021) from Modoc, Napa, Nevada, Ventura, and Yuba.
 \newpage
@@ -2522,7 +2522,7 @@ risk_df_vprai_offense <- eval_df %>%
   arrange(arrest_charge_level, vprai_risk_score) %>%
   mutate(across(matches("Total|Count$|Rate|Perc"), ~if_else(Total < 30 & Total >= 1, "< 30", as.character(.x)))) 
 
-write.xlsx(list(risk_df_vprai_gender, risk_df_vprai_race, risk_df_vprai_offense), file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/3C VPRAI.xlsx", asTable = T, sheetName = c("Gender", "Race", "Offense Type")) 
+write.xlsx(list(risk_df_vprai_gender, risk_df_vprai_race, risk_df_vprai_offense), file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/3C VPRAI.xlsx", asTable = T, sheetName = c("Gender", "Race", "Offense Type")) 
 ```
 Source: Pretrial Pilot Program Probation Data (10-01-2019 through 03-31-2021) from San Joaquin and Santa Barbara.
 \newpage
@@ -2583,7 +2583,7 @@ risk_df_vprai_offense <- eval_df %>%
   arrange(arrest_charge_level, vprai_risk_score) %>%
   mutate(across(matches("Total|Count$|Rate|Perc"), ~if_else(Total < 30 & Total >= 1, "< 30", as.character(.x)))) 
 
-write.xlsx(list(risk_df_vprai_gender, risk_df_vprai_race, risk_df_vprai_offense), file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/3C VPRAI categories.xlsx", asTable = T, sheetName = c("Gender", "Race", "Offense Type")) 
+write.xlsx(list(risk_df_vprai_gender, risk_df_vprai_race, risk_df_vprai_offense), file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/3C VPRAI categories.xlsx", asTable = T, sheetName = c("Gender", "Race", "Offense Type")) 
 ```
 Source: Pretrial Pilot Program Probation Data (10-01-2019 through 03-31-2021) from San Joaquin and Santa Barbara.
 \newpage
@@ -2623,7 +2623,7 @@ risk_df_vprair_offense <- eval_df %>%
   arrange(arrest_charge_level, vprair_risk_score) %>%
   mutate(across(matches("Total|Count$|Rate|Perc"), ~if_else(Total < 30 & Total >= 1, "< 30", as.character(.x)))) 
 
-write.xlsx(list(risk_df_vprair_gender, risk_df_vprair_race, risk_df_vprair_offense), file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/3C VPRAIR.xlsx", asTable = T, sheetName = c("Gender", "Race", "Offense Type")) 
+write.xlsx(list(risk_df_vprair_gender, risk_df_vprair_race, risk_df_vprair_offense), file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/3C VPRAIR.xlsx", asTable = T, sheetName = c("Gender", "Race", "Offense Type")) 
 ```
 Source: Pretrial Pilot Program Probation Data (10-01-2019 through 03-31-2021) from Alameda, San Mateo and Santa Barbara.
 \newpage
@@ -2711,7 +2711,7 @@ risk_df_vprair_offense <- eval_df %>%
            vprair_risk_score == "Scores 11-14" ~ 6
          )) 
 
-write.xlsx(list(risk_df_vprair_gender, risk_df_vprair_race, risk_df_vprair_offense), file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/3C VPRAIR categories.xlsx", asTable = T, sheetName = c("Gender", "Race", "Offense Type")) 
+write.xlsx(list(risk_df_vprair_gender, risk_df_vprair_race, risk_df_vprair_offense), file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/3C VPRAIR categories.xlsx", asTable = T, sheetName = c("Gender", "Race", "Offense Type")) 
 ```
 Source: Pretrial Pilot Program Probation Data (10-01-2019 through 03-31-2021) from Alameda, San Mateo and Santa Barbara.
 \newpage
@@ -2751,7 +2751,7 @@ risk_df_vpraio_offense <- eval_df %>%
   arrange(arrest_charge_level, vpraio_risk_score) %>%
   mutate(across(matches("Total|Count$|Rate|Perc"), ~if_else(Total < 30 & Total >= 1, "< 30", as.character(.x)))) 
 
-write.xlsx(list(risk_df_vpraio_gender, risk_df_vpraio_race, risk_df_vpraio_offense), file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/3C VPRAIO.xlsx", asTable = T, sheetName = c("Gender", "Race", "Offense Type")) 
+write.xlsx(list(risk_df_vpraio_gender, risk_df_vpraio_race, risk_df_vpraio_offense), file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/3C VPRAIO.xlsx", asTable = T, sheetName = c("Gender", "Race", "Offense Type")) 
 ```
 Source: Pretrial Pilot Program Probation Data (10-01-2019 through 03-31-2021) from Kings.
 \newpage
@@ -2812,7 +2812,7 @@ risk_df_vpraio_offense <- eval_df %>%
   arrange(arrest_charge_level, vpraio_risk_score) %>%
   mutate(across(matches("Total|Count$|Rate|Perc"), ~if_else(Total < 30 & Total >= 1, "< 30", as.character(.x)))) 
 
-write.xlsx(list(risk_df_vpraio_gender, risk_df_vpraio_race, risk_df_vpraio_offense), file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/3C VPRAIO categories.xlsx", asTable = T, sheetName = c("Gender", "Race", "Offense Type")) 
+write.xlsx(list(risk_df_vpraio_gender, risk_df_vpraio_race, risk_df_vpraio_offense), file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/3C VPRAIO categories.xlsx", asTable = T, sheetName = c("Gender", "Race", "Offense Type")) 
 ```
 Source: Pretrial Pilot Program Probation Data (10-01-2019 through 03-31-2021) from Kings.
 \newpage
@@ -2852,7 +2852,7 @@ risk_df_psa_offense <- eval_df %>%
   arrange(arrest_charge_level, psa_fta_risk_score) %>%
   mutate(across(matches("Total|Count$|Rate|Perc"), ~if_else(Total < 30 & Total >= 1, "< 30", as.character(.x)))) 
 
-write.xlsx(list(risk_df_psa_gender, risk_df_psa_race, risk_df_psa_offense), file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/3C PSA FTA.xlsx", asTable = T, sheetName = c("Gender", "Race", "Offense Type")) 
+write.xlsx(list(risk_df_psa_gender, risk_df_psa_race, risk_df_psa_offense), file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/3C PSA FTA.xlsx", asTable = T, sheetName = c("Gender", "Race", "Offense Type")) 
 
 risk_df_psa_gender <- eval_df %>%
   filter(tool_name == "PSA",
@@ -2887,7 +2887,7 @@ risk_df_psa_offense <- eval_df %>%
   arrange(arrest_charge_level, psa_nca_risk_score) %>%
   mutate(across(matches("Total|Count$|Rate|Perc"), ~if_else(Total < 30 & Total >= 1, "< 30", as.character(.x)))) 
 
-write.xlsx(list(risk_df_psa_gender, risk_df_psa_race, risk_df_psa_offense), file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/3C PSA NCA.xlsx", asTable = T, sheetName = c("Gender", "Race", "Offense Type")) 
+write.xlsx(list(risk_df_psa_gender, risk_df_psa_race, risk_df_psa_offense), file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/3C PSA NCA.xlsx", asTable = T, sheetName = c("Gender", "Race", "Offense Type")) 
 
 risk_df_psa_gender <- eval_df %>%
   filter(tool_name == "PSA",
@@ -2919,7 +2919,7 @@ risk_df_psa_offense <- eval_df %>%
   arrange(arrest_charge_level, psa_nvca_risk_score) %>%
   mutate(across(matches("Total|Count$|Rate|Perc"), ~if_else(Total < 30 & Total >= 1, "< 30", as.character(.x)))) 
 
-write.xlsx(list(risk_df_psa_gender, risk_df_psa_race, risk_df_psa_offense), file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/3C PSA NVCA.xlsx", asTable = T, sheetName = c("Gender", "Race", "Offense Type")) 
+write.xlsx(list(risk_df_psa_gender, risk_df_psa_race, risk_df_psa_offense), file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/3C PSA NVCA.xlsx", asTable = T, sheetName = c("Gender", "Race", "Offense Type")) 
 ```
 Source: Pretrial Pilot Program Probation Data (10-01-2019 through 03-31-2021) from Calaveras, Los Angeles, Sacramento, Tulare and Tuolumne.
 \newpage
@@ -2946,7 +2946,7 @@ override_df2 <- df %>%
   group_by(tool_name) %>%
   mutate(prop = n/sum(n))
 
-write.xlsx(list(override_df, override_df2), file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2022/3D.xlsx", asTable = T, sheetName = c("Overrides", "Supplementary")) 
+write.xlsx(list(override_df, override_df2), file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/3D.xlsx", asTable = T, sheetName = c("Overrides", "Supplementary")) 
 
 # df %>%
 #   count(county, release_recommendation)
