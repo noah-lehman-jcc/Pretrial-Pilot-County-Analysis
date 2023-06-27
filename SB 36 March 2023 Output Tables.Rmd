@@ -76,14 +76,14 @@ FROM "DWH_PROD"."DATA_SCIENCE"."CJS_OUTCOME_STD"
 \newpage
 
 Pull snowflake data -- join_df
-```{sql eval=FALSE, connection=con, include=FALSE, output.var='join_df'}
+```{sql connection=con, include=FALSE, output.var='join_df'}
 SELECT *
 FROM "DWH_PROD"."DATA_SCIENCE"."JOIN_DF_STD"
 ;
 ```
 
 Pull 6.20.22 snowflake data -- join_df
-```{sql  connection=con, include=FALSE, output.var='join_df'}
+```{sql eval=FALSE, connection=con, include=FALSE, output.var='join_df'}
 SELECT *
 FROM "DWH_PROD"."DATA_SCIENCE"."JOIN_STD_20220624"
 ;
@@ -104,7 +104,7 @@ df <- df %>%
                             county %in% c("Kings", "Napa", "Nevada", "Sierra") ~ "Small/Medium Counties",
                             T ~ county),
          County = ordered(County),
-         County = factor(County, levels = c("Small Counties", "Small/Medium Counties")),
+         County = fct_relevel(County, c("Small Counties", "Small/Medium Counties")),
          charge_level_orig = charge_level,
          charge_level = charge_level_standard,
          arrest_charge_level = charge_level,
@@ -144,7 +144,7 @@ join_df <- join_df %>%
                             county %in% c("Kings", "Napa", "Nevada", "Sierra") ~ "Small/Medium Counties",
                             T ~ county),
          County = ordered(County),
-         County = factor(County, levels = c("Small Counties", "Small/Medium Counties")),
+         County = fct_relevel(County, c("Small Counties", "Small/Medium Counties")),
          release_type = if_else(release_type == "CiteR elease", "Cite Release", release_type), # fix LA's typo
          convicted_flag = if_else(disposition_type == "Convicted", 1, 0),
          new_arrest_flag = release_eligible_count,
