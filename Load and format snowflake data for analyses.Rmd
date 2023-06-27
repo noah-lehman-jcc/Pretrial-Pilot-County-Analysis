@@ -1430,6 +1430,37 @@ ggsave("all bookings counts by race with key dates statewide by charge level and
   
 
 ```
+Counts of bookings by racial group with Asian group
+```{r}
+full_bts %>%
+  filter(is_release_eligible == "Yes") %>%
+  #filter(is_released_pretrial == "Yes") %>%
+  #filter(has_pretrial_period_end == "Yes") %>%
+  filter(booking_date >= as.Date("2018-7-1"),
+         booking_date < as.Date("2023-1-1")) %>%
+  filter(charge_level %in% c("M", "F")) %>%
+  count(race_standard) %>%
+  arrange(desc(n))
+```
+Counts of bookings by racial group uncollapsed
+```{r}
+full_bts %>%
+  filter(is_release_eligible == "Yes") %>%
+  #filter(is_released_pretrial == "Yes") %>%
+  #filter(has_pretrial_period_end == "Yes") %>%
+  filter(booking_date >= as.Date("2018-7-1"),
+         booking_date < as.Date("2023-1-1")) %>%
+  filter(charge_level %in% c("M", "F")) %>%
+  mutate(race = case_when(race_standard %in% c("Hispanic", "White", "Black", "Asian") ~ race_standard,
+                          str_to_title(race_orig) %in% c("All Others", "Undefined", "Unknown", "Nhis", "Other") ~ "Labeled 'Other' by County",
+                          is.na(race_orig) ~ "Race left blank by County",
+                          str_to_title(race_orig) == "American Indian" ~ "American Indian",
+                          T ~ "Specific race not otherwise categorized")) %>%
+  count(race) %>%
+  arrange(desc(n))
+
+```
+
 
 * Look at counts of bookings, releases, recidivism by booking date by misdo/fel and zb/non-zb
 ```{r}
@@ -3201,6 +3232,40 @@ htmlTable(tidy(mod) %>%
 f_fta <- tidy(mod) %>%
   filter(term == "golive_flag")
 ```
+
+Look at avg time to dispo for FTA vs not FTA, fel and misdo
+```{r}
+full_bts %>%
+             filter(charge_level %in% c("M", "F")) %>%
+             #filter(zb_flag == 0) %>%
+             filter(released_pretrial_count == 1,
+                    pretrial_period_end_count ==1) %>%
+             filter(release_date >= as.Date("2019-01-01"),
+                    pretrial_period_end_date < as.Date("2020-01-01") | release_date >= as.Date("2020-07-01"),
+                    release_date < as.Date("2021-07-01"),
+                    pretrial_period_end_date <= as.Date("2022-01-01")) %>%
+            mutate(book_month = as.factor(month(booking_date))) %>%
+             mutate(days_released = pretrial_period_end_date - release_date) %>%
+  group_by(golive_flag, charge_level, fta_flag) %>%
+  summarize(mean_days = round(mean(days_released), 1), med_days = median(days_released))
+```
+Look at avg time to dispo for NCA vs not NCA, fel and misdo
+```{r}
+full_bts %>%
+             filter(charge_level %in% c("M", "F")) %>%
+             #filter(zb_flag == 0) %>%
+             filter(released_pretrial_count == 1,
+                    pretrial_period_end_count ==1) %>%
+             filter(release_date >= as.Date("2019-01-01"),
+                    pretrial_period_end_date < as.Date("2020-01-01") | release_date >= as.Date("2020-07-01"),
+                    release_date < as.Date("2021-07-01"),
+                    pretrial_period_end_date <= as.Date("2022-01-01")) %>%
+            mutate(book_month = as.factor(month(booking_date))) %>%
+             mutate(days_released = pretrial_period_end_date - release_date) %>%
+  group_by(golive_flag, charge_level, recid_county_or_doj) %>%
+  summarize(mean_days = round(mean(days_released), 1), med_days = median(days_released))
+```
+
 
 # Try predicting new violence
 Join flags to recid
@@ -6903,6 +6968,102 @@ prepost %>%
        y = "Estimated probability of pretrial OR/PM release compared to White individuals\nbefore and after pilot implementation") +
   guides(color = "none") +
   facet_grid(cols = vars(golive))
+```
+
+# Days incarcerated for Francine
+
+```{r}
+full_bts %>%
+  filter(is_release_eligible == "Yes") %>%
+  filter(booking_date >= as.Date("2018-07-01")) %>%
+  filter(release_date >= booking_date) %>%
+  filter(charge_level %in% c("M", "F")) %>%
+  filter(released_pretrial_count == 0,
+         pretrial_period_end_count ==1) %>%
+  mutate(days_incarcerated = pretrial_period_end_date - book_date,
+         book_month = floor_date(book_date, unit = "month")) %>%
+  group_by(county, charge_level, book_month) %>%
+  summarise(mean_days_incarcerated = mean(days_incarcerated), 
+            med_days_incarcerated = median(days_incarcerated)) %>%
+  ggplot(aes(y = mean_days_incarcerated, x = book_month)) +
+    geom_bar(position = "dodge", stat = "identity") +
+    facet_grid(rows = vars(county), cols = vars(charge_level)) +
+    scale_fill_manual(values=c("#68023F", "#008169", "#EF0096", "#00DCB5", "#FFCFE2", "#003C86", "#9400E6", "#009FFA",
+                             "#FF71FD", "#7CFFFA", "#3D3C04", "#008607", "#F60239", "#00E307", "#FFDC3D"))
+
+
+ggsave("mean days incarcerated, complete only.png", width = 8, height = 20)
+```
+With incomplete pretrial periods
+```{r}
+full_bts %>%
+  filter(is_release_eligible == "Yes") %>%
+  filter(booking_date >= as.Date("2018-07-01")) %>%
+  filter(release_date >= booking_date) %>%
+  filter(charge_level %in% c("M", "F")) %>%
+  filter(released_pretrial_count == 0) %>%
+  mutate(end_date = if_else(pretrial_period_end_count == 1, pretrial_period_end_date, as.Date("2023-01-01"))) %>%
+  mutate(days_incarcerated = end_date - book_date,
+         book_month = floor_date(book_date, unit = "month")) %>%
+  group_by(county, charge_level, book_month) %>%
+  summarise(mean_days_incarcerated = mean(days_incarcerated), 
+            med_days_incarcerated = median(days_incarcerated)) %>%
+  ggplot(aes(y = mean_days_incarcerated, x = book_month)) +
+    geom_bar(position = "dodge", stat = "identity") +
+    facet_grid(rows = vars(county), cols = vars(charge_level)) +
+    scale_fill_manual(values=c("#68023F", "#008169", "#EF0096", "#00DCB5", "#FFCFE2", "#003C86", "#9400E6", "#009FFA",
+                             "#FF71FD", "#7CFFFA", "#3D3C04", "#008607", "#F60239", "#00E307", "#FFDC3D"))
+
+
+ggsave("mean days incarcerated, incomplete included.png", width = 8, height = 20)
+```
+
+median complete only
+```{r}
+full_bts %>%
+  filter(is_release_eligible == "Yes") %>%
+  filter(booking_date >= as.Date("2018-07-01")) %>%
+  filter(release_date >= booking_date) %>%
+  filter(charge_level %in% c("M", "F")) %>%
+  filter(released_pretrial_count == 0,
+         pretrial_period_end_count ==1) %>%
+  mutate(days_incarcerated = pretrial_period_end_date - book_date,
+         book_month = floor_date(book_date, unit = "month")) %>%
+  group_by(county, charge_level, book_month) %>%
+  summarise(mean_days_incarcerated = mean(days_incarcerated), 
+            med_days_incarcerated = median(days_incarcerated)) %>%
+  ggplot(aes(y = med_days_incarcerated, x = book_month)) +
+    geom_bar(position = "dodge", stat = "identity") +
+    facet_grid(rows = vars(county), cols = vars(charge_level)) +
+    scale_fill_manual(values=c("#68023F", "#008169", "#EF0096", "#00DCB5", "#FFCFE2", "#003C86", "#9400E6", "#009FFA",
+                             "#FF71FD", "#7CFFFA", "#3D3C04", "#008607", "#F60239", "#00E307", "#FFDC3D"))
+
+
+ggsave("med days incarcerated, complete only.png", width = 8, height = 20)
+```
+
+median with incomplete
+```{r}
+full_bts %>%
+  filter(is_release_eligible == "Yes") %>%
+  filter(booking_date >= as.Date("2018-07-01")) %>%
+  filter(release_date >= booking_date) %>%
+  filter(charge_level %in% c("M", "F")) %>%
+  filter(released_pretrial_count == 0) %>%
+  mutate(end_date = if_else(pretrial_period_end_count == 1, pretrial_period_end_date, as.Date("2023-01-01"))) %>%
+  mutate(days_incarcerated = end_date - book_date,
+         book_month = floor_date(book_date, unit = "month")) %>%
+  group_by(county, charge_level, book_month) %>%
+  summarise(mean_days_incarcerated = mean(days_incarcerated), 
+            med_days_incarcerated = median(days_incarcerated)) %>%
+  ggplot(aes(y = med_days_incarcerated, x = book_month)) +
+    geom_bar(position = "dodge", stat = "identity") +
+    facet_grid(rows = vars(county), cols = vars(charge_level)) +
+    scale_fill_manual(values=c("#68023F", "#008169", "#EF0096", "#00DCB5", "#FFCFE2", "#003C86", "#9400E6", "#009FFA",
+                             "#FF71FD", "#7CFFFA", "#3D3C04", "#008607", "#F60239", "#00E307", "#FFDC3D"))
+
+
+ggsave("med days incarcerated, incomplete included.png", width = 8, height = 20)
 ```
 
 # Space saver

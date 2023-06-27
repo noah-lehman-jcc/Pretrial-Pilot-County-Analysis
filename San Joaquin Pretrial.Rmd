@@ -125,4 +125,30 @@ tr_ind %>%
 
 
 ```
+# Fix booking key in jail booking and jail booking charge
+```{r}
+jb <- read_csv("G:/CrimJustice/Pretrial/San Joaquin Match Rate/Jail_Booking.csv", col_types = "c")
+jc <- read_csv("G:/CrimJustice/Pretrial/San Joaquin Match Rate/Jail_Booking_Charge.csv", col_types = "c")
+jl <- read_csv("G:/CrimJustice/Pretrial/San Joaquin Match Rate/Booking_Case_Link.csv", col_types = "c")
+ji <- read_csv("G:/CrimJustice/Pretrial/San Joaquin Match Rate/Jail_Individual.csv", col_types = "c")
+
+
+ mutate(Booking_Key = gsub("^(..)-", "\\1", Booking_Key),
+         Booking_Key = if_else(!grepl("-", Booking_Key) & !is.na(Booking_Key), paste0(Booking_Key, "-00"), Booking_Key))
+
+jb
+jc
+jl
+ji
+
+jl %>%
+  count(grepl("_", Booking_Key))
+
+#jk they are already standardized this time around
+
+jb %>%
+  anti_join(jc %>% mutate(Booking_Key = as.character(Booking_Key)), by = "Booking_Key") %>%
+  count(Booking_Type_JCC_Standardized) %>%
+  arrange(desc(n))
+```
 

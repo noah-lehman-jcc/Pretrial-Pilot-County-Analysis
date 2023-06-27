@@ -808,6 +808,110 @@ Diagnostic
 ```{r}
 full_df %>%
   count(!is.na(release_date), !is.na(pretrial_period_end_date), !is.na(pretrial_period_end_date_doj), release_date < pretrial_period_end_date, release_date < pretrial_period_end_date_doj)
+
+load("G:/CrimJustice/PretrialAssessmentPilot/temp files for transfer 3.30.22/processed/Eval df 4.12.22.RData")
+
+eval_df %>%
+  summarise(min(booking_date), max(booking_date))
+
+summary(eval_df$booking_date)
+summary(eval_2021$book_date)
+
+eval_df %>%
+  filter(booking_date >= "2019-07-01") %>%
+  #filter(county == "Sacramento") %>%
+  group_by(year(booking_date), month(booking_date), county) %>%
+  count()
+
+eval_2021 %>%
+  filter(book_date >= "2019-07-01") %>%
+    filter(county == "Sacramento") %>%
+  group_by(year(book_date), month(book_date), county) %>%
+  count()
+
+eval_df %>%
+  filter(county == "Los Angeles") %>%
+  count()
+
+eval_2021 %>%
+  filter(county == "Los Angeles") %>%
+  count()
+
+eval_df %>%
+  filter(booking_date >= "2018-07-01") %>%
+  filter(county == "Los Angeles") %>%
+  mutate(book_my = floor_date(booking_date, unit = "month")) %>%
+  group_by(book_my, county) %>%
+  count() %>%
+  ggplot() +
+  aes(x = book_my, y = n, color = county) +
+  geom_point() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+
+eval_2021 %>%
+  filter(book_date >= "2018-07-01") %>%
+  filter(county == "Los Angeles") %>%
+  mutate(book_my = floor_date(book_date, unit = "month")) %>%
+  group_by(book_my, county) %>%
+  count() %>%
+  ggplot() +
+  aes(x = book_my, y = n, color = county) +
+  geom_point() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+
+summary_2022 <- eval_df %>%
+  filter(booking_date >= "2017-01-01") %>%
+  filter(booking_date < "2021-01-01") %>%
+  group_by(year = year(booking_date), county) %>%
+  count() %>%
+  rename(count_2022 = n)
+
+summary_2021 <- eval_2021 %>%
+  filter(book_date >= "2017-01-01") %>%
+  filter(book_date < "2021-01-01") %>%
+  group_by(year = year(book_date), county) %>%
+  count()  %>%
+  rename(count_2021 = n)
+
+summary_both <- summary_2022 %>%
+  full_join(summary_2021, by = c("year","county")) %>%
+  mutate(dif_2022minus2021 = count_2022 - count_2021) %>%
+  arrange(year)
+```
+
+
+```{r}
+summary_both %>%
+  #filter(year == 2019) %>%
+  ungroup() %>%
+  select(-month, -dif_2022minus2021) %>%
+  group_by(year, county) %>%
+  mutate(sum2022 = sum(count_2022), sum2021 = sum(count_2021)) %>%
+  select(-count_2022, -count_2021) %>%
+  distinct() 
+
+annual_2022 <- eval_df %>%
+  group_by(year = year(booking_date)) %>%
+  count() %>%
+  rename(count_2022 = n)
+
+annual_2021 <- eval_2021 %>%
+  group_by(year = year(book_date)) %>%
+  count() %>%
+  rename(count_2021 = n)
+
+annual_2022 %>%
+  full_join(annual_2021) %>%
+  mutate(count_2021 = if_else(is.na(count_2021), 0, as.numeric(count_2021))) %>%
+  mutate(dif = count_2022 - count_2021) %>%
+  select(-count_2022, -count_2021) 
+
+
+eval_df %>%
+  filter(booking_date <= "2017-01-01")
+  
 ```
 
 
@@ -823,12 +927,14 @@ write.csv(anon_df, file = "Anonymized Fabricated Data for Practice.csv")
 
 # load("Final Failure Evaluation.RData")
 
-eval_df <- eval_df %>%
+#not sure what this piece of code is for, seems unnecessary and weird
+eval_df_2022 <- eval_df %>%
   rename_all(funs(gsub("\\.y$", "_r", .))) %>%
   rename_all(funs(gsub("\\.x$", "", .))) %>%
   # select(-charge_level_r) %>%
   #Change Back tot_misd_r to actual match
-  mutate_at(vars(court_dispo:sf_violent_filing, -sentence_date), funs(if_else(is.na(.), 0, as.numeric(.)))) %>%
+  #mutate_at(vars(court_dispo:sf_violent_filing, -sentence_date), funs(if_else(is.na(.), 0, as.numeric(.)))) %>%
+  mutate_at(vars(contains("_flag")), funs(if_else(is.na(.), 0, as.numeric(.)))) %>%
   # mutate_at(vars(dv_flag_r:tot_misd_r, small_vio:violent_recid), funs(if_else(is.na(.), 0, as.numeric(.)))) %>%
   group_by(row_m) %>%
   mutate_at(vars(court_dispo:sf_violent_filing, -sentence_date, -row_m), sum) %>%

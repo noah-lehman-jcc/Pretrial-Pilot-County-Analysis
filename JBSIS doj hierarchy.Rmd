@@ -64,7 +64,7 @@ jbsis_comb <- jbsis_comb %>%
   arrange(hierarchy) %>%
   distinct(join_var, .keep_all = T)
 
-
+save(jbsis_comb, file = "jbsis charge code hierarchy.Rdata")
   
 #529 join_vars with multiple possible descriptions
 #54 join_vars with multiple possible hierarchy values

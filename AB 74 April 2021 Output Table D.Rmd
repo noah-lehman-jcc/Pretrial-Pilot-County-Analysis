@@ -107,35 +107,35 @@ eval_df <- eval_df %>%
   filter(monitor_level %in% c("Basic", "Moderate", "Enhanced")) %>%
   mutate(monitor_level = factor(monitor_level, levels =  c("Basic", "Moderate", "Enhanced"))) %>%
   filter(county != "San Joaquin") %>%
-  mutate(revoked_flag = if_else(fta_flag == 1|recid_flag == 1|pretrial_termination_outcome == "Unsuccessful", 1, 0)) %>%
+  mutate(revoked_flag = if_else(fta_flag == 1|recid_arrested_flag == 1|pretrial_termination_outcome == "Unsuccessful", 1, 0)) %>%
   mutate(revoked_flag = if_else(is.na(revoked_flag), 0, revoked_flag)) 
 
 fta_df <- eval_df %>%
   group_by(monitor_level, fta_flag) %>%
   count() %>%
   group_by(monitor_level) %>%
-  mutate(Total = sum(n), n = paste0(round(n = n/Total*100), "%", " ", n)) %>%
+  mutate(Total = sum(n), n = str_c(round(n/Total*100), "%", " ", n)) %>%
   spread(fta_flag, n) %>%
   select(-`0`) %>%
   bind_rows(eval_df %>%
               count(fta_flag) %>%
-              mutate(Total = sum(n), n = paste0(round(n = n/Total*100), "%", " ", n)) %>%
+              mutate(Total = sum(n), n = str_c(round(n/Total*100), "%", " ", n)) %>%
   spread(fta_flag, n) %>%
   select(-`0`) %>%
   mutate(monitor_level = "All_Levels")) %>%
   separate(`1`, sep = " ", into = c("Percent", "Count"))
 
 recid_df <- eval_df %>%
-  group_by(monitor_level, recid_flag) %>%
+  group_by(monitor_level, recid_arrested_flag) %>%
   count() %>%
   group_by(monitor_level) %>%
-  mutate(Total = sum(n), n = paste0(round(n = n/Total*100), "%", " ", n)) %>%
-  spread(recid_flag, n) %>%
+  mutate(Total = sum(n), n = paste0(round(n/Total*100), "%", " ", n)) %>%
+  spread(recid_arrested_flag, n) %>%
   select(-`0`) %>%
   bind_rows(eval_df %>%
-              count(recid_flag) %>%
-              mutate(Total = sum(n), n = paste0(round(n = n/Total*100), "%", " ", n)) %>%
-  spread(recid_flag, n) %>%
+              count(recid_arrested_flag) %>%
+              mutate(Total = sum(n), n = paste0(round(n/Total*100), "%", " ", n)) %>%
+  spread(recid_arrested_flag, n) %>%
   select(-`0`) %>%
   mutate(monitor_level = "All_Levels")) %>%
   separate(`1`, sep = " ", into = c("Percent", "Count"))
@@ -144,12 +144,12 @@ revoked_df <- eval_df %>%
   group_by(monitor_level, revoked_flag) %>%
   count() %>%
   group_by(monitor_level) %>%
-  mutate(Total = sum(n), n = paste0(round(n = n/Total*100), "%", " ", n)) %>%
+  mutate(Total = sum(n), n = paste0(round(n/Total*100), "%", " ", n)) %>%
   spread(revoked_flag, n) %>%
   select(-`0`) %>%
   bind_rows(eval_df %>%
               count(revoked_flag) %>%
-              mutate(Total = sum(n), n = paste0(round(n = n/Total*100), "%", " ", n)) %>%
+              mutate(Total = sum(n), n = paste0(round(n/Total*100), "%", " ", n)) %>%
   spread(revoked_flag, n) %>%
   select(-`0`) %>%
   mutate(monitor_level = "All_Levels")) %>%
@@ -162,7 +162,7 @@ outcome_df <- bind_cols(fta_df, recid_df[3:4], revoked_df[3:4]) %>%
 names(outcome_df) <- gsub("\\..*", "", names(outcome_df))
 
 
-kable(outcome_df, booktabs = T, format.args = list(big.mark = ","),
+kable(outcome_df, caption = "Pretrial Revocations by Termination Reason and Monitor Level", booktabs = T, format.args = list(big.mark = ","),
         # table.attr = "style = \"color: black;\"",
         format = "latex") %>%
     kable_styling(position = "center", full_width = T,
@@ -171,7 +171,10 @@ kable(outcome_df, booktabs = T, format.args = list(big.mark = ","),
                      "Total FTA, New Crime,\n or Revocation" = 2)) %>%
   column_spec(2:10, width = ".5in") %>%
   column_spec(1, width = "1in") %>%
-  row_spec(5, bold = T)
+  row_spec(5, bold = T) %>%
+  add_footnote("Notes: For counties which use discrete supervision levels, supervision levels were collapsed into 'Basic', 'Moderate', and 'Enhanced' supervision, though what each of these supervision levels mean varies widely across counties.", notation = "none") %>%
+  footnote(alphabet = c("Testing 1", "Testing 2")) %>%
+  landscape()
 ```
 Notes: For counties which use discrete supervision levels, supervision levels were collapsed into 'Basic', 'Moderate', and 'Enhanced' supervision, though what each of these supervision levels mean varies widely across counties.
 

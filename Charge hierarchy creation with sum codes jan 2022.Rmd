@@ -777,7 +777,7 @@ new_codes_flagged <- new_codes_jb %>%
 
 new_codes_flagged
 
-write.xlsx(new_codes_flagged, file = "G:/CrimJustice/PretrialAssessmentPilot/Charge Definitions and Hierarchy/New 2022 codes for lawyer review.xlsx", asTable = T, tableStyle = "TableStyleMedium1")
+#write.xlsx(new_codes_flagged, file = "G:/CrimJustice/PretrialAssessmentPilot/Charge Definitions and Hierarchy/New 2022 codes for lawyer review.xlsx", asTable = T, tableStyle = "TableStyleMedium1")
 ```
 
 Combine historical JBSIS doj files from Savet
@@ -808,6 +808,7 @@ jbsis_comb
 
 
 new_codes <- read.xlsx("G:/CrimJustice/PretrialAssessmentPilot/Charge Definitions and Hierarchy/New 2022 codes for lawyer review.xlsx")
+#new_codes <- read.xlsx("G:/CrimJustice/PretrialAssessmentPilot/Charge Definitions and Hierarchy/New 2022 codes.xlsx")
 load("G:/CrimJustice/PretrialAssessmentPilot/Complete Charge Code Hierarchy_SL.RData")
 
 bind_rows(new_codes, charge_hier) %>%
@@ -819,9 +820,11 @@ missing_jbsis <- new_codes %>%
   filter(is.na(jbsis_code))
 
 
+# THIS IS NOT WORKING ANYWAY
 # match jbsis codes to charges with missing jbsis codes determined by the base charge, when there is no conflict of jbsis codes.
 # also match summary codes to charges with missing summary codes in the same way
-bind_rows(new_codes, charge_hier) %>%
+### Ask a lawyer about this, whether this is legitimate to do
+filled_in <- bind_rows(new_codes, charge_hier) %>%
   mutate(charge_start = as.integer(parse_number(charge)),
          jbsis_code = if_else(is.na(jbsis_code)|jbsis_code == 0, 1000, jbsis_code),
          summary_code = if_else(is.na(summary_code)|summary_code == 0, 1000, summary_code)) %>%
@@ -829,14 +832,58 @@ bind_rows(new_codes, charge_hier) %>%
   mutate(n = sum(!(unique(jbsis_code) %in% c(1000, 90, 250, 270))),
          ns = sum(!unique(summary_code) %in% c(1000))) %>%
   mutate(jbsis_code = if_else(jbsis_code == 1000 & n %in% 0:1, min(jbsis_code), jbsis_code),
-         summary_code = if_else(summary_code == 1000 & ns %in% 0:1, min(summary_code), summary_code)) %>%
+         summary_code = if_else(summary_code == 1000 & ns %in% 0:1, min(summary_code), summary_code),
+         jbsis_filled_in = if_else(jbsis_code == 1000 & n %in% 1, 1, 0),
+         summ_filled_in = if_else(summary_code == 1000 & ns %in% 1, 1, 0)) %>%
   ungroup() %>%
   #Fixing property and drug flags to be off of summary codes
   mutate(property_flag = if_else(summary_code %in% c(8:11, 24, 31:33, 64), 1, 0),
          drug_flag = if_else(summary_code %in% c(12:15, 34:36), 1, 0)) %>%
-  select(-n, -ns, -charge_start) %>%
-  count(summary_code == 1000, jbsis_code == 1000)
+  select(-n, -ns, -charge_start)
+
+
+# %>%
+#   count(summary_code == 1000, jbsis_code == 1000)
 
 # need to go back and re-add bcs codes to the charge_hier if i want to use those for anything, they were removed
+
+
+#isolate instances where the codes would be getting filled in
+
+filled_in %>%
+  filter(jbsis_code == 1000) %>%
+  anti_join(jbsis_2021exc, by = "join_var") %>%
+  count(charge_code)
+
+jbsis_2021exc %>%
+  count(charge_code)
+
+doj_hierarchy_2022lei %>%
+  count(charge_level)
+  anti_join(jbsis_comb, by = "join_var") %>%
+  count(charge_level)
+
+doj_hierarchy_2022sec %>%
+  count(charge_level)
+  anti_join(jbsis_comb, by = "join_var") %>%
+  count(charge_level)
+
+jbsis_comb
+
+doj_hierarchy_2022lei %>%
+  anti_join(doj_hierarchy_2022sec, by = "join_var") %>%
+  filter(charge_level != "I") %>%
+  filter(parse_number(charge) == 243)
+
+
+doj_hierarchy_2022lei %>%
+  filter(parse_number(charge) == 243)
+
+charge_hier %>%
+  filter(parse_number(charge) == 243)
+
+filled_in %>%
+  filter(summ_filled_in == 1 & summary_code != 1000)
+  filter(jbsis_filled_in == 1 & jbsis_code != 1000)
 ```
 
