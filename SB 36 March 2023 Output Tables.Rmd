@@ -199,7 +199,9 @@ eval_df <- join_df %>%
          ) %>%
   mutate(release_to_pretrial_end = pretrial_period_end_date - release_date)
 
-
+save(df, file = "df.R")
+save(join_df, file = "join_df.R")
+save(eval_df, file = "eval_df.R")
 ```
 
 Date ranges
