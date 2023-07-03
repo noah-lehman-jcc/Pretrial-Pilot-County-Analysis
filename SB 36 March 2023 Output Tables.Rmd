@@ -199,9 +199,9 @@ eval_df <- join_df %>%
          ) %>%
   mutate(release_to_pretrial_end = pretrial_period_end_date - release_date)
 
-save(df, file = "df.R")
-save(join_df, file = "join_df.R")
-save(eval_df, file = "eval_df.R")
+save(df, file = "df.RData")
+save(join_df, file = "join_df.RData")
+save(eval_df, file = "eval_df.RData")
 ```
 
 Date ranges
@@ -1402,12 +1402,12 @@ This table excludes Los Angeles because at present data is only processed for pr
 
 San Joaquin and Sonoma were missing data on release decision and are not included in the table.
 
-```{r eval=FALSE, include=FALSE}
+```{r}
 release_df <- df %>%
   # filter(la_flag == 0) %>%
-  mutate(release_decision = if_else(release_decision %in% c("Monitor", "Own Recognizance"), "Granted Program Release", release_decision),
-         release_decision = if_else(release_decision %in% c("Deny Release"), "Denied Program Release", release_decision)) %>%
-  count(County, release_decision) %>%
+  mutate(release_decision_prearraignment = if_else(release_decision_prearraignment %in% c("Monitor", "Own Recognizance"), "Granted Program Release", release_decision_prearraignment),
+         release_decision_prearraignment = if_else(release_decision_prearraignment %in% c("Deny Release"), "Denied Program Release", release_decision_prearraignment)) %>%
+  count(County, release_decision_prearraignment) %>%
   filter(County == "Los Angeles")
   # group_by(County) %>%
   # mutate(Total = sum(n)) %>%
