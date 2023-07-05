@@ -169,6 +169,8 @@ join_df <- join_df %>%
          tool_name = case_when(county == "Kings" ~ "VPRAIO", 
                                county == "Santa Barbara" & assessment_date < as.Date("2020-4-29") ~ "VPRAI",
                                county == "Santa Barbara" & assessment_date >= as.Date("2020-4-29") ~ "VPRAI-R",
+                               county_name == "Alameda" & assessment_date < as.Date("2022-10-24") ~ "VPRAI-R",
+                               county_name == "Alameda" & assessment_date >= as.Date("2022-10-24") ~ "PSA",
                                tool_name == "VPRAIR" ~ "VPRAI-R",
                                T ~ tool_name),
          oras_risk_score = if_else(tool_name == "ORAS", risk_score_raw, NA_real_),
