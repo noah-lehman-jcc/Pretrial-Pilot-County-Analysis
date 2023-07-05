@@ -15,7 +15,7 @@ library(data.table)
 library(openxlsx)
 library(readxl)
 library(lubridate)
-library(XML)
+#library(XML)
 library(xml2)
 # library(xmltools)o
 library(gsubfn)
@@ -140,6 +140,60 @@ Drop OFF
 load("Tool Validation Final Data Frame.RData")
 load("G:/CrimJustice/PretrialAssessmentPilot/Jail, RRF, Court, DOJ Joined.RData")
 
+eval_2021 <- eval_df
+# 4.6.2022 data
+load("G:/CrimJustice/PretrialAssessmentPilot/temp files for transfer 3.30.22/processed/Eval df2 4.6.22.RData")
+
+load("G:/CrimJustice/PretrialAssessmentPilot/temp files for transfer 3.30.22/processed/Match df 4.6.22.RData")
+
+match_df_2022 <- match_df
+
+load("G:/CrimJustice/PretrialAssessmentPilot/Court Collapsed Full Data.RData")
+match_df_2021 <- match_df
+
+load("G:/CrimJustice/PretrialAssessmentPilot/temp files for transfer 3.30.22/processed/Collapsed Pretrial DOJ Data 4.6.22.RData")
+
+names(eval_df)
+# arrest_date_doj
+# sentence_date_doj
+# disposition_date_doj
+# filed_flag_doj
+# court_disp_flag_doj
+# everything from doj should have _doj appended
+# entirely uppercase varnames
+# remove row_m, row_doj
+
+eval_df2022 <- eval_df %>%
+  ungroup() %>%
+  select(-row_m, -row_doj) %>%
+  rename_at(10:103, funs(gsub("$", "_doj", .))) %>%
+  rename_all(funs(gsub("\\_doj_doj$", "_doj", .))) %>%
+  rename_all(funs(toupper(.)))
+
+names(eval_df2022)
+
+eval_df2022 <- eval_df2022 %>%
+  select(-CII_DOJ, -DISP_DESCR_DOJ) %>%
+  rename(DISPOSITION_DATE_DOJ = DISP_DATE_DOJ) %>%
+  select(-MATCH_DIF_DOJ, -MATCH_ID_DOJ) %>%
+  rename(CASE_DISPOSITION_DATE_DOJ = DISPOSITION_DATE_DOJ) 
+
+names(eval_df2022)
+  
+names(eval_df)
+
+#fwrite(eval_df, file = "G:/CrimJustice/PretrialAssessmentPilot/temp files for transfer 3.30.22/processed/Eval df for SF test 4.7.22.csv")
+
+fwrite(eval_df2022, file = "G:/CrimJustice/PretrialAssessmentPilot/temp files for transfer 3.30.22/processed/Eval df for SF test 4.12.22.csv")
+
+eval_df2022 %>%
+  ungroup() %>%
+  #select(PRETRIAL_PERIOD_END_DATE, PRETRIAL_PERIOD_END_DATE_DOJ, PRETRIAL_END_DATE_DOJ)
+  count(PRETRIAL_PERIOD_END_DATE == PRETRIAL_PERIOD_END_DATE_DOJ)
+```
+
+
+```{r}
 # This is really going to be a focus on assessments matched with bookings. 
 drop_df <- full_df %>%
   filter(new_arrest_flag == 1,
@@ -239,7 +293,7 @@ names(drop_df)[5] <- "Pretrial Complete"
 save(drop_df, file = "Assessment to Validation Drop Off.RData")
 
 # write.xlsx(drop_df, "Drop Off Table for Sonya.xlsx")
-```  
+```
 AUC by Race
 ```{r}
 race_df <- eval_df %>%

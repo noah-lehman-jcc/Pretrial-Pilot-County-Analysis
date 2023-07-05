@@ -345,17 +345,6 @@ df %>%
 
 ```
 
-TEMPORARY - Remove Santa Barbara until data are fixed
-```{r}
-df <- df %>%
-  filter(county != "Santa Barbara")
-
-full_df <- full_df %>%
-  filter(county != "Santa Barbara")
-
-eval_df <- eval_df %>%
-  filter(county != "Santa Barbara")
-```
 
 Remove erroneous Yuba release dates
 ```{r}
@@ -384,7 +373,7 @@ my_kable <- function(x){
 # Make AUC table
 
 Make AUC table --- MAKE SURE THIS IS ON WHEN THERE IS NEW DATA
-```{r echo=TRUE}
+```{r eval=FALSE, include=FALSE}
 race_df <- eval_df %>%
   mutate(race = "All")
 
@@ -473,9 +462,10 @@ save(roc_df, file= "C:/PretrialPilot/Pretrial-Pilot-County-Analysis/AUCs.RData")
 
 ```
 
+Load AUC table
 ```{r}
 #auc_df <- read.xlsx("C:/PretrialPilot/Pretrial-Pilot-County-Analysis/AUCs by Demographic Category.xlsx")
-#load("C:/PretrialPilot/Pretrial-Pilot-County-Analysis/AUCs.RData")
+load("C:/PretrialPilot/Pretrial-Pilot-County-Analysis/AUCs.RData")
 
 auc_df <- roc_df %>%
   mutate(tool_name = toupper(tool_name))
@@ -833,13 +823,13 @@ kable(outcome_df_tool, booktabs = T, format.args = list(big.mark = ","),
 
 
 
-# Indiv intro tables for reports - TEMPORARILY REMOVED SANTA BARBARA
+# Indiv intro tables for reports - 
 ```{r}
 
 county_list = eval_df %>% distinct(county) %>% pull(county)
 tool_list = eval_df %>% distinct(tool_name) %>% pull(tool_name)
 
-lapply(c("Los Angeles", "Sacramento", "Ventura", "Sonoma", "Tulare", "San Joaquin", "Modoc", "Napa", "Calaveras", "Alameda", "San Mateo"),
+lapply(c("Los Angeles", "Sacramento", "Ventura", "Sonoma", "Tulare", "San Joaquin", "Modoc", "Napa", "Calaveras", "Alameda", "San Mateo", "Santa Barbara"),
   function(x){
     
     
@@ -879,7 +869,7 @@ kable(outcome_df %>% filter(County == x), booktabs = T, format.args = list(big.m
 
 })     
 
-lapply(c("Los Angeles", "Sacramento", "Ventura", "Sonoma", "Tulare", "San Joaquin", "Modoc", "Napa", "Calaveras", "Alameda", "San Mateo"),
+lapply(c("Los Angeles", "Sacramento", "Ventura", "Sonoma", "Tulare", "San Joaquin", "Modoc", "Napa", "Calaveras", "Alameda", "San Mateo", "Santa Barbara"),
   function(x){
     
 fname = str_c(x, " arrest offense table ", ".html")
@@ -1747,9 +1737,9 @@ kable(risk_df, booktabs = T, format.args = list(big.mark = ","),
 ```
 \newpage
 
-Santa Barbara - TEMPORARILY REMOVED
+Santa Barbara - 
 \newline
-```{r eval=FALSE, include=FALSE}
+```{r}
 risk_df <- eval_df %>%
    # filter(book_date <= as_date("2021-03-31"),
    #       book_date >= as_date("2019-10-01")) %>%
@@ -2817,9 +2807,9 @@ summary(m6)
 \newpage
 
 
-Santa Barbara  - TEMPORARILY REMOVED
+Santa Barbara  -
 \newline
-```{r eval=FALSE, include=FALSE, results='asis'}
+```{r  results='asis'}
 county_df <- eval_df %>%
   filter(county == "Santa Barbara")
 
@@ -3231,9 +3221,9 @@ kable(tool_df %>% select(-starts_with("N")), booktabs = T, format.args = list(bi
 ```
 \newpage
 
-Santa Barbara - TEMPORARILY REMOVED
+Santa Barbara - 
 \newline
-```{r eval=FALSE, include=FALSE}
+```{r}
 tool_df <- auc_df %>%
   filter(tool_name == "VPRAI-R", race == "All", sex == "All", county == "Santa Barbara") %>%
   select(outcome, AUC, CI, n) %>%
@@ -3252,7 +3242,7 @@ kable(tool_df %>% select(-starts_with("N")), booktabs = T, format.args = list(bi
     kable_styling(position = "center", full_width = F, 
                   bootstrap_options = c("striped", "hover"), stripe_color = "gray", font_size = 12, 
                   latex_options = "hold_position") %>%
-  footnote(paste("N =", tool_df$N[1]))
+  footnote(paste("N =", tool_df$N[1]), footnote_as_chunk = T)
 
 ```
 \newpage
@@ -3986,9 +3976,9 @@ kable(risk_df, booktabs = T, format.args = list(big.mark = ","),
 ```
 \newpage
 
-Santa Barbara - TEMPORARILY REMOVED
+Santa Barbara - 
 \newline
-```{r eval=FALSE, include=FALSE}
+```{r}
 risk_df <- race_df %>%
    # filter(book_date <= as_date("2021-03-31"),
    #       book_date >= as_date("2019-10-01")) %>%
@@ -5254,9 +5244,9 @@ ggplot(risk_df) +
 ```
 \newpage
 
-Santa Barbara  - TEMPORARILY REMOVED
+Santa Barbara  - 
 \newline
-```{r eval=FALSE, fig.height=6, fig.width=10, dpi=1200, include=FALSE}
+```{r fig.height=6, fig.width=10, dpi=1200}
 risk_df <- eval_df %>%
   filter(county == "Santa Barbara") %>%
   mutate(race = factor(race, levels = c("White", "Black", "Hispanic", "Other_Unknown"))) %>%
@@ -5847,16 +5837,16 @@ stargazer(list(m1,m2,m3,m4,m5),
           notes.append = F, font.size = "small")
 ```
 
-```{r}
+```{r eval=FALSE, include=FALSE}
 summary(m1)
 ```
 
 \newpage
 
 
-Ventura--Without Interactions
+Ventura--Without Interactions - TEMPORARILY REMOVED
 \newline
-```{r results='asis'}
+```{r eval=FALSE, include=FALSE, results='asis'}
 m1 <- glm(family = binomial(),fta_flag ~ oras_risk_score + race + release_to_pretrial_end, data = race_df %>% filter(tool_name == "ORAS", county == "Ventura"))
 m2 <- glm(family = binomial(),recid_arrested_flag ~ oras_risk_score + race + release_to_pretrial_end, data = race_df %>% filter(tool_name == "ORAS", county == "Ventura"))
 m3 <- glm(family = binomial(),recid_filed_flag ~ oras_risk_score + race + release_to_pretrial_end, data = race_df %>% filter(tool_name == "ORAS", county == "Ventura"))
@@ -5876,9 +5866,9 @@ stargazer(list(m1,m2,m3,m4,m5, m6),
 ```
 \newpage
 
-Ventura--With Interactions at lowest score 0
+Ventura--With Interactions at lowest score 0 - TEMPORARILY REMOVED
 \newline
-```{r results='asis'}
+```{r eval=FALSE, include=FALSE, results='asis'}
 m1 <- glm(family = binomial(),fta_flag ~ oras_risk_score * race + release_to_pretrial_end, data = race_df %>% filter(tool_name == "ORAS", county == "Ventura") %>% mutate(across(contains("score"), ~.x)))
 m2 <- glm(family = binomial(),recid_arrested_flag ~ oras_risk_score * race + release_to_pretrial_end, data = race_df %>% filter(tool_name == "ORAS", county == "Ventura") %>% mutate(across(contains("score"), ~.x)))
 m3 <- glm(family = binomial(),recid_filed_flag ~ oras_risk_score * race + release_to_pretrial_end, data = race_df %>% filter(tool_name == "ORAS", county == "Ventura") %>% mutate(across(contains("score"), ~.x)))
@@ -5900,9 +5890,9 @@ stargazer(list(m1,m2,m3,m4,m5,m6),
 ```
 \newpage
 
-Ventura--With Interactions at score 9
+Ventura--With Interactions at score 9 - TEMPORARILY REMOVED
 \newline
-```{r results='asis'}
+```{r eval=FALSE, include=FALSE, results='asis'}
 m1 <- glm(family = binomial(),fta_flag ~ oras_risk_score * race + release_to_pretrial_end, data = race_df %>% filter(tool_name == "ORAS", county == "Ventura") %>% mutate(across(contains("score"), ~.x-9)))
 m2 <- glm(family = binomial(),recid_arrested_flag ~ oras_risk_score * race + release_to_pretrial_end, data = race_df %>% filter(tool_name == "ORAS", county == "Ventura") %>% mutate(across(contains("score"), ~.x-9)))
 m3 <- glm(family = binomial(),recid_filed_flag ~ oras_risk_score * race + release_to_pretrial_end, data = race_df %>% filter(tool_name == "ORAS", county == "Ventura") %>% mutate(across(contains("score"), ~.x-9)))
@@ -5925,9 +5915,9 @@ stargazer(list(m1,m2,m3,m4,m5,m6),
 ```
 \newpage
 
-Ventura--Without Interactions  -- White and Hispanic only
+Ventura--Without Interactions  -- White and Hispanic only  - TEMPORARILY REMOVED
 \newline
-```{r results='asis'}
+```{r eval=FALSE, include=FALSE, results='asis'}
 m1 <- glm(family = binomial(),fta_flag ~ oras_risk_score + race + release_to_pretrial_end, data = race_df %>% filter(tool_name == "ORAS", county == "Ventura", race != "Black"))
 m2 <- glm(family = binomial(),recid_arrested_flag ~ oras_risk_score + race + release_to_pretrial_end, data = race_df %>% filter(tool_name == "ORAS", county == "Ventura", race != "Black"))
 m3 <- glm(family = binomial(),recid_filed_flag ~ oras_risk_score + race + release_to_pretrial_end, data = race_df %>% filter(tool_name == "ORAS", county == "Ventura", race != "Black"))
@@ -5947,9 +5937,9 @@ stargazer(list(m1,m2,m3,m4,m5, m6),
 ```
 \newpage
 
-Ventura--With Interactions at lowest score 0 -- White and Hispanic only
+Ventura--With Interactions at lowest score 0 -- White and Hispanic only - TEMPORARILY REMOVED
 \newline
-```{r results='asis'}
+```{r eval=FALSE, include=FALSE, results='asis'}
 m1 <- glm(family = binomial(),fta_flag ~ oras_risk_score * race + release_to_pretrial_end, data = race_df %>% filter(tool_name == "ORAS", county == "Ventura", race != "Black") %>% mutate(across(contains("score"), ~.x)))
 m2 <- glm(family = binomial(),recid_arrested_flag ~ oras_risk_score * race + release_to_pretrial_end, data = race_df %>% filter(tool_name == "ORAS", county == "Ventura", race != "Black") %>% mutate(across(contains("score"), ~.x)))
 m3 <- glm(family = binomial(),recid_filed_flag ~ oras_risk_score * race + release_to_pretrial_end, data = race_df %>% filter(tool_name == "ORAS", county == "Ventura", race != "Black") %>% mutate(across(contains("score"), ~.x)))
@@ -5971,9 +5961,9 @@ stargazer(list(m1,m2,m3,m4,m5,m6),
 ```
 \newpage
 
-Ventura--With Interactions at score 9 -- White and Hispanic only
+Ventura--With Interactions at score 9 -- White and Hispanic only - TEMPORARILY REMOVED
 \newline
-```{r results='asis'}
+```{r eval=FALSE, include=FALSE, results='asis'}
 m1 <- glm(family = binomial(),fta_flag ~ oras_risk_score * race + release_to_pretrial_end, data = race_df %>% filter(tool_name == "ORAS", county == "Ventura", race != "Black") %>% mutate(across(contains("score"), ~.x-9)))
 m2 <- glm(family = binomial(),recid_arrested_flag ~ oras_risk_score * race + release_to_pretrial_end, data = race_df %>% filter(tool_name == "ORAS", county == "Ventura", race != "Black") %>% mutate(across(contains("score"), ~.x-9)))
 m3 <- glm(family = binomial(),recid_filed_flag ~ oras_risk_score * race + release_to_pretrial_end, data = race_df %>% filter(tool_name == "ORAS", county == "Ventura", race != "Black") %>% mutate(across(contains("score"), ~.x-9)))
@@ -6310,12 +6300,13 @@ stargazer(list(m1,m2,m3,m4,m5, m6),
 summary(m6)
 ```
 
-Santa Barbara--Without Interactions - TEMPORARILY REMOVED
+Santa Barbara--Without Interactions - White and Hispanic only
 \newline
-```{r eval=FALSE, include=FALSE, results='asis'}
+```{r results='asis'}
 county_df <- race_df %>%
   filter(county == "Santa Barbara") %>%
-  filter(tool_name == "VPRAI-R")
+  filter(tool_name == "VPRAI-R",
+         race %in% c("White", "Hispanic"))
 
 m1 <- glm(family = binomial(),fta_flag ~ vprair_risk_score + race + release_to_pretrial_end, data = county_df)
 m2 <- glm(family = binomial(),recid_arrested_flag ~ vprair_risk_score + race + release_to_pretrial_end, data = county_df)
@@ -6328,7 +6319,7 @@ stargazer(list(m1,m2,m3,m4,m5, m6),
           # type = "text",
           dep.var.labels = c("FTA", "New Arrest", "New Filing", 
                              "New Conviction", "New Violent Arrest", "FTA or New Arrest"), 
-          covariate.labels = c("VPRAI-R Risk Score", "Race:Black", "Race:Hispanic", "Days Released"),
+          covariate.labels = c("VPRAI-R Risk Score", "Race:Hispanic", "Days Released"),
           star.char = c("*", "**", "***"),
           star.cutoffs = c(.05, .01, .001),
           notes = c("*p<0.05; **p<0.01; ***p<.001"),
@@ -6336,12 +6327,15 @@ stargazer(list(m1,m2,m3,m4,m5, m6),
 ```
 \newpage
 
-Santa Barbara--With Interactions  - TEMPORARILY REMOVED
+
+
+Santa Barbara--With Interactions  - 
 \newline
-```{r eval=FALSE, include=FALSE, results='asis'}
+```{r results='asis'}
 county_df <- race_df %>%
   filter(county == "Santa Barbara") %>%
-  filter(tool_name == "VPRAI-R")%>%
+  filter(tool_name == "VPRAI-R",
+         race %in% c("White", "Hispanic"))%>%
   mutate(across(contains("score"), ~.x-1))
 
 m1 <- glm(family = binomial(),fta_flag ~ vprair_risk_score * race + release_to_pretrial_end, data = county_df)
@@ -6356,14 +6350,16 @@ stargazer(list(m1,m2,m3,m4,m5, m6),
           # type = "text",
           dep.var.labels = c("FTA", "New Arrest", "New Filing", 
                              "New Conviction", "New Violent Arrest", "FTA or New Arrest"), 
-          covariate.labels = c("VPRAI-R Risk Score", "Race:Black", "Race:Hispanic",
-                               "Days Released", "VPRAI-R*Black", "VPRAI-R*Hispanic"),
+          covariate.labels = c("VPRAI-R Risk Score", "Race:Hispanic",
+                               "Days Released", "VPRAI-R*Hispanic"),
           star.char = c("*", "**", "***"),
           star.cutoffs = c(.05, .01, .001),
           notes = c("*p<0.05; **p<0.01; ***p<.001"),
           notes.append = F, font.size = "small")
 ```
 \newpage
+
+
 
 San Mateo--Without Interactions
 \newline
@@ -6448,11 +6444,6 @@ stargazer(list(m1,m2,m3,m4,m5, m6),
           notes.append = F, font.size = "small")
 ```
 \newpage
-
-
-```{r}
-summary(m3)
-```
 
 
 
@@ -6695,7 +6686,7 @@ kable(tool_df[1:8], booktabs = T, format.args = list(big.mark = ","),
 ```
 \newpage
 
-Ventura 
+Ventura - TEMPORARILY REMOVED
 \newline
 ```{r eval=FALSE, include=FALSE}
 tool_df <- auc_df %>%
@@ -6727,9 +6718,9 @@ kable(tool_df[1:7], booktabs = T, format.args = list(big.mark = ","),
 ```
 \newpage
 
-Ventura -- only White and Hispanic
+Ventura -- only White and Hispanic - TEMPORARILY REMOVED
 \newline
-```{r}
+```{r eval=FALSE, include=FALSE}
 tool_df <- auc_df %>%
   filter(tool_name == "ORAS", race != "All", race != "Black", sex == "All", county == "Ventura") %>%
   select(race, outcome, AUC, CI, n) %>%
@@ -6928,9 +6919,9 @@ kable(tool_df[1:7], booktabs = T, format.args = list(big.mark = ","),
 ```
 \newpage
 
-Santa Barbara  - TEMPORARILY REMOVED
+Santa Barbara  - 
 \newline
-```{r eval=FALSE, include=FALSE}
+```{r}
 tool_df <- auc_df %>%
   filter(tool_name == "VPRAI-R", race != "All", sex == "All", county == "Santa Barbara") %>%
   select(race, outcome, AUC, CI, n) %>%
@@ -6948,16 +6939,16 @@ tool_df <- tool_df %>%
 
 names(tool_df) <- gsub("AUC_|CI .*_", "", names(tool_df))
 
-kable(tool_df[1:7], booktabs = T, format.args = list(big.mark = ","), 
+kable(tool_df[1:5], booktabs = T, format.args = list(big.mark = ","), 
         # table.attr = "style = \"color: black;\"",
         format = "latex") %>%
     kable_styling(position = "center", full_width = F, 
                   bootstrap_options = c("striped", "hover"), stripe_color = "gray",
                   font_size = 10, latex_options = "hold_position") %>%
-  add_header_above(c(" " = 1, "AUC" = 3, "CI (95%)" = 3)) %>% 
-  footnote(paste("N White =", tool_df$N_White[1], ", N Black =", 
-                     tool_df$N_Black[1], ", N Hispanic =", tool_df$N_Hispanic[1]))
+  add_header_above(c(" " = 1, "AUC" = 2, "CI (95%)" = 2)) %>% 
+  footnote(paste("N White =", tool_df$N_White[1], ", N Hispanic =", tool_df$N_Hispanic[1]), footnote_as_chunk = T)
 ```
+
 \newpage 
 
 San Mateo
@@ -7564,9 +7555,9 @@ kable(risk_df, booktabs = T, format.args = list(big.mark = ","),
 ```
 \newpage
 
-Santa Barbara - TEMPORARILY REMOVED
+Santa Barbara - 
 \newline
-```{r eval=FALSE, include=FALSE}
+```{r}
 risk_df <- sex_df %>%
    # filter(book_date <= as_date("2021-03-31"),
    #       book_date >= as_date("2019-10-01")) %>%
@@ -8572,9 +8563,9 @@ ggplot(risk_df) +
 ```
 \newpage
 
-Santa Barbara  - TEMPORARILY REMOVED
+Santa Barbara  -
 \newline
-```{r eval=FALSE, fig.height=6, fig.width=10, dpi=1200, include=FALSE}
+```{r fig.height=6, fig.width=10, dpi=1200}
 risk_df <- eval_df %>%
   filter(county == "Santa Barbara") %>%
   mutate(sex = factor(sex, levels = c("Male", "Female"))) %>%
@@ -9327,9 +9318,9 @@ stargazer(list(m1,m2,m3,m4,m5,m6),
 \newpage
 
 
-Santa Barbara--Without Interactions   - TEMPORARILY REMOVED
+Santa Barbara--Without Interactions   - 
 \newline
-```{r eval=FALSE, include=FALSE, results='asis'}
+```{r results='asis'}
 county_df <- sex_df %>%
   filter(county == "Santa Barbara") %>%
   filter(tool_name == "VPRAI-R")
@@ -9353,9 +9344,9 @@ stargazer(list(m1,m2,m3,m4,m5,m6),
 ```
 \newpage
 
-Santa Barbara--With Interactions  - TEMPORARILY REMOVED
+Santa Barbara--With Interactions at score 1 
 \newline
-```{r eval=FALSE, include=FALSE, results='asis'}
+```{r results='asis'}
 county_df <- sex_df %>%
   filter(county == "Santa Barbara") %>%
   filter(tool_name == "VPRAI-R") %>%
@@ -9380,6 +9371,38 @@ stargazer(list(m1,m2,m3,m4,m5,m6),
           notes.append = F, font.size = "small")
 ```
 \newpage
+
+Santa Barbara--With Interactions at score 1 
+\newline
+```{r results='asis'}
+county_df <- sex_df %>%
+  filter(county == "Santa Barbara") %>%
+  filter(tool_name == "VPRAI-R") %>%
+  mutate(across(contains("score"), ~.x-6))
+
+m1 <- glm(family = binomial(),fta_flag ~ vprair_risk_score * sex + release_to_pretrial_end, data = county_df)
+m2 <- glm(family = binomial(),recid_arrested_flag ~ vprair_risk_score * sex + release_to_pretrial_end, data = county_df)
+m3 <- glm(family = binomial(),recid_filed_flag ~ vprair_risk_score * sex + release_to_pretrial_end, data = county_df)
+m4 <- glm(family = binomial(),recid_convicted_flag ~ vprair_risk_score * sex + release_to_pretrial_end, data = county_df)
+m5 <- glm(family = binomial(),recid_arrest_violent_psa_flag ~ vprair_risk_score * sex + release_to_pretrial_end, data = county_df)
+m6 <- glm(family = binomial(),any_pretrial_failure_flag ~ vprair_risk_score * sex + release_to_pretrial_end, data = county_df)
+
+stargazer(list(m1,m2,m3,m4,m5,m6),
+          # type = "text",
+          dep.var.labels = c("FTA", "New Arrest", "New Filing", 
+                             "New Conviction", "New Violent Arrest", "FTA or New Arrest"), 
+          covariate.labels = c("VPRAI-R Risk Score", "Female",
+                               "Days Released", "VPRAI-R*Female"),
+          star.char = c("*", "**", "***"),
+          star.cutoffs = c(.05, .01, .001),
+          notes = c("*p<0.05; **p<0.01; ***p<.001"),
+          notes.append = F, font.size = "small")
+
+
+
+```
+\newpage
+
 
 San Mateo--Without Interactions  
 \newline
@@ -9814,9 +9837,9 @@ kable(tool_df[1:5], booktabs = T, format.args = list(big.mark = ","),
 ```
 \newpage
 
-Santa Barbara   - TEMPORARILY REMOVED
+Santa Barbara   - 
 \newline
-```{r eval=FALSE, include=FALSE}
+```{r}
 tool_df <- auc_df %>%
   filter(tool_name == "VPRAI-R", race == "All", sex != "All", county == "Santa Barbara") %>%
   select(sex, outcome, AUC, CI, n) %>%
@@ -9843,7 +9866,7 @@ kable(tool_df[1:5], booktabs = T, format.args = list(big.mark = ","),
                   font_size = 10, latex_options = "hold_position") %>%
   add_header_above(c(" " = 1, "AUC" = 2, "CI (95%)" = 2)) %>% 
   footnote(paste("N Female =", tool_df$N_Female[1], ", N Male =", 
-                     tool_df$N_Male[1]))
+                     tool_df$N_Male[1]), footnote_as_chunk = T)
 ```
 \newpage
 
@@ -10464,6 +10487,70 @@ roc.test(rocW_newviolent, rocH_newviolent)
 roc.test(rocB_newviolent, rocH_newviolent)
 ```
 
+Santa Barbara VPRAI-R AUC race comparisons
+```{r}
+rocW_FTA <- roc(fta_flag ~ vprair_risk_score, data = eval_df %>% filter(tool_name == "VPRAI-R") %>% filter(county == "Santa Barbara") %>% filter(race == "White"), ci = T)
+rocH_FTA <- roc(fta_flag ~ vprair_risk_score, data = eval_df %>% filter(tool_name == "VPRAI-R") %>% filter(county == "Santa Barbara") %>% filter(race == "Hispanic"), ci = T)
+roc.test(rocW_FTA, rocH_FTA)
+
+rocW_newarrest <- roc(recid_arrested_flag ~ vprair_risk_score, data = eval_df %>% filter(tool_name == "VPRAI-R") %>% filter(county == "Santa Barbara") %>% filter(race == "White"), ci = T)
+rocH_newarrest <- roc(recid_arrested_flag ~ vprair_risk_score, data = eval_df %>% filter(tool_name == "VPRAI-R") %>% filter(county == "Santa Barbara") %>% filter(race == "Hispanic"), ci = T)
+roc.test(rocW_newarrest, rocH_newarrest)
+
+rocW_newfiling <- roc(recid_filed_flag ~ vprair_risk_score, data = eval_df %>% filter(tool_name == "VPRAI-R") %>% filter(county == "Santa Barbara") %>% filter(race == "White"), ci = T)
+rocH_newfiling <- roc(recid_filed_flag ~ vprair_risk_score, data = eval_df %>% filter(tool_name == "VPRAI-R") %>% filter(county == "Santa Barbara") %>% filter(race == "Hispanic"), ci = T)
+roc.test(rocW_newfiling, rocH_newfiling)
+
+rocW_newconviction <- roc(recid_convicted_flag ~ vprair_risk_score, data = eval_df %>% filter(tool_name == "VPRAI-R") %>% filter(county == "Santa Barbara") %>% filter(race == "White"), ci = T)
+rocH_newconviction <- roc(recid_convicted_flag ~ vprair_risk_score, data = eval_df %>% filter(tool_name == "VPRAI-R") %>% filter(county == "Santa Barbara") %>% filter(race == "Hispanic"), ci = T)
+roc.test(rocW_newconviction, rocH_newconviction)
+
+rocW_newviolent <- roc(recid_arrest_violent_psa_flag ~ vprair_risk_score, data = eval_df %>% filter(tool_name == "VPRAI-R") %>% filter(county == "Santa Barbara") %>% filter(race == "White"), ci = T)
+rocH_newviolent <- roc(recid_arrest_violent_psa_flag ~ vprair_risk_score, data = eval_df %>% filter(tool_name == "VPRAI-R") %>% filter(county == "Santa Barbara") %>% filter(race == "Hispanic"), ci = T)
+roc.test(rocW_newviolent, rocH_newviolent)
+```
+
+Santa Barbara VPRAI-R AUC gender comparisons
+```{r}
+rocW_FTA <- roc(fta_flag ~ vprair_risk_score, data = eval_df %>% filter(tool_name == "VPRAI-R") %>% filter(county == "Santa Barbara") %>% filter(sex == "Female"), ci = T)
+rocM_FTA <- roc(fta_flag ~ vprair_risk_score, data = eval_df %>% filter(tool_name == "VPRAI-R") %>% filter(county == "Santa Barbara") %>% filter(sex == "Male"), ci = T)
+
+roc.test(rocW_FTA, rocM_FTA)
+
+
+rocW_newarrest <- roc(recid_arrested_flag ~ vprair_risk_score, data = eval_df %>% filter(tool_name == "VPRAI-R") %>% filter(county == "Santa Barbara") %>% filter(sex == "Female"), ci = T)
+rocM_newarrest <- roc(recid_arrested_flag ~ vprair_risk_score, data = eval_df %>% filter(tool_name == "VPRAI-R") %>% filter(county == "Santa Barbara") %>% filter(sex == "Male"), ci = T)
+
+roc.test(rocW_newarrest, rocM_newarrest)
+
+
+rocW_newfiling <- roc(recid_filed_flag ~ vprair_risk_score, data = eval_df %>% filter(tool_name == "VPRAI-R") %>% filter(county == "Santa Barbara") %>% filter(sex == "Female"), ci = T)
+rocM_newfiling <- roc(recid_filed_flag ~ vprair_risk_score, data = eval_df %>% filter(tool_name == "VPRAI-R") %>% filter(county == "Santa Barbara") %>% filter(sex == "Male"), ci = T)
+
+roc.test(rocW_newfiling, rocM_newfiling)
+
+
+rocW_newconviction <- roc(recid_convicted_flag ~ vprair_risk_score, data = eval_df %>% filter(tool_name == "VPRAI-R") %>% filter(county == "Santa Barbara") %>% filter(sex == "Female"), ci = T)
+rocM_newconviction <- roc(recid_convicted_flag ~ vprair_risk_score, data = eval_df %>% filter(tool_name == "VPRAI-R") %>% filter(county == "Santa Barbara") %>% filter(sex == "Male"), ci = T)
+
+roc.test(rocW_newconviction, rocM_newconviction)
+
+
+rocW_newviolent <- roc(recid_arrest_violent_psa_flag ~ vprair_risk_score, data = eval_df %>% filter(tool_name == "VPRAI-R") %>% filter(county == "Santa Barbara") %>% filter(sex == "Female"), ci = T)
+rocM_newviolent <- roc(recid_arrest_violent_psa_flag ~ vprair_risk_score, data = eval_df %>% filter(tool_name == "VPRAI-R") %>% filter(county == "Santa Barbara") %>% filter(sex == "Male"), ci = T)
+
+roc.test(rocW_newviolent, rocM_newviolent)
+
+
+rocW_anyfailure <- roc(any_pretrial_failure_flag ~ vprair_risk_score, data = eval_df %>% filter(tool_name == "VPRAI-R") %>% filter(county == "Santa Barbara") %>% filter(sex == "Female"), ci = T)
+rocM_anyfailure <- roc(any_pretrial_failure_flag ~ vprair_risk_score, data = eval_df %>% filter(tool_name == "VPRAI-R") %>% filter(county == "Santa Barbara") %>% filter(sex == "Male"), ci = T)
+
+roc.test(rocW_anyfailure, rocM_anyfailure)
+
+```
+
+
+
 Tulare PSA AUC race comparisons
 ```{r}
 rocW_FTA <- roc(fta_flag ~ psa_fta_risk_score, data = eval_df %>% filter(tool_name == "PSA") %>% filter(county == "Tulare") %>% filter(race == "White"), ci = T)
@@ -10611,8 +10698,8 @@ roc.test(rocM_newviolent, rocW_newviolent)
 ```
 
 
-Ventura ORAS AUC race comparisons
-```{r}
+Ventura ORAS AUC race comparisons - TEMPORARILY REMOVED
+```{r eval=FALSE, include=FALSE}
 rocW_FTA <- roc(fta_flag ~ oras_risk_score, data = eval_df %>% filter(tool_name == "ORAS") %>% filter(county == "Ventura") %>% filter(race == "White"), ci = T)
 #rocB_FTA <- roc(fta_flag ~ oras_risk_score, data = eval_df %>% filter(tool_name == "ORAS") %>% filter(county == "Ventura") %>% filter(race == "Black"), ci = T)
 rocH_FTA <- roc(fta_flag ~ oras_risk_score, data = eval_df %>% filter(tool_name == "ORAS") %>% filter(county == "Ventura") %>% filter(race == "Hispanic"), ci = T)
@@ -10650,8 +10737,8 @@ roc.test(rocW_newviolent, rocH_newviolent)
 ```
 
 
-Ventura ORAS AUC gender comparisons
-```{r}
+Ventura ORAS AUC gender comparisons - TEMPORARILY REMOVED
+```{r eval=FALSE, include=FALSE}
 rocW_FTA <- roc(fta_flag ~ oras_risk_score, data = eval_df %>% filter(tool_name == "ORAS") %>% filter(county == "Ventura") %>% filter(sex == "Female"), ci = T)
 rocM_FTA <- roc(fta_flag ~ oras_risk_score, data = eval_df %>% filter(tool_name == "ORAS") %>% filter(county == "Ventura") %>% filter(sex == "Male"), ci = T)
 roc.test(rocW_FTA, rocM_FTA)
@@ -11654,6 +11741,127 @@ ggplot(risk_df) +
 
 ```
 
+Alameda-- graphs by court_date_reminder_flag
+\newline
+```{r fig.height=6, fig.width=10, dpi=1200}
+risk_df <- eval_df %>%
+  filter(county == "Alameda") %>%
+  mutate(court_date_reminder_flag = factor(court_date_reminder_flag)) %>%
+  filter(tool_name == "VPRAI-R", !is.na(vprair_risk_score)) %>%
+  group_by(vprair_risk_score, court_date_reminder_flag) %>%
+  select(vprair_risk_score, court_date_reminder_flag, fta_flag, recid_arrested_flag, recid_filed_flag, recid_convicted_flag,
+         any_pretrial_failure_flag, recid_arrest_violent_psa_flag) %>%
+  pivot_longer(fta_flag:recid_arrest_violent_psa_flag) %>%
+  mutate(name = case_when(name == "fta_flag" ~ "FTA",
+                          name == "recid_arrested_flag" ~ "New Arrest",
+                          name == "recid_filed_flag" ~ "New Filing",
+                          name == "recid_convicted_flag" ~ "New Conviction",
+                          name == "any_pretrial_failure_flag" ~ "FTA or New Arrest",
+                          name == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest"),
+         name = factor(name, levels = c("FTA or New Arrest", "FTA", "New Arrest", "New Filing", "New Conviction", "New Violent Arrest"))) 
+
+ggplot(risk_df) +
+  aes(x = vprair_risk_score, y = value, color = court_date_reminder_flag) +
+  geom_smooth(method = "glm", method.args = list(family=binomial), alpha = .2) +
+  # geom_line() +
+  # geom_point() +
+  theme_bw() +
+  # ylim(0,100) +
+  facet_wrap(~name, scales = "free") +
+  labs(x = "Risk Category", y = "Percent",
+       title = "Comparison of Court Date Reminder Differences in Logistic Regression Curves--VPRAI-R, Alameda")# +
+  #scale_x_continuous(breaks = 0:14)
+
+
+```
+\newpage
+
+Alameda-- FTA graph only by court_date_reminder_flag
+\newline
+```{r fig.height=6, fig.width=10, dpi=1200}
+risk_df <- eval_df %>%
+  filter(county == "Alameda") %>%
+  mutate(court_date_reminder_flag = factor(court_date_reminder_flag)) %>%
+  filter(tool_name == "VPRAI-R", !is.na(vprair_risk_score)) %>%
+  group_by(vprair_risk_score, court_date_reminder_flag) %>%
+  select(vprair_risk_score, court_date_reminder_flag, fta_flag) %>%
+  pivot_longer(fta_flag) %>%
+  mutate(name = case_when(name == "fta_flag" ~ "FTA"),
+         name = factor(name, levels = c("FTA"))) 
+
+ggplot(risk_df) +
+  aes(x = vprair_risk_score, y = value, color = court_date_reminder_flag) +
+  geom_smooth(method = "glm", method.args = list(family=binomial), alpha = .2) +
+  # geom_line() +
+  # geom_point() +
+  theme_bw() +
+  # ylim(0,100) +
+  facet_wrap(~name, scales = "free") +
+  labs(x = "Risk Category", y = "Percent",
+       title = "Comparison of Court Date Reminder Differences in Logistic Regression Curves--VPRAI-R, Alameda")# +
+  #scale_x_continuous(breaks = 0:14)
+
+
+```
+\newpage
+
+Tulare graphs by court_date_reminder_flag
+\newline
+```{r fig.height=6, fig.width=10, dpi=1200}
+risk_df <- eval_df %>%
+  filter(county == "Tulare") %>%
+  filter(tool_name == "PSA") %>%
+  group_by(psa_fta_risk_score, court_date_reminder_flag, county) %>%
+  select(fta_flag) %>%
+  pivot_longer(fta_flag) 
+
+names(risk_df)[1] <- "psa_risk_score"
+
+risk_df2 <- eval_df %>%
+  filter(county == "Tulare") %>%
+  filter(tool_name == "PSA") %>%
+  group_by(psa_nca_risk_score, court_date_reminder_flag, county) %>%
+  select(recid_arrested_flag, recid_filed_flag, recid_convicted_flag) %>%
+  pivot_longer(recid_arrested_flag:recid_convicted_flag) 
+
+names(risk_df2)[1] <- "psa_risk_score"
+
+risk_df3 <- eval_df %>%
+  filter(county == "Tulare") %>%
+  filter(tool_name == "PSA", !is.na(psa_nvca_risk_score)) %>%
+  group_by(psa_nvca_risk_score, court_date_reminder_flag, county) %>%
+  select(recid_arrest_violent_psa_flag) %>%
+  pivot_longer(recid_arrest_violent_psa_flag) 
+
+names(risk_df3)[1] <- "psa_risk_score"
+
+risk_df <- bind_rows(risk_df, risk_df2, risk_df3)
+  
+rm(risk_df2, risk_df3)
+
+risk_df <- risk_df %>%
+  mutate(court_date_reminder_flag = factor(court_date_reminder_flag)) %>%
+  mutate(name = case_when(name == "fta_flag" ~ "FTA",
+                          name == "recid_arrested_flag" ~ "New Arrest",
+                          name == "recid_filed_flag" ~ "New Filing",
+                          name == "recid_convicted_flag" ~ "New Conviction",
+                          name == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest"),
+         name = factor(name, levels = c("FTA", "New Arrest", "New Filing", "New Conviction", "New Violent Arrest"))) 
+
+ggplot(risk_df) +
+  aes(x = psa_risk_score, y = value, color = court_date_reminder_flag) +
+  geom_smooth(method = "glm", method.args = list(family=binomial), alpha = .2) +
+  # geom_line() +
+  # geom_point() +
+  theme_bw() +
+  # ylim(0,100) +
+  facet_wrap(~name, scales = "free") +
+  labs(x = "Risk Category", y = "Percent", title = "Comparison of Court Date Reminder Differences in Logistic Regression Curves--PSA, Tulare") +
+  scale_x_continuous(breaks = 1:6)
+
+```
+
+
 Sonoma graphs by court_date_reminder_flag
 \newline
 ```{r fig.height=6, fig.width=10, dpi=1200}
@@ -11933,6 +12141,83 @@ ggplot(risk_df) +
   scale_x_continuous(breaks = 1:6)
 
 ```
+
+Look at supervision flags
+```{r}
+tidy(lm(data = join_df %>%
+  filter(is_booking_assessed == "Yes", is_released_pretrial == "Yes", county %in% c("Sonoma", "Tulare", "Alameda")), fta_flag ~ court_date_reminder_flag))
+
+countylist <- join_df %>%
+  distinct(county) %>%
+  filter( county %in% c("Sonoma", "Tulare", "Alameda")) %>%
+  pull(county)
+
+#simple regression, fta by court date reminder
+lapply(countylist, 
+       function(f){
+         tidy(lm(data = join_df %>%
+         filter(is_booking_assessed == "Yes", is_released_pretrial == "Yes", county == f), fta_flag ~ court_date_reminder_flag)) %>%
+           mutate(county = f)
+       })
+
+
+# regression by county, fta by risk score, days released, and court date reminder
+lapply(countylist, 
+       function(f){
+         tidy(lm(data = join_df %>%
+         filter(is_booking_assessed == "Yes", is_released_pretrial == "Yes", county == f) %>% 
+           mutate(days_released = as.numeric(case_disposition_date - booking_date),
+                  risk_fta_or_v = case_when(tool_name == "PSA" ~ psa_fta_risk_score,
+                                            tool_name == "VPRAI-R" ~ vprair_risk_score)), fta_flag ~ court_date_reminder_flag + risk_fta_or_v + days_released)) %>%
+           mutate(county = f)
+       })
+
+# regression by county, fta by risk score, days released, and court date reminder with interaction btwn reminder and risk score at risk score 1
+lapply(countylist, 
+       function(f){
+         tidy(lm(data = join_df %>%
+         filter(is_booking_assessed == "Yes", is_released_pretrial == "Yes", county == f) %>% 
+           mutate(days_released = as.numeric(case_disposition_date - booking_date),
+                  risk_fta_or_v = case_when(tool_name == "PSA" ~ psa_fta_risk_score,
+                                            tool_name == "VPRAI-R" ~ vprair_risk_score)) %>%
+           mutate(risk_fta_or_v = risk_fta_or_v -1), 
+         fta_flag ~ court_date_reminder_flag*risk_fta_or_v + days_released)) %>%
+           mutate(county = f)
+       })
+
+
+```
+
+
+```{r}
+tidy(lm(data = join_df %>%
+  filter(is_booking_assessed == "Yes", is_released_pretrial == "Yes", county == "Tulare") %>%
+    mutate(days_released = as.numeric(case_disposition_date - booking_date)), fta_flag ~ court_date_reminder_flag + psa_fta_risk_score + days_released))
+
+tidy(lm(data = join_df %>%
+  filter(is_booking_assessed == "Yes", is_released_pretrial == "Yes", county == "Sonoma") %>%
+    mutate(days_released = as.numeric(case_disposition_date - booking_date)), fta_flag ~ court_date_reminder_flag + psa_fta_risk_score + days_released))
+
+tidy(lm(data = join_df %>%
+  filter(is_booking_assessed == "Yes", is_released_pretrial == "Yes", county == "Alameda") %>%
+    mutate(days_released = as.numeric(case_disposition_date - booking_date)), fta_flag ~ court_date_reminder_flag + vprair_risk_score + days_released))
+
+
+tidy(lm(data = join_df %>%
+  filter(is_booking_assessed == "Yes", is_released_pretrial == "Yes", county %in% c("Sonoma", "Tulare", "Alameda")) %>%
+    mutate(days_released = as.numeric(case_disposition_date - booking_date)), fta_flag ~ court_date_reminder_flag + risk_score_raw + days_released))
+
+tidy(lm(data = join_df %>%
+  filter(is_booking_assessed == "Yes", is_released_pretrial == "Yes", county %in% c("Tulare", "Sonoma")) %>%
+    mutate(days_released = as.numeric(case_disposition_date - booking_date)), fta_flag ~ court_date_reminder_flag + psa_fta_risk_score + days_released))
+
+join_df %>%
+  filter(is_booking_assessed == "Yes", is_released_pretrial == "Yes", county == "Alameda") %>%
+  mutate(days_released = as.numeric(case_disposition_date - booking_date)) %>%
+  count(days_released)
+
+```
+
 
 
 # Exploration of arrest offense types

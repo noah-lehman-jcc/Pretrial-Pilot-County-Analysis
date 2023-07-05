@@ -51,7 +51,12 @@ modocCII <- modocCII %>%
 ```{r}
 #sf <- fread(file = 'G:/CrimJustice/PretrialAssessmentPilot/CIIs for DOJ/CIIs for DOJ 3 21 2022/SnowflakeCIIDOB 3 21 2022.csv', header = TRUE)
 
-sf <- fread(file = 'G:/CrimJustice/PretrialAssessmentPilot/CIIs for DOJ/Oct 12 2022/CII for DOJ 10 12 2022.csv', header = TRUE)
+# sf <- fread(file = 'G:/CrimJustice/PretrialAssessmentPilot/CIIs for DOJ/Oct 12 2022/CII for DOJ 10 12 2022.csv', header = TRUE)
+
+sf <- fread(file = 'G:/CrimJustice/PretrialAssessmentPilot/temp files 2.28.23/ciidobs2.28.2023.csv', header = TRUE) 
+
+sf <- sf %>%
+  select(-COUNTY)
 
 
 ```
@@ -78,8 +83,118 @@ sf <- sf %>%
 #10.12.22 no longer have separate modoc extract
 # doj_cii_3_21_2022 <- bind_rows(modocCII, sf) %>% 
 #   distinct()
+```
+
+Import data from counties not processed into Snowflake yet (2.28.23 extract)
+Kings
+```{r}
+k1 <- fread(file = 'G:/CrimJustice/PretrialAssessmentPilot/temp files 2.28.23/Kings/1st Quarter 2022-23.csv', header = F, colClasses=c("character")) 
+
+k2 <- fread(file = 'G:/CrimJustice/PretrialAssessmentPilot/temp files 2.28.23/Kings/2nd Quarter 2022-23.csv', header = F, colClasses=c("character"))
+
+k3 <- fread(file = 'G:/CrimJustice/PretrialAssessmentPilot/temp files 2.28.23/Kings/3rd Quarter 2021-22.csv', header = F, colClasses=c("character"))
+
+k4 <- fread(file = 'G:/CrimJustice/PretrialAssessmentPilot/temp files 2.28.23/Kings/4th Quarter 2021-22.csv', header = F, colClasses=c("character"))
+
+k <- k1 %>%
+  bind_rows(k2) %>%
+  bind_rows(k3) %>%
+  bind_rows(k4)
+
+k <- k %>%
+  select(V2, V10)
+
+names(k) <- c("cii", "DOB")
+
+k <- k %>%
+  distinct()
+
+k <- k %>%
+   mutate(
+         cii = parse_number(cii),
+         cii = case_when(nchar(cii) == 6 ~ paste0("0000", cii),
+                         nchar(cii) == 7 ~ paste0("000", cii),
+                         nchar(cii) == 8 ~ paste0("00", cii),
+                         nchar(cii) == 9 ~ paste0("0", cii),
+                         T ~ as.character(cii)),
+         cii = if_else(nchar(cii) != 10, NA_character_, cii)) %>%
+  mutate(DOB = mdy(DOB))
+```
+San Joaquin
+```{r}
+sj <- fread(file = 'G:/CrimJustice/PretrialAssessmentPilot/temp files 2.28.23/San Joaquin/Jail_Individual.csv', header = T, colClasses=c("character")) 
+
+sj<- sj %>%
+  select(CII, DOB)
+
+names(sj) <- c("cii", "DOB")
+
+sj <- sj %>%
+   mutate(
+         cii = parse_number(cii),
+         cii = case_when(nchar(cii) == 6 ~ paste0("0000", cii),
+                         nchar(cii) == 7 ~ paste0("000", cii),
+                         nchar(cii) == 8 ~ paste0("00", cii),
+                         nchar(cii) == 9 ~ paste0("0", cii),
+                         T ~ as.character(cii)),
+         cii = if_else(nchar(cii) != 10, NA_character_, cii)) %>%
+  mutate(DOB = mdy(DOB))
+
+sj <- sj %>%
+  distinct()
+```
+Yuba
+```{r}
+yu <- fread(file = 'G:/CrimJustice/PretrialAssessmentPilot/temp files 2.28.23/Yuba/2023-01-05-Jail.csv', header = T, colClasses=c("character")) %>%
+  bind_rows(fread(file = 'G:/CrimJustice/PretrialAssessmentPilot/temp files 2.28.23/Yuba/2023-02-10-Jail.csv', header = T, colClasses=c("character")))
+
+yu <- yu %>%
+  select(STATIP, BIRTHDATE)
+
+names(yu) <- c("cii", "DOB")
+
+yu <- yu %>%
+   mutate(
+         cii = parse_number(cii),
+         cii = case_when(nchar(cii) == 6 ~ paste0("0000", cii),
+                         nchar(cii) == 7 ~ paste0("000", cii),
+                         nchar(cii) == 8 ~ paste0("00", cii),
+                         nchar(cii) == 9 ~ paste0("0", cii),
+                         T ~ as.character(cii)),
+         cii = if_else(nchar(cii) != 10, NA_character_, cii)) %>%
+  mutate(DOB = mdy(DOB))
+
+yu <- yu %>%
+  distinct()
+```
+counts
+```{r}
+k %>%
+  count() # 3,482 as of 2/28/23
+
+sj %>%
+  count() #50,752 as of 2/28/23
+
+yu %>%
+  count() # 1,820 as of 2/28/23
+```
+Combine non-snowflake counties with Snowflake counties
+```{r}
+sf <- sf %>%
+  mutate(DOB = as.Date(DOB))
+
+sf <- sf %>%
+  bind_rows(k) %>%
+  bind_rows(sj) %>%
+  bind_rows(yu)
+
+sf <- sf %>%
+  distinct()
+```
 
 
+Format data 10/12/22
+```{r}
 #Format DOB and add spacer variables for required formatting specifications
 doj_cii_10_12_2022 <- sf %>%
   mutate(DOBstring=format(DOB,"%Y%m%d")) %>%
@@ -144,6 +259,77 @@ doj_single <- doj_single %>%
 
 ```
 
+Format data 2/28/23
+```{r}
+#Format DOB and add spacer variables for required formatting specifications
+doj_cii_2_28_23 <- sf %>%
+  mutate(DOBstring=format(DOB,"%Y%m%d")) %>%
+  mutate(spacer1=str_pad("",30), spacer2=str_pad("",30)) %>%
+  select(cii, spacer1,DOBstring, spacer2)
+
+#from email from DataRequests 3.22.22 "Per the CSD the CII number must begin with ‘10’, ‘30’, ‘32’, ‘40’, or ‘00’. Otherwise, use two spaces to fill."
+#mark rows for removal if CII does not begin with the specified numbers
+doj_invalid_removed <- doj_cii_2_28_23 %>%
+  mutate(remove = if_else(grepl("^00|^10|^30|^40|^32", cii), 0, 1))
+
+doj_invalid_removed %>%
+  filter(remove == 1)
+#10.12.22 519 records tagged for removal based on starting two digits
+
+# email from DataRequests 3.22.22 "Per the CSD the file cannot contain more than one record for each CII number submitted."
+# remove records flagged as starting with the wrong digits and distinct on CIIs because DOJ will not accept multiple rows per CII even if associated with a different DOB. 
+doj_invalid_removed <- doj_invalid_removed %>%
+  filter(remove ==0) %>%
+  select(-remove) %>%
+  distinct(cii, .keep_all = T)
+
+# remove missing DOBs introduced by non-snowflake counties
+doj_invalid_removed <- doj_invalid_removed %>%
+  filter(!is.na(DOBstring))
+
+#diagnostic, CIIs with multiple rows
+doj_invalid_removed %>%
+  add_count(cii) %>%
+  filter(n>1) %>%
+  arrange(cii)
+# no duplicates in de-duped df
+doj_cii_2_28_23 %>%
+    add_count(cii) %>%
+  filter(n>1) %>%
+  arrange(cii)
+#duplicates in pre-de-duped df
+
+
+#combine columns into one column as required by DOJ formatting guidelines
+doj_single <- doj_invalid_removed %>%
+  unite("all", cii:spacer2, sep= "", remove = T)
+
+#check that all rows have the correct number of characters
+doj_single %>%
+  mutate(n = nchar(all)) %>%
+  count(n)
+
+doj_single %>%
+  mutate(n = nchar(all)) %>%
+  filter(n == 72)
+
+#one more distinct, just in case
+doj_single <- doj_single %>%
+  distinct()
+
+
+
+
+# no longer paert of DOJ process, we need
+#doj_cii_3_18_2022$recordid=seq(from=100000000001, by=1, length = nrow(doj_cii_3_18_2022))
+#doj_cii_3_18_2022 <- doj_cii_3_18_2022 %>%
+# mutate(recordid=as.character(recordid)) %>%
+# select(recordid, cii)#doj_cii_3_18_2022 <- doj_cii_3_18_2022 %>%
+#unite(idcii, c("recordid","cii"), sep="|", remove=T)
+
+
+```
+
 Write to file for upload to DOJ
 ```{r}
 # write.fwf(doj_single, file="senddoj_cii_3_22_2022.txt", sep="", na="NULL",
@@ -163,8 +349,46 @@ write.fwf(doj_single, file="G:/CrimJustice/PretrialAssessmentPilot/CIIs for DOJ/
 rownames=FALSE, colnames=FALSE, justify="left",
 formatInfo=FALSE, quoteInfo=TRUE, width=78, eol="\r",
 scientific=FALSE)
+
+# 2.28.23
+write.fwf(doj_single, file="G:/CrimJustice/PretrialAssessmentPilot/CIIs for DOJ/February 2023/senddoj_cii_2_28_2023.txt", sep="", na="NULL",
+rownames=FALSE, colnames=FALSE, justify="left",
+formatInfo=FALSE, quoteInfo=TRUE, width=78, eol="\r",
+scientific=FALSE)
 ```
 
 ```{r}
 #write.csv(doj_cii_3_18_2022, "C:/R Work/Append Modoc CIIs/doj_cii_3_18_2022.csv", row.names=F, quote=F)
 ```
+
+Pull in cii files to re-process for new DOJ format requirements 3.7.23
+```{r}
+c1 <- fread("G:/CrimJustice/PretrialAssessmentPilot/CIIs for DOJ/Oct 12 2022/senddoj_cii_10_12_2022.txt", colClasses = c("character"))
+
+c2 <- fread("G:/CrimJustice/PretrialAssessmentPilot/CIIs for DOJ/February 2023/senddoj_cii_2_28_2023.txt", colClasses = c("character"))
+
+c <- c1 %>%
+  bind_rows(c2)
+
+names(c) <- c("cii", "dob")
+
+c <- c %>%
+  select(cii)
+
+c <- c %>%
+  distinct()
+
+c <- c %>%
+  mutate(id = as.character(row_number() + 100000000000)) %>%
+  select(id, cii)
+
+c <- c %>%
+  unite("id|cii", id:cii, sep= "|", remove = T)
+
+write.fwf(c, file="G:/CrimJustice/PretrialAssessmentPilot/CIIs for DOJ/February 2023/senddoj_cii_3_7_2023.txt", sep="", na="NULL",
+rownames=FALSE, colnames=FALSE, justify="left",
+formatInfo=FALSE, quoteInfo=TRUE, width=23, eol="\r",
+scientific=FALSE)
+```
+
+?fread

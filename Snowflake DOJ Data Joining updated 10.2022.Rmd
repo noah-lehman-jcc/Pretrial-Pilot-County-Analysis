@@ -309,6 +309,12 @@ FROM "DWH_PROD"."REPORTING"."AGG_PRETRIAL_KPI"
 where cii is not null
 ;
 ```
+
+# Save Snowflake extract to push to secure server
+```{r}
+save(sf, file = "C:/TEMP/Snowflake extract for joining 6.27.22.RData")
+```
+
 # Join collapsed DOJ and Snowflake extract
 Load and format Snowflake extract
 ```{r}
@@ -548,6 +554,11 @@ eval_df %>%
   count(county, recid_arrested_flag)
 ```
 
+```{r}
+load("Final Failure Evaluation2 2023.Rdata")
+```
+
+
 Add back on the rows from full_df that did not make it into eval_df??? Test run this code and alter to work!!
 ```{r}
 all_with_doj_and_recid <- full_df %>%
@@ -570,15 +581,15 @@ save(all_with_doj_and_recid, file = "All with recid 10.18.22.RData")
 Extract and Rename Variables Needed to Load into ADLS
 ```{r}
 
-#load("All with recid 8.16.22.RData")
+load("All with recid 2023.RData")
 
 test_doj <- all_with_doj_and_recid %>%
     mutate_at(vars(contains("flag")), funs(if_else(. == -Inf, 0, .))) %>%
-  select(county, cii, booking_id, booking_key, booking_date, release_date, case_filed_date, arrest_date, disp_date, sentence_date, case_disposition_date, pretrial_period_end_date, pretrial_period_end_date_doj, filed_flag, convicted_flag, court_disp_flag, court_special_flag, court_serious_felony_flag, court_violent_felony_flag, court_violent_psa_flag, court_capital_flag, court_dv_flag, court_marijuana_flag, court_sup_vio_flag, court_fta_flag, court_sex_flag, court_dui_flag, court_restrain_flag, court_property_flag, court_drug_flag, court_dv_possible_flag, conviction_special_flag, conviction_serious_felony_flag, conviction_violent_felony_flag, conviction_violent_psa_flag, conviction_capital_flag, conviction_dv_flag, conviction_marijuana_flag, conviction_sup_vio_flag, conviction_fta_flag, conviction_sex_flag, conviction_dui_flag, conviction_restrain_flag,conviction_property_flag, conviction_drug_flag, conviction_dv_possible_flag, recid_date, recid_join_var, recid_charge_description, recid_arrested_flag, recid_filed_flag, recid_convicted_flag, recid_arrest_disp_flag, recid_filed_disp_flag, recid_arrest_special_flag, recid_arrest_serious_felony_flag, recid_arrest_violent_felony_flag, recid_arrest_violent_psa_flag, recid_arrest_capital_flag, recid_arrest_dv_flag, recid_arrest_marijuana_flag, recid_arrest_sup_vio_flag, recid_arrest_fta_flag, recid_arrest_sex_flag, recid_arrest_dui_flag, recid_arrest_restrain_flag, recid_arrest_property_flag, recid_arrest_drug_flag, recid_arrest_dv_possible_flag,
+  select(county, cii, booking_id, booking_key, booking_date, release_date, case_filed_date, arrest_date, disp_date, sentence_date, case_disposition_date, pretrial_period_end_date, pretrial_end_date, filed_flag, convicted_flag, court_disp_flag, court_special_flag, court_serious_felony_flag, court_violent_felony_flag, court_violent_psa_flag, court_capital_flag, court_dv_flag, court_marijuana_flag, court_sup_vio_flag, court_fta_flag, court_sex_flag, court_dui_flag, court_restrain_flag, court_property_flag, court_drug_flag, court_dv_possible_flag, conviction_special_flag, conviction_serious_felony_flag, conviction_violent_felony_flag, conviction_violent_psa_flag, conviction_capital_flag, conviction_dv_flag, conviction_marijuana_flag, conviction_sup_vio_flag, conviction_fta_flag, conviction_sex_flag, conviction_dui_flag, conviction_restrain_flag,conviction_property_flag, conviction_drug_flag, conviction_dv_possible_flag, recid_date, recid_join_var, recid_charge_description, recid_arrested_flag, recid_filed_flag, recid_convicted_flag, recid_arrest_disp_flag, recid_filed_disp_flag, recid_arrest_special_flag, recid_arrest_serious_felony_flag, recid_arrest_violent_felony_flag, recid_arrest_violent_psa_flag, recid_arrest_capital_flag, recid_arrest_dv_flag, recid_arrest_marijuana_flag, recid_arrest_sup_vio_flag, recid_arrest_fta_flag, recid_arrest_sex_flag, recid_arrest_dui_flag, recid_arrest_restrain_flag, recid_arrest_property_flag, recid_arrest_drug_flag, recid_arrest_dv_possible_flag,
 recid_filed_special_flag, recid_filed_serious_felony_flag, recid_filed_violent_felony_flag, recid_filed_violent_psa_flag,recid_filed_capital_flag, recid_filed_dv_flag, recid_filed_marijuana_flag, recid_filed_sup_vio_flag, recid_filed_fta_flag, recid_filed_sex_flag, recid_filed_dui_flag, recid_filed_restrain_flag, recid_filed_property_flag, recid_filed_drug_flag, recid_filed_dv_possible_flag, recid_conviction_special_flag, recid_conviction_serious_felony_flag, recid_conviction_violent_felony_flag, recid_conviction_violent_psa_flag, recid_conviction_capital_flag, recid_conviction_dv_flag, recid_conviction_marijuana_flag, recid_conviction_sup_vio_flag, recid_conviction_fta_flag, recid_conviction_sex_flag, recid_conviction_dui_flag, recid_conviction_restrain_flag, recid_conviction_drug_flag, recid_conviction_property_flag, recid_conviction_dv_possible_flag) %>%
 rename_all(~str_c(.x,"_DOJ")) %>%
 rename_with(~gsub("_DOJ", "", .x), .cols = c(county_DOJ, booking_id_DOJ, booking_key_DOJ, booking_date_DOJ, release_date_DOJ, case_filed_date_DOJ, case_disposition_date_DOJ, pretrial_period_end_date_DOJ)) %>%
-rename(pretrial_period_end_date_doj = pretrial_period_end_date_doj_DOJ) %>%
+rename(pretrial_period_end_date_doj = pretrial_end_date_DOJ) %>%
 rename(case_disposition_date_doj = disp_date_DOJ) %>%
 #rename_with(~str_c(.x,"_DOJ"),.cols = contains("RECID")) %>%
 #rename_with(~str_c(.x,"_DOJ"), .cols = c(arrest_date, sentence_date,filed_flag, convicted_flag, court_disp_flag)) %>%
@@ -595,10 +606,11 @@ mutate(CII = CII_DOJ)
 test_doj <- test_doj %>%
   select(-CII_DOJ)
 
-fwrite(test_doj, file="G:/CrimJustice/PretrialAssessmentPilot/ADLS Load/test_doj_fw 10.18.22.csv")
-save(test_doj, file = "G:/CrimJustice/PretrialAssessmentPilot/ADLS Load/final_doj_for_upload to sf 10.18.22.RData")
+fwrite(test_doj, file="G:/CrimJustice/PretrialAssessmentPilot/ADLS Load/final_doj_for_upload to sf 6.27.23.csv")
+save(test_doj, file = "G:/CrimJustice/PretrialAssessmentPilot/ADLS Load/final_doj_for_upload to sf 6.27.23.RData")
 
-
+names(all_with_doj_and_recid)
+names(test_doj)
 ```
 
 

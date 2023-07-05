@@ -1,0 +1,1508 @@
+---
+title: "SB 36 Charts and Tables_JW"
+output:
+  html_document:
+    df_print: paged
+---
+
+# library
+```{r}
+library(gt)
+library(readxl)
+library(scales)
+library(tidyverse)
+```
+
+# import data
+```{r}
+files <- list.files("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023", pattern = "^[0-9]", full.names = T)
+
+df_list <- lapply(files, function(x) {
+  lapply(excel_sheets(x), function(i) {
+    read_excel(x, sheet = i)
+  })
+}) %>%
+  unlist(recursive = F)
+
+df_names <- lapply(files, function(x) {
+  lapply(excel_sheets(x), function(i) {
+    df_name <- sub(".*\\/", "", x)
+    df_name <- if_else(!is.na(as.numeric(substr(gsub("^\\S* ", "", gsub(".xlsx", "", df_name)), 1, 1))), paste0("df_", gsub("^\\S* ", "", gsub(".xlsx", "", df_name))), gsub(" ", "_", paste(gsub("^\\S* ", "", gsub(".xlsx", "", df_name)), gsub(" .*", "", gsub(".xlsx", "", df_name)))))
+    df_name <- if_else(i == "Sheet 1", df_name, paste0(df_name, "_", i))
+  })
+}) %>%
+  unlist(recursive = F)
+
+names(df_list) <- df_names
+list2env(df_list, .GlobalEnv)
+
+# load("df.RData")
+# load("join_df.RData")
+# load("eval_df.RData")
+```
+
+# Table 1a
+```{r}
+Offense_Type_fresh_2A %>%
+  filter(`Arrest Charge Level` == "Misdemeanor") %>%
+  select(-`Arrest Charge Level`) %>%
+  gt() %>%
+  fmt_number(columns = Total, decimals = 0, sep_mark = ",") %>%
+  fmt_percent(columns = -Total, decimals = 0) %>%
+  cols_label_with(fn = ~ gsub(" within 2 court days| after 2 days| type", "", .)) %>%
+  tab_spanner("All New Arrest Bookings (Misdemeanor)", 1:2) %>%
+  tab_spanner("POST-RESOLUTION", 3:4) %>%
+  tab_spanner("PRETRIAL", 5:8) %>%
+  tab_spanner("UNKNOWN", 9) %>%
+  tab_spanner("TOTAL", 10) %>%
+  tab_spanner("PRETRIAL ", 11:14) %>%
+  tab_spanner("Released Within 2 Court Days", 3:10) %>%
+  tab_spanner("Released After 2 Court Days", 11:14) %>%
+  gtsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/T1a.png")
+```
+
+# Table 1b
+```{r}
+Offense_Type_fresh_2A %>%
+  filter(`Arrest Charge Level` == "Felony") %>%
+  select(-`Arrest Charge Level`) %>%
+  gt() %>%
+  fmt_number(columns = Total, decimals = 0, sep_mark = ",") %>%
+  fmt_percent(columns = -Total, decimals = 0) %>%
+  cols_label_with(fn = ~ gsub(" within 2 court days| after 2 days| type", "", .)) %>%
+  tab_spanner("All New Arrest Bookings (Felony)", 1:2) %>%
+  tab_spanner("POST-RESOLUTION", 3:4) %>%
+  tab_spanner("PRETRIAL", 5:8) %>%
+  tab_spanner("UNKNOWN", 9) %>%
+  tab_spanner("TOTAL", 10) %>%
+  tab_spanner("PRETRIAL ", 11:14) %>%
+  tab_spanner("Released Within 2 Court Days", 3:10) %>%
+  tab_spanner("Released After 2 Court Days", 11:14) %>%
+  gtsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/T1b.png")
+```
+
+# Table 1c
+```{r}
+Offense_Type_LA_2A %>%
+  select(-County) %>%
+  gt() %>%
+  fmt_number(columns = Total, decimals = 0, sep_mark = ",") %>%
+  fmt_percent(columns = -Total, decimals = 0) %>%
+  cols_label_with(fn = ~ gsub(" within 2 court days| after 2 days| type", "", .)) %>%
+  tab_spanner("All Bookings", 1:2) %>%
+  tab_spanner("POST-RESOLUTION", 3:4) %>%
+  tab_spanner("PRETRIAL", 5:8) %>%
+  tab_spanner("UNKNOWN", 9) %>%
+  tab_spanner("TOTAL", 10) %>%
+  tab_spanner("PRETRIAL ", 11:14) %>%
+  tab_spanner("Released Within 2 Court Days", 3:10) %>%
+  tab_spanner("Released After 2 Court Days", 11:14) %>%
+  gtsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/T1c.png")
+```
+
+# Table 2a
+```{r}
+Gender_fresh_2A %>%
+  filter(Gender == "Female") %>%
+  select(-Gender) %>%
+  gt() %>%
+  fmt_number(columns = Total, decimals = 0, sep_mark = ",") %>%
+  fmt_percent(columns = -Total, decimals = 0) %>%
+  cols_label_with(fn = ~ gsub(" within 2 court days| after 2 days| type", "", .)) %>%
+  tab_spanner("All New Arrest Bookings (Female)", 1:2) %>%
+  tab_spanner("POST-RESOLUTION", 3:4) %>%
+  tab_spanner("PRETRIAL", 5:8) %>%
+  tab_spanner("UNKNOWN", 9) %>%
+  tab_spanner("TOTAL", 10) %>%
+  tab_spanner("PRETRIAL ", 11:14) %>%
+  tab_spanner("Released Within 2 Court Days", 3:10) %>%
+  tab_spanner("Released After 2 Court Days", 11:14) %>%
+  gtsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/T2a.png")
+```
+
+# Table 2b
+```{r}
+Gender_fresh_2A %>%
+  filter(Gender == "Male") %>%
+  select(-Gender) %>%
+  gt() %>%
+  fmt_number(columns = Total, decimals = 0, sep_mark = ",") %>%
+  fmt_percent(columns = -Total, decimals = 0) %>%
+  cols_label_with(fn = ~ gsub(" within 2 court days| after 2 days| type", "", .)) %>%
+  tab_spanner("All New Arrest Bookings (Male)", 1:2) %>%
+  tab_spanner("POST-RESOLUTION", 3:4) %>%
+  tab_spanner("PRETRIAL", 5:8) %>%
+  tab_spanner("UNKNOWN", 9) %>%
+  tab_spanner("TOTAL", 10) %>%
+  tab_spanner("PRETRIAL ", 11:14) %>%
+  tab_spanner("Released Within 2 Court Days", 3:10) %>%
+  tab_spanner("Released After 2 Court Days", 11:14) %>%
+  gtsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/T2b.png")
+```
+
+# Table 2c
+```{r}
+Gender_LA_2A %>%
+  select(-County) %>%
+  gt() %>%
+  fmt_number(columns = Total, decimals = 0, sep_mark = ",") %>%
+  fmt_percent(columns = -Total, decimals = 0) %>%
+  cols_label_with(fn = ~ gsub(" within 2 court days| after 2 days| type", "", .)) %>%
+  tab_spanner("All Bookings", 1:2) %>%
+  tab_spanner("POST-RESOLUTION", 3:4) %>%
+  tab_spanner("PRETRIAL", 5:8) %>%
+  tab_spanner("UNKNOWN", 9) %>%
+  tab_spanner("TOTAL", 10) %>%
+  tab_spanner("PRETRIAL ", 11:14) %>%
+  tab_spanner("Released Within 2 Court Days", 3:10) %>%
+  tab_spanner("Released After 2 Court Days", 11:14) %>%
+  gtsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/T2c.png")
+```
+
+# Table 3a
+```{r}
+Race_fresh_2A %>%
+  filter(Race == "Black") %>%
+  select(-Race) %>%
+  gt() %>%
+  fmt_number(columns = Total, decimals = 0, sep_mark = ",") %>%
+  fmt_percent(columns = -Total, decimals = 0) %>%
+  cols_label_with(fn = ~ gsub(" within 2 court days| after 2 days| type", "", .)) %>%
+  tab_spanner("All New Arrest Bookings (Black Defendants)", 1:2) %>%
+  tab_spanner("POST-RESOLUTION", 3:4) %>%
+  tab_spanner("PRETRIAL", 5:8) %>%
+  tab_spanner("UNKNOWN", 9) %>%
+  tab_spanner("TOTAL", 10) %>%
+  tab_spanner("PRETRIAL ", 11:14) %>%
+  tab_spanner("Released Within 2 Court Days", 3:10) %>%
+  tab_spanner("Released After 2 Court Days", 11:14) %>%
+  gtsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/T3a.png")
+```
+
+# Table 3b
+```{r}
+Race_fresh_2A %>%
+  filter(Race == "Hispanic") %>%
+  select(-Race) %>%
+  gt() %>%
+  fmt_number(columns = Total, decimals = 0, sep_mark = ",") %>%
+  fmt_percent(columns = -Total, decimals = 0) %>%
+  cols_label_with(fn = ~ gsub(" within 2 court days| after 2 days| type", "", .)) %>%
+  tab_spanner("All New Arrest Bookings (Hispanic Defendants)", 1:2) %>%
+  tab_spanner("POST-RESOLUTION", 3:4) %>%
+  tab_spanner("PRETRIAL", 5:8) %>%
+  tab_spanner("UNKNOWN", 9) %>%
+  tab_spanner("TOTAL", 10) %>%
+  tab_spanner("PRETRIAL ", 11:14) %>%
+  tab_spanner("Released Within 2 Court Days", 3:10) %>%
+  tab_spanner("Released After 2 Court Days", 11:14) %>%
+  gtsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/T3b.png")
+```
+
+# Table 3c
+```{r}
+Race_fresh_2A %>%
+  filter(Race == "White") %>%
+  select(-Race) %>%
+  gt() %>%
+  fmt_number(columns = Total, decimals = 0, sep_mark = ",") %>%
+  fmt_percent(columns = -Total, decimals = 0) %>%
+  cols_label_with(fn = ~ gsub(" within 2 court days| after 2 days| type", "", .)) %>%
+  tab_spanner("All New Arrest Bookings (White Defendants)", 1:2) %>%
+  tab_spanner("POST-RESOLUTION", 3:4) %>%
+  tab_spanner("PRETRIAL", 5:8) %>%
+  tab_spanner("UNKNOWN", 9) %>%
+  tab_spanner("TOTAL", 10) %>%
+  tab_spanner("PRETRIAL ", 11:14) %>%
+  tab_spanner("Released Within 2 Court Days", 3:10) %>%
+  tab_spanner("Released After 2 Court Days", 11:14) %>%
+  gtsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/T3c.png")
+```
+
+# Table 3d
+```{r}
+Race_LA_2A %>%
+  select(-County) %>%
+  gt() %>%
+  fmt_number(columns = Total, decimals = 0, sep_mark = ",") %>%
+  fmt_percent(columns = -Total, decimals = 0) %>%
+  cols_label_with(fn = ~ gsub(" within 2 court days| after 2 days| type", "", .)) %>%
+  tab_spanner("All Bookings", 1:2) %>%
+  tab_spanner("POST-RESOLUTION", 3:4) %>%
+  tab_spanner("PRETRIAL", 5:8) %>%
+  tab_spanner("UNKNOWN", 9) %>%
+  tab_spanner("TOTAL", 10) %>%
+  tab_spanner("PRETRIAL ", 11:14) %>%
+  tab_spanner("Released Within 2 Court Days", 3:10) %>%
+  tab_spanner("Released After 2 Court Days", 11:14) %>%
+  gtsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/T3d.png")
+```
+
+# Table 4
+```{r}
+df_2B %>%
+  filter(`Offense Type` %in% c("Felony", "Misdemeanor")) %>%
+  select(-c(Total, Sort)) %>%
+  pivot_wider(names_from = `Release Type/Risk Level`, values_from = `Court Appearance Rate`) %>%
+  select(-County) %>%
+  rename(County = `Offense Type`) %>%
+  gt() %>%
+  fmt_missing() %>%
+  tab_row_group(md("**Ventura**"), 19:20) %>%
+  tab_row_group(md("**Tulare**"), 17:18) %>%
+  tab_row_group(md("**Sonoma**"), 15:16) %>%
+  tab_row_group(md("**San Mateo**"), 13:14) %>%
+  tab_row_group(md("**San Joaquin**"), 11:12) %>%
+  tab_row_group(md("**Sacramento**"), 9:10) %>%
+  tab_row_group(md("**Los Angeles**"), 7:8) %>%
+  tab_row_group(md("**Alameda**"), 5:6) %>%
+  tab_row_group(md("**Small/Medium Counties**"), 3:4) %>%
+  tab_row_group(md("**Small Counties**"), 1:2) %>%
+  gtsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/T4.png")
+```
+
+# Table 5
+```{r}
+df_2C %>%
+  filter(`Offense Type` %in% c("Felony", "Misdemeanor")) %>%
+  select(-c(Total, Sort)) %>%
+  pivot_wider(names_from = `Release Type/Risk Level`, values_from = `No New Charge Rate`) %>%
+  select(-County) %>%
+  rename(County = `Offense Type`) %>%
+  gt() %>%
+  fmt_missing() %>%
+  tab_row_group(md("**Ventura**"), 19:20) %>%
+  tab_row_group(md("**Tulare**"), 17:18) %>%
+  tab_row_group(md("**Sonoma**"), 15:16) %>%
+  tab_row_group(md("**San Mateo**"), 13:14) %>%
+  tab_row_group(md("**San Joaquin**"), 11:12) %>%
+  tab_row_group(md("**Sacramento**"), 9:10) %>%
+  tab_row_group(md("**Los Angeles**"), 7:8) %>%
+  tab_row_group(md("**Alameda**"), 5:6) %>%
+  tab_row_group(md("**Small/Medium Counties**"), 3:4) %>%
+  tab_row_group(md("**Small Counties**"), 1:2) %>%
+  gtsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/T5.png")
+```
+
+# Table 6
+```{r}
+Age_2D %>%
+  pivot_wider(names_from = age, values_from = n) %>%
+  bind_rows(summarise(., across(where(is.character), ~ "Total"),
+                      across(where(is.numeric), ~ sum(., na.rm = T)))) %>%
+  relocate(Total, .after = last_col()) %>%
+  gt() %>%
+  fmt_number(decimals = 0, sep_mark = ",") %>%
+  cols_label(Total = md("**Total**")) %>%
+  tab_style(cell_text(weight = "bold"), list(cells_body(Total), cells_body(rows = County == "Total"))) %>%
+  gtsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/T6.png")
+```
+
+# Table 7
+```{r}
+Gender_2D %>%
+  pivot_wider(names_from = sex, values_from = n) %>%
+  bind_rows(summarise(., across(where(is.character), ~ "Total"),
+                      across(where(is.numeric), ~ sum(., na.rm = T)))) %>%
+  relocate(Total, .after = last_col()) %>%
+  gt() %>%
+  fmt_number(decimals = 0, sep_mark = ",") %>%
+  cols_label(Total = md("**Total**")) %>%
+  tab_style(cell_text(weight = "bold"), list(cells_body(Total), cells_body(rows = County == "Total"))) %>%
+  gtsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/T7.png")
+```
+
+# Table 8
+```{r}
+Race_2D %>%
+  select(-race_sort) %>%
+  mutate(race = fct_relevel(race, "Other/Unknown", after = 4)) %>%
+  arrange(County, race) %>%
+  pivot_wider(names_from = race, values_from = n) %>%
+  bind_rows(summarise(., across(where(is.character), ~ "Total"),
+                      across(where(is.numeric), ~ sum(., na.rm = T)))) %>%
+  relocate(Total, .after = last_col()) %>%
+  gt() %>%
+  fmt_number(decimals = 0, sep_mark = ",") %>%
+  fmt_missing() %>%
+  cols_label(Total = md("**Total**")) %>%
+  tab_style(cell_text(weight = "bold"), list(cells_body(Total), cells_body(rows = County == "Total"))) %>%
+  gtsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/T8.png")
+```
+
+# Table 9
+```{r}
+Risk_Level_2E %>%
+  select(-risk_level_sort) %>%
+  pivot_wider(names_from = risk_level, values_from = n) %>%
+  bind_rows(summarise(., across(where(is.character), ~ "Total"),
+                      across(where(is.numeric), ~ sum(., na.rm = T)))) %>%
+  mutate(Total = rowSums(across(where(is.numeric)), na.rm = T)) %>%
+  gt() %>%
+  fmt_number(decimals = 0, sep_mark = ",") %>%
+  cols_label(Total = md("**Total**")) %>%
+  tab_style(cell_text(weight = "bold"), list(cells_body(Total), cells_body(rows = County == "Total"))) %>%
+  gtsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/T9.png")
+```
+
+# Table 10a
+```{r}
+Release_Decision_Arraignment_2E %>%
+  filter(County != "Los Angeles") %>%
+  mutate(release_decision = case_when(
+    release_decision %in% c("Monitor", "Own Recognizance") ~ "Granted Program Release",
+    release_decision %in% c("Denied Program Release", "Ineligible") ~ "Denied Program Release",
+    T ~ "Other/Unknown"
+  )) %>%
+  filter(release_decision != "Other/Unknown") %>%
+  group_by(County, release_decision) %>%
+  mutate(n = sum(n, na.rm = T)) %>%
+  ungroup() %>%
+  distinct() %>%
+  pivot_wider(names_from = release_decision, values_from = n) %>%
+  bind_rows(summarise(., across(where(is.character), ~ "Total"),
+                      across(where(is.numeric), ~ sum(., na.rm = T)))) %>%
+  mutate(Total = rowSums(across(where(is.numeric)), na.rm = T)) %>%
+  gt() %>%
+  fmt_number(decimals = 0, sep_mark = ",") %>%
+  fmt_missing() %>%
+  cols_label(Total = md("**Total**")) %>%
+  tab_style(cell_text(weight = "bold"), list(cells_body(Total), cells_body(rows = County == "Total"))) %>%
+  gtsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/T10a.png")
+```
+
+# Table 10b
+```{r}
+Release_Decision_LA_only_2E %>%
+  mutate(release_decision_prearraignment = if_else(release_decision_prearraignment == "Ineligible", "Denied Program Release", release_decision_prearraignment)) %>%
+  filter(release_decision_prearraignment != "Unknown") %>%
+  group_by(release_decision_prearraignment) %>%
+  mutate(n = sum(n, na.rm = T)) %>%
+  ungroup() %>%
+  distinct() %>%
+  pivot_wider(names_from = release_decision_prearraignment, values_from = n) %>%
+  mutate(Total = rowSums(across(where(is.numeric)), na.rm = T)) %>%
+  gt() %>%
+  fmt_number(decimals = 0, sep_mark = ",") %>%
+  cols_label(Total = md("**Total**")) %>%
+  tab_style(cell_text(weight = "bold"), list(cells_body(Total))) %>%
+  gtsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/T10b.png")
+```
+
+# Table 11
+```{r}
+Charge_Level_2E %>%
+  filter(arrest_charge_level %in% c("Felony", "Misdemeanor")) %>%
+  pivot_wider(names_from = arrest_charge_level, values_from = n) %>%
+  bind_rows(summarise(., across(where(is.character), ~ "Total"),
+                      across(where(is.numeric), ~ sum(., na.rm = T)))) %>%
+  mutate(Total = rowSums(across(where(is.numeric)), na.rm = T)) %>%
+  gt() %>%
+  fmt_number(decimals = 0, sep_mark = ",") %>%
+  cols_label(Total = md("**Total**")) %>%
+  tab_style(cell_text(weight = "bold"), list(cells_body(Total), cells_body(rows = County == "Total"))) %>%
+  gtsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/T11.png")
+```
+
+# Table 12
+```{r}
+Supervision_Level_2F %>%
+  select(contains("Count"), Total) %>%
+  rename_with(~ gsub("Count_", "", .)) %>%
+  gt() %>%
+  fmt_number(decimals = 0, sep_mark = ",") %>%
+  cols_label(Total = md("**Total**")) %>%
+  tab_style(cell_text(weight = "bold"), list(cells_body(Total), cells_body(rows = County == "Total"))) %>%
+  gtsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/T12.png")
+```
+
+# Table 13
+```{r}
+Supervision_Level_2F %>%
+  select(County, contains("Percent"), -Percent_Other) %>%
+  rename_with(~ gsub("Percent_", "", .)) %>%
+  gt() %>%
+  fmt_number(decimals = 0, sep_mark = ",") %>%
+  tab_style(cell_text(weight = "bold"), cells_body(rows = County == "Total")) %>%
+  gtsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/T13.png")
+```
+
+# Table 14
+```{r}
+Supervision_Level_2G %>%
+  select(-County) %>%
+  rename(County = monitor_level,
+         FTAs = FTA_Count,
+         `New Arrests` = New_Arrest_Count) %>%
+  gt() %>%
+  fmt_number(decimals = 0, sep_mark = ",") %>%
+  tab_row_group(md("**Tulare**"), 22:24) %>%
+  tab_row_group(md("**Sonoma**"), 19:21) %>%
+  tab_row_group(md("**San Mateo**"), 16:18) %>%
+  tab_row_group(md("**San Joaquin**"), 13:15) %>%
+  tab_row_group(md("**Sacramento**"), 10:12) %>%
+  tab_row_group(md("**Alameda**"), 7:9) %>%
+  tab_row_group(md("**Small/Medium Counties**"), 4:6) %>%
+  tab_row_group(md("**Small Counties**"), 1:3) %>%
+  gtsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/T14.png")
+```
+
+# Table 15
+```{r}
+Supervision_Level_Percent_2G %>%
+  select(monitor_level, contains("percent")) %>%
+  rename(County = monitor_level,
+         FTAs = FTA_percent,
+         `New Arrests` = New_Arrest_Percent) %>%
+  gt() %>%
+  fmt_percent(columns = where(is.numeric), decimals = 0) %>%
+  fmt_missing() %>%
+  tab_row_group(md("**Tulare**"), 22:24) %>%
+  tab_row_group(md("**Sonoma**"), 19:21) %>%
+  tab_row_group(md("**San Mateo**"), 16:18) %>%
+  tab_row_group(md("**San Joaquin**"), 13:15) %>%
+  tab_row_group(md("**Sacramento**"), 10:12) %>%
+  tab_row_group(md("**Alameda**"), 7:9) %>%
+  tab_row_group(md("**Small/Medium Counties**"), 4:6) %>%
+  tab_row_group(md("**Small Counties**"), 1:3) %>%
+  gtsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/T15.png")
+```
+
+# Figure 1
+```{r}
+PSA_FTA_3A %>%
+  mutate(Total = formatC(as.numeric(Total), format = "d", big.mark = ","),
+         p = as.numeric(gsub(" %", "", `Non FTA Rate`)) / 100,
+         h = if_else(psa_fta_risk_score == "Total", T, F)) %>%
+  ggplot(aes(x = psa_fta_risk_score, y = p, fill = h)) +
+  geom_col() +
+  scale_y_continuous(labels = percent_format(1)) +
+  geom_text(aes(label = `Non FTA Rate`), vjust = -0.5) +
+  geom_label(aes(y = 0.1, label = Total)) +
+  theme(legend.position = "none")
+
+ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F1.png")
+```
+
+# Figure 2
+```{r}
+PSA_NCA_3A %>%
+  mutate(Total = formatC(as.numeric(Total), format = "d", big.mark = ","),
+         p = as.numeric(gsub(" %", "", `Non New Charge Rate`)) / 100,
+         h = if_else(psa_nca_risk_score == "Total", T, F)) %>%
+  ggplot(aes(x = psa_nca_risk_score, y = p, fill = h)) +
+  geom_col() +
+  scale_y_continuous(labels = percent_format(1)) +
+  geom_text(aes(label = `Non New Charge Rate`), vjust = -0.5) +
+  geom_label(aes(y = 0.1, label = Total)) +
+  theme(legend.position = "none")
+
+ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F2.png")
+```
+
+# Figure 3
+```{r}
+PSA_FTA_3C_Gender %>%
+  filter(!grepl("Unknown", sex)) %>%
+  group_by(psa_fta_risk_score) %>%
+  mutate(t = formatC(sum(as.numeric(Total), na.rm = T), format = "d", big.mark = ","),
+         p = as.numeric(gsub(" %", "", `Non FTA Rate`)) / 100) %>%
+  ungroup() %>%
+  ggplot(aes(x = psa_fta_risk_score, y = p, fill = sex)) +
+  geom_col(position = "dodge") +
+  scale_y_continuous(labels = percent_format(1)) +
+  geom_text(aes(label = `Non FTA Rate`), vjust = -0.5, position = position_dodge(0.9)) +
+  geom_label(aes(y = 0.1, label = t), show.legend = F)
+
+ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F3.png")
+```
+
+# Figure 4
+```{r}
+`PSA_FTA_3C_Offense Type` %>%
+  filter(arrest_charge_level %in% c("Felony", "Misdemeanor")) %>%
+  group_by(psa_fta_risk_score) %>%
+  mutate(t = formatC(sum(as.numeric(Total), na.rm = T), format = "d", big.mark = ","),
+         p = as.numeric(gsub(" %", "", `Non FTA Rate`)) / 100) %>%
+  ungroup() %>%
+  ggplot(aes(x = psa_fta_risk_score, y = p, fill = arrest_charge_level)) +
+  geom_col(position = "dodge") +
+  scale_y_continuous(labels = percent_format(1)) +
+  geom_text(aes(label = `Non FTA Rate`), vjust = -0.5, position = position_dodge(0.9)) +
+  geom_label(aes(y = 0.1, label = t), show.legend = F)
+
+ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F4.png")
+```
+
+# Figure 5
+```{r}
+PSA_FTA_3C_Race %>%
+  filter(race != "Other/Unknown") %>%
+  group_by(psa_fta_risk_score) %>%
+  mutate(t = formatC(sum(as.numeric(Total), na.rm = T), format = "d", big.mark = ","),
+         p = as.numeric(gsub(" %", "", `Non FTA Rate`)) / 100) %>%
+  ungroup() %>%
+  ggplot(aes(x = psa_fta_risk_score, y = p, fill = race)) +
+  geom_col(position = "dodge") +
+  scale_y_continuous(labels = percent_format(1)) +
+  geom_text(aes(label = `Non FTA Rate`), vjust = -0.5, position = position_dodge(width = 0.9), size = 2.5) +
+  geom_label(aes(y = 0.1, label = t), show.legend = F) +
+  theme(legend.position = "top")
+
+ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F5.png")
+```
+
+# Figure 6
+```{r}
+PSA_NCA_3C_Gender %>%
+  filter(!grepl("Unknown", sex)) %>%
+  group_by(psa_nca_risk_score) %>%
+  mutate(t = formatC(sum(as.numeric(Total), na.rm = T), format = "d", big.mark = ","),
+         p = as.numeric(gsub(" %", "", `Non New Charge Rate`)) / 100) %>%
+  ungroup() %>%
+  ggplot(aes(x = psa_nca_risk_score, y = p, fill = sex)) +
+  geom_col(position = "dodge") +
+  scale_y_continuous(labels = percent_format(1)) +
+  geom_text(aes(label = `Non New Charge Rate`), vjust = -0.5, position = position_dodge(0.9)) +
+  geom_label(aes(y = 0.1, label = t), show.legend = F)
+
+ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F6.png")
+```
+
+# Figure 7
+```{r}
+`PSA_NCA_3C_Offense Type` %>%
+  filter(arrest_charge_level %in% c("Felony", "Misdemeanor")) %>%
+  group_by(psa_nca_risk_score) %>%
+  mutate(t = formatC(sum(as.numeric(Total), na.rm = T), format = "d", big.mark = ","),
+         p = as.numeric(gsub(" %", "", `Non New Charge Rate`)) / 100) %>%
+  ungroup() %>%
+  ggplot(aes(x = psa_nca_risk_score, y = p, fill = arrest_charge_level)) +
+  geom_col(position = "dodge") +
+  scale_y_continuous(labels = percent_format(1)) +
+  geom_text(aes(label = `Non New Charge Rate`), vjust = -0.5, position = position_dodge(0.9)) +
+  geom_label(aes(y = 0.1, label = t), show.legend = F)
+
+ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F7.png")
+```
+
+# Figure 8
+```{r}
+PSA_NCA_3C_Race %>%
+  filter(race != "Other/Unknown") %>%
+  group_by(psa_nca_risk_score) %>%
+  mutate(t = formatC(sum(as.numeric(Total), na.rm = T), format = "d", big.mark = ","),
+         p = as.numeric(gsub(" %", "", `Non New Charge Rate`)) / 100) %>%
+  ungroup() %>%
+  ggplot(aes(x = psa_nca_risk_score, y = p, fill = race)) +
+  geom_col(position = "dodge") +
+  scale_y_continuous(labels = percent_format(1)) +
+  geom_text(aes(label = `Non New Charge Rate`), vjust = -0.5, position = position_dodge(width = 0.9), size = 2.5) +
+  geom_label(aes(y = 0.1, label = t), show.legend = F) +
+  theme(legend.position = "top")
+
+ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F8.png")
+```
+
+# Figure 9
+```{r}
+PSA_NVCA_3C_Gender %>%
+  filter(!grepl("Unknown", sex)) %>%
+  group_by(psa_nvca_risk_score) %>%
+  mutate(t = formatC(sum(as.numeric(Total), na.rm = T), format = "d", big.mark = ","),
+         p = as.numeric(gsub(" %", "", `Non New Violent Charge Rate`)) / 100) %>%
+  ungroup() %>%
+  ggplot(aes(x = psa_nvca_risk_score, y = p, fill = sex)) +
+  geom_col(position = "dodge") +
+  scale_y_continuous(labels = percent_format(1)) +
+  geom_text(aes(label = `Non New Violent Charge Rate`), vjust = -0.5, position = position_dodge(0.9)) +
+  geom_label(aes(y = 0.1, label = t), show.legend = F)
+
+ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F9.png")
+```
+
+# Figure 10
+```{r}
+`PSA_NVCA_3C_Offense Type` %>%
+  filter(arrest_charge_level %in% c("Felony", "Misdemeanor")) %>%
+  group_by(psa_nvca_risk_score) %>%
+  mutate(t = formatC(sum(as.numeric(Total), na.rm = T), format = "d", big.mark = ","),
+         p = as.numeric(gsub(" %", "", `Non New Violent Charge Rate`)) / 100) %>%
+  ungroup() %>%
+  ggplot(aes(x = psa_nvca_risk_score, y = p, fill = arrest_charge_level)) +
+  geom_col(position = "dodge") +
+  scale_y_continuous(labels = percent_format(1)) +
+  geom_text(aes(label = `Non New Violent Charge Rate`), vjust = -0.5, position = position_dodge(0.9)) +
+  geom_label(aes(y = 0.1, label = t), show.legend = F)
+
+ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F10.png")
+```
+
+# Figure 11
+```{r}
+PSA_NVCA_3C_Race %>%
+  filter(race != "Other/Unknown") %>%
+  group_by(psa_nvca_risk_score) %>%
+  mutate(t = formatC(sum(as.numeric(Total), na.rm = T), format = "d", big.mark = ","),
+         p = as.numeric(gsub(" %", "", `Non New Violent Charge Rate`)) / 100) %>%
+  ungroup() %>%
+  ggplot(aes(x = psa_nvca_risk_score, y = p, fill = race)) +
+  geom_col(position = "dodge") +
+  scale_y_continuous(labels = percent_format(1)) +
+  geom_text(aes(label = `Non New Violent Charge Rate`), vjust = -0.5, position = position_dodge(width = 0.9), size = 3.5) +
+  geom_label(aes(y = 0.1, label = t), show.legend = F) +
+  theme(legend.position = "top")
+
+ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F11.png")
+```
+
+# Figure 12
+```{r}
+PSA_FTA_3B_Gender %>%
+  filter(sex != "Other/Unknown") %>%
+  mutate(psa_fta_risk_score = as.character(psa_fta_risk_score)) %>%
+  ggplot(aes(x = psa_fta_risk_score, y = n, fill = sex)) +
+  geom_col(position = "dodge") +
+  scale_y_continuous(labels = comma) +
+  geom_text(aes(label = formatC(as.numeric(n), format = "d", big.mark = ",")), vjust = -0.5, position = position_dodge(0.9))
+
+ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F12.png")
+```
+
+# Figure 13
+```{r}
+`PSA_FTA_3B_Offense Type` %>%
+  filter(arrest_charge_level %in% c("Felony", "Misdemeanor")) %>%
+  mutate(psa_fta_risk_score = as.character(psa_fta_risk_score)) %>%
+  ggplot(aes(x = psa_fta_risk_score, y = n, fill = arrest_charge_level)) +
+  geom_col(position = "dodge") +
+  scale_y_continuous(labels = comma) +
+  geom_text(aes(label = formatC(as.numeric(n), format = "d", big.mark = ",")), vjust = -0.5, position = position_dodge(width = 0.9), size = 2.5)
+
+ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F13.png")
+```
+
+# Figure 14
+```{r}
+PSA_FTA_3B_Race %>%
+  filter(race != "Other/Unknown") %>%
+  mutate(psa_fta_risk_score = as.character(psa_fta_risk_score)) %>%
+  ggplot(aes(x = psa_fta_risk_score, y = n, fill = race)) +
+  geom_col(position = "dodge") +
+  scale_y_continuous(labels = comma) +
+  geom_text(aes(label = formatC(as.numeric(n), format = "d", big.mark = ",")), vjust = -0.5, position = position_dodge(width = 0.9), size = 2.5) +
+  theme(legend.position = "top")
+
+ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F14.png")
+```
+
+# Figure 15
+```{r}
+PSA_FTA_3B_Release %>%
+  filter(release_decision != "Other") %>%
+  mutate(psa_fta_risk_score = as.character(psa_fta_risk_score)) %>%
+  ggplot(aes(x = psa_fta_risk_score, y = n, fill = release_decision)) +
+  geom_col(position = "dodge") +
+  scale_y_continuous(labels = comma) +
+  geom_text(aes(label = formatC(as.numeric(n), format = "d", big.mark = ",")), vjust = -0.5, position = position_dodge(0.9))
+
+ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F15.png")
+```
+
+# Figure 16
+```{r}
+PSA_NCA_3B_Gender %>%
+  filter(sex != "Other/Unknown") %>%
+  mutate(psa_nca_risk_score = as.character(psa_nca_risk_score)) %>%
+  ggplot(aes(x = psa_nca_risk_score, y = n, fill = sex)) +
+  geom_col(position = "dodge") +
+  scale_y_continuous(labels = comma) +
+  geom_text(aes(label = formatC(as.numeric(n), format = "d", big.mark = ",")), vjust = -0.5, position = position_dodge(0.9))
+
+ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F16.png")
+```
+
+# Figure 17
+```{r}
+`PSA_NCA_3B_Offense Type` %>%
+  filter(arrest_charge_level %in% c("Felony", "Misdemeanor")) %>%
+  mutate(psa_nca_risk_score = as.character(psa_nca_risk_score)) %>%
+  ggplot(aes(x = psa_nca_risk_score, y = n, fill = arrest_charge_level)) +
+  geom_col(position = "dodge") +
+  scale_y_continuous(labels = comma) +
+  geom_text(aes(label = formatC(as.numeric(n), format = "d", big.mark = ",")), vjust = -0.5, position = position_dodge(width = 0.9), size = 2.5)
+
+ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F17.png")
+```
+
+# Figure 18
+```{r}
+PSA_NCA_3B_Race %>%
+  filter(race != "Other/Unknown") %>%
+  mutate(psa_nca_risk_score = as.character(psa_nca_risk_score)) %>%
+  ggplot(aes(x = psa_nca_risk_score, y = n, fill = race)) +
+  geom_col(position = "dodge") +
+  scale_y_continuous(labels = comma) +
+  geom_text(aes(label = formatC(as.numeric(n), format = "d", big.mark = ",")), vjust = -0.5, position = position_dodge(width = 0.9), size = 2.5) +
+  theme(legend.position = "top")
+
+ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F18.png")
+```
+
+# Figure 19
+```{r}
+PSA_NCA_3B_Release %>%
+  filter(release_decision != "Other") %>%
+  mutate(psa_nca_risk_score = as.character(psa_nca_risk_score)) %>%
+  ggplot(aes(x = psa_nca_risk_score, y = n, fill = release_decision)) +
+  geom_col(position = "dodge") +
+  scale_y_continuous(labels = comma) +
+  geom_text(aes(label = formatC(as.numeric(n), format = "d", big.mark = ",")), vjust = -0.5, position = position_dodge(0.9))
+
+ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F19.png")
+```
+
+# Figure 20
+```{r}
+PSA_NVCA_3B_Gender %>%
+  filter(sex != "Other/Unknown") %>%
+  mutate(psa_nvca_risk_score = as.character(psa_nvca_risk_score)) %>%
+  ggplot(aes(x = psa_nvca_risk_score, y = n, fill = sex)) +
+  geom_col(position = "dodge") +
+  scale_y_continuous(labels = comma) +
+  geom_text(aes(label = formatC(as.numeric(n), format = "d", big.mark = ",")), vjust = -0.5, position = position_dodge(0.9))
+
+ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F20.png")
+```
+
+# Figure 21
+```{r}
+`PSA_NVCA_3B_Offense Type` %>%
+  filter(arrest_charge_level %in% c("Felony", "Misdemeanor")) %>%
+  mutate(psa_nvca_risk_score = as.character(psa_nvca_risk_score)) %>%
+  ggplot(aes(x = psa_nvca_risk_score, y = n, fill = arrest_charge_level)) +
+  geom_col(position = "dodge") +
+  scale_y_continuous(labels = comma) +
+  geom_text(aes(label = formatC(as.numeric(n), format = "d", big.mark = ",")), vjust = -0.5, position = position_dodge(0.9))
+
+ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F21.png")
+```
+
+# Figure 22
+```{r}
+PSA_NVCA_3B_Race %>%
+  filter(race != "Other/Unknown") %>%
+  mutate(psa_nvca_risk_score = as.character(psa_nvca_risk_score)) %>%
+  ggplot(aes(x = psa_nvca_risk_score, y = n, fill = race)) +
+  geom_col(position = "dodge") +
+  scale_y_continuous(labels = comma) +
+  geom_text(aes(label = formatC(as.numeric(n), format = "d", big.mark = ",")), vjust = -0.5, position = position_dodge(width = 0.9), size = 3.5) +
+  theme(legend.position = "top")
+
+ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F22.png")
+```
+
+# Figure 23
+```{r}
+PSA_NVCA_3B_Release %>%
+  filter(release_decision != "Other") %>%
+  mutate(psa_nvca_risk_score = as.character(psa_nvca_risk_score)) %>%
+  ggplot(aes(x = psa_nvca_risk_score, y = n, fill = release_decision)) +
+  geom_col(position = "dodge") +
+  scale_y_continuous(labels = comma) +
+  geom_text(aes(label = formatC(as.numeric(n), format = "d", big.mark = ",")), vjust = -0.5, position = position_dodge(0.9))
+
+ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F23.png")
+```
+
+# Figure 24
+```{r}
+Oras_categories_3A %>%
+  mutate(Total = formatC(as.numeric(Total), format = "d", big.mark = ","),
+         p = as.numeric(gsub(" %", "", `Non FTA Rate`)) / 100,
+         h = if_else(oras_risk_score == "Total", T, F)) %>%
+  ggplot(aes(x = oras_risk_score, y = p, fill = h)) +
+  geom_col() +
+  scale_y_continuous(labels = percent_format(1)) +
+  geom_text(aes(label = `Non FTA Rate`), vjust = -0.5) +
+  geom_label(aes(y = 0.1, label = Total)) +
+  theme(legend.position = "none")
+
+ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F24.png")
+```
+
+# Figure 25
+```{r}
+Oras_categories_3A %>%
+  mutate(Total = formatC(as.numeric(Total), format = "d", big.mark = ","),
+         p = as.numeric(gsub(" %", "", `Non New Charge Rate`)) / 100,
+         h = if_else(oras_risk_score == "Total", T, F)) %>%
+  ggplot(aes(x = oras_risk_score, y = p, fill = h)) +
+  geom_col() +
+  scale_y_continuous(labels = percent_format(1)) +
+  geom_text(aes(label = `Non New Charge Rate`), vjust = -0.5) +
+  geom_label(aes(y = 0.1, label = Total)) +
+  theme(legend.position = "none")
+
+ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F25.png")
+```
+
+# Figure 26
+```{r}
+Oras_categories_3C_Gender %>%
+  filter(sex != "Undefined") %>%
+  group_by(oras_risk_score) %>%
+  mutate(t = formatC(sum(as.numeric(Total), na.rm = T), format = "d", big.mark = ","),
+         p = as.numeric(gsub(" %", "", `Non FTA Rate`)) / 100) %>%
+  ungroup() %>%
+  ggplot(aes(x = oras_risk_score, y = p, fill = sex)) +
+  geom_col(position = "dodge") +
+  scale_y_continuous(labels = percent_format(1)) +
+  geom_text(aes(label = `Non FTA Rate`), vjust = -0.5, position = position_dodge(0.9)) +
+  geom_label(aes(y = 0.1, label = t), show.legend = F)
+
+ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F26.png")
+```
+
+# Figure 27
+```{r}
+`Oras_categories_3C_Offense Type` %>%
+  filter(arrest_charge_level %in% c("Felony", "Misdemeanor")) %>%
+  group_by(oras_risk_score) %>%
+  mutate(t = formatC(sum(as.numeric(Total), na.rm = T), format = "d", big.mark = ","),
+         p = as.numeric(gsub(" %", "", `Non FTA Rate`)) / 100) %>%
+  ungroup() %>%
+  ggplot(aes(x = oras_risk_score, y = p, fill = arrest_charge_level)) +
+  geom_col(position = "dodge") +
+  scale_y_continuous(labels = percent_format(1)) +
+  geom_text(aes(label = `Non FTA Rate`), vjust = -0.5, position = position_dodge(0.9)) +
+  geom_label(aes(y = 0.1, label = t), show.legend = F)
+
+ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F27.png")
+```
+
+# Figure 28
+```{r}
+Oras_categories_3C_Race %>%
+  filter(race != "Other/Unknown") %>%
+  group_by(oras_risk_score) %>%
+  mutate(t = formatC(sum(as.numeric(Total), na.rm = T), format = "d", big.mark = ","),
+         p = as.numeric(gsub(" %", "", `Non FTA Rate`)) / 100) %>%
+  ungroup() %>%
+  ggplot(aes(x = oras_risk_score, y = p, fill = race)) +
+  geom_col(position = "dodge") +
+  scale_y_continuous(labels = percent_format(1)) +
+  geom_text(aes(label = `Non FTA Rate`), vjust = -0.5, position = position_dodge(width = 0.9), size = 2.5) +
+  geom_label(aes(y = 0.1, label = t), show.legend = F) +
+  theme(legend.position = "top")
+
+ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F28.png")
+```
+
+# Figure 29
+```{r}
+Oras_categories_3C_Gender %>%
+  filter(sex != "Undefined") %>%
+  group_by(oras_risk_score) %>%
+  mutate(t = formatC(sum(as.numeric(Total), na.rm = T), format = "d", big.mark = ","),
+         p = as.numeric(gsub(" %", "", `Non New Charge Rate`)) / 100) %>%
+  ungroup() %>%
+  ggplot(aes(x = oras_risk_score, y = p, fill = sex)) +
+  geom_col(position = "dodge") +
+  scale_y_continuous(labels = percent_format(1)) +
+  geom_text(aes(label = `Non New Charge Rate`), vjust = -0.5, position = position_dodge(0.9)) +
+  geom_label(aes(y = 0.1, label = t), show.legend = F)
+
+ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F29.png")
+```
+
+# Figure 30
+```{r}
+`Oras_categories_3C_Offense Type` %>%
+  filter(arrest_charge_level %in% c("Felony", "Misdemeanor")) %>%
+  group_by(oras_risk_score) %>%
+  mutate(t = formatC(sum(as.numeric(Total), na.rm = T), format = "d", big.mark = ","),
+         p = as.numeric(gsub(" %", "", `Non New Charge Rate`)) / 100) %>%
+  ungroup() %>%
+  ggplot(aes(x = oras_risk_score, y = p, fill = arrest_charge_level)) +
+  geom_col(position = "dodge") +
+  scale_y_continuous(labels = percent_format(1)) +
+  geom_text(aes(label = `Non New Charge Rate`), vjust = -0.5, position = position_dodge(0.9)) +
+  geom_label(aes(y = 0.1, label = t), show.legend = F)
+
+ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F30.png")
+```
+
+# Figure 31
+```{r}
+Oras_categories_3C_Race %>%
+  filter(race != "Other/Unknown") %>%
+  group_by(oras_risk_score) %>%
+  mutate(t = formatC(sum(as.numeric(Total), na.rm = T), format = "d", big.mark = ","),
+         p = as.numeric(gsub(" %", "", `Non New Charge Rate`)) / 100) %>%
+  ungroup() %>%
+  ggplot(aes(x = oras_risk_score, y = p, fill = race)) +
+  geom_col(position = "dodge") +
+  scale_y_continuous(labels = percent_format(1)) +
+  geom_text(aes(label = `Non New Charge Rate`), vjust = -0.5, position = position_dodge(width = 0.9), size = 2.5) +
+  geom_label(aes(y = 0.1, label = t), show.legend = F) +
+  theme(legend.position = "top")
+
+ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F31.png")
+```
+
+# Figure 32
+```{r}
+ORAS_3B_Gender %>%
+  filter(sex != "Other/Unknown") %>%
+  group_by(sex, risk_category) %>%
+  mutate(t = sum(n, na.rm = T)) %>%
+  ungroup() %>%
+  ggplot(aes(x = risk_category, y = t, fill = sex)) +
+  geom_col(position = "dodge") +
+  scale_y_continuous(labels = comma) +
+  geom_text(aes(label = formatC(as.numeric(t), format = "d", big.mark = ",")), vjust = -0.5, position = position_dodge(0.9))
+
+ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F32.png")
+```
+
+# Figure 33
+```{r}
+`ORAS_3B_Offense Type` %>%
+  filter(arrest_charge_level %in% c("Felony", "Misdemeanor")) %>%
+  group_by(arrest_charge_level, risk_category) %>%
+  mutate(t = sum(n, na.rm = T)) %>%
+  ungroup() %>%
+  ggplot(aes(x = risk_category, y = t, fill = arrest_charge_level)) +
+  geom_col(position = "dodge") +
+  scale_y_continuous(labels = comma) +
+  geom_text(aes(label = formatC(as.numeric(t), format = "d", big.mark = ",")), vjust = -0.5, position = position_dodge(0.9))
+
+ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F33.png")
+```
+
+# Figure 34
+```{r}
+ORAS_3B_Race %>%
+  filter(race != "Other/Unknown") %>%
+  group_by(race, risk_category) %>%
+  mutate(t = sum(n, na.rm = T)) %>%
+  ungroup() %>%
+  ggplot(aes(x = risk_category, y = t, fill = race)) +
+  geom_col(position = "dodge") +
+  scale_y_continuous(labels = comma) +
+  geom_text(aes(label = formatC(as.numeric(t), format = "d", big.mark = ",")), vjust = -0.5, position = position_dodge(0.9)) +
+  theme(legend.position = "top")
+
+ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F34.png")
+```
+
+# Figure 35
+```{r}
+ORAS_3B_Release %>%
+  filter(release_decision != "Other") %>%
+  group_by(release_decision, risk_category) %>%
+  mutate(t = sum(n, na.rm = T)) %>%
+  ungroup() %>%
+  ggplot(aes(x = risk_category, y = t, fill = release_decision)) +
+  geom_col(position = "dodge") +
+  scale_y_continuous(labels = comma) +
+  geom_text(aes(label = formatC(as.numeric(t), format = "d", big.mark = ",")), vjust = -0.5, position = position_dodge(0.9))
+
+ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F35.png")
+```
+
+# Figure 36
+```{r}
+Vprai_categories_3A %>%
+  mutate(vprai_risk_score = fct_relevel(vprai_risk_score, "Scores 0-1", after = 0),
+         Total = formatC(as.numeric(Total), format = "d", big.mark = ","),
+         p = as.numeric(gsub(" %", "", `Non FTA Rate`)) / 100,
+         h = if_else(vprai_risk_score == "Total", T, F)) %>%
+  ggplot(aes(x = vprai_risk_score, y = p, fill = h)) +
+  geom_col() +
+  scale_y_continuous(labels = percent_format(1)) +
+  geom_text(aes(label = `Non FTA Rate`), vjust = -0.5) +
+  geom_label(aes(y = 0.1, label = Total)) +
+  theme(legend.position = "none")
+
+ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F36.png")
+```
+
+# Figure 37
+```{r}
+Vprai_categories_3A %>%
+  mutate(vprai_risk_score = fct_relevel(vprai_risk_score, "Scores 0-1", after = 0),
+         Total = formatC(as.numeric(Total), format = "d", big.mark = ","),
+         p = as.numeric(gsub(" %", "", `Non New Charge Rate`)) / 100,
+         h = if_else(vprai_risk_score == "Total", T, F)) %>%
+  ggplot(aes(x = vprai_risk_score, y = p, fill = h)) +
+  geom_col() +
+  scale_y_continuous(labels = percent_format(1)) +
+  geom_text(aes(label = `Non New Charge Rate`), vjust = -0.5) +
+  geom_label(aes(y = 0.1, label = Total)) +
+  theme(legend.position = "none")
+
+ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F37.png")
+```
+
+# Figure 38
+```{r}
+VPRAI_categories_3C_Gender %>%
+  mutate(vprai_risk_score = fct_relevel(vprai_risk_score, "Scores 0-1", after = 0)) %>%
+  group_by(vprai_risk_score) %>%
+  mutate(t = formatC(sum(as.numeric(Total), na.rm = T), format = "d", big.mark = ","),
+         p = as.numeric(gsub(" %", "", `Non FTA Rate`)) / 100) %>%
+  ungroup() %>%
+  ggplot(aes(x = vprai_risk_score, y = p, fill = sex)) +
+  geom_col(position = "dodge") +
+  scale_y_continuous(labels = percent_format(1)) +
+  geom_text(aes(label = `Non FTA Rate`), vjust = -0.5, position = position_dodge(0.9)) +
+  geom_label(aes(y = 0.1, label = t), show.legend = F)
+
+ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F38.png")
+```
+
+# Figure 39
+```{r}
+`VPRAI_categories_3C_Offense Type` %>%
+  filter(arrest_charge_level %in% c("Felony", "Misdemeanor")) %>%
+  mutate(vprai_risk_score = fct_relevel(vprai_risk_score, "Scores 0-1", after = 0)) %>%
+  group_by(vprai_risk_score) %>%
+  mutate(t = formatC(sum(as.numeric(Total), na.rm = T), format = "d", big.mark = ","),
+         p = as.numeric(gsub(" %", "", `Non FTA Rate`)) / 100) %>%
+  ungroup() %>%
+  ggplot(aes(x = vprai_risk_score, y = p, fill = arrest_charge_level)) +
+  geom_col(position = "dodge") +
+  scale_y_continuous(labels = percent_format(1)) +
+  geom_text(aes(label = `Non FTA Rate`), vjust = -0.5, position = position_dodge(0.9)) +
+  geom_label(aes(y = 0.1, label = t), show.legend = F)
+
+ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F39.png")
+```
+
+# Figure 40
+```{r}
+VPRAI_categories_3C_Race %>%
+  filter(race != "Other/Unknown") %>%
+  mutate(vprai_risk_score = fct_relevel(vprai_risk_score, "Scores 0-1", after = 0)) %>%
+  group_by(vprai_risk_score) %>%
+  mutate(t = formatC(sum(as.numeric(Total), na.rm = T), format = "d", big.mark = ","),
+         p = as.numeric(gsub(" %", "", `Non FTA Rate`)) / 100) %>%
+  ungroup() %>%
+  ggplot(aes(x = vprai_risk_score, y = p, fill = race)) +
+  geom_col(position = "dodge") +
+  scale_y_continuous(labels = percent_format(1)) +
+  geom_text(aes(label = `Non FTA Rate`), vjust = -0.5, position = position_dodge(width = 0.9), size = 2.5) +
+  geom_label(aes(y = 0.1, label = t), show.legend = F) +
+  theme(legend.position = "top")
+
+ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F40.png")
+```
+
+# Figure 41
+```{r}
+VPRAI_categories_3C_Gender %>%
+  mutate(vprai_risk_score = fct_relevel(vprai_risk_score, "Scores 0-1", after = 0)) %>%
+  group_by(vprai_risk_score) %>%
+  mutate(t = formatC(sum(as.numeric(Total), na.rm = T), format = "d", big.mark = ","),
+         p = as.numeric(gsub(" %", "", `Non New Charge Rate`)) / 100) %>%
+  ungroup() %>%
+  ggplot(aes(x = vprai_risk_score, y = p, fill = sex)) +
+  geom_col(position = "dodge") +
+  scale_y_continuous(labels = percent_format(1)) +
+  geom_text(aes(label = `Non New Charge Rate`), vjust = -0.5, position = position_dodge(0.9)) +
+  geom_label(aes(y = 0.1, label = t), show.legend = F)
+
+ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F41.png")
+```
+
+# Figure 42
+```{r}
+`VPRAI_categories_3C_Offense Type` %>%
+  filter(arrest_charge_level %in% c("Felony", "Misdemeanor")) %>%
+  mutate(vprai_risk_score = fct_relevel(vprai_risk_score, "Scores 0-1", after = 0)) %>%
+  group_by(vprai_risk_score) %>%
+  mutate(t = formatC(sum(as.numeric(Total), na.rm = T), format = "d", big.mark = ","),
+         p = as.numeric(gsub(" %", "", `Non New Charge Rate`)) / 100) %>%
+  ungroup() %>%
+  ggplot(aes(x = vprai_risk_score, y = p, fill = arrest_charge_level)) +
+  geom_col(position = "dodge") +
+  scale_y_continuous(labels = percent_format(1)) +
+  geom_text(aes(label = `Non New Charge Rate`), vjust = -0.5, position = position_dodge(0.9)) +
+  geom_label(aes(y = 0.1, label = t), show.legend = F)
+
+ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F42.png")
+```
+
+# Figure 43
+```{r}
+VPRAI_categories_3C_Race %>%
+  filter(race != "Other/Unknown") %>%
+  mutate(vprai_risk_score = fct_relevel(vprai_risk_score, "Scores 0-1", after = 0)) %>%
+  group_by(vprai_risk_score) %>%
+  mutate(t = formatC(sum(as.numeric(Total), na.rm = T), format = "d", big.mark = ","),
+         p = as.numeric(gsub(" %", "", `Non New Charge Rate`)) / 100) %>%
+  ungroup() %>%
+  ggplot(aes(x = vprai_risk_score, y = p, fill = race)) +
+  geom_col(position = "dodge") +
+  scale_y_continuous(labels = percent_format(1)) +
+  geom_text(aes(label = `Non New Charge Rate`), vjust = -0.5, position = position_dodge(width = 0.9), size = 2.5) +
+  geom_label(aes(y = 0.1, label = t), show.legend = F) +
+  theme(legend.position = "top")
+
+ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F43.png")
+```
+
+# Figure 44
+```{r}
+VPRAI_3B_Gender %>%
+  filter(sex != "Other/Unknown") %>%
+  mutate(risk_category = fct_relevel(risk_category, "Scores 0-1", after = 0)) %>%
+  group_by(sex, risk_category) %>%
+  mutate(t = sum(n, na.rm = T)) %>%
+  ungroup() %>%
+  ggplot(aes(x = risk_category, y = t, fill = sex)) +
+  geom_col(position = "dodge") +
+  scale_y_continuous(labels = comma) +
+  geom_text(aes(label = formatC(as.numeric(t), format = "d", big.mark = ",")), vjust = -0.5, position = position_dodge(0.9))
+
+ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F44.png")
+```
+
+# Figure 45
+```{r}
+`VPRAI_3B_Offense Type` %>%
+  filter(arrest_charge_level %in% c("Felony", "Misdemeanor")) %>%
+  mutate(risk_category = fct_relevel(risk_category, "Scores 0-1", after = 0)) %>%
+  group_by(arrest_charge_level, risk_category) %>%
+  mutate(t = sum(n, na.rm = T)) %>%
+  ungroup() %>%
+  ggplot(aes(x = risk_category, y = t, fill = arrest_charge_level)) +
+  geom_col(position = "dodge") +
+  scale_y_continuous(labels = comma) +
+  geom_text(aes(label = formatC(as.numeric(t), format = "d", big.mark = ",")), vjust = -0.5, position = position_dodge(0.9))
+
+ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F45.png")
+```
+
+# Figure 46
+```{r}
+VPRAI_3B_Race %>%
+  filter(race != "Other/Unknown") %>%
+  mutate(risk_category = fct_relevel(risk_category, "Scores 0-1", after = 0)) %>%
+  group_by(race, risk_category) %>%
+  mutate(t = sum(n, na.rm = T)) %>%
+  ungroup() %>%
+  ggplot(aes(x = risk_category, y = t, fill = race)) +
+  geom_col(position = "dodge") +
+  scale_y_continuous(labels = comma) +
+  geom_text(aes(label = formatC(as.numeric(t), format = "d", big.mark = ",")), vjust = -0.5, position = position_dodge(width = 0.9), size = 3.5) +
+  theme(legend.position = "top")
+
+ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F46.png")
+```
+
+# Figure 47
+```{r}
+VPRAI_3B_Release %>%
+  filter(release_decision != "Other") %>%
+  mutate(risk_category = fct_relevel(risk_category, "Scores 0-1", after = 0)) %>%
+  group_by(release_decision, risk_category) %>%
+  mutate(t = sum(n, na.rm = T)) %>%
+  ungroup() %>%
+  ggplot(aes(x = risk_category, y = t, fill = release_decision)) +
+  geom_col(position = "dodge") +
+  scale_y_continuous(labels = comma) +
+  geom_text(aes(label = formatC(as.numeric(t), format = "d", big.mark = ",")), vjust = -0.5, position = position_dodge(0.9))
+
+ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F47.png")
+```
+
+# Figure 48
+```{r}
+VpraiR_categories_3A %>%
+  mutate(vprair_risk_score = fct_relevel(vprair_risk_score, "Scores 11-14", after = 5),
+         Total = formatC(as.numeric(Total), format = "d", big.mark = ","),
+         p = as.numeric(gsub(" %", "", `Non FTA Rate`)) / 100,
+         h = if_else(vprair_risk_score == "Total", T, F)) %>%
+  ggplot(aes(x = vprair_risk_score, y = p, fill = h)) +
+  geom_col() +
+  scale_y_continuous(labels = percent_format(1)) +
+  geom_text(aes(label = `Non FTA Rate`), vjust = -0.5) +
+  geom_label(aes(y = 0.1, label = Total)) +
+  theme(legend.position = "none")
+
+ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F48.png")
+```
+
+# Figure 49
+```{r}
+VpraiR_categories_3A %>%
+  mutate(vprair_risk_score = fct_relevel(vprair_risk_score, "Scores 11-14", after = 5),
+         Total = formatC(as.numeric(Total), format = "d", big.mark = ","),
+         p = as.numeric(gsub(" %", "", `Non New Charge Rate`)) / 100,
+         h = if_else(vprair_risk_score == "Total", T, F)) %>%
+  ggplot(aes(x = vprair_risk_score, y = p, fill = h)) +
+  geom_col() +
+  scale_y_continuous(labels = percent_format(1)) +
+  geom_text(aes(label = `Non New Charge Rate`), vjust = -0.5) +
+  geom_label(aes(y = 0.1, label = Total)) +
+  theme(legend.position = "none")
+
+ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F49.png")
+```
+
+# Figure 50
+```{r}
+VPRAIR_categories_3C_Gender %>%
+  filter(sex %in% c("Female", "Male")) %>%
+  mutate(vprair_risk_score = fct_relevel(vprair_risk_score, "Scores 11-14", after = 5)) %>%
+  group_by(vprair_risk_score) %>%
+  mutate(t = formatC(sum(as.numeric(Total), na.rm = T), format = "d", big.mark = ","),
+         p = as.numeric(gsub(" %", "", `Non FTA Rate`)) / 100) %>%
+  ungroup() %>%
+  ggplot(aes(x = vprair_risk_score, y = p, fill = sex)) +
+  geom_col(position = "dodge") +
+  scale_y_continuous(labels = percent_format(1)) +
+  geom_text(aes(label = `Non FTA Rate`), vjust = -0.5, position = position_dodge(0.9)) +
+  geom_label(aes(y = 0.1, label = t), show.legend = F)
+
+ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F50.png")
+```
+
+# Figure 51
+```{r}
+`VPRAIR_categories_3C_Offense Type` %>%
+  filter(arrest_charge_level %in% c("Felony", "Misdemeanor")) %>%
+  mutate(vprair_risk_score = fct_relevel(vprair_risk_score, "Scores 11-14", after = 5)) %>%
+  group_by(vprair_risk_score) %>%
+  mutate(t = formatC(sum(as.numeric(Total), na.rm = T), format = "d", big.mark = ","),
+         p = as.numeric(gsub(" %", "", `Non FTA Rate`)) / 100) %>%
+  ungroup() %>%
+  ggplot(aes(x = vprair_risk_score, y = p, fill = arrest_charge_level)) +
+  geom_col(position = "dodge") +
+  scale_y_continuous(labels = percent_format(1)) +
+  geom_text(aes(label = `Non FTA Rate`), vjust = -0.5, position = position_dodge(0.9)) +
+  geom_label(aes(y = 0.1, label = t), show.legend = F)
+
+ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F51.png")
+```
+
+# Figure 52
+```{r}
+VPRAIR_categories_3C_Race %>%
+  filter(race != "Other/Unknown") %>%
+  mutate(vprair_risk_score = fct_relevel(vprair_risk_score, "Scores 11-14", after = 5)) %>%
+  group_by(vprair_risk_score) %>%
+  mutate(t = formatC(sum(as.numeric(Total), na.rm = T), format = "d", big.mark = ","),
+         p = as.numeric(gsub(" %", "", `Non FTA Rate`)) / 100) %>%
+  ungroup() %>%
+  ggplot(aes(x = vprair_risk_score, y = p, fill = race)) +
+  geom_col(position = "dodge") +
+  scale_y_continuous(labels = percent_format(1)) +
+  geom_text(aes(label = `Non FTA Rate`), vjust = -0.5, position = position_dodge(width = 0.9), size = 2.5) +
+  geom_label(aes(y = 0.1, label = t), show.legend = F) +
+  theme(legend.position = "top")
+
+ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F52.png")
+```
+
+# Figure 53
+```{r}
+VPRAIR_categories_3C_Gender %>%
+  filter(sex %in% c("Female", "Male")) %>%
+  mutate(vprair_risk_score = fct_relevel(vprair_risk_score, "Scores 11-14", after = 5)) %>%
+  group_by(vprair_risk_score) %>%
+  mutate(t = formatC(sum(as.numeric(Total), na.rm = T), format = "d", big.mark = ","),
+         p = as.numeric(gsub(" %", "", `Non New Charge Rate`)) / 100) %>%
+  ungroup() %>%
+  ggplot(aes(x = vprair_risk_score, y = p, fill = sex)) +
+  geom_col(position = "dodge") +
+  scale_y_continuous(labels = percent_format(1)) +
+  geom_text(aes(label = `Non New Charge Rate`), vjust = -0.5, position = position_dodge(0.9)) +
+  geom_label(aes(y = 0.1, label = t), show.legend = F)
+
+ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F53.png")
+```
+
+# Figure 54
+```{r}
+`VPRAIR_categories_3C_Offense Type` %>%
+  filter(arrest_charge_level %in% c("Felony", "Misdemeanor")) %>%
+  mutate(vprair_risk_score = fct_relevel(vprair_risk_score, "Scores 11-14", after = 5)) %>%
+  group_by(vprair_risk_score) %>%
+  mutate(t = formatC(sum(as.numeric(Total), na.rm = T), format = "d", big.mark = ","),
+         p = as.numeric(gsub(" %", "", `Non New Charge Rate`)) / 100) %>%
+  ungroup() %>%
+  ggplot(aes(x = vprair_risk_score, y = p, fill = arrest_charge_level)) +
+  geom_col(position = "dodge") +
+  scale_y_continuous(labels = percent_format(1)) +
+  geom_text(aes(label = `Non New Charge Rate`), vjust = -0.5, position = position_dodge(0.9)) +
+  geom_label(aes(y = 0.1, label = t), show.legend = F)
+
+ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F54.png")
+```
+
+# Figure 55
+```{r}
+VPRAIR_categories_3C_Race %>%
+  filter(race != "Other/Unknown") %>%
+  mutate(vprair_risk_score = fct_relevel(vprair_risk_score, "Scores 11-14", after = 5)) %>%
+  group_by(vprair_risk_score) %>%
+  mutate(t = formatC(sum(as.numeric(Total), na.rm = T), format = "d", big.mark = ","),
+         p = as.numeric(gsub(" %", "", `Non New Charge Rate`)) / 100) %>%
+  ungroup() %>%
+  ggplot(aes(x = vprair_risk_score, y = p, fill = race)) +
+  geom_col(position = "dodge") +
+  scale_y_continuous(labels = percent_format(1)) +
+  geom_text(aes(label = `Non New Charge Rate`), vjust = -0.5, position = position_dodge(width = 0.9), size = 2.5) +
+  geom_label(aes(y = 0.1, label = t), show.legend = F) +
+  theme(legend.position = "top")
+
+ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F55.png")
+```
+
+# Figure 56
+```{r}
+# VPRAIR_3B_Gender %>%
+#   filter(sex != "Other/Unknown") %>%
+#   mutate(vprair_risk_score = fct_relevel(vprair_risk_score, "Scores 11-14", after = 5)) %>%
+#   group_by(sex, vprair_risk_score) %>%
+#   mutate(t = sum(n, na.rm = T)) %>%
+#   ungroup() %>%
+#   ggplot(aes(x = vprair_risk_score, y = t, fill = sex)) +
+#   geom_col(position = "dodge") +
+#   scale_y_continuous(labels = comma) +
+#   geom_text(aes(label = formatC(as.numeric(t), format = "d", big.mark = ",")), vjust = -0.5, position = position_dodge(0.9))
+# 
+# ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F56.png")
+```
+
+# Figure 57
+```{r}
+`VPRAIR_3B_Offense Type` %>%
+  filter(arrest_charge_level %in% c("Felony", "Misdemeanor")) %>%
+  mutate(vprair_risk_score = fct_relevel(vprair_risk_score, "Scores 11-14", after = 5)) %>%
+  group_by(arrest_charge_level, vprair_risk_score) %>%
+  mutate(t = sum(n, na.rm = T)) %>%
+  ungroup() %>%
+  ggplot(aes(x = vprair_risk_score, y = t, fill = arrest_charge_level)) +
+  geom_col(position = "dodge") +
+  scale_y_continuous(labels = comma) +
+  geom_text(aes(label = formatC(as.numeric(t), format = "d", big.mark = ",")), vjust = -0.5, position = position_dodge(0.9))
+
+ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F57.png")
+```
+
+# Figure 58
+```{r}
+# VPRAIR_3B_Race %>%
+#   filter(race != "Other/Unknown") %>%
+#   mutate(vprair_risk_score = fct_relevel(vprair_risk_score, "Scores 11-14", after = 5)) %>%
+#   group_by(race, vprair_risk_score) %>%
+#   mutate(t = sum(n, na.rm = T)) %>%
+#   ungroup() %>%
+#   ggplot(aes(x = vprair_risk_score, y = t, fill = race)) +
+#   geom_col(position = "dodge") +
+#   scale_y_continuous(labels = comma) +
+#   geom_text(aes(label = formatC(as.numeric(t), format = "d", big.mark = ",")), vjust = -0.5, position = position_dodge(width = 0.9), size = 3.5) +
+#   theme(legend.position = "top")
+# 
+# ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F58.png")
+```
+
+# Figure 59
+```{r}
+VPRAIR_3B_Release %>%
+  filter(release_decision != "Other") %>%
+  mutate(vprair_risk_score = fct_relevel(vprair_risk_score, "Scores 11-14", after = 5)) %>%
+  group_by(release_decision, vprair_risk_score) %>%
+  mutate(t = sum(n, na.rm = T)) %>%
+  ungroup() %>%
+  ggplot(aes(x = vprair_risk_score, y = t, fill = release_decision)) +
+  geom_col(position = "dodge") +
+  scale_y_continuous(labels = comma) +
+  geom_text(aes(label = formatC(as.numeric(t), format = "d", big.mark = ",")), vjust = -0.5, position = position_dodge(0.9))
+
+ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F59.png")
+```
+
+# Figure 60
+```{r}
+VPRAIO_3B_Gender %>%
+  mutate(vpraio_risk_score = as.character(vpraio_risk_score)) %>%
+  ggplot(aes(x = vpraio_risk_score, y = n, fill = sex)) +
+  geom_col()+
+  geom_text(aes(label = n), vjust = -0.5)
+
+ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F60.png")
+```
+
+# Figure 61
+```{r}
+`VPRAIO_3B_Offense Type` %>%
+  filter(arrest_charge_level %in% c("Felony", "Misdemeanor")) %>%
+  mutate(vpraio_risk_score = as.character(vpraio_risk_score)) %>%
+  ggplot(aes(x = vpraio_risk_score, y = n, fill = arrest_charge_level)) +
+  geom_col(position = "dodge") +
+  geom_text(aes(label = n), vjust = -0.5, position = position_dodge(0.9))
+
+ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F61.png")
+```
+
+# Figure 62
+```{r}
+VPRAIO_3B_Race %>%
+  mutate(vpraio_risk_score = as.character(vpraio_risk_score)) %>%
+  ggplot(aes(x = vpraio_risk_score, y = n, fill = race)) +
+  geom_col(position = "dodge") +
+  geom_text(aes(label = n), vjust = -0.5, position = position_dodge(0.9)) +
+  theme(legend.position = "top")
+
+ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F62.png")
+```
+
+# Figure 63
+```{r}
+VPRAIO_3B_Release %>%
+  mutate(vpraio_risk_score = as.character(vpraio_risk_score)) %>%
+  ggplot(aes(x = vpraio_risk_score, y = n, fill = release_decision)) +
+  geom_col() +
+  geom_text(aes(label = n), vjust = -0.5)
+
+ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F63.png")
+```
+
+# Figure 64
+```{r}
+df_3D_Overrides %>%
+  mutate(p = paste0(round(override_percent * 100), "%")) %>%
+  ggplot(aes(x = tool_name, y = override_percent)) +
+  geom_col() +
+  scale_y_continuous(labels = percent_format(1)) +
+  geom_text(aes(label = p), vjust = -0.5)
+
+ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F64.png")
+```
+
+# Figure 65
+```{r}
+df_3D_Supplementary %>%
+  mutate(release = case_when(
+    release_recommendation == "Deny Release" & release_decision == "Deny Release" ~ "Detain Recommendation, Program Release Denied",
+    release_recommendation == "Deny Release" & release_decision == "Release" ~ "Detain Recommendation, Program Release Granted",
+    release_recommendation == "Release" & release_decision == "Deny Release" ~ "Release Recommendation, Program Release Denied",
+    release_recommendation == "Release" & release_decision == "Release" ~ "Release Recommendation, Program Release Granted",
+    T ~ "Other/Unknown"
+  ),
+  p = paste0(round(prop * 100), "%")) %>%
+  ggplot(aes(x = release, y = prop, fill = tool_name)) +
+  geom_col(position = "dodge") +
+  scale_x_discrete(labels = function(x) str_wrap(x, width = 10)) +
+  scale_y_continuous(labels = percent_format(1)) +
+  geom_text(aes(label = p), vjust = -0.5, position = position_dodge(0.9))
+
+ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F65.png")
+```
+

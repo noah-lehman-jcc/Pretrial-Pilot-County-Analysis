@@ -660,6 +660,7 @@ This table excludes Los Angeles because at present data is only processed for pr
 release_df <- df %>%
   filter(la_flag == 0) %>%
   mutate(release_decision = if_else(release_decision_arraignment == "Monitor", "Own Recognizance", release_decision_arraignment)) %>%
+  mutate(release_decision = if_else(release_decision %in% c("Deny Release", "Own Recognizance"), release_decision, "Other")) %>%
   count(County, release_decision) %>%
   group_by(County) %>%
   mutate(Total = sum(n)) %>%
@@ -668,6 +669,7 @@ release_df <- df %>%
   bind_rows(df %>%
               filter(la_flag == 0) %>%
               mutate(release_decision = if_else(release_decision_arraignment == "Monitor", "Own Recognizance", release_decision_arraignment)) %>%
+              mutate(release_decision = if_else(release_decision %in% c("Deny Release", "Own Recognizance"), release_decision, "Other")) %>%
               count(release_decision) %>%
               mutate(Total = sum(n)) %>%
               pivot_wider(names_from =  release_decision, values_from =  n, values_fill = 0) %>%
@@ -721,6 +723,7 @@ Out of the 24,388 individuals assessed in Los Angeles, 15,158 individuals are no
 release_df <- df %>%
   filter(la_flag == 1) %>%
   mutate(release_decision = if_else(release_decision_prearraignment == "Monitor", "Own Recognizance", release_decision_prearraignment)) %>%
+  mutate(release_decision = if_else(release_decision %in% c("Deny Release", "Own Recognizance"), release_decision, "Other")) %>%
   count(County, release_decision) %>%
   group_by(County) %>%
   mutate(Total = sum(n)) %>%
@@ -729,6 +732,7 @@ release_df <- df %>%
   bind_rows(df %>%
               filter(la_flag == 1) %>%
               mutate(release_decision = if_else(release_decision_prearraignment == "Monitor", "Own Recognizance", release_decision_prearraignment)) %>%
+              mutate(release_decision = if_else(release_decision %in% c("Deny Release", "Own Recognizance"), release_decision, "Other")) %>%
               count(release_decision) %>%
               mutate(Total = sum(n)) %>%
               pivot_wider(names_from =  release_decision, values_from =  n, values_fill = 0) %>%
