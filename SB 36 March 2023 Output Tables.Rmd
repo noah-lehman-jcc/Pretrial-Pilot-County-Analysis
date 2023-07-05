@@ -49,7 +49,7 @@ my_kable <- function(x){
 Connection
 ```{r}
 
-con <- dbConnect(odbc::odbc(), "snowflake_pretrial", uid ="jeffrey.wu@jud.ca.gov", pwd = rstudioapi::askForPassword("Password"))
+con <- dbConnect(odbc::odbc(), "snowflake_pretrial", uid ="sal.lempert@jud.ca.gov", pwd = rstudioapi::askForPassword("Password"))
 
 ```
 
@@ -144,7 +144,7 @@ join_df <- join_df %>%
                             county %in% c("Kings", "Napa", "Nevada", "Sierra") ~ "Small/Medium Counties",
                             T ~ county),
          County = ordered(County),
-         County = factor(County, levels = c("Small Counties", "Small/Medium Counties")),
+         #County = factor(County, levels = c("Small Counties", "Small/Medium Counties")),
          release_type = if_else(release_type == "CiteR elease", "Cite Release", release_type), # fix LA's typo
          convicted_flag = if_else(disposition_type == "Convicted", 1, 0),
          new_arrest_flag = release_eligible_count,

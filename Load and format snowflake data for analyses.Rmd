@@ -1438,7 +1438,7 @@ full_bts %>%
   #filter(is_released_pretrial == "Yes") %>%
   filter(has_pretrial_period_end == "Yes") %>%
   filter(booking_date >= as.Date("2018-7-1"),
-         booking_date < as.Date("2022-1-1")) %>%
+         booking_date < as.Date("2023-1-1")) %>%
   filter(charge_level %in% c("M", "F")) %>%
   mutate(zb_flag = if_else(zb_flag == 1, "Zero bail eligible offense", "Not zero bail eligible offense")) %>%
   group_by(month = month(book_date), year = year(book_date), charge_level, zb_flag) %>%
@@ -6903,6 +6903,71 @@ prepost %>%
        y = "Estimated probability of pretrial OR/PM release compared to White individuals\nbefore and after pilot implementation") +
   guides(color = "none") +
   facet_grid(cols = vars(golive))
+```
+
+
+# Zip Code
+```{r}
+full_bts %>%
+  filter(is_release_eligible == "Yes") %>%
+  filter(booking_date >= as.Date("2018-7-1"),
+         booking_date < as.Date("2023-1-1")) %>%
+  filter(charge_level %in% c("M", "F")) %>%
+  count(is.na(zip_code_of_residency)) %>%
+  mutate(perc = n/sum(n))
+
+full_bts %>%
+  filter(is_release_eligible == "Yes") %>%
+  filter(booking_date >= as.Date("2018-7-1"),
+         booking_date < as.Date("2023-1-1")) %>%
+  filter(charge_level %in% c("M", "F")) %>%
+  count(zip_code_of_residency) %>%
+  mutate(perc = round(n/sum(n)*100, 1)) %>%
+  arrange(desc(n))
+```
+
+```{r}
+eval_df %>%
+  filter(county == "Santa Barbara")
+
+join_df %>%
+  filter(county == "Santa Barbara") %>%
+  filter(is_release_eligible == "Yes") %>%
+  filter(has_pretrial_period_end == "Yes") %>%
+  filter(is_booking_assessed == "Yes") %>%
+  filter(!is.na(risk_score)) %>%
+  filter(is_released_pretrial == "Yes")
+
+
+eval_df %>%
+  # filter(tool_name %in% c(""))
+  mutate(risk_level = case_when(
+    vprai_risk_score %in% 5:9|vprair_risk_score %in% 9:14|vpraio_risk_score %in% 5:10|oras_risk_score %in% 6:9|
+      psa_fta_risk_score %in% 5:6 ~ "Higher Scores",
+    vprai_risk_score %in% 3:4|vprair_risk_score %in% 5:8|vpraio_risk_score %in% 3:4|oras_risk_score %in% 3:5|
+      psa_fta_risk_score %in% 3:4 ~ "Middle Scores",
+    vprai_risk_score %in% 0:2|vprair_risk_score %in% 0:4|vpraio_risk_score %in% 0:2|oras_risk_score %in% 0:2|
+      psa_fta_risk_score %in% 1:2 ~ "Lower Scores",
+    T ~ "Other_Unknown")) %>%
+  mutate(release_type = if_else(!release_type %in% c("Zero Bail", "Bail Bond", "Unknown_Bail") & !is.na(assessment_date), 
+                                "Assessed_Release", release_type)) %>%
+  filter(release_type %in% c("Zero Bail", "Bail Bond",  "Assessed_Release")) %>%
+  
+  mutate(risk_level = if_else(risk_level %in% c("Other", "Unknown")|is.na(risk_level), "Other_Unknown", risk_level),
+         risk_level = if_else(release_type %in% c("Zero Bail", "Bail Bond", "Unknown_Bail"), release_type, risk_level)) %>%
+  group_by(County, risk_level, arrest_charge_level) %>%
+  summarise(Total = n(), `Court Appearance Rate` = paste(round(100-mean(fta_flag)*100), "%")) %>%
+  mutate(risk_level = factor(risk_level, levels =  c("Lower Scores", "Middle Scores", "Higher Scores", "Other_Unknown", "Zero Bail", "Bail Bond", "Unknown_Bail"))) %>%
+  arrange(County, arrest_charge_level, risk_level) %>%
+  mutate(across(matches("Total|Count$|Rate|Perc"), ~if_else(Total < 30 & Total >= 1, "< 30", as.character(.x))))
+
+eval_df %>%
+  count(county)
+
+join_df %>%
+  count(County)
+
+
 ```
 
 # Space saver
