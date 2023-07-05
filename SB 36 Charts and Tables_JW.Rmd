@@ -247,7 +247,7 @@ df_2B %>%
   select(-County) %>%
   rename(County = `Offense Type`) %>%
   gt() %>%
-  fmt_missing() %>%
+  sub_missing() %>%
   tab_row_group(md("**Ventura**"), 19:20) %>%
   tab_row_group(md("**Tulare**"), 17:18) %>%
   tab_row_group(md("**Sonoma**"), 15:16) %>%
@@ -270,7 +270,7 @@ df_2C %>%
   select(-County) %>%
   rename(County = `Offense Type`) %>%
   gt() %>%
-  fmt_missing() %>%
+  sub_missing() %>%
   tab_row_group(md("**Ventura**"), 19:20) %>%
   tab_row_group(md("**Tulare**"), 17:18) %>%
   tab_row_group(md("**Sonoma**"), 15:16) %>%
@@ -324,7 +324,7 @@ Race_2D %>%
   relocate(Total, .after = last_col()) %>%
   gt() %>%
   fmt_number(decimals = 0, sep_mark = ",") %>%
-  fmt_missing() %>%
+  sub_missing() %>%
   cols_label(Total = md("**Total**")) %>%
   tab_style(cell_text(weight = "bold"), list(cells_body(Total), cells_body(rows = County == "Total"))) %>%
   gtsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/T8.png")
@@ -345,7 +345,33 @@ Risk_Level_2E %>%
   gtsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/T9.png")
 ```
 
-# Table 10a
+# Table 10a (Pre-Arraignment)
+```{r}
+`Release_Decision_Pre-Arraignment_2E` %>%
+  filter(County != "Los Angeles") %>%
+  mutate(release_decision = case_when(
+    release_decision %in% c("Monitor", "Own Recognizance") ~ "Granted Program Release",
+    release_decision %in% c("Denied Program Release", "Ineligible") ~ "Denied Program Release",
+    T ~ "Other/Unknown"
+  )) %>%
+  filter(release_decision != "Other/Unknown") %>%
+  group_by(County, release_decision) %>%
+  mutate(n = sum(n, na.rm = T)) %>%
+  ungroup() %>%
+  distinct() %>%
+  pivot_wider(names_from = release_decision, values_from = n) %>%
+  bind_rows(summarise(., across(where(is.character), ~ "Total"),
+                      across(where(is.numeric), ~ sum(., na.rm = T)))) %>%
+  mutate(Total = rowSums(across(where(is.numeric)), na.rm = T)) %>%
+  gt() %>%
+  fmt_number(decimals = 0, sep_mark = ",") %>%
+  sub_missing() %>%
+  cols_label(Total = md("**Total**")) %>%
+  tab_style(cell_text(weight = "bold"), list(cells_body(Total), cells_body(rows = County == "Total"))) %>%
+  gtsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/T10a(Pre-Arraignment).png")
+```
+
+# Table 10a (Arraignment)
 ```{r}
 Release_Decision_Arraignment_2E %>%
   filter(County != "Los Angeles") %>%
@@ -365,10 +391,10 @@ Release_Decision_Arraignment_2E %>%
   mutate(Total = rowSums(across(where(is.numeric)), na.rm = T)) %>%
   gt() %>%
   fmt_number(decimals = 0, sep_mark = ",") %>%
-  fmt_missing() %>%
+  sub_missing() %>%
   cols_label(Total = md("**Total**")) %>%
   tab_style(cell_text(weight = "bold"), list(cells_body(Total), cells_body(rows = County == "Total"))) %>%
-  gtsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/T10a.png")
+  gtsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/T10a(Arraignment).png")
 ```
 
 # Table 10b
@@ -456,7 +482,7 @@ Supervision_Level_Percent_2G %>%
          `New Arrests` = New_Arrest_Percent) %>%
   gt() %>%
   fmt_percent(columns = where(is.numeric), decimals = 0) %>%
-  fmt_missing() %>%
+  sub_missing() %>%
   tab_row_group(md("**Tulare**"), 22:24) %>%
   tab_row_group(md("**Sonoma**"), 19:21) %>%
   tab_row_group(md("**San Mateo**"), 16:18) %>%
