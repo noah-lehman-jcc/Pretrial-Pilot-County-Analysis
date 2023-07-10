@@ -49,7 +49,7 @@ my_kable <- function(x){
 Connection
 ```{r}
 
-con <- dbConnect(odbc::odbc(), "snowflake_pretrial", uid ="sal.lempert@jud.ca.gov", pwd = rstudioapi::askForPassword("Password"))
+con <- dbConnect(odbc::odbc(), "snowflake_pretrial", uid ="jeffrey.wu@jud.ca.gov", pwd = rstudioapi::askForPassword("Password"))
 
 ```
 
