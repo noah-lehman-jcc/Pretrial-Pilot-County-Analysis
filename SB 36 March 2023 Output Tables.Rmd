@@ -99,7 +99,7 @@ df <- df %>%
                                county_name == "Yuba" ~ "ORAS",
                                county_name == "San Joaquin" ~ "VPRAI",
                                T ~ tool_name_standard),
-         tool_name = case_when(county_name == "Kings" ~ "VPRAIO", 
+         tool_name = case_when(county_name == "Kings" ~ "VPRAI-O", 
                                county_name == "Santa Barbara" & assessment_date < as.Date("2020-4-29") ~ "VPRAI",
                                county_name == "Santa Barbara" & assessment_date >= as.Date("2020-4-29") ~ "VPRAI-R",
                                county_name == "Alameda" & assessment_date < as.Date("2022-10-24") ~ "VPRAI-R",
@@ -168,25 +168,25 @@ join_df <- join_df %>%
          fta_flag = fta_county_or_doj,
          recid_arrested_flag = recid_county_or_doj,
          age = individual_age,
-         tool_name = case_when(county == "Kings" ~ "VPRAIO", 
+         tool_name = case_when(county == "Kings" ~ "VPRAI-O", 
                                county == "Santa Barbara" & assessment_date < as.Date("2020-4-29") ~ "VPRAI",
                                county == "Santa Barbara" & assessment_date >= as.Date("2020-4-29") ~ "VPRAI-R",
-                               county_name == "Alameda" & assessment_date < as.Date("2022-10-24") ~ "VPRAI-R",
-                               county_name == "Alameda" & assessment_date >= as.Date("2022-10-24") ~ "PSA",
-                               county_name %in% c("Sierra", "Nevada") & assessment_date < as.Date("2022-07-11") ~ "ORAS",
-                               county_name %in% c("Sierra", "Nevada") & assessment_date >= as.Date("2022-07-11") ~ "PSA",
+                               county == "Alameda" & assessment_date < as.Date("2022-10-24") ~ "VPRAI-R",
+                               county == "Alameda" & assessment_date >= as.Date("2022-10-24") ~ "PSA",
+                               county %in% c("Sierra", "Nevada") & assessment_date < as.Date("2022-07-11") ~ "ORAS",
+                               county %in% c("Sierra", "Nevada") & assessment_date >= as.Date("2022-07-11") ~ "PSA",
                                tool_name == "VPRAIR" ~ "VPRAI-R",
                                T ~ tool_name),
          oras_risk_score = if_else(tool_name == "ORAS", risk_score_raw, NA_real_),
          vprai_risk_score = if_else(tool_name == "VPRAI", risk_score_raw, NA_real_),
          vprair_risk_score = if_else(tool_name == "VPRAI-R", risk_score_raw, NA_real_),
-         vpraio_risk_score = if_else(tool_name == "VPRAIO", generic_tool_total_score_raw, NA_real_),
+         vpraio_risk_score = if_else(tool_name == "VPRAI-O", generic_tool_total_score_raw, NA_real_),
          psa_fta_risk_score = score_failure_to_appear,
          psa_nca_risk_score = score_new_criminal_activity,
          psa_nvca_risk_score = score_new_criminal_violent_activity,
          scored_assessment = if_else(tool_name %in% c("ORAS", "VPRAI", "VPRAI-R") & !is.na(risk_score_raw) |
                                        tool_name == "PSA" & !is.na(score_new_criminal_activity) |
-                                       tool_name == "VPRAIO" & !is.na(generic_tool_total_score_raw), 1, 0),
+                                       tool_name == "VPRAI-O" & !is.na(generic_tool_total_score_raw), 1, 0),
          pretrial_period_end_date = if_else(is.na(pretrial_period_end_date), as.Date(pretrial_period_end_date_doj), as.Date(pretrial_period_end_date))) %>%
   mutate(recid_filed_flag = recid_filed_flag_doj, 
          recid_convicted_flag = recid_convicted_flag_doj, 
@@ -208,13 +208,13 @@ eval_df <- join_df %>%
          released_pretrial_count == 1,
          pretrial_period_end_count == 1,
          booking_date < as.Date("2023-01-01"),
-         tool_name %in% c("ORAS", "PSA", "VPRAI", "VPRAI-R", "VPRAIO")
+         tool_name %in% c("ORAS", "PSA", "VPRAI", "VPRAI-R", "VPRAI-O")
          ) %>%
   mutate(release_to_pretrial_end = pretrial_period_end_date - release_date)
 
-save(df, file = "df.RData")
-save(join_df, file = "join_df.RData")
-save(eval_df, file = "eval_df.RData")
+#save(df, file = "df.RData")
+#save(join_df, file = "join_df.RData")
+#save(eval_df, file = "eval_df.RData")
 ```
 
 Date ranges
@@ -232,6 +232,17 @@ write.xlsx(date_range, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Progra
 join_df %>%
   filter(new_arrest_flag == 1) %>%
   count()
+
+date_range <- join_df %>%
+  #filter(County %in% c("Alameda", "Sacramento", "Sonoma", "Ventura")) %>%
+  filter(new_arrest_flag == 1) %>%
+  group_by(county) %>%
+  summarise(Total = n(),
+            `Earliest book date` = min(book_date),
+            `Latest book date` = max(book_date))
+
+write.xlsx(date_range, file = "All bookings date ranges by county small disaggregated.xlsx", asTable = F)
+
 ```
 Dates for assessments
 ```{r}
@@ -1824,7 +1835,7 @@ Source: Pretrial Pilot Program Probation Data (10-01-2019 through 03-31-2021) fr
 ## Outcomes (VPRAI-O)
 ```{r}
 risk_df_vpraio <- eval_df %>%
-  filter(tool_name == "VPRAIO",
+  filter(tool_name == "VPRAI-O",
          !is.na(vpraio_risk_score)) %>%
   group_by(vpraio_risk_score) %>%
   summarise(Total = n(), 
@@ -1832,7 +1843,7 @@ risk_df_vpraio <- eval_df %>%
             `Non New Charge Rate` = paste(round(100 - mean(recid_filed_flag)*100), "%")) %>%
   mutate(vpraio_risk_score = as.character(vpraio_risk_score)) %>%
   bind_rows(eval_df %>% 
-              filter(tool_name == "VPRAIO",
+              filter(tool_name == "VPRAI-O",
                      !is.na(vpraio_risk_score)) %>% 
               summarise(Total = n(),
                         `Non FTA Rate` = paste(round(100 - mean(fta_flag)*100), "%"),
@@ -1843,7 +1854,7 @@ risk_df_vpraio <- eval_df %>%
 write.xlsx(risk_df_vpraio, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/3A VpraiO.xlsx", asTable = T)
 
 eval_df %>%
-  filter(tool_name == "VPRAIO",
+  filter(tool_name == "VPRAI-O",
          !is.na(vpraio_risk_score)) %>%
   count()
 ```
@@ -1853,7 +1864,7 @@ Source: Pretrial Pilot Program Probation Data (10-01-2019 through 03-31-2021) fr
 ## Outcomes (VPRAI-O) categories
 ```{r}
 risk_df_vpraio <- eval_df %>%
-  filter(tool_name == "VPRAIO",
+  filter(tool_name == "VPRAI-O",
          !is.na(vpraio_risk_score)) %>%
   mutate(vpraio_risk_score = case_when(
     vpraio_risk_score %in% 0:1 ~ "Scores 0-1",
@@ -1868,7 +1879,7 @@ risk_df_vpraio <- eval_df %>%
             `Non New Charge Rate` = paste(round(100 - mean(recid_filed_flag)*100), "%")) %>%
   mutate(vpraio_risk_score = as.character(vpraio_risk_score)) %>%
   bind_rows(eval_df %>% 
-              filter(tool_name == "VPRAIO",
+              filter(tool_name == "VPRAI-O",
                      !is.na(vpraio_risk_score)) %>% 
               summarise(Total = n(),
                         `Non FTA Rate` = paste(round(100 - mean(fta_flag)*100), "%"),
@@ -2205,7 +2216,7 @@ df %>%
   count()
 ```
 
-## (VPRAIO)
+## (VPRAI-O)
 ```{r}
 race_vpraio <- df %>%
   filter(tool_name == "VPRAI-O",
@@ -2233,7 +2244,7 @@ gender_vpraio <- df %>%
   count(vpraio_risk_score, sex, risk_category) 
 
 offense_type_vpraio <- join_df %>%
-  filter(tool_name == "VPRAIO",
+  filter(tool_name == "VPRAI-O",
          !is.na(vpraio_risk_score)) %>%
   mutate(risk_category = case_when(
            vpraio_risk_score %in% 0:1 ~ "Scores 0-1",
@@ -2245,12 +2256,12 @@ offense_type_vpraio <- join_df %>%
   count(vpraio_risk_score, arrest_charge_level) 
 
 # zipcode_vpraio <- join_df %>%
-#   filter(tool_name == "VPRAIO",
+#   filter(tool_name == "VPRAI-O",
 #          !is.na(vpraio_risk_score)) %>%
 #   count(vpraio_risk_score, zip_code)
 
 release_vpraio <- join_df %>%
-  filter(tool_name == "VPRAIO",
+  filter(tool_name == "VPRAI-O",
          !is.na(vpraio_risk_score)) %>%
   mutate(release_decision = case_when(release_decision_arraignment %in% c("Monitor", "Own Recognizance") | release_decision_prearraignment %in% c("Monitor", "Own Recognizance") ~ "Granted Program Release", 
                                       release_decision_arraignment %in% c("Deny Release") | release_decision_arraignment %in% c("Deny Release") ~ "Denied Program Release", 
@@ -2263,7 +2274,7 @@ release_vpraio <- join_df %>%
          )) %>%
   count(vpraio_risk_score, release_decision)
 
-write.xlsx(list(race_vpraio, gender_vpraio, offense_type_vpraio,  release_vpraio), file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/3B VPRAIO.xlsx", asTable = T, sheetName = c("Race", "Gender", "Offense Type",  "Release"))
+write.xlsx(list(race_vpraio, gender_vpraio, offense_type_vpraio,  release_vpraio), file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/3B VPRAI-O.xlsx", asTable = T, sheetName = c("Race", "Gender", "Offense Type",  "Release"))
 
 
 df %>%
@@ -2734,7 +2745,7 @@ Source: Pretrial Pilot Program Probation Data (10-01-2019 through 03-31-2021) fr
 ## Accuracy (VPRAI-O)
 ```{r}
 risk_df_vpraio_gender <- eval_df %>%
-  filter(tool_name == "VPRAIO",
+  filter(tool_name == "VPRAI-O",
          !is.na(vpraio_risk_score)) %>%
   group_by(vpraio_risk_score, sex) %>%
   summarise(Total = n(), 
@@ -2745,7 +2756,7 @@ risk_df_vpraio_gender <- eval_df %>%
   mutate(across(matches("Total|Count$|Rate|Perc"), ~if_else(Total < 30 & Total >= 1, "< 30", as.character(.x)))) 
 
 risk_df_vpraio_race <- eval_df %>%
-  filter(tool_name == "VPRAIO",
+  filter(tool_name == "VPRAI-O",
          !is.na(vpraio_risk_score)) %>%
   group_by(vpraio_risk_score, race) %>%
   summarise(Total = n(), 
@@ -2756,7 +2767,7 @@ risk_df_vpraio_race <- eval_df %>%
   mutate(across(matches("Total|Count$|Rate|Perc"), ~if_else(Total < 30 & Total >= 1, "< 30", as.character(.x)))) 
 
 risk_df_vpraio_offense <- eval_df %>%
-  filter(tool_name == "VPRAIO",
+  filter(tool_name == "VPRAI-O",
          !is.na(vpraio_risk_score)) %>%
   group_by(vpraio_risk_score, arrest_charge_level) %>%
   summarise(Total = n(), 
@@ -2766,7 +2777,7 @@ risk_df_vpraio_offense <- eval_df %>%
   arrange(arrest_charge_level, vpraio_risk_score) %>%
   mutate(across(matches("Total|Count$|Rate|Perc"), ~if_else(Total < 30 & Total >= 1, "< 30", as.character(.x)))) 
 
-write.xlsx(list(risk_df_vpraio_gender, risk_df_vpraio_race, risk_df_vpraio_offense), file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/3C VPRAIO.xlsx", asTable = T, sheetName = c("Gender", "Race", "Offense Type")) 
+write.xlsx(list(risk_df_vpraio_gender, risk_df_vpraio_race, risk_df_vpraio_offense), file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/3C VPRAI-O.xlsx", asTable = T, sheetName = c("Gender", "Race", "Offense Type")) 
 ```
 Source: Pretrial Pilot Program Probation Data (10-01-2019 through 03-31-2021) from Kings.
 \newpage
@@ -2774,7 +2785,7 @@ Source: Pretrial Pilot Program Probation Data (10-01-2019 through 03-31-2021) fr
 ## Accuracy (VPRAI-O) categories
 ```{r}
 risk_df_vpraio_gender <- eval_df %>%
-  filter(tool_name == "VPRAIO",
+  filter(tool_name == "VPRAI-O",
          !is.na(vpraio_risk_score)) %>%
   mutate(vpraio_risk_score = case_when(
     vpraio_risk_score %in% 0:1 ~ "Scores 0-1",
@@ -2792,7 +2803,7 @@ risk_df_vpraio_gender <- eval_df %>%
   mutate(across(matches("Total|Count$|Rate|Perc"), ~if_else(Total < 30 & Total >= 1, "< 30", as.character(.x)))) 
 
 risk_df_vpraio_race <- eval_df %>%
-  filter(tool_name == "VPRAIO",
+  filter(tool_name == "VPRAI-O",
          !is.na(vpraio_risk_score)) %>%
   mutate(vpraio_risk_score = case_when(
     vpraio_risk_score %in% 0:1 ~ "Scores 0-1",
@@ -2810,7 +2821,7 @@ risk_df_vpraio_race <- eval_df %>%
   mutate(across(matches("Total|Count$|Rate|Perc"), ~if_else(Total < 30 & Total >= 1, "< 30", as.character(.x)))) 
 
 risk_df_vpraio_offense <- eval_df %>%
-  filter(tool_name == "VPRAIO",
+  filter(tool_name == "VPRAI-O",
          !is.na(vpraio_risk_score)) %>%
   mutate(vpraio_risk_score = case_when(
     vpraio_risk_score %in% 0:1 ~ "Scores 0-1",
@@ -2827,7 +2838,7 @@ risk_df_vpraio_offense <- eval_df %>%
   arrange(arrest_charge_level, vpraio_risk_score) %>%
   mutate(across(matches("Total|Count$|Rate|Perc"), ~if_else(Total < 30 & Total >= 1, "< 30", as.character(.x)))) 
 
-write.xlsx(list(risk_df_vpraio_gender, risk_df_vpraio_race, risk_df_vpraio_offense), file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/3C VPRAIO categories.xlsx", asTable = T, sheetName = c("Gender", "Race", "Offense Type")) 
+write.xlsx(list(risk_df_vpraio_gender, risk_df_vpraio_race, risk_df_vpraio_offense), file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/3C VPRAI-O categories.xlsx", asTable = T, sheetName = c("Gender", "Race", "Offense Type")) 
 ```
 Source: Pretrial Pilot Program Probation Data (10-01-2019 through 03-31-2021) from Kings.
 \newpage
