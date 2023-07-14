@@ -3114,3 +3114,98 @@ write.xlsx(list(override_df, override_df2), file = "G:/CrimJustice/Pretrial/000-
          release_decision_arraignment %in% c("Deny Release", "Monitor", "Own Recognizance") | release_decision_prearraignment %in% c("Deny Release", "Monitor", "Own Recognizance")) %>%
    count(county)
 ```
+
+Override Arraignment decision
+```{r}
+override_df_arr <- df %>%
+  mutate(release_recommendation = if_else(is.na(release_recommendation) |release_recommendation %in% c("Other UnKnown", "Other Unknown", "Other/Unknown", "Undefined"), "Other/Unknown", release_recommendation)) %>%
+  mutate(release_recommendation = if_else(release_recommendation %in% c( "Monitor", "Own Recognizance"), "Release", release_recommendation),
+         release_decision = case_when(release_decision_arraignment %in% c("Monitor", "Own Recognizance") ~ "Release",
+                                      release_decision_arraignment %in% c("Deny Release") ~ "Deny Release",
+                                      release_decision_arraignment %in% c("Ineligible") ~ "Ineligible",
+                                      T ~ "Other/Unknown")) %>%
+  group_by(tool_name, release_recommendation, release_decision) %>%
+  count() %>%
+  group_by(tool_name) %>%
+  mutate(perc = round(100*n/sum(n),1)) %>%
+  mutate(nperc = str_c(perc, "%", "  (", formatC(n, big.mark = ","), ")"))
+
+oras_arr <- override_df_arr %>%
+  ungroup() %>%
+  filter(tool_name == "ORAS") %>%
+  select(-n, -perc, -tool_name) %>%
+  pivot_wider(names_from = release_decision, values_from = nperc)
+
+vprai_arr <- override_df_arr %>%
+  ungroup() %>%
+  filter(tool_name == "VPRAI") %>%
+  select(-n, -perc, -tool_name) %>%
+  pivot_wider(names_from = release_decision, values_from = nperc)
+
+vprair_arr <- override_df_arr %>%
+  ungroup() %>%
+  filter(tool_name == "VPRAI-R") %>%
+  select(-n, -perc, -tool_name) %>%
+  pivot_wider(names_from = release_decision, values_from = nperc)
+
+vpraio_arr <- override_df_arr %>%
+  ungroup() %>%
+  filter(tool_name == "VPRAI-O") %>%
+  select(-n, -perc, -tool_name) %>%
+  pivot_wider(names_from = release_decision, values_from = nperc)
+
+psa_arr <- override_df_arr %>%
+  ungroup() %>%
+  filter(tool_name == "PSA") %>%
+  select(-n, -perc, -tool_name) %>%
+  pivot_wider(names_from = release_decision, values_from = nperc)
+
+override_df_pre <- df %>%
+  mutate(release_recommendation = if_else(is.na(release_recommendation) |release_recommendation %in% c("Other UnKnown", "Other Unknown", "Other/Unknown", "Undefined"), "Other/Unknown", release_recommendation)) %>%
+  mutate(release_recommendation = if_else(release_recommendation %in% c( "Monitor", "Own Recognizance"), "Release", release_recommendation),
+         release_decision = case_when(release_decision_prearraignment %in% c("Monitor", "Own Recognizance") ~ "Release",
+                                      release_decision_prearraignment %in% c("Deny Release") ~ "Deny Release",
+                                      release_decision_prearraignment %in% c("Ineligible") ~ "Ineligible",
+                                      T ~ "Other/Unknown")) %>%
+  group_by(tool_name, release_recommendation, release_decision) %>%
+  count() %>%
+  group_by(tool_name) %>%
+  mutate(perc = round(100*n/sum(n),1)) %>%
+  mutate(nperc = str_c(perc, "%", "  (", formatC(n, big.mark = ","), ")"))
+
+oras_pre <- override_df_pre %>%
+  ungroup() %>%
+  filter(tool_name == "ORAS") %>%
+  select(-n, -perc, -tool_name) %>%
+  pivot_wider(names_from = release_decision, values_from = nperc)
+
+vprai_pre <- override_df_pre %>%
+  ungroup() %>%
+  filter(tool_name == "VPRAI") %>%
+  select(-n, -perc, -tool_name) %>%
+  pivot_wider(names_from = release_decision, values_from = nperc)
+
+vprair_pre <- override_df_pre %>%
+  ungroup() %>%
+  filter(tool_name == "VPRAI-R") %>%
+  select(-n, -perc, -tool_name) %>%
+  pivot_wider(names_from = release_decision, values_from = nperc)
+
+vpraio_pre <- override_df_pre %>%
+  ungroup() %>%
+  filter(tool_name == "VPRAI-O") %>%
+  select(-n, -perc, -tool_name) %>%
+  pivot_wider(names_from = release_decision, values_from = nperc)
+
+psa_pre <- override_df_pre %>%
+  ungroup() %>%
+  filter(tool_name == "PSA") %>%
+  select(-n, -perc, -tool_name) %>%
+  pivot_wider(names_from = release_decision, values_from = nperc)
+
+write.xlsx(list(oras_arr, vprai_arr, vprair_arr, vpraio_arr, psa_arr), file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/3D Arraignment.xlsx", asTable = T, sheetName = c("ORAS Arraignment", "VPRAI Arraignment", "VPRAI-R Arraignment", "VPRAI-O Arraignment", "PSA Arraignment")) 
+
+write.xlsx(list(oras_pre, vprai_pre, vprair_pre, vpraio_pre, psa_pre), file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/3D Prearraignment.xlsx", asTable = T, sheetName = c("ORAS Prearraignment", "VPRAI Prearraignment", "VPRAI-R Prearraignment", "VPRAI-O Prearraignment", "PSA Prearraignment")) 
+
+```
+

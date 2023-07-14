@@ -676,9 +676,9 @@ release_df <- df %>%
               mutate(County = "Total") %>%
               select(County, 'Deny Release', 'Own Recognizance', Other, Total))
 
-release_df <- release_df[c(1,3,2)]
+release_df <- release_df[c(1,3,2, 4)]
 
-names(release_df) <- c("Court Size", "Granted Program Release", "Denied Program Release")
+names(release_df) <- c("Court Size", "Granted Program Release", "Denied Program Release", "Other/Unknown")
 
 my_kable(release_df) %>%
   column_spec(2:3, width = "2in") 
@@ -739,11 +739,11 @@ release_df <- df %>%
               mutate(County = "Total") %>%
               select(County, 'Deny Release', 'Own Recognizance', Total))
 
-release_df <- release_df[1, c(1,3,2)] %>%
+release_df <- release_df[1, c(1,3,2, 4)] %>%
   mutate(County = "Los Angeles")
 
 names(release_df) <- c("County", "Granted Prearraignment Program Release",
-                       "Denied Prearraignment Program Release")
+                       "Denied Prearraignment Program Release", "Other/Unknown")
 
 
 

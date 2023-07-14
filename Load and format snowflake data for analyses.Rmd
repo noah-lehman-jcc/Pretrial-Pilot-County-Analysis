@@ -6970,7 +6970,7 @@ prepost %>%
   facet_grid(cols = vars(golive))
 ```
 
-<<<<<<< HEAD
+
 
 # Zip Code
 ```{r}
@@ -6992,6 +6992,7 @@ full_bts %>%
   arrange(desc(n))
 ```
 
+# SB 36 file checks
 ```{r}
 eval_df %>%
   filter(county == "Santa Barbara")
@@ -7033,8 +7034,52 @@ eval_df %>%
 join_df %>%
   count(County)
 
+df %>%
+  count(county)
 
-=======
+
+
+df %>%
+  mutate(age = case_when(
+    individual_age %in% 18:25 ~ "18-25",
+    individual_age %in% 26:35 ~ "26-35",
+    individual_age %in% 36:45 ~ "36-45",
+    individual_age %in% 46:55 ~ "46-55",
+    individual_age >= 56 ~ "56+",
+    T ~ "Other_Unknown"
+  )) %>%
+  count(County, age) %>%
+  group_by(County) %>%
+  mutate(Total = sum(n))
+
+df %>%
+  filter(county_name == "Alameda") %>%
+  count(tool_name_standard, is.na(risk_score_raw), is.na(score_new_criminal_activity), assessment_date < '2023-01-01')
+
+df %>%
+  filter(county_name == "Alameda") %>%
+  count(tool_name)
+```
+```{r}
+df %>%
+  mutate(age = case_when(
+    individual_age %in% 18:25 ~ "18-25",
+    individual_age %in% 26:35 ~ "26-35",
+    individual_age %in% 36:45 ~ "36-45",
+    individual_age %in% 46:55 ~ "46-55",
+    individual_age >= 56 ~ "56+",
+    T ~ "Other_Unknown"
+  )) %>%
+  count(County, age) %>%
+  group_by(County) %>%
+  mutate(Total = sum(n))
+ 
+
+join_df %>%
+  filter(county == "Nevada") %>%
+  count(tool_name, risk_score)
+```
+
 # Days incarcerated for Francine
 
 ```{r}
@@ -7129,7 +7174,111 @@ full_bts %>%
 
 
 ggsave("med days incarcerated, incomplete included.png", width = 8, height = 20)
->>>>>>> 66323303fb392f721cb24cd8c30a6beab180f556
+```
+
+sb 36 sandbox
+```{r}
+#df_orig <- df
+#join_df_orig <- join_df
+
+join_df %>%
+  filter(scored_assessment == 1) %>%
+  count(recommended_release_type, county, tool_name) %>%
+  group_by(county, tool_name) %>%
+  mutate(perc = round(100*n/sum(n), 1)) %>%
+  arrange(county)
+
+
+join_df %>%
+  filter(scored_assessment == 1,
+         tool_name == "VPRAI-R",
+         recommended_release_type != "Undefined",
+         !release_decision_arraignment %in% c("Undefined", "Other", "Other Unknown")) %>%
+  count(recommended_release_type, release_decision_arraignment) %>%
+  mutate(perc = round(100*n/sum(n), 1))
+```
+Monitor level
+```{r}
+df %>%
+  mutate(monitor_flag = if_else(release_decision_prearraignment == "Monitor" | release_decision_arraignment == "Monitor", 1, 0)) %>%
+  count(monitor_flag, monitor_level) 
+
+join_df %>%
+  filter(scored_assessment == 1) %>%
+  mutate(prob_monitor_flag = if_else(release_decision_prearraignment == "Monitor" | release_decision_arraignment == "Monitor", 1, 0),
+         jail_monitor_flag = if_else(release_type == "Pretrial Monitor", 1, 0)) %>%
+  count(prob_monitor_flag, jail_monitor_flag, monitor_level)
+           
+```
+ORAS release decision
+```{r}
+release_oras <- join_df %>%
+  filter(tool_name == "ORAS",
+         !is.na(oras_risk_score)) %>%
+  mutate(release_decision = case_when(release_decision_arraignment %in% c("Monitor", "Own Recognizance") | release_decision_prearraignment %in% c("Monitor", "Own Recognizance") ~ "Granted Program Release", 
+                                      release_decision_arraignment %in% c("Deny Release") | release_decision_arraignment %in% c("Deny Release") ~ "Denied Program Release", 
+                                      T ~ "Other"),
+         risk_category = case_when(
+           oras_risk_score %in% 0:2 ~ "Scores 0-2",
+           oras_risk_score %in% 3:5 ~ "Scores 3-5",
+           oras_risk_score %in% 6:9 ~ "Scores 6-9"
+         )) %>%
+  count(oras_risk_score, release_decision, risk_category)
+```
+Overrides
+```{r}
+override_df <- df %>%
+  mutate(release_recommendation = case_when(release_recommendation %in% c("Monitor", "Own Recognizance") ~ "Release", 
+                                            is.na(release_recommendation) | release_recommendation %in% c("Other UnKnown", "Other Unknown", "Other/Unknown", "Undefined") ~ "Other/Unknown",
+                                            T ~ release_recommendation),
+         release_decision = case_when(release_decision_arraignment %in% c("Monitor", "Own Recognizance") | release_decision_prearraignment %in% c("Monitor", "Own Recognizance") ~ "Release",
+                                      release_decision_arraignment %in% c("Deny Release") ~ "Deny Release",
+                                      release_decision_arraignment %in% c("Ineligible") ~ "Ineligible",
+                                      release_decision_arraignment %in% c("Other", "Other Unknown", "Undefined") ~ "Other/Unknown")) %>%
+  #group_by(tool_name) %>%
+  count(release_recommendation, release_decision)
+  mutate(override_flag = if_else(release_recommendation == release_decision, 0, 1)) %>%
+
+  summarise(override_percent = mean(override_flag), Total = n())
+
+override_df2 <- df %>%
+  filter(release_recommendation %in% c("Deny Release", "Monitor", "Own Recognizance"),
+         release_decision_arraignment %in% c("Deny Release", "Monitor", "Own Recognizance") | release_decision_prearraignment %in% c("Deny Release", "Monitor", "Own Recognizance")) %>%
+  mutate(release_recommendation = if_else(release_recommendation %in% c( "Monitor", "Own Recognizance"), "Release", release_recommendation),
+         release_decision = if_else(release_decision_arraignment %in% c("Monitor", "Own Recognizance") | release_decision_prearraignment %in% c("Monitor", "Own Recognizance"), "Release", "Deny Release")) %>%
+  # mutate(override_flag = if_else(release_recommendation == release_decision, 0, 1)) %>%
+  group_by(tool_name, release_recommendation, release_decision) %>%
+  count() %>%
+  group_by(tool_name) %>%
+  mutate(prop = n/sum(n))
+
+override_df3 <- df %>%
+  mutate(release_recommendation = if_else(is.na(release_recommendation) |release_recommendation %in% c("Other UnKnown", "Other Unknown", "Other/Unknown", "Undefined"), "Other/Unknown", release_recommendation)) %>%
+  mutate(release_recommendation = if_else(release_recommendation %in% c( "Monitor", "Own Recognizance"), "Release", release_recommendation),
+         release_decision = case_when(release_decision_arraignment %in% c("Monitor", "Own Recognizance") ~ "Release",
+                                      release_decision_arraignment %in% c("Deny Release") ~ "Deny Release",
+                                      release_decision_arraignment %in% c("Ineligible") ~ "Ineligible",
+                                      T ~ "Other/Unknown")) %>%
+  # mutate(override_flag = if_else(release_recommendation == release_decision, 0, 1)) %>%
+  group_by(tool_name, release_recommendation, release_decision) %>%
+  count() %>%
+  group_by(tool_name) %>%
+  mutate(perc = round(100*n/sum(n),1))
+
+df %>%
+  count(release_decision_prearraignment, release_decision_arraignment)
+
+df %>%
+  count(release_decision_arraignment)
+
+df %>%
+  count(release_decision_prearraignment)
+
+df %>%
+  count(release_recommendation)
+
+df %>%
+  count(tool_name)
 ```
 
 # Space saver
