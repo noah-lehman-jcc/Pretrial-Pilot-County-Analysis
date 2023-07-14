@@ -49,7 +49,7 @@ my_kable <- function(x){
 Connection
 ```{r}
 
-con <- dbConnect(odbc::odbc(), "snowflake_pretrial", uid ="jeffrey.wu@jud.ca.gov", pwd = rstudioapi::askForPassword("Password"))
+con <- dbConnect(odbc::odbc(), "snowflake_pretrial", uid ="sal.lempert@jud.ca.gov", pwd = rstudioapi::askForPassword("Password"))
 
 ```
 
@@ -1279,9 +1279,11 @@ Release decision prearraignment
 ```{r}
 release_df <- df %>%
   # filter(la_flag == 0) %>%
-  mutate(release_decision = if_else(release_decision_prearraignment %in% c("Monitor", "Own Recognizance"), "Granted Program Release", release_decision_prearraignment),
-         release_decision = if_else(release_decision_prearraignment %in% c("Deny Release"), "Denied Program Release", release_decision_prearraignment)) %>%
-  count(County, release_decision)# %>%
+  mutate(release_decision_prearraignment = case_when(release_decision_prearraignment %in% c("Monitor", "Own Recognizance") ~ "Granted Program Release",
+                                                     release_decision_prearraignment %in% c("Deny Release") ~ "Denied Program Release",
+                                                     release_decision_prearraignment %in% c("Other Unknown", "Unknown", "Other", "Undefined") ~ "Other/Unknown",
+                                                     release_decision_prearraignment %in% c("Ineligible") ~ "Ineligible")) %>%
+  count(County, release_decision_prearraignment)
   #filter(!County %in% c("San Joaquin", "Sonoma", "Los Angeles"))
   # group_by(County) %>%
   # mutate(Total = sum(n)) %>%
@@ -1323,13 +1325,17 @@ write.xlsx(release_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Progra
 # write.xlsx(release_df, file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/2E Release Decision Aggregated without LA.xlsx", asTable = T)  
 
 ```
+
+
 Release decision at arraignment
 ```{r}
 release_df <- df %>%
   # filter(la_flag == 0) %>%
-  mutate(release_decision = if_else(release_decision_arraignment %in% c("Monitor", "Own Recognizance"), "Granted Program Release", release_decision_arraignment),
-         release_decision = if_else(release_decision_arraignment %in% c("Deny Release"), "Denied Program Release", release_decision_arraignment)) %>%
-  count(County, release_decision)# %>%
+  mutate(release_decision_arraignment = case_when(release_decision_arraignment %in% c("Monitor", "Own Recognizance") ~ "Granted Program Release",
+                                                     release_decision_arraignment %in% c("Deny Release") ~ "Denied Program Release",
+                                                     release_decision_arraignment %in% c("Other Unknown", "Unknown", "Undefined", "Other") ~ "Other/Unknown",
+                                                     release_decision_arraignment %in% c("Ineligible") ~ "Ineligible")) %>%
+  count(County, release_decision_arraignment)# %>%
   #filter(!County %in% c("San Joaquin", "Sonoma", "Los Angeles"))
   # group_by(County) %>%
   # mutate(Total = sum(n)) %>%
@@ -1429,8 +1435,10 @@ San Joaquin and Sonoma were missing data on release decision and are not include
 ```{r}
 release_df <- df %>%
   # filter(la_flag == 0) %>%
-  mutate(release_decision_prearraignment = if_else(release_decision_prearraignment %in% c("Monitor", "Own Recognizance"), "Granted Program Release", release_decision_prearraignment),
-         release_decision_prearraignment = if_else(release_decision_prearraignment %in% c("Deny Release"), "Denied Program Release", release_decision_prearraignment)) %>%
+   mutate(release_decision_prearraignment = case_when(release_decision_prearraignment %in% c("Monitor", "Own Recognizance") ~ "Granted Program Release",
+                                                     release_decision_prearraignment %in% c("Deny Release") ~ "Denied Program Release",
+                                                     release_decision_prearraignment %in% c("Other Unknown", "Unknown", "Other", "Undefined") ~ "Other/Unknown",
+                                                     release_decision_prearraignment %in% c("Ineligible") ~ "Ineligible")) %>%
   count(County, release_decision_prearraignment) %>%
   filter(County == "Los Angeles")
   # group_by(County) %>%
