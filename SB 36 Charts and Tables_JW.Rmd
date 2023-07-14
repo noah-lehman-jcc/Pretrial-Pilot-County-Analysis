@@ -27,6 +27,7 @@ df_list <- lapply(files, function(x) {
 df_names <- lapply(files, function(x) {
   lapply(excel_sheets(x), function(i) {
     df_name <- sub(".*\\/", "", x)
+    df_name <- gsub("-", "", df_name)
     df_name <- if_else(!is.na(as.numeric(substr(gsub("^\\S* ", "", gsub(".xlsx", "", df_name)), 1, 1))), paste0("df_", gsub("^\\S* ", "", gsub(".xlsx", "", df_name))), gsub(" ", "_", paste(gsub("^\\S* ", "", gsub(".xlsx", "", df_name)), gsub(" .*", "", gsub(".xlsx", "", df_name)))))
     df_name <- if_else(i == "Sheet 1", df_name, paste0(df_name, "_", i))
   })
@@ -347,7 +348,7 @@ Risk_Level_2E %>%
 
 # Table 10a (Pre-Arraignment)
 ```{r}
-`Release_Decision_Pre-Arraignment_2E` %>%
+Release_Decision_PreArraignment_2E %>%
   filter(County != "Los Angeles") %>%
   mutate(release_decision = case_when(
     release_decision %in% c("Monitor", "Own Recognizance") ~ "Granted Program Release",
@@ -1456,13 +1457,13 @@ ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Repo
 
 # Figure 60
 ```{r}
-# VPRAIO_3B_Gender %>%
-#   mutate(vpraio_risk_score = as.character(vpraio_risk_score)) %>%
-#   ggplot(aes(x = vpraio_risk_score, y = n, fill = sex)) +
-#   geom_col()+
-#   geom_text(aes(label = n), vjust = -0.5)
-# 
-# ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F60.png")
+VPRAIO_3B_Gender %>%
+  mutate(vpraio_risk_score = as.character(vpraio_risk_score)) %>%
+  ggplot(aes(x = vpraio_risk_score, y = n, fill = sex)) +
+  geom_col()+
+  geom_text(aes(label = n), vjust = -0.5)
+
+ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F60.png")
 ```
 
 # Figure 61
@@ -1479,14 +1480,14 @@ ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Repo
 
 # Figure 62
 ```{r}
-# VPRAIO_3B_Race %>%
-#   mutate(vpraio_risk_score = as.character(vpraio_risk_score)) %>%
-#   ggplot(aes(x = vpraio_risk_score, y = n, fill = race)) +
-#   geom_col(position = "dodge") +
-#   geom_text(aes(label = n), vjust = -0.5, position = position_dodge(0.9)) +
-#   theme(legend.position = "top")
-# 
-# ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F62.png")
+VPRAIO_3B_Race %>%
+  mutate(vpraio_risk_score = as.character(vpraio_risk_score)) %>%
+  ggplot(aes(x = vpraio_risk_score, y = n, fill = race)) +
+  geom_col(position = "dodge") +
+  geom_text(aes(label = n), vjust = -0.5, position = position_dodge(0.9)) +
+  theme(legend.position = "top")
+
+ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F62.png")
 ```
 
 # Figure 63
