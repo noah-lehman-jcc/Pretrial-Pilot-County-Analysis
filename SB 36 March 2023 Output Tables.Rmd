@@ -2002,12 +2002,13 @@ offense_type_oras <- join_df %>%
 #          !is.na(oras_risk_score)) %>%
 #   count(oras_risk_score, zip_code)
 
-release_oras <- join_df %>%
+release_arr_oras <- join_df %>%
   filter(tool_name == "ORAS",
          !is.na(oras_risk_score)) %>%
-  mutate(release_decision = case_when(release_decision_arraignment %in% c("Monitor", "Own Recognizance") | release_decision_prearraignment %in% c("Monitor", "Own Recognizance") ~ "Granted Program Release", 
-                                      release_decision_arraignment %in% c("Deny Release") | release_decision_arraignment %in% c("Deny Release") ~ "Denied Program Release", 
-                                      T ~ "Other"),
+  mutate(release_decision = case_when(release_decision_arraignment %in% c("Monitor", "Own Recognizance")  ~ "Granted Program Release", 
+                                      release_decision_arraignment %in% c("Deny Release") ~ "Denied Program Release", 
+                                      release_decision_arraignment %in% c("Ineligible") ~ "Ineligible",
+                                      T ~ "Other/Unknown"),
          risk_category = case_when(
            oras_risk_score %in% 0:2 ~ "Scores 0-2",
            oras_risk_score %in% 3:5 ~ "Scores 3-5",
@@ -2015,7 +2016,21 @@ release_oras <- join_df %>%
          )) %>%
   count(oras_risk_score, release_decision, risk_category)
 
-write.xlsx(list(race_oras, gender_oras, offense_type_oras, release_oras), file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/3B ORAS.xlsx", asTable = T, sheetName = c("Race", "Gender", "Offense Type",  "Release"))
+release_pre_oras <- join_df %>%
+  filter(tool_name == "ORAS",
+         !is.na(oras_risk_score)) %>%
+  mutate(release_decision = case_when(release_decision_prearraignment %in% c("Monitor", "Own Recognizance")  ~ "Granted Program Release", 
+                                      release_decision_prearraignment %in% c("Deny Release") ~ "Denied Program Release", 
+                                      release_decision_prearraignment %in% c("Ineligible") ~ "Ineligible",
+                                      T ~ "Other/Unknown"),
+         risk_category = case_when(
+           oras_risk_score %in% 0:2 ~ "Scores 0-2",
+           oras_risk_score %in% 3:5 ~ "Scores 3-5",
+           oras_risk_score %in% 6:9 ~ "Scores 6-9"
+         )) %>%
+  count(oras_risk_score, release_decision, risk_category)
+
+write.xlsx(list(race_oras, gender_oras, offense_type_oras, release_arr_oras, release_pre_oras), file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/3B ORAS.xlsx", asTable = T, sheetName = c("Race", "Gender", "Offense Type",  "Release Arraignment", "Release Prearraignment"))
 
 df %>%
   filter(tool_name == "ORAS",
@@ -2091,9 +2106,33 @@ offense_type_vprai <- join_df %>%
 release_vprai <- join_df %>%
   filter(tool_name == "VPRAI",
          !is.na(vprai_risk_score)) %>%
- mutate(release_decision = case_when(release_decision_arraignment %in% c("Monitor", "Own Recognizance") | release_decision_prearraignment %in% c("Monitor", "Own Recognizance") ~ "Granted Program Release", 
-                                      release_decision_arraignment %in% c("Deny Release") | release_decision_arraignment %in% c("Deny Release") ~ "Denied Program Release", 
-                                      T ~ "Other"),
+ mutate(release_decision = case_when(release_decision_arraignment %in% c("Monitor", "Own Recognizance")  ~ "Granted Program Release", 
+                                      release_decision_arraignment %in% c("Deny Release") ~ "Denied Program Release", 
+                                      release_decision_arraignment %in% c("Ineligible") ~ "Ineligible",
+                                      T ~ "Other/Unknown"),
+        risk_category = case_when(
+           vprai_risk_score %in% 0:1 ~ "Scores 0-1",
+           vprai_risk_score == 2 ~ "Score 2",
+           vprai_risk_score == 3 ~ "Score 3",
+           vprai_risk_score == 4 ~ "Score 4",
+           vprai_risk_score %in% 5:9 ~ "Scores 5-9"
+         ),
+        risk_score_sort = case_when(
+           risk_category == "Scores 0-1" ~ 1,
+           risk_category == "Score 2" ~ 2,
+           risk_category == "Score 3" ~ 3,
+           risk_category == "Score 4" ~ 4,
+           risk_category == "Scores 5-9" ~ 5,
+         )) %>%
+  count(vprai_risk_score, release_decision, risk_category, risk_score_sort)
+
+release_pre_vprai <- join_df %>%
+  filter(tool_name == "VPRAI",
+         !is.na(vprai_risk_score)) %>%
+ mutate(release_decision = case_when(release_decision_prearraignment %in% c("Monitor", "Own Recognizance")  ~ "Granted Program Release", 
+                                      release_decision_prearraignment %in% c("Deny Release") ~ "Denied Program Release", 
+                                      release_decision_prearraignment %in% c("Ineligible") ~ "Ineligible",
+                                      T ~ "Other/Unknown"),
         risk_category = case_when(
            vprai_risk_score %in% 0:1 ~ "Scores 0-1",
            vprai_risk_score == 2 ~ "Score 2",
@@ -2112,7 +2151,8 @@ release_vprai <- join_df %>%
 
 
 
-write.xlsx(list(race_vprai, gender_vprai, offense_type_vprai,  release_vprai), file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/3B VPRAI.xlsx", asTable = T, sheetName = c("Race", "Gender", "Offense Type", "Release"))
+
+write.xlsx(list(race_vprai, gender_vprai, offense_type_vprai,  release_vprai, release_pre_vprai), file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/3B VPRAI.xlsx", asTable = T, sheetName = c("Race", "Gender", "Offense Type", "Release Arraignment", "Release Prearraignment"))
 
 
 df %>%
@@ -2195,9 +2235,10 @@ offense_type_vprair <- join_df %>%
 release_vprair <- join_df %>%
   filter(tool_name == "VPRAI-R",
          !is.na(vprair_risk_score)) %>%
-  mutate(release_decision = case_when(release_decision_arraignment %in% c("Monitor", "Own Recognizance") | release_decision_prearraignment %in% c("Monitor", "Own Recognizance") ~ "Granted Program Release", 
-                                      release_decision_arraignment %in% c("Deny Release") | release_decision_arraignment %in% c("Deny Release") ~ "Denied Program Release", 
-                                      T ~ "Other"),
+  mutate(release_decision = case_when(release_decision_arraignment %in% c("Monitor", "Own Recognizance")  ~ "Granted Program Release", 
+                                      release_decision_arraignment %in% c("Deny Release") ~ "Denied Program Release", 
+                                      release_decision_arraignment %in% c("Ineligible") ~ "Ineligible",
+                                      T ~ "Other/Unknown"),
          vprair_risk_score = case_when(
            vprair_risk_score %in% 0:2 ~ "Scores 0-2",
            vprair_risk_score %in% 3:4 ~ "Scores 3-4",
@@ -2216,7 +2257,32 @@ release_vprair <- join_df %>%
          )) %>%
   count(vprair_risk_score, release_decision, risk_score_sort)
 
-write.xlsx(list(race_vprair, gender_vprair, offense_type_vprair, release_vprair), file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/3B VPRAIR.xlsx", asTable = T, sheetName = c("Race", "Gender", "Offense Type",  "Release"))
+release_pre_vprair <- join_df %>%
+  filter(tool_name == "VPRAI-R",
+         !is.na(vprair_risk_score)) %>%
+  mutate(release_decision = case_when(release_decision_prearraignment %in% c("Monitor", "Own Recognizance")  ~ "Granted Program Release", 
+                                      release_decision_prearraignment %in% c("Deny Release") ~ "Denied Program Release", 
+                                      release_decision_prearraignment %in% c("Ineligible") ~ "Ineligible",
+                                      T ~ "Other/Unknown"),
+         vprair_risk_score = case_when(
+           vprair_risk_score %in% 0:2 ~ "Scores 0-2",
+           vprair_risk_score %in% 3:4 ~ "Scores 3-4",
+           vprair_risk_score %in% 5:6 ~ "Scores 5-6",
+           vprair_risk_score %in% 7:8 ~ "Scores 7-8",
+           vprair_risk_score %in% 9:10 ~ "Scores 9-10",
+           vprair_risk_score %in% 11:14 ~ "Scores 11-14"
+         ),
+         risk_score_sort = case_when(
+           vprair_risk_score == "Scores 0-2" ~ 1,
+           vprair_risk_score == "Scores 3-4" ~ 2,
+           vprair_risk_score == "Scores 5-6" ~ 3,
+           vprair_risk_score == "Scores 7-8" ~ 4,
+           vprair_risk_score == "Scores 9-10" ~ 5,
+           vprair_risk_score == "Scores 11-14" ~ 6
+         )) %>%
+  count(vprair_risk_score, release_decision, risk_score_sort)
+
+write.xlsx(list(race_vprair, gender_vprair, offense_type_vprair, release_vprair, release_pre_vprair), file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/3B VPRAIR.xlsx", asTable = T, sheetName = c("Race", "Gender", "Offense Type",  "Release Arraignment", "Release Prearraignment"))
 
 df %>%
   filter(tool_name == "VPRAI-R",
@@ -2271,9 +2337,10 @@ offense_type_vpraio <- join_df %>%
 release_vpraio <- join_df %>%
   filter(tool_name == "VPRAI-O",
          !is.na(vpraio_risk_score)) %>%
-  mutate(release_decision = case_when(release_decision_arraignment %in% c("Monitor", "Own Recognizance") | release_decision_prearraignment %in% c("Monitor", "Own Recognizance") ~ "Granted Program Release", 
-                                      release_decision_arraignment %in% c("Deny Release") | release_decision_arraignment %in% c("Deny Release") ~ "Denied Program Release", 
-                                      T ~ "Other"),
+  mutate(release_decision = case_when(release_decision_arraignment %in% c("Monitor", "Own Recognizance")  ~ "Granted Program Release", 
+                                      release_decision_arraignment %in% c("Deny Release") ~ "Denied Program Release", 
+                                      release_decision_arraignment %in% c("Ineligible") ~ "Ineligible",
+                                      T ~ "Other/Unknown"),
          risk_category = case_when(
            vpraio_risk_score == 2 ~ "Score 2",
            vpraio_risk_score == 3 ~ "Score 3",
@@ -2282,7 +2349,22 @@ release_vpraio <- join_df %>%
          )) %>%
   count(vpraio_risk_score, release_decision)
 
-write.xlsx(list(race_vpraio, gender_vpraio, offense_type_vpraio,  release_vpraio), file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/3B VPRAI-O.xlsx", asTable = T, sheetName = c("Race", "Gender", "Offense Type",  "Release"))
+release_pre_vpraio <- join_df %>%
+  filter(tool_name == "VPRAI-O",
+         !is.na(vpraio_risk_score)) %>%
+  mutate(release_decision = case_when(release_decision_prearraignment %in% c("Monitor", "Own Recognizance")  ~ "Granted Program Release", 
+                                      release_decision_prearraignment %in% c("Deny Release") ~ "Denied Program Release", 
+                                      release_decision_prearraignment %in% c("Ineligible") ~ "Ineligible",
+                                      T ~ "Other/Unknown"),
+         risk_category = case_when(
+           vpraio_risk_score == 2 ~ "Score 2",
+           vpraio_risk_score == 3 ~ "Score 3",
+           vpraio_risk_score == 4 ~ "Score 4",
+           vpraio_risk_score %in% 5:10 ~ "Scores 5-10"
+         )) %>%
+  count(vpraio_risk_score, release_decision)
+
+write.xlsx(list(race_vpraio, gender_vpraio, offense_type_vpraio,  release_vpraio, release_pre_vpraio), file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/3B VPRAI-O.xlsx", asTable = T, sheetName = c("Race", "Gender", "Offense Type",  "Release Arraignment", "Release Prearraignment"))
 
 
 df %>%
@@ -2322,12 +2404,23 @@ release_psa <- join_df %>%
   filter(tool_name == "PSA",
          !is.na(psa_fta_risk_score),
          psa_fta_risk_score %in% 1:6) %>%
-  mutate(release_decision = case_when(release_decision_arraignment %in% c("Monitor", "Own Recognizance") | release_decision_prearraignment %in% c("Monitor", "Own Recognizance") ~ "Granted Program Release", 
-                                      release_decision_arraignment %in% c("Deny Release") | release_decision_arraignment %in% c("Deny Release") ~ "Denied Program Release", 
-                                      T ~ "Other")) %>%
+  mutate(release_decision = case_when(release_decision_arraignment %in% c("Monitor", "Own Recognizance")  ~ "Granted Program Release", 
+                                      release_decision_arraignment %in% c("Deny Release") ~ "Denied Program Release", 
+                                      release_decision_arraignment %in% c("Ineligible") ~ "Ineligible",
+                                      T ~ "Other/Unknown")) %>%
   count(psa_fta_risk_score, release_decision)
 
-write.xlsx(list(race_psa, gender_psa, offense_type_psa,  release_psa), file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/3B PSA FTA.xlsx", asTable = T, sheetName = c("Race", "Gender", "Offense Type",  "Release"))
+release_pre_psa <- join_df %>%
+  filter(tool_name == "PSA",
+         !is.na(psa_fta_risk_score),
+         psa_fta_risk_score %in% 1:6) %>%
+  mutate(release_decision = case_when(release_decision_prearraignment %in% c("Monitor", "Own Recognizance")  ~ "Granted Program Release", 
+                                      release_decision_prearraignment %in% c("Deny Release") ~ "Denied Program Release", 
+                                      release_decision_prearraignment %in% c("Ineligible") ~ "Ineligible",
+                                      T ~ "Other/Unknown")) %>%
+  count(psa_fta_risk_score, release_decision)
+
+write.xlsx(list(race_psa, gender_psa, offense_type_psa,  release_psa, release_pre_psa), file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/3B PSA FTA.xlsx", asTable = T, sheetName = c("Race", "Gender", "Offense Type",  "Release Arraignment", "Release Prearraignment"))
 
 df %>%
   filter(tool_name == "PSA",
@@ -2367,12 +2460,23 @@ release_psa <- join_df %>%
   filter(tool_name == "PSA",
          !is.na(psa_nca_risk_score),
          psa_nca_risk_score %in% 1:6) %>%
-  mutate(release_decision = case_when(release_decision_arraignment %in% c("Monitor", "Own Recognizance") | release_decision_prearraignment %in% c("Monitor", "Own Recognizance") ~ "Granted Program Release", 
-                                      release_decision_arraignment %in% c("Deny Release") | release_decision_arraignment %in% c("Deny Release") ~ "Denied Program Release", 
-                                      T ~ "Other")) %>%
+  mutate(release_decision = case_when(release_decision_arraignment %in% c("Monitor", "Own Recognizance")  ~ "Granted Program Release", 
+                                      release_decision_arraignment %in% c("Deny Release") ~ "Denied Program Release", 
+                                      release_decision_arraignment %in% c("Ineligible") ~ "Ineligible",
+                                      T ~ "Other/Unknown")) %>%
   count(psa_nca_risk_score, release_decision)
 
-write.xlsx(list(race_psa, gender_psa, offense_type_psa,  release_psa), file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/3B PSA NCA.xlsx", asTable = T, sheetName = c("Race", "Gender", "Offense Type",  "Release"))
+release_pre_psa <- join_df %>%
+  filter(tool_name == "PSA",
+         !is.na(psa_nca_risk_score),
+         psa_nca_risk_score %in% 1:6) %>%
+  mutate(release_decision = case_when(release_decision_prearraignment %in% c("Monitor", "Own Recognizance")  ~ "Granted Program Release", 
+                                      release_decision_prearraignment %in% c("Deny Release") ~ "Denied Program Release", 
+                                      release_decision_prearraignment %in% c("Ineligible") ~ "Ineligible",
+                                      T ~ "Other/Unknown")) %>%
+  count(psa_nca_risk_score, release_decision)
+
+write.xlsx(list(race_psa, gender_psa, offense_type_psa,  release_psa, release_pre_psa), file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/3B PSA NCA.xlsx", asTable = T, sheetName = c("Race", "Gender", "Offense Type",  "Release Arraignment", "Release Prearraignment"))
 
 df %>%
   filter(tool_name == "PSA",
@@ -2407,12 +2511,22 @@ offense_type_psa <- join_df %>%
 release_psa <- join_df %>%
   filter(tool_name == "PSA",
          !is.na(psa_nvca_risk_score)) %>%
-  mutate(release_decision = case_when(release_decision_arraignment %in% c("Monitor", "Own Recognizance") | release_decision_prearraignment %in% c("Monitor", "Own Recognizance") ~ "Granted Program Release", 
-                                      release_decision_arraignment %in% c("Deny Release") | release_decision_arraignment %in% c("Deny Release") ~ "Denied Program Release", 
-                                      T ~ "Other")) %>%
+  mutate(release_decision = case_when(release_decision_arraignment %in% c("Monitor", "Own Recognizance")  ~ "Granted Program Release", 
+                                      release_decision_arraignment %in% c("Deny Release") ~ "Denied Program Release", 
+                                      release_decision_arraignment %in% c("Ineligible") ~ "Ineligible",
+                                      T ~ "Other/Unknown")) %>%
   count(psa_nvca_risk_score, release_decision)
 
-write.xlsx(list(race_psa, gender_psa, offense_type_psa,  release_psa), file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/3B PSA NVCA.xlsx", asTable = T, sheetName = c("Race", "Gender", "Offense Type",  "Release"))
+release_pre_psa <- join_df %>%
+  filter(tool_name == "PSA",
+         !is.na(psa_nvca_risk_score)) %>%
+  mutate(release_decision = case_when(release_decision_prearraignment %in% c("Monitor", "Own Recognizance")  ~ "Granted Program Release", 
+                                      release_decision_prearraignment %in% c("Deny Release") ~ "Denied Program Release", 
+                                      release_decision_prearraignment %in% c("Ineligible") ~ "Ineligible",
+                                      T ~ "Other/Unknown")) %>%
+  count(psa_nvca_risk_score, release_decision)
+
+write.xlsx(list(race_psa, gender_psa, offense_type_psa,  release_psa, release_pre_psa), file = "G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 tables 2023/3B PSA NVCA.xlsx", asTable = T, sheetName = c("Race", "Gender", "Offense Type",  "Release Arraignment", "Release Prearraignment"))
 
 
 df %>%
