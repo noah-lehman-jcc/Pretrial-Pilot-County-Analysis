@@ -1570,6 +1570,130 @@ df_3D_Overrides %>%
   geom_text(aes(label = p), vjust = -0.5)
 
 ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F64.png")
+
+#new cross tabs for each tool separately. There should be some kind of header over the column names to indicate that those are Arraignment/Prearraignment release decisions 
+
+`Arraignment_3D_ORAS Arraignment` %>%
+  mutate(release_recommendation = factor(release_recommendation, levels = c("Release", "Deny Release", "Ineligible", "Other/Unknown"))) %>%
+  arrange(release_recommendation) %>%
+  select(release_recommendation, Release, `Deny Release`, Ineligible, `Other/Unknown`) %>%
+  gt() %>%
+  fmt_number(decimals = 0, sep_mark = ",") %>%
+  cols_label(release_recommendation = md("Release Recommendation")) %>%
+  tab_spanner("Release Decision (Arraignment)", 2:5) %>%
+  cols_align(align = c("left"), columns = 1:5) %>%
+  cols_width(everything() ~ px(150)) %>%
+  gtsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F64 ORAS Arraignment.png")
+
+
+`Arraignment_3D_VPRAI Arraignment` %>%
+  mutate(release_recommendation = factor(release_recommendation, levels = c("Release", "Deny Release", "Ineligible", "Other/Unknown"))) %>%
+  arrange(release_recommendation) %>%
+  select(release_recommendation, Release, `Deny Release`, `Other/Unknown`) %>%
+  gt() %>%
+  fmt_number(decimals = 0, sep_mark = ",") %>%
+  cols_label(release_recommendation = md("Release Recommendation")) %>%
+  tab_spanner("Release Decision (Arraignment)", 2:4) %>%
+  cols_align(align = c("left"), columns = 1:4) %>%
+  cols_width(everything() ~ px(150)) %>%
+  gtsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F64 VPRAI Arraignment.png")
+
+`Arraignment_3D_VPRAI-R Arraignment` %>%
+  mutate(release_recommendation = factor(release_recommendation, levels = c("Release", "Deny Release", "Ineligible", "Other/Unknown"))) %>%
+  arrange(release_recommendation) %>%
+  select(release_recommendation, Release, `Deny Release`, `Other/Unknown`) %>%
+  gt() %>%
+  fmt_number(decimals = 0, sep_mark = ",") %>%
+  cols_label(release_recommendation = md("Release Recommendation")) %>%
+  tab_spanner("Release Decision (Arraignment)", 2:4) %>%
+  cols_align(align = c("left"), columns = 1:4) %>%
+  cols_width(everything() ~ px(150)) %>%
+  gtsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F64 VPRAI-R Arraignment.png")
+
+`Arraignment_3D_VPRAI-O Arraignment` %>%
+  mutate(release_recommendation = factor(release_recommendation, levels = c("Release", "Deny Release", "Ineligible", "Other/Unknown"))) %>%
+  arrange(release_recommendation) %>%
+  select(release_recommendation, `Other/Unknown`) %>%
+  gt() %>%
+  fmt_number(decimals = 0, sep_mark = ",") %>%
+  cols_label(release_recommendation = md("Release Recommendation")) %>%
+  tab_spanner("Release Decision (Arraignment)", 2:2) %>%
+  cols_align(align = c("left"), columns = 1:2) %>%
+  cols_width(everything() ~ px(150)) %>%
+  gtsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F64 VPRAI-O Arraignment.png")
+
+`Arraignment_3D_PSA Arraignment` %>%
+  mutate(release_recommendation = factor(release_recommendation, levels = c("Release", "Deny Release", "Ineligible", "Other/Unknown"))) %>%
+  arrange(release_recommendation) %>%
+  select(release_recommendation, Release, `Deny Release`, Ineligible, `Other/Unknown`) %>%
+  gt() %>%
+  fmt_number(decimals = 0, sep_mark = ",") %>%
+  cols_label(release_recommendation = md("Release Recommendation")) %>%
+  tab_spanner("Release Decision (Arraignment)", 2:5) %>%
+  cols_align(align = c("left"), columns = 1:5) %>%
+  cols_width(everything() ~ px(150)) %>%
+  gtsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F64 PSA Arraignment.png")
+
+
+`Prearraignment_3D_ORAS Prearraignment` %>%
+  mutate(release_recommendation = factor(release_recommendation, levels = c("Release", "Deny Release", "Ineligible", "Other/Unknown"))) %>%
+  arrange(release_recommendation) %>%
+  select(release_recommendation, Release, `Deny Release`, Ineligible, `Other/Unknown`) %>%
+  gt() %>%
+  fmt_number(decimals = 0, sep_mark = ",") %>%
+  cols_label(release_recommendation = md("Release Recommendation")) %>%
+  tab_spanner("Release Decision (Pre-Arraignment)", 2:5) %>%
+  cols_align(align = c("left"), columns = 1:5) %>%
+  cols_width(everything() ~ px(150)) %>%
+  gtsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F64 ORAS Prearraignment.png")
+
+`Prearraignment_3D_VPRAI Prearraignment` %>%
+  mutate(release_recommendation = factor(release_recommendation, levels = c("Release", "Deny Release", "Ineligible", "Other/Unknown"))) %>%
+  arrange(release_recommendation) %>%
+  select(release_recommendation, Release, `Deny Release`, Ineligible, `Other/Unknown`) %>%
+  gt() %>%
+  fmt_number(decimals = 0, sep_mark = ",") %>%
+  cols_label(release_recommendation = md("Release Recommendation")) %>%
+  tab_spanner("Release Decision (Pre-Arraignment)", 2:5) %>%
+  cols_align(align = c("left"), columns = 1:5) %>%
+  cols_width(everything() ~ px(150)) %>%
+  gtsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F64 VPRAI Prearraignment.png")
+
+`Prearraignment_3D_VPRAI-R Prearraignment` %>%
+  mutate(release_recommendation = factor(release_recommendation, levels = c("Release", "Deny Release",  "Other/Unknown"))) %>%
+  arrange(release_recommendation) %>%
+  select(release_recommendation, Release, `Deny Release`,  `Other/Unknown`) %>%
+  gt() %>%
+  fmt_number(decimals = 0, sep_mark = ",") %>%
+  cols_label(release_recommendation = md("Release Recommendation")) %>%
+  tab_spanner("Release Decision (Pre-Arraignment)", 2:4) %>%
+  cols_align(align = c("left"), columns = 1:4) %>%
+  cols_width(everything() ~ px(150)) %>%
+  gtsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F64 VPRAI-R Prearraignment.png")
+
+`Prearraignment_3D_VPRAI-O Prearraignment` %>%
+  mutate(release_recommendation = factor(release_recommendation, levels = c("Release", "Deny Release", "Ineligible", "Other/Unknown"))) %>%
+  arrange(release_recommendation) %>%
+  select(release_recommendation, `Other/Unknown`) %>%
+  gt() %>%
+  fmt_number(decimals = 0, sep_mark = ",") %>%
+  cols_label(release_recommendation = md("Release Recommendation")) %>%
+  tab_spanner("Release Decision (Pre-Arraignment)", 2:2) %>%
+  cols_align(align = c("left"), columns = 1:2) %>%
+  cols_width(everything() ~ px(150)) %>%
+  gtsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F64 VPRAI-O Prearraignment.png")
+
+`Prearraignment_3D_PSA Prearraignment` %>%
+  mutate(release_recommendation = factor(release_recommendation, levels = c("Release", "Deny Release", "Ineligible", "Other/Unknown"))) %>%
+  arrange(release_recommendation) %>%
+  select(release_recommendation, Release, `Deny Release`, Ineligible, `Other/Unknown`) %>%
+  gt() %>%
+  fmt_number(decimals = 0, sep_mark = ",") %>%
+  cols_label(release_recommendation = md("Release Recommendation")) %>%
+  tab_spanner("Release Decision (Pre-Arraignment)", 2:5) %>%
+  cols_align(align = c("left"), columns = 1:5) %>%
+  cols_width(everything() ~ px(150)) %>%
+  gtsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F64 PSA Prearraignment.png")
 ```
 
 # Figure 65
