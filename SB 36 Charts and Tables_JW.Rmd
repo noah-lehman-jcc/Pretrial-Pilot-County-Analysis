@@ -7,6 +7,7 @@ output:
 
 # library
 ```{r}
+library(ggthemes)
 library(gt)
 library(readxl)
 library(scales)
@@ -236,7 +237,7 @@ Race_LA_2A %>%
   tab_spanner("PRETRIAL ", 11:14) %>%
   tab_spanner("Released Within 2 Court Days", 3:10) %>%
   tab_spanner("Released After 2 Court Days", 11:14) %>%
-  gtsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/T3d.png")
+  gtsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/T3d.png", vwidth = 1250)
 ```
 
 # Table 4
@@ -259,7 +260,7 @@ df_2B %>%
   tab_row_group(md("**Alameda**"), 5:6) %>%
   tab_row_group(md("**Small/Medium Counties**"), 3:4) %>%
   tab_row_group(md("**Small Counties**"), 1:2) %>%
-  gtsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/T4.png")
+  gtsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/T4.png", expand = 10)
 ```
 
 # Table 5
@@ -282,7 +283,7 @@ df_2C %>%
   tab_row_group(md("**Alameda**"), 5:6) %>%
   tab_row_group(md("**Small/Medium Counties**"), 3:4) %>%
   tab_row_group(md("**Small Counties**"), 1:2) %>%
-  gtsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/T5.png")
+  gtsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/T5.png", expand = 10)
 ```
 
 # Table 6
@@ -302,6 +303,7 @@ Age_2D %>%
 # Table 7
 ```{r}
 Gender_2D %>%
+  filter(sex != "Other/Unknown") %>%
   pivot_wider(names_from = sex, values_from = n) %>%
   bind_rows(summarise(., across(where(is.character), ~ "Total"),
                       across(where(is.numeric), ~ sum(., na.rm = T)))) %>%
@@ -349,6 +351,7 @@ Risk_Level_2E %>%
 # Table 10a (Pre-Arraignment)
 ```{r}
 Release_Decision_PreArraignment_2E %>%
+  filter(County != "Los Angeles") %>%
   group_by(County, release_decision_prearraignment) %>%
   mutate(n = sum(n, na.rm = T)) %>%
   ungroup() %>%
@@ -362,7 +365,7 @@ Release_Decision_PreArraignment_2E %>%
   sub_missing() %>%
   cols_label(Total = md("**Total**")) %>%
   tab_style(cell_text(weight = "bold"), list(cells_body(Total), cells_body(rows = County == "Total"))) %>%
-  gtsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/T10a(Pre-Arraignment).png")
+  gtsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/T10a(Prearraignment).png")
 ```
 
 # Table 10a (Arraignment)
@@ -423,7 +426,10 @@ Supervision_Level_2F %>%
   rename_with(~ gsub("Count_", "", .)) %>%
   gt() %>%
   fmt_number(decimals = 0, sep_mark = ",") %>%
-  cols_label(Total = md("**Total**")) %>%
+  cols_label(Basic = "Lowest Levels",
+             Moderate = "Medium Levels",
+             Enhanced = "Highest Levels",
+             Total = md("**Total**")) %>%
   tab_style(cell_text(weight = "bold"), list(cells_body(Total), cells_body(rows = County == "Total"))) %>%
   gtsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/T12.png")
 ```
@@ -435,6 +441,9 @@ Supervision_Level_2F %>%
   rename_with(~ gsub("Percent_", "", .)) %>%
   gt() %>%
   fmt_number(decimals = 0, sep_mark = ",") %>%
+  cols_label(Basic = "Lowest Levels",
+             Moderate = "Medium Levels",
+             Enhanced = "Highest Levels") %>%
   tab_style(cell_text(weight = "bold"), cells_body(rows = County == "Total")) %>%
   gtsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/T13.png")
 ```
@@ -456,7 +465,7 @@ Supervision_Level_2G %>%
   tab_row_group(md("**Alameda**"), 7:9) %>%
   tab_row_group(md("**Small/Medium Counties**"), 4:6) %>%
   tab_row_group(md("**Small Counties**"), 1:3) %>%
-  gtsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/T14.png")
+  gtsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/T14.png", expand = 10)
 ```
 
 # Table 15
@@ -477,7 +486,7 @@ Supervision_Level_Percent_2G %>%
   tab_row_group(md("**Alameda**"), 7:9) %>%
   tab_row_group(md("**Small/Medium Counties**"), 4:6) %>%
   tab_row_group(md("**Small Counties**"), 1:3) %>%
-  gtsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/T15.png")
+  gtsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/T15.png", expand = 10)
 ```
 
 # Figure 1
@@ -488,10 +497,14 @@ PSA_FTA_3A %>%
          h = if_else(psa_fta_risk_score == "Total", T, F)) %>%
   ggplot(aes(x = psa_fta_risk_score, y = p, fill = h)) +
   geom_col() +
-  scale_y_continuous(labels = percent_format(1)) +
+  theme_clean() +
+  scale_fill_brewer(palette = "Paired") +
+  scale_y_continuous(labels = percent_format(), limits = c(0, 1)) +
   geom_text(aes(label = `Non FTA Rate`), vjust = -0.5) +
   geom_label(aes(y = 0.1, label = Total)) +
-  theme(legend.position = "none")
+  theme(legend.position = "none") +
+  labs(x = "FTA Risk Score",
+       y = "Rate")
 
 ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F1.png")
 ```
@@ -504,10 +517,14 @@ PSA_NCA_3A %>%
          h = if_else(psa_nca_risk_score == "Total", T, F)) %>%
   ggplot(aes(x = psa_nca_risk_score, y = p, fill = h)) +
   geom_col() +
-  scale_y_continuous(labels = percent_format(1)) +
+  theme_clean() +
+  scale_fill_brewer(palette = "Paired") +
+  scale_y_continuous(labels = percent_format(), limits = c(0, 1)) +
   geom_text(aes(label = `Non New Charge Rate`), vjust = -0.5) +
   geom_label(aes(y = 0.1, label = Total)) +
-  theme(legend.position = "none")
+  theme(legend.position = "none") +
+  labs(x = "NCA Risk Score",
+       y = "Rate")
 
 ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F2.png")
 ```
@@ -522,9 +539,14 @@ PSA_FTA_3C_Gender %>%
   ungroup() %>%
   ggplot(aes(x = psa_fta_risk_score, y = p, fill = sex)) +
   geom_col(position = "dodge") +
-  scale_y_continuous(labels = percent_format(1)) +
+  theme_clean() +
+  scale_fill_brewer(palette = "Paired") +
+  scale_y_continuous(labels = percent_format(), limits = c(0, 1)) +
   geom_text(aes(label = `Non FTA Rate`), vjust = -0.5, position = position_dodge(0.9)) +
-  geom_label(aes(y = 0.1, label = t), show.legend = F)
+  geom_label(aes(y = 0.1, label = t), show.legend = F) +
+  labs(x = "FTA Risk Score",
+       y = "Rate",
+       fill = "Sex")
 
 ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F3.png")
 ```
@@ -539,9 +561,14 @@ ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Repo
   ungroup() %>%
   ggplot(aes(x = psa_fta_risk_score, y = p, fill = arrest_charge_level)) +
   geom_col(position = "dodge") +
-  scale_y_continuous(labels = percent_format(1)) +
+  theme_clean() +
+  scale_fill_brewer(palette = "Paired") +
+  scale_y_continuous(labels = percent_format(), limits = c(0, 1)) +
   geom_text(aes(label = `Non FTA Rate`), vjust = -0.5, position = position_dodge(0.9)) +
-  geom_label(aes(y = 0.1, label = t), show.legend = F)
+  geom_label(aes(y = 0.1, label = t), show.legend = F) +
+  labs(x = "FTA Risk Score",
+       y = "Rate",
+       fill = "Charge Level")
 
 ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F4.png")
 ```
@@ -556,10 +583,15 @@ PSA_FTA_3C_Race %>%
   ungroup() %>%
   ggplot(aes(x = psa_fta_risk_score, y = p, fill = race)) +
   geom_col(position = "dodge") +
-  scale_y_continuous(labels = percent_format(1)) +
+  theme_clean() +
+  scale_fill_brewer(palette = "Paired") +
+  scale_y_continuous(labels = percent_format(), limits = c(0, 1)) +
   geom_text(aes(label = `Non FTA Rate`), vjust = -0.5, position = position_dodge(width = 0.9), size = 2.5) +
   geom_label(aes(y = 0.1, label = t), show.legend = F) +
-  theme(legend.position = "top")
+  theme(legend.position = "top") +
+  labs(x = "FTA Risk Score",
+       y = "Rate",
+       fill = "Sex")
 
 ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F5.png")
 ```
@@ -574,9 +606,14 @@ PSA_NCA_3C_Gender %>%
   ungroup() %>%
   ggplot(aes(x = psa_nca_risk_score, y = p, fill = sex)) +
   geom_col(position = "dodge") +
-  scale_y_continuous(labels = percent_format(1)) +
+  theme_clean() +
+  scale_fill_brewer(palette = "Paired") +
+  scale_y_continuous(labels = percent_format(), limits = c(0, 1)) +
   geom_text(aes(label = `Non New Charge Rate`), vjust = -0.5, position = position_dodge(0.9)) +
-  geom_label(aes(y = 0.1, label = t), show.legend = F)
+  geom_label(aes(y = 0.1, label = t), show.legend = F) +
+  labs(x = "NCA Risk Score",
+       y = "Rate",
+       fill = "Sex")
 
 ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F6.png")
 ```
@@ -591,9 +628,14 @@ ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Repo
   ungroup() %>%
   ggplot(aes(x = psa_nca_risk_score, y = p, fill = arrest_charge_level)) +
   geom_col(position = "dodge") +
-  scale_y_continuous(labels = percent_format(1)) +
+  theme_clean() +
+  scale_fill_brewer(palette = "Paired") +
+  scale_y_continuous(labels = percent_format(), limits = c(0, 1)) +
   geom_text(aes(label = `Non New Charge Rate`), vjust = -0.5, position = position_dodge(0.9)) +
-  geom_label(aes(y = 0.1, label = t), show.legend = F)
+  geom_label(aes(y = 0.1, label = t), show.legend = F) +
+  labs(x = "NCA Risk Score",
+       y = "Rate",
+       fill = "Charge Level")
 
 ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F7.png")
 ```
@@ -608,10 +650,15 @@ PSA_NCA_3C_Race %>%
   ungroup() %>%
   ggplot(aes(x = psa_nca_risk_score, y = p, fill = race)) +
   geom_col(position = "dodge") +
-  scale_y_continuous(labels = percent_format(1)) +
+  theme_clean() +
+  scale_fill_brewer(palette = "Paired") +
+  scale_y_continuous(labels = percent_format(), limits = c(0, 1)) +
   geom_text(aes(label = `Non New Charge Rate`), vjust = -0.5, position = position_dodge(width = 0.9), size = 2.5) +
   geom_label(aes(y = 0.1, label = t), show.legend = F) +
-  theme(legend.position = "top")
+  theme(legend.position = "top") +
+  labs(x = "NCA Risk Score",
+       y = "Rate",
+       fill = "Race")
 
 ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F8.png")
 ```
@@ -621,14 +668,20 @@ ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Repo
 PSA_NVCA_3C_Gender %>%
   filter(!grepl("Unknown", sex)) %>%
   group_by(psa_nvca_risk_score) %>%
-  mutate(t = formatC(sum(as.numeric(Total), na.rm = T), format = "d", big.mark = ","),
+  mutate(psa_nvca_risk_score = if_else(psa_nvca_risk_score == 1, "Flag", "No Flag"),
+         t = formatC(sum(as.numeric(Total), na.rm = T), format = "d", big.mark = ","),
          p = as.numeric(gsub(" %", "", `Non New Violent Charge Rate`)) / 100) %>%
   ungroup() %>%
   ggplot(aes(x = psa_nvca_risk_score, y = p, fill = sex)) +
   geom_col(position = "dodge") +
-  scale_y_continuous(labels = percent_format(1)) +
+  theme_clean() +
+  scale_fill_brewer(palette = "Paired") +
+  scale_y_continuous(labels = percent_format(), limits = c(0, 1)) +
   geom_text(aes(label = `Non New Violent Charge Rate`), vjust = -0.5, position = position_dodge(0.9)) +
-  geom_label(aes(y = 0.1, label = t), show.legend = F)
+  geom_label(aes(y = 0.1, label = t), show.legend = F) +
+  labs(x = "NVCA Risk Score",
+       y = "Rate",
+       fill = "Sex")
 
 ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F9.png")
 ```
@@ -638,14 +691,20 @@ ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Repo
 `PSA_NVCA_3C_Offense Type` %>%
   filter(arrest_charge_level %in% c("Felony", "Misdemeanor")) %>%
   group_by(psa_nvca_risk_score) %>%
-  mutate(t = formatC(sum(as.numeric(Total), na.rm = T), format = "d", big.mark = ","),
+  mutate(psa_nvca_risk_score = if_else(psa_nvca_risk_score == 1, "Flag", "No Flag"),
+         t = formatC(sum(as.numeric(Total), na.rm = T), format = "d", big.mark = ","),
          p = as.numeric(gsub(" %", "", `Non New Violent Charge Rate`)) / 100) %>%
   ungroup() %>%
   ggplot(aes(x = psa_nvca_risk_score, y = p, fill = arrest_charge_level)) +
   geom_col(position = "dodge") +
-  scale_y_continuous(labels = percent_format(1)) +
+  theme_clean() +
+  scale_fill_brewer(palette = "Paired") +
+  scale_y_continuous(labels = percent_format(), limits = c(0, 1)) +
   geom_text(aes(label = `Non New Violent Charge Rate`), vjust = -0.5, position = position_dodge(0.9)) +
-  geom_label(aes(y = 0.1, label = t), show.legend = F)
+  geom_label(aes(y = 0.1, label = t), show.legend = F) +
+  labs(x = "NVCA Risk Score",
+       y = "Rate",
+       fill = "Charge Level")
 
 ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F10.png")
 ```
@@ -655,15 +714,21 @@ ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Repo
 PSA_NVCA_3C_Race %>%
   filter(race != "Other/Unknown") %>%
   group_by(psa_nvca_risk_score) %>%
-  mutate(t = formatC(sum(as.numeric(Total), na.rm = T), format = "d", big.mark = ","),
+  mutate(psa_nvca_risk_score = if_else(psa_nvca_risk_score == 1, "Flag", "No Flag"),
+         t = formatC(sum(as.numeric(Total), na.rm = T), format = "d", big.mark = ","),
          p = as.numeric(gsub(" %", "", `Non New Violent Charge Rate`)) / 100) %>%
   ungroup() %>%
   ggplot(aes(x = psa_nvca_risk_score, y = p, fill = race)) +
   geom_col(position = "dodge") +
-  scale_y_continuous(labels = percent_format(1)) +
+  theme_clean() +
+  scale_fill_brewer(palette = "Paired") +
+  scale_y_continuous(labels = percent_format(), limits = c(0, 1)) +
   geom_text(aes(label = `Non New Violent Charge Rate`), vjust = -0.5, position = position_dodge(width = 0.9), size = 3.5) +
   geom_label(aes(y = 0.1, label = t), show.legend = F) +
-  theme(legend.position = "top")
+  theme(legend.position = "top") +
+  labs(x = "NVCA Risk Score",
+       y = "Rate",
+       fill = "Race")
 
 ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F11.png")
 ```
@@ -675,8 +740,13 @@ PSA_FTA_3B_Gender %>%
   mutate(psa_fta_risk_score = as.character(psa_fta_risk_score)) %>%
   ggplot(aes(x = psa_fta_risk_score, y = n, fill = sex)) +
   geom_col(position = "dodge") +
+  theme_clean() +
+  scale_fill_brewer(palette = "Paired") +
   scale_y_continuous(labels = comma) +
-  geom_text(aes(label = formatC(as.numeric(n), format = "d", big.mark = ",")), vjust = -0.5, position = position_dodge(0.9))
+  geom_text(aes(label = formatC(as.numeric(n), format = "d", big.mark = ",")), vjust = -0.5, position = position_dodge(0.9)) +
+  labs(x = "FTA Risk Score",
+       y = "Total",
+       fill = "Sex")
 
 ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F12.png")
 ```
@@ -688,8 +758,13 @@ ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Repo
   mutate(psa_fta_risk_score = as.character(psa_fta_risk_score)) %>%
   ggplot(aes(x = psa_fta_risk_score, y = n, fill = arrest_charge_level)) +
   geom_col(position = "dodge") +
+  theme_clean() +
+  scale_fill_brewer(palette = "Paired") +
   scale_y_continuous(labels = comma) +
-  geom_text(aes(label = formatC(as.numeric(n), format = "d", big.mark = ",")), vjust = -0.5, position = position_dodge(width = 0.9), size = 2.5)
+  geom_text(aes(label = formatC(as.numeric(n), format = "d", big.mark = ",")), vjust = -0.5, position = position_dodge(width = 0.9), size = 2.5) +
+  labs(x = "FTA Risk Score",
+       y = "Total",
+       fill = "Charge Level")
 
 ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F13.png")
 ```
@@ -701,35 +776,67 @@ PSA_FTA_3B_Race %>%
   mutate(psa_fta_risk_score = as.character(psa_fta_risk_score)) %>%
   ggplot(aes(x = psa_fta_risk_score, y = n, fill = race)) +
   geom_col(position = "dodge") +
+  theme_clean() +
+  scale_fill_brewer(palette = "Paired") +
   scale_y_continuous(labels = comma) +
   geom_text(aes(label = formatC(as.numeric(n), format = "d", big.mark = ",")), vjust = -0.5, position = position_dodge(width = 0.9), size = 2.5) +
-  theme(legend.position = "top")
+  theme(legend.position = "top") +
+  labs(x = "FTA Risk Score",
+       y = "Total",
+       fill = "Race")
 
 ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F14.png")
 ```
 
-# Figure 15 Arraignment
+# Figure 15
 ```{r}
-`PSA_FTA_3B_Release Arraignment` %>%
-  mutate(psa_fta_risk_score = as.character(psa_fta_risk_score)) %>%
-  ggplot(aes(x = psa_fta_risk_score, y = n, fill = release_decision)) +
-  geom_col(position = "dodge") +
-  scale_y_continuous(labels = comma) +
-  geom_text(aes(label = formatC(as.numeric(n), format = "d", big.mark = ",")), vjust = -0.5, position = position_dodge(0.9))
+# PSA_FTA_3B_Release %>%
+#   filter(release_decision != "Other") %>%
+#   mutate(psa_fta_risk_score = as.character(psa_fta_risk_score)) %>%
+#   ggplot(aes(x = psa_fta_risk_score, y = n, fill = release_decision)) +
+#   geom_col(position = "dodge") +
+#   scale_y_continuous(labels = comma) +
+#   geom_text(aes(label = formatC(as.numeric(n), format = "d", big.mark = ",")), vjust = -0.5, position = position_dodge(0.9))
+# 
+# ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F15.png")
 
-ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F15 (Arraignment).png")
-```
-# Figure 15 Prearraignment
-```{r}
 `PSA_FTA_3B_Release Prearraignment` %>%
   mutate(psa_fta_risk_score = as.character(psa_fta_risk_score)) %>%
-  ggplot(aes(x = psa_fta_risk_score, y = n, fill = release_decision)) +
-  geom_col(position = "dodge") +
-  scale_y_continuous(labels = comma) +
-  geom_text(aes(label = formatC(as.numeric(n), format = "d", big.mark = ",")), vjust = -0.5, position = position_dodge(0.9))
+  group_by(psa_fta_risk_score, release_decision) %>%
+  mutate(n = sum(n, na.rm = T)) %>%
+  ungroup() %>%
+  distinct() %>%
+  pivot_wider(names_from = release_decision, values_from = n) %>%
+  bind_rows(summarise(., across(where(is.character), ~ "Total"),
+                      across(where(is.numeric), ~ sum(., na.rm = T)))) %>%
+  mutate(Total = rowSums(across(where(is.numeric)), na.rm = T)) %>%
+  gt() %>%
+  fmt_number(decimals = 0, sep_mark = ",") %>%
+  sub_missing() %>%
+  cols_label(psa_fta_risk_score = "FTA Risk Score",
+             Total = md("**Total**")) %>%
+  tab_style(cell_text(weight = "bold"), list(cells_body(Total), cells_body(rows = psa_fta_risk_score == "Total"))) %>%
+  gtsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F15(Prearraignment).png")
 
-ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F15 (Prerraignment).png")
+`PSA_FTA_3B_Release Arraignment` %>%
+  mutate(psa_fta_risk_score = as.character(psa_fta_risk_score)) %>%
+  group_by(psa_fta_risk_score, release_decision) %>%
+  mutate(n = sum(n, na.rm = T)) %>%
+  ungroup() %>%
+  distinct() %>%
+  pivot_wider(names_from = release_decision, values_from = n) %>%
+  bind_rows(summarise(., across(where(is.character), ~ "Total"),
+                      across(where(is.numeric), ~ sum(., na.rm = T)))) %>%
+  mutate(Total = rowSums(across(where(is.numeric)), na.rm = T)) %>%
+  gt() %>%
+  fmt_number(decimals = 0, sep_mark = ",") %>%
+  sub_missing() %>%
+  cols_label(psa_fta_risk_score = "FTA Risk Score",
+             Total = md("**Total**")) %>%
+  tab_style(cell_text(weight = "bold"), list(cells_body(Total), cells_body(rows = psa_fta_risk_score == "Total"))) %>%
+  gtsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F15(Arraignment).png")
 ```
+
 # Figure 16
 ```{r}
 PSA_NCA_3B_Gender %>%
@@ -737,8 +844,13 @@ PSA_NCA_3B_Gender %>%
   mutate(psa_nca_risk_score = as.character(psa_nca_risk_score)) %>%
   ggplot(aes(x = psa_nca_risk_score, y = n, fill = sex)) +
   geom_col(position = "dodge") +
+  theme_clean() +
+  scale_fill_brewer(palette = "Paired") +
   scale_y_continuous(labels = comma) +
-  geom_text(aes(label = formatC(as.numeric(n), format = "d", big.mark = ",")), vjust = -0.5, position = position_dodge(0.9))
+  geom_text(aes(label = formatC(as.numeric(n), format = "d", big.mark = ",")), vjust = -0.5, position = position_dodge(0.9)) +
+  labs(x = "NCA Risk Score",
+       y = "Total",
+       fill = "Sex")
 
 ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F16.png")
 ```
@@ -750,8 +862,13 @@ ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Repo
   mutate(psa_nca_risk_score = as.character(psa_nca_risk_score)) %>%
   ggplot(aes(x = psa_nca_risk_score, y = n, fill = arrest_charge_level)) +
   geom_col(position = "dodge") +
+  theme_clean() +
+  scale_fill_brewer(palette = "Paired") +
   scale_y_continuous(labels = comma) +
-  geom_text(aes(label = formatC(as.numeric(n), format = "d", big.mark = ",")), vjust = -0.5, position = position_dodge(width = 0.9), size = 2.5)
+  geom_text(aes(label = formatC(as.numeric(n), format = "d", big.mark = ",")), vjust = -0.5, position = position_dodge(width = 0.9), size = 2.5) +
+  labs(x = "NCA Risk Score",
+       y = "Total",
+       fill = "Charge Level")
 
 ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F17.png")
 ```
@@ -763,44 +880,81 @@ PSA_NCA_3B_Race %>%
   mutate(psa_nca_risk_score = as.character(psa_nca_risk_score)) %>%
   ggplot(aes(x = psa_nca_risk_score, y = n, fill = race)) +
   geom_col(position = "dodge") +
+  theme_clean() +
+  scale_fill_brewer(palette = "Paired") +
   scale_y_continuous(labels = comma) +
   geom_text(aes(label = formatC(as.numeric(n), format = "d", big.mark = ",")), vjust = -0.5, position = position_dodge(width = 0.9), size = 2.5) +
-  theme(legend.position = "top")
+  theme(legend.position = "top") +
+  labs(x = "NCA Risk Score",
+       y = "Total",
+       fill = "Race")
 
 ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F18.png")
 ```
 
-# Figure 19 Arraignment
+# Figure 19
 ```{r}
-`PSA_NCA_3B_Release Arraignment` %>%
-  mutate(psa_nca_risk_score = as.character(psa_nca_risk_score)) %>%
-  ggplot(aes(x = psa_nca_risk_score, y = n, fill = release_decision)) +
-  geom_col(position = "dodge") +
-  scale_y_continuous(labels = comma) +
-  geom_text(aes(label = formatC(as.numeric(n), format = "d", big.mark = ",")), vjust = -0.5, position = position_dodge(0.9))
+# PSA_NCA_3B_Release %>%
+#   filter(release_decision != "Other") %>%
+#   mutate(psa_nca_risk_score = as.character(psa_nca_risk_score)) %>%
+#   ggplot(aes(x = psa_nca_risk_score, y = n, fill = release_decision)) +
+#   geom_col(position = "dodge") +
+#   scale_y_continuous(labels = comma) +
+#   geom_text(aes(label = formatC(as.numeric(n), format = "d", big.mark = ",")), vjust = -0.5, position = position_dodge(0.9))
+# 
+# ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F19.png")
 
-ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F19 (Arraignment).png")
-```
-# Figure 19 Prearraignment
-```{r}
 `PSA_NCA_3B_Release Prearraignment` %>%
   mutate(psa_nca_risk_score = as.character(psa_nca_risk_score)) %>%
-  ggplot(aes(x = psa_nca_risk_score, y = n, fill = release_decision)) +
-  geom_col(position = "dodge") +
-  scale_y_continuous(labels = comma) +
-  geom_text(aes(label = formatC(as.numeric(n), format = "d", big.mark = ",")), vjust = -0.5, position = position_dodge(0.9))
+  group_by(psa_nca_risk_score, release_decision) %>%
+  mutate(n = sum(n, na.rm = T)) %>%
+  ungroup() %>%
+  distinct() %>%
+  pivot_wider(names_from = release_decision, values_from = n) %>%
+  bind_rows(summarise(., across(where(is.character), ~ "Total"),
+                      across(where(is.numeric), ~ sum(., na.rm = T)))) %>%
+  mutate(Total = rowSums(across(where(is.numeric)), na.rm = T)) %>%
+  gt() %>%
+  fmt_number(decimals = 0, sep_mark = ",") %>%
+  sub_missing() %>%
+  cols_label(psa_nca_risk_score = "NCA Risk Score",
+             Total = md("**Total**")) %>%
+  tab_style(cell_text(weight = "bold"), list(cells_body(Total), cells_body(rows = psa_nca_risk_score == "Total"))) %>%
+  gtsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F19(Prearraignment).png")
 
-ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F19 (Prearraignment).png")
+`PSA_NCA_3B_Release Arraignment` %>%
+  mutate(psa_nca_risk_score = as.character(psa_nca_risk_score)) %>%
+  group_by(psa_nca_risk_score, release_decision) %>%
+  mutate(n = sum(n, na.rm = T)) %>%
+  ungroup() %>%
+  distinct() %>%
+  pivot_wider(names_from = release_decision, values_from = n) %>%
+  bind_rows(summarise(., across(where(is.character), ~ "Total"),
+                      across(where(is.numeric), ~ sum(., na.rm = T)))) %>%
+  mutate(Total = rowSums(across(where(is.numeric)), na.rm = T)) %>%
+  gt() %>%
+  fmt_number(decimals = 0, sep_mark = ",") %>%
+  sub_missing() %>%
+  cols_label(psa_nca_risk_score = "NCA Risk Score",
+             Total = md("**Total**")) %>%
+  tab_style(cell_text(weight = "bold"), list(cells_body(Total), cells_body(rows = psa_nca_risk_score == "Total"))) %>%
+  gtsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F19(Arraignment).png")
 ```
+
 # Figure 20
 ```{r}
 PSA_NVCA_3B_Gender %>%
   filter(sex != "Other/Unknown") %>%
-  mutate(psa_nvca_risk_score = as.character(psa_nvca_risk_score)) %>%
+  mutate(psa_nvca_risk_score = if_else(psa_nvca_risk_score == 1, "Flag", "No Flag")) %>%
   ggplot(aes(x = psa_nvca_risk_score, y = n, fill = sex)) +
   geom_col(position = "dodge") +
+  theme_clean() +
+  scale_fill_brewer(palette = "Paired") +
   scale_y_continuous(labels = comma) +
-  geom_text(aes(label = formatC(as.numeric(n), format = "d", big.mark = ",")), vjust = -0.5, position = position_dodge(0.9))
+  geom_text(aes(label = formatC(as.numeric(n), format = "d", big.mark = ",")), vjust = -0.5, position = position_dodge(0.9)) +
+  labs(x = "NVCA Risk Score",
+       y = "Total",
+       fill = "Sex")
 
 ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F20.png")
 ```
@@ -809,11 +963,16 @@ ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Repo
 ```{r}
 `PSA_NVCA_3B_Offense Type` %>%
   filter(arrest_charge_level %in% c("Felony", "Misdemeanor")) %>%
-  mutate(psa_nvca_risk_score = as.character(psa_nvca_risk_score)) %>%
+  mutate(psa_nvca_risk_score = if_else(psa_nvca_risk_score == 1, "Flag", "No Flag")) %>%
   ggplot(aes(x = psa_nvca_risk_score, y = n, fill = arrest_charge_level)) +
   geom_col(position = "dodge") +
+  theme_clean() +
+  scale_fill_brewer(palette = "Paired") +
   scale_y_continuous(labels = comma) +
-  geom_text(aes(label = formatC(as.numeric(n), format = "d", big.mark = ",")), vjust = -0.5, position = position_dodge(0.9))
+  geom_text(aes(label = formatC(as.numeric(n), format = "d", big.mark = ",")), vjust = -0.5, position = position_dodge(0.9)) +
+  labs(x = "NVCA Risk Score",
+       y = "Total",
+       fill = "Charge Level")
 
 ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F21.png")
 ```
@@ -822,38 +981,70 @@ ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Repo
 ```{r}
 PSA_NVCA_3B_Race %>%
   filter(race != "Other/Unknown") %>%
-  mutate(psa_nvca_risk_score = as.character(psa_nvca_risk_score)) %>%
+  mutate(psa_nvca_risk_score = if_else(psa_nvca_risk_score == 1, "Flag", "No Flag")) %>%
   ggplot(aes(x = psa_nvca_risk_score, y = n, fill = race)) +
   geom_col(position = "dodge") +
+  theme_clean() +
+  scale_fill_brewer(palette = "Paired") +
   scale_y_continuous(labels = comma) +
   geom_text(aes(label = formatC(as.numeric(n), format = "d", big.mark = ",")), vjust = -0.5, position = position_dodge(width = 0.9), size = 3.5) +
-  theme(legend.position = "top")
+  theme(legend.position = "top") +
+  labs(x = "NVCA Risk Score",
+       y = "Total",
+       fill = "Race")
 
 ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F22.png")
 ```
 
-# Figure 23 Arraignment
+# Figure 23
 ```{r}
-`PSA_NVCA_3B_Release Arraignment` %>%
-  mutate(psa_nvca_risk_score = as.character(psa_nvca_risk_score)) %>%
-  ggplot(aes(x = psa_nvca_risk_score, y = n, fill = release_decision)) +
-  geom_col(position = "dodge") +
-  scale_y_continuous(labels = comma) +
-  geom_text(aes(label = formatC(as.numeric(n), format = "d", big.mark = ",")), vjust = -0.5, position = position_dodge(0.9))
+# PSA_NVCA_3B_Release %>%
+#   filter(release_decision != "Other") %>%
+#   mutate(psa_nvca_risk_score = as.character(psa_nvca_risk_score)) %>%
+#   ggplot(aes(x = psa_nvca_risk_score, y = n, fill = release_decision)) +
+#   geom_col(position = "dodge") +
+#   scale_y_continuous(labels = comma) +
+#   geom_text(aes(label = formatC(as.numeric(n), format = "d", big.mark = ",")), vjust = -0.5, position = position_dodge(0.9))
+# 
+# ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F23.png")
 
-ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F23 (Arraignment).png")
-```
-# Figure 23 Prearraignment
-```{r}
 `PSA_NVCA_3B_Release Prearraignment` %>%
-  mutate(psa_nvca_risk_score = as.character(psa_nvca_risk_score)) %>%
-  ggplot(aes(x = psa_nvca_risk_score, y = n, fill = release_decision)) +
-  geom_col(position = "dodge") +
-  scale_y_continuous(labels = comma) +
-  geom_text(aes(label = formatC(as.numeric(n), format = "d", big.mark = ",")), vjust = -0.5, position = position_dodge(0.9))
+  mutate(psa_nvca_risk_score = if_else(psa_nvca_risk_score == 1, "Flag", "No Flag")) %>%
+  group_by(psa_nvca_risk_score, release_decision) %>%
+  mutate(n = sum(n, na.rm = T)) %>%
+  ungroup() %>%
+  distinct() %>%
+  pivot_wider(names_from = release_decision, values_from = n) %>%
+  bind_rows(summarise(., across(where(is.character), ~ "Total"),
+                      across(where(is.numeric), ~ sum(., na.rm = T)))) %>%
+  mutate(Total = rowSums(across(where(is.numeric)), na.rm = T)) %>%
+  gt() %>%
+  fmt_number(decimals = 0, sep_mark = ",") %>%
+  sub_missing() %>%
+  cols_label(psa_nvca_risk_score = "NVCA Risk Score",
+             Total = md("**Total**")) %>%
+  tab_style(cell_text(weight = "bold"), list(cells_body(Total), cells_body(rows = psa_nvca_risk_score == "Total"))) %>%
+  gtsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F23(Prearraignment).png")
 
-ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F23 (Prearraignment).png")
+`PSA_NVCA_3B_Release Arraignment` %>%
+  mutate(psa_nvca_risk_score = if_else(psa_nvca_risk_score == 1, "Flag", "No Flag")) %>%
+  group_by(psa_nvca_risk_score, release_decision) %>%
+  mutate(n = sum(n, na.rm = T)) %>%
+  ungroup() %>%
+  distinct() %>%
+  pivot_wider(names_from = release_decision, values_from = n) %>%
+  bind_rows(summarise(., across(where(is.character), ~ "Total"),
+                      across(where(is.numeric), ~ sum(., na.rm = T)))) %>%
+  mutate(Total = rowSums(across(where(is.numeric)), na.rm = T)) %>%
+  gt() %>%
+  fmt_number(decimals = 0, sep_mark = ",") %>%
+  sub_missing() %>%
+  cols_label(psa_nvca_risk_score = "NVCA Risk Score",
+             Total = md("**Total**")) %>%
+  tab_style(cell_text(weight = "bold"), list(cells_body(Total), cells_body(rows = psa_nvca_risk_score == "Total"))) %>%
+  gtsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F23(Arraignment).png")
 ```
+
 # Figure 24
 ```{r}
 Oras_categories_3A %>%
@@ -862,10 +1053,14 @@ Oras_categories_3A %>%
          h = if_else(oras_risk_score == "Total", T, F)) %>%
   ggplot(aes(x = oras_risk_score, y = p, fill = h)) +
   geom_col() +
-  scale_y_continuous(labels = percent_format(1)) +
+  theme_clean() +
+  scale_fill_brewer(palette = "Paired") +
+  scale_y_continuous(labels = percent_format(), limits = c(0, 1)) +
   geom_text(aes(label = `Non FTA Rate`), vjust = -0.5) +
   geom_label(aes(y = 0.1, label = Total)) +
-  theme(legend.position = "none")
+  theme(legend.position = "none") +
+  labs(x = "Risk Score",
+       y = "Rate")
 
 ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F24.png")
 ```
@@ -878,10 +1073,14 @@ Oras_categories_3A %>%
          h = if_else(oras_risk_score == "Total", T, F)) %>%
   ggplot(aes(x = oras_risk_score, y = p, fill = h)) +
   geom_col() +
-  scale_y_continuous(labels = percent_format(1)) +
+  theme_clean() +
+  scale_fill_brewer(palette = "Paired") +
+  scale_y_continuous(labels = percent_format(), limits = c(0, 1)) +
   geom_text(aes(label = `Non New Charge Rate`), vjust = -0.5) +
   geom_label(aes(y = 0.1, label = Total)) +
-  theme(legend.position = "none")
+  theme(legend.position = "none") +
+  labs(x = "Risk Score",
+       y = "Rate")
 
 ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F25.png")
 ```
@@ -889,16 +1088,21 @@ ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Repo
 # Figure 26
 ```{r}
 Oras_categories_3C_Gender %>%
-  filter(sex != "Undefined") %>%
+  filter(!(sex %in% c("Other Unknown", "Undefined"))) %>%
   group_by(oras_risk_score) %>%
   mutate(t = formatC(sum(as.numeric(Total), na.rm = T), format = "d", big.mark = ","),
          p = as.numeric(gsub(" %", "", `Non FTA Rate`)) / 100) %>%
   ungroup() %>%
   ggplot(aes(x = oras_risk_score, y = p, fill = sex)) +
   geom_col(position = "dodge") +
-  scale_y_continuous(labels = percent_format(1)) +
+  theme_clean() +
+  scale_fill_brewer(palette = "Paired") +
+  scale_y_continuous(labels = percent_format(), limits = c(0, 1)) +
   geom_text(aes(label = `Non FTA Rate`), vjust = -0.5, position = position_dodge(0.9)) +
-  geom_label(aes(y = 0.1, label = t), show.legend = F)
+  geom_label(aes(y = 0.1, label = t), show.legend = F) +
+  labs(x = "Risk Score",
+       y = "Rate",
+       fill = "Sex")
 
 ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F26.png")
 ```
@@ -913,9 +1117,14 @@ ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Repo
   ungroup() %>%
   ggplot(aes(x = oras_risk_score, y = p, fill = arrest_charge_level)) +
   geom_col(position = "dodge") +
-  scale_y_continuous(labels = percent_format(1)) +
+  theme_clean() +
+  scale_fill_brewer(palette = "Paired") +
+  scale_y_continuous(labels = percent_format(), limits = c(0, 1)) +
   geom_text(aes(label = `Non FTA Rate`), vjust = -0.5, position = position_dodge(0.9)) +
-  geom_label(aes(y = 0.1, label = t), show.legend = F)
+  geom_label(aes(y = 0.1, label = t), show.legend = F) +
+  labs(x = "Risk Score",
+       y = "Rate",
+       fill = "Charge Level")
 
 ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F27.png")
 ```
@@ -930,10 +1139,15 @@ Oras_categories_3C_Race %>%
   ungroup() %>%
   ggplot(aes(x = oras_risk_score, y = p, fill = race)) +
   geom_col(position = "dodge") +
-  scale_y_continuous(labels = percent_format(1)) +
+  theme_clean() +
+  scale_fill_brewer(palette = "Paired") +
+  scale_y_continuous(labels = percent_format(), limits = c(0, 1)) +
   geom_text(aes(label = `Non FTA Rate`), vjust = -0.5, position = position_dodge(width = 0.9), size = 2.5) +
   geom_label(aes(y = 0.1, label = t), show.legend = F) +
-  theme(legend.position = "top")
+  theme(legend.position = "top") +
+  labs(x = "Risk Score",
+       y = "Rate",
+       fill = "Race")
 
 ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F28.png")
 ```
@@ -941,16 +1155,21 @@ ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Repo
 # Figure 29
 ```{r}
 Oras_categories_3C_Gender %>%
-  filter(sex != "Undefined") %>%
+  filter(!(sex %in% c("Other Unknown", "Undefined"))) %>%
   group_by(oras_risk_score) %>%
   mutate(t = formatC(sum(as.numeric(Total), na.rm = T), format = "d", big.mark = ","),
          p = as.numeric(gsub(" %", "", `Non New Charge Rate`)) / 100) %>%
   ungroup() %>%
   ggplot(aes(x = oras_risk_score, y = p, fill = sex)) +
   geom_col(position = "dodge") +
-  scale_y_continuous(labels = percent_format(1)) +
+  theme_clean() +
+  scale_fill_brewer(palette = "Paired") +
+  scale_y_continuous(labels = percent_format(), limits = c(0, 1)) +
   geom_text(aes(label = `Non New Charge Rate`), vjust = -0.5, position = position_dodge(0.9)) +
-  geom_label(aes(y = 0.1, label = t), show.legend = F)
+  geom_label(aes(y = 0.1, label = t), show.legend = F) +
+  labs(x = "Risk Score",
+       y = "Rate",
+       fill = "Sex")
 
 ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F29.png")
 ```
@@ -965,9 +1184,14 @@ ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Repo
   ungroup() %>%
   ggplot(aes(x = oras_risk_score, y = p, fill = arrest_charge_level)) +
   geom_col(position = "dodge") +
-  scale_y_continuous(labels = percent_format(1)) +
+  theme_clean() +
+  scale_fill_brewer(palette = "Paired") +
+  scale_y_continuous(labels = percent_format(), limits = c(0, 1)) +
   geom_text(aes(label = `Non New Charge Rate`), vjust = -0.5, position = position_dodge(0.9)) +
-  geom_label(aes(y = 0.1, label = t), show.legend = F)
+  geom_label(aes(y = 0.1, label = t), show.legend = F) +
+  labs(x = "Risk Score",
+       y = "Rate",
+       fill = "Charge Level")
 
 ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F30.png")
 ```
@@ -982,10 +1206,15 @@ Oras_categories_3C_Race %>%
   ungroup() %>%
   ggplot(aes(x = oras_risk_score, y = p, fill = race)) +
   geom_col(position = "dodge") +
-  scale_y_continuous(labels = percent_format(1)) +
+  theme_clean() +
+  scale_fill_brewer(palette = "Paired") +
+  scale_y_continuous(labels = percent_format(), limits = c(0, 1)) +
   geom_text(aes(label = `Non New Charge Rate`), vjust = -0.5, position = position_dodge(width = 0.9), size = 2.5) +
   geom_label(aes(y = 0.1, label = t), show.legend = F) +
-  theme(legend.position = "top")
+  theme(legend.position = "top") +
+  labs(x = "Risk Score",
+       y = "Rate",
+       fill = "Race")
 
 ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F31.png")
 ```
@@ -999,8 +1228,13 @@ ORAS_3B_Gender %>%
   ungroup() %>%
   ggplot(aes(x = risk_category, y = t, fill = sex)) +
   geom_col(position = "dodge") +
+  theme_clean() +
+  scale_fill_brewer(palette = "Paired") +
   scale_y_continuous(labels = comma) +
-  geom_text(aes(label = formatC(as.numeric(t), format = "d", big.mark = ",")), vjust = -0.5, position = position_dodge(0.9))
+  geom_text(aes(label = formatC(as.numeric(t), format = "d", big.mark = ",")), vjust = -0.5, position = position_dodge(0.9)) +
+  labs(x = "Risk Score",
+       y = "Total",
+       fill = "Sex")
 
 ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F32.png")
 ```
@@ -1014,8 +1248,13 @@ ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Repo
   ungroup() %>%
   ggplot(aes(x = risk_category, y = t, fill = arrest_charge_level)) +
   geom_col(position = "dodge") +
+  theme_clean() +
+  scale_fill_brewer(palette = "Paired") +
   scale_y_continuous(labels = comma) +
-  geom_text(aes(label = formatC(as.numeric(t), format = "d", big.mark = ",")), vjust = -0.5, position = position_dodge(0.9))
+  geom_text(aes(label = formatC(as.numeric(t), format = "d", big.mark = ",")), vjust = -0.5, position = position_dodge(0.9)) +
+  labs(x = "Risk Score",
+       y = "Total",
+       fill = "Charge Level")
 
 ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F33.png")
 ```
@@ -1029,38 +1268,67 @@ ORAS_3B_Race %>%
   ungroup() %>%
   ggplot(aes(x = risk_category, y = t, fill = race)) +
   geom_col(position = "dodge") +
+  theme_clean() +
+  scale_fill_brewer(palette = "Paired") +
   scale_y_continuous(labels = comma) +
   geom_text(aes(label = formatC(as.numeric(t), format = "d", big.mark = ",")), vjust = -0.5, position = position_dodge(0.9)) +
-  theme(legend.position = "top")
+  theme(legend.position = "top") +
+  labs(x = "Risk Score",
+       y = "Total",
+       fill = "Race")
 
 ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F34.png")
 ```
 
-# Figure 35 Arraignment
+# Figure 35
 ```{r}
-`ORAS_3B_Release Arraignment` %>%
-  group_by(release_decision, risk_category) %>%
-  mutate(t = sum(n, na.rm = T)) %>%
-  ungroup() %>%
-  ggplot(aes(x = risk_category, y = t, fill = release_decision)) +
-  geom_col(position = "dodge") +
-  scale_y_continuous(labels = comma) +
-  geom_text(aes(label = formatC(as.numeric(t), format = "d", big.mark = ",")), vjust = -0.5, position = position_dodge(0.9))
+# ORAS_3B_Release %>%
+#   filter(release_decision != "Other") %>%
+#   group_by(release_decision, risk_category) %>%
+#   mutate(t = sum(n, na.rm = T)) %>%
+#   ungroup() %>%
+#   ggplot(aes(x = risk_category, y = t, fill = release_decision)) +
+#   geom_col(position = "dodge") +
+#   scale_y_continuous(labels = comma) +
+#   geom_text(aes(label = formatC(as.numeric(t), format = "d", big.mark = ",")), vjust = -0.5, position = position_dodge(0.9))
+# 
+# ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F35.png")
 
-ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F35 (Arraignment).png")
-```
-# Figure 35 Prearraignment
-```{r}
 `ORAS_3B_Release Prearraignment` %>%
-  group_by(release_decision, risk_category) %>%
-  mutate(t = sum(n, na.rm = T)) %>%
+  select(-oras_risk_score) %>%
+  group_by(risk_category, release_decision) %>%
+  mutate(n = sum(n, na.rm = T)) %>%
   ungroup() %>%
-  ggplot(aes(x = risk_category, y = t, fill = release_decision)) +
-  geom_col(position = "dodge") +
-  scale_y_continuous(labels = comma) +
-  geom_text(aes(label = formatC(as.numeric(t), format = "d", big.mark = ",")), vjust = -0.5, position = position_dodge(0.9))
+  distinct() %>%
+  pivot_wider(names_from = release_decision, values_from = n) %>%
+  bind_rows(summarise(., across(where(is.character), ~ "Total"),
+                      across(where(is.numeric), ~ sum(., na.rm = T)))) %>%
+  mutate(Total = rowSums(across(where(is.numeric)), na.rm = T)) %>%
+  gt() %>%
+  fmt_number(decimals = 0, sep_mark = ",") %>%
+  sub_missing() %>%
+  cols_label(risk_category = "Risk Score",
+             Total = md("**Total**")) %>%
+  tab_style(cell_text(weight = "bold"), list(cells_body(Total), cells_body(rows = risk_category == "Total"))) %>%
+  gtsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F35(Prearraignment).png")
 
-ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F35 (Prearraignment).png")
+`ORAS_3B_Release Arraignment` %>%
+  select(-oras_risk_score) %>%
+  group_by(risk_category, release_decision) %>%
+  mutate(n = sum(n, na.rm = T)) %>%
+  ungroup() %>%
+  distinct() %>%
+  pivot_wider(names_from = release_decision, values_from = n) %>%
+  bind_rows(summarise(., across(where(is.character), ~ "Total"),
+                      across(where(is.numeric), ~ sum(., na.rm = T)))) %>%
+  mutate(Total = rowSums(across(where(is.numeric)), na.rm = T)) %>%
+  gt() %>%
+  fmt_number(decimals = 0, sep_mark = ",") %>%
+  sub_missing() %>%
+  cols_label(risk_category = "Risk Score",
+             Total = md("**Total**")) %>%
+  tab_style(cell_text(weight = "bold"), list(cells_body(Total), cells_body(rows = risk_category == "Total"))) %>%
+  gtsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F35(Arraignment).png")
 ```
 
 # Figure 36
@@ -1072,10 +1340,14 @@ Vprai_categories_3A %>%
          h = if_else(vprai_risk_score == "Total", T, F)) %>%
   ggplot(aes(x = vprai_risk_score, y = p, fill = h)) +
   geom_col() +
-  scale_y_continuous(labels = percent_format(1)) +
+  theme_clean() +
+  scale_fill_brewer(palette = "Paired") +
+  scale_y_continuous(labels = percent_format(), limits = c(0, 1)) +
   geom_text(aes(label = `Non FTA Rate`), vjust = -0.5) +
   geom_label(aes(y = 0.1, label = Total)) +
-  theme(legend.position = "none")
+  theme(legend.position = "none") +
+  labs(x = "Risk Score",
+       y = "Rate")
 
 ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F36.png")
 ```
@@ -1089,10 +1361,14 @@ Vprai_categories_3A %>%
          h = if_else(vprai_risk_score == "Total", T, F)) %>%
   ggplot(aes(x = vprai_risk_score, y = p, fill = h)) +
   geom_col() +
-  scale_y_continuous(labels = percent_format(1)) +
+  theme_clean() +
+  scale_fill_brewer(palette = "Paired") +
+  scale_y_continuous(labels = percent_format(), limits = c(0, 1)) +
   geom_text(aes(label = `Non New Charge Rate`), vjust = -0.5) +
   geom_label(aes(y = 0.1, label = Total)) +
-  theme(legend.position = "none")
+  theme(legend.position = "none") +
+  labs(x = "Risk Score",
+       y = "Rate")
 
 ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F37.png")
 ```
@@ -1107,9 +1383,14 @@ VPRAI_categories_3C_Gender %>%
   ungroup() %>%
   ggplot(aes(x = vprai_risk_score, y = p, fill = sex)) +
   geom_col(position = "dodge") +
-  scale_y_continuous(labels = percent_format(1)) +
+  theme_clean() +
+  scale_fill_brewer(palette = "Paired") +
+  scale_y_continuous(labels = percent_format(), limits = c(0, 1)) +
   geom_text(aes(label = `Non FTA Rate`), vjust = -0.5, position = position_dodge(0.9)) +
-  geom_label(aes(y = 0.1, label = t), show.legend = F)
+  geom_label(aes(y = 0.1, label = t), show.legend = F) +
+  labs(x = "Risk Score",
+       y = "Rate",
+       fill = "Sex")
 
 ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F38.png")
 ```
@@ -1125,9 +1406,14 @@ ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Repo
   ungroup() %>%
   ggplot(aes(x = vprai_risk_score, y = p, fill = arrest_charge_level)) +
   geom_col(position = "dodge") +
-  scale_y_continuous(labels = percent_format(1)) +
+  theme_clean() +
+  scale_fill_brewer(palette = "Paired") +
+  scale_y_continuous(labels = percent_format(), limits = c(0, 1)) +
   geom_text(aes(label = `Non FTA Rate`), vjust = -0.5, position = position_dodge(0.9)) +
-  geom_label(aes(y = 0.1, label = t), show.legend = F)
+  geom_label(aes(y = 0.1, label = t), show.legend = F) +
+  labs(x = "Risk Score",
+       y = "Rate",
+       fill = "Charge Level")
 
 ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F39.png")
 ```
@@ -1143,10 +1429,15 @@ VPRAI_categories_3C_Race %>%
   ungroup() %>%
   ggplot(aes(x = vprai_risk_score, y = p, fill = race)) +
   geom_col(position = "dodge") +
-  scale_y_continuous(labels = percent_format(1)) +
+  theme_clean() +
+  scale_fill_brewer(palette = "Paired") +
+  scale_y_continuous(labels = percent_format(), limits = c(0, 1)) +
   geom_text(aes(label = `Non FTA Rate`), vjust = -0.5, position = position_dodge(width = 0.9), size = 2.5) +
   geom_label(aes(y = 0.1, label = t), show.legend = F) +
-  theme(legend.position = "top")
+  theme(legend.position = "top") +
+  labs(x = "Risk Score",
+       y = "Rate",
+       fill = "Race")
 
 ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F40.png")
 ```
@@ -1161,9 +1452,14 @@ VPRAI_categories_3C_Gender %>%
   ungroup() %>%
   ggplot(aes(x = vprai_risk_score, y = p, fill = sex)) +
   geom_col(position = "dodge") +
-  scale_y_continuous(labels = percent_format(1)) +
+  theme_clean() +
+  scale_fill_brewer(palette = "Paired") +
+  scale_y_continuous(labels = percent_format(), limits = c(0, 1)) +
   geom_text(aes(label = `Non New Charge Rate`), vjust = -0.5, position = position_dodge(0.9)) +
-  geom_label(aes(y = 0.1, label = t), show.legend = F)
+  geom_label(aes(y = 0.1, label = t), show.legend = F) +
+  labs(x = "Risk Score",
+       y = "Rate",
+       fill = "Sex")
 
 ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F41.png")
 ```
@@ -1179,9 +1475,14 @@ ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Repo
   ungroup() %>%
   ggplot(aes(x = vprai_risk_score, y = p, fill = arrest_charge_level)) +
   geom_col(position = "dodge") +
-  scale_y_continuous(labels = percent_format(1)) +
+  theme_clean() +
+  scale_fill_brewer(palette = "Paired") +
+  scale_y_continuous(labels = percent_format(), limits = c(0, 1)) +
   geom_text(aes(label = `Non New Charge Rate`), vjust = -0.5, position = position_dodge(0.9)) +
-  geom_label(aes(y = 0.1, label = t), show.legend = F)
+  geom_label(aes(y = 0.1, label = t), show.legend = F) +
+  labs(x = "Risk Score",
+       y = "Rate",
+       fill = "Charge Level")
 
 ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F42.png")
 ```
@@ -1197,10 +1498,15 @@ VPRAI_categories_3C_Race %>%
   ungroup() %>%
   ggplot(aes(x = vprai_risk_score, y = p, fill = race)) +
   geom_col(position = "dodge") +
-  scale_y_continuous(labels = percent_format(1)) +
+  theme_clean() +
+  scale_fill_brewer(palette = "Paired") +
+  scale_y_continuous(labels = percent_format(), limits = c(0, 1)) +
   geom_text(aes(label = `Non New Charge Rate`), vjust = -0.5, position = position_dodge(width = 0.9), size = 2.5) +
   geom_label(aes(y = 0.1, label = t), show.legend = F) +
-  theme(legend.position = "top")
+  theme(legend.position = "top") +
+  labs(x = "Risk Score",
+       y = "Rate",
+       fill = "Race")
 
 ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F43.png")
 ```
@@ -1215,8 +1521,13 @@ VPRAI_3B_Gender %>%
   ungroup() %>%
   ggplot(aes(x = risk_category, y = t, fill = sex)) +
   geom_col(position = "dodge") +
+  theme_clean() +
+  scale_fill_brewer(palette = "Paired") +
   scale_y_continuous(labels = comma) +
-  geom_text(aes(label = formatC(as.numeric(t), format = "d", big.mark = ",")), vjust = -0.5, position = position_dodge(0.9))
+  geom_text(aes(label = formatC(as.numeric(t), format = "d", big.mark = ",")), vjust = -0.5, position = position_dodge(0.9)) +
+  labs(x = "Risk Score",
+       y = "Total",
+       fill = "Sex")
 
 ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F44.png")
 ```
@@ -1231,8 +1542,13 @@ ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Repo
   ungroup() %>%
   ggplot(aes(x = risk_category, y = t, fill = arrest_charge_level)) +
   geom_col(position = "dodge") +
+  theme_clean() +
+  scale_fill_brewer(palette = "Paired") +
   scale_y_continuous(labels = comma) +
-  geom_text(aes(label = formatC(as.numeric(t), format = "d", big.mark = ",")), vjust = -0.5, position = position_dodge(0.9))
+  geom_text(aes(label = formatC(as.numeric(t), format = "d", big.mark = ",")), vjust = -0.5, position = position_dodge(0.9)) +
+  labs(x = "Risk Score",
+       y = "Total",
+       fill = "Charge Level")
 
 ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F45.png")
 ```
@@ -1247,41 +1563,70 @@ VPRAI_3B_Race %>%
   ungroup() %>%
   ggplot(aes(x = risk_category, y = t, fill = race)) +
   geom_col(position = "dodge") +
+  theme_clean() +
+  scale_fill_brewer(palette = "Paired") +
   scale_y_continuous(labels = comma) +
   geom_text(aes(label = formatC(as.numeric(t), format = "d", big.mark = ",")), vjust = -0.5, position = position_dodge(width = 0.9), size = 3.5) +
-  theme(legend.position = "top")
+  theme(legend.position = "top") +
+  labs(x = "Risk Score",
+       y = "Total",
+       fill = "Race")
 
 ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F46.png")
 ```
 
-# Figure 47 Arraignment
+# Figure 47
 ```{r}
-`VPRAI_3B_Release Arraignment` %>%
-  mutate(risk_category = fct_relevel(risk_category, "Scores 0-1", after = 0)) %>%
-  group_by(release_decision, risk_category) %>%
-  mutate(t = sum(n, na.rm = T)) %>%
-  ungroup() %>%
-  ggplot(aes(x = risk_category, y = t, fill = release_decision)) +
-  geom_col(position = "dodge") +
-  scale_y_continuous(labels = comma) +
-  geom_text(aes(label = formatC(as.numeric(t), format = "d", big.mark = ",")), vjust = -0.5, position = position_dodge(0.9))
+# VPRAI_3B_Release %>%
+#   filter(release_decision != "Other") %>%
+#   mutate(risk_category = fct_relevel(risk_category, "Scores 0-1", after = 0)) %>%
+#   group_by(release_decision, risk_category) %>%
+#   mutate(t = sum(n, na.rm = T)) %>%
+#   ungroup() %>%
+#   ggplot(aes(x = risk_category, y = t, fill = release_decision)) +
+#   geom_col(position = "dodge") +
+#   scale_y_continuous(labels = comma) +
+#   geom_text(aes(label = formatC(as.numeric(t), format = "d", big.mark = ",")), vjust = -0.5, position = position_dodge(0.9))
+# 
+# ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F47.png")
 
-ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F47 (Arraignment).png")
-```
-# Figure 47 Prearraignment
-```{r}
 `VPRAI_3B_Release Prearraignment` %>%
-  mutate(risk_category = fct_relevel(risk_category, "Scores 0-1", after = 0)) %>%
-  group_by(release_decision, risk_category) %>%
-  mutate(t = sum(n, na.rm = T)) %>%
+  select(-c(vprai_risk_score, risk_score_sort)) %>%
+  group_by(risk_category, release_decision) %>%
+  mutate(n = sum(n, na.rm = T)) %>%
   ungroup() %>%
-  ggplot(aes(x = risk_category, y = t, fill = release_decision)) +
-  geom_col(position = "dodge") +
-  scale_y_continuous(labels = comma) +
-  geom_text(aes(label = formatC(as.numeric(t), format = "d", big.mark = ",")), vjust = -0.5, position = position_dodge(0.9))
+  distinct() %>%
+  pivot_wider(names_from = release_decision, values_from = n) %>%
+  bind_rows(summarise(., across(where(is.character), ~ "Total"),
+                      across(where(is.numeric), ~ sum(., na.rm = T)))) %>%
+  mutate(Total = rowSums(across(where(is.numeric)), na.rm = T)) %>%
+  gt() %>%
+  fmt_number(decimals = 0, sep_mark = ",") %>%
+  sub_missing() %>%
+  cols_label(risk_category = "Risk Score",
+             Total = md("**Total**")) %>%
+  tab_style(cell_text(weight = "bold"), list(cells_body(Total), cells_body(rows = risk_category == "Total"))) %>%
+  gtsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F47(Prearraignment).png")
 
-ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F47 (Prearraignment).png")
+`VPRAI_3B_Release Arraignment` %>%
+  select(-c(vprai_risk_score, risk_score_sort)) %>%
+  group_by(risk_category, release_decision) %>%
+  mutate(n = sum(n, na.rm = T)) %>%
+  ungroup() %>%
+  distinct() %>%
+  pivot_wider(names_from = release_decision, values_from = n) %>%
+  bind_rows(summarise(., across(where(is.character), ~ "Total"),
+                      across(where(is.numeric), ~ sum(., na.rm = T)))) %>%
+  mutate(Total = rowSums(across(where(is.numeric)), na.rm = T)) %>%
+  gt() %>%
+  fmt_number(decimals = 0, sep_mark = ",") %>%
+  sub_missing() %>%
+  cols_label(risk_category = "Risk Score",
+             Total = md("**Total**")) %>%
+  tab_style(cell_text(weight = "bold"), list(cells_body(Total), cells_body(rows = risk_category == "Total"))) %>%
+  gtsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F47(Arraignment).png")
 ```
+
 # Figure 48
 ```{r}
 VpraiR_categories_3A %>%
@@ -1291,10 +1636,14 @@ VpraiR_categories_3A %>%
          h = if_else(vprair_risk_score == "Total", T, F)) %>%
   ggplot(aes(x = vprair_risk_score, y = p, fill = h)) +
   geom_col() +
-  scale_y_continuous(labels = percent_format(1)) +
+  theme_clean() +
+  scale_fill_brewer(palette = "Paired") +
+  scale_y_continuous(labels = percent_format(), limits = c(0, 1)) +
   geom_text(aes(label = `Non FTA Rate`), vjust = -0.5) +
   geom_label(aes(y = 0.1, label = Total)) +
-  theme(legend.position = "none")
+  theme(legend.position = "none") +
+  labs(x = "Risk Score",
+       y = "Rate")
 
 ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F48.png")
 ```
@@ -1308,10 +1657,14 @@ VpraiR_categories_3A %>%
          h = if_else(vprair_risk_score == "Total", T, F)) %>%
   ggplot(aes(x = vprair_risk_score, y = p, fill = h)) +
   geom_col() +
-  scale_y_continuous(labels = percent_format(1)) +
+  theme_clean() +
+  scale_fill_brewer(palette = "Paired") +
+  scale_y_continuous(labels = percent_format(), limits = c(0, 1)) +
   geom_text(aes(label = `Non New Charge Rate`), vjust = -0.5) +
   geom_label(aes(y = 0.1, label = Total)) +
-  theme(legend.position = "none")
+  theme(legend.position = "none") +
+  labs(x = "Risk Score",
+       y = "Rate")
 
 ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F49.png")
 ```
@@ -1327,9 +1680,14 @@ VPRAIR_categories_3C_Gender %>%
   ungroup() %>%
   ggplot(aes(x = vprair_risk_score, y = p, fill = sex)) +
   geom_col(position = "dodge") +
-  scale_y_continuous(labels = percent_format(1)) +
+  theme_clean() +
+  scale_fill_brewer(palette = "Paired") +
+  scale_y_continuous(labels = percent_format(), limits = c(0, 1)) +
   geom_text(aes(label = `Non FTA Rate`), vjust = -0.5, position = position_dodge(0.9)) +
-  geom_label(aes(y = 0.1, label = t), show.legend = F)
+  geom_label(aes(y = 0.1, label = t), show.legend = F) +
+  labs(x = "Risk Score",
+       y = "Rate",
+       fill = "Sex")
 
 ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F50.png")
 ```
@@ -1345,9 +1703,14 @@ ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Repo
   ungroup() %>%
   ggplot(aes(x = vprair_risk_score, y = p, fill = arrest_charge_level)) +
   geom_col(position = "dodge") +
-  scale_y_continuous(labels = percent_format(1)) +
+  theme_clean() +
+  scale_fill_brewer(palette = "Paired") +
+  scale_y_continuous(labels = percent_format(), limits = c(0, 1)) +
   geom_text(aes(label = `Non FTA Rate`), vjust = -0.5, position = position_dodge(0.9)) +
-  geom_label(aes(y = 0.1, label = t), show.legend = F)
+  geom_label(aes(y = 0.1, label = t), show.legend = F) +
+  labs(x = "Risk Score",
+       y = "Rate",
+       fill = "Charge Level")
 
 ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F51.png")
 ```
@@ -1363,10 +1726,15 @@ VPRAIR_categories_3C_Race %>%
   ungroup() %>%
   ggplot(aes(x = vprair_risk_score, y = p, fill = race)) +
   geom_col(position = "dodge") +
-  scale_y_continuous(labels = percent_format(1)) +
+  theme_clean() +
+  scale_fill_brewer(palette = "Paired") +
+  scale_y_continuous(labels = percent_format(), limits = c(0, 1)) +
   geom_text(aes(label = `Non FTA Rate`), vjust = -0.5, position = position_dodge(width = 0.9), size = 2.5) +
   geom_label(aes(y = 0.1, label = t), show.legend = F) +
-  theme(legend.position = "top")
+  theme(legend.position = "top") +
+  labs(x = "Risk Score",
+       y = "Rate",
+       fill = "Race")
 
 ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F52.png")
 ```
@@ -1382,9 +1750,14 @@ VPRAIR_categories_3C_Gender %>%
   ungroup() %>%
   ggplot(aes(x = vprair_risk_score, y = p, fill = sex)) +
   geom_col(position = "dodge") +
-  scale_y_continuous(labels = percent_format(1)) +
+  theme_clean() +
+  scale_fill_brewer(palette = "Paired") +
+  scale_y_continuous(labels = percent_format(), limits = c(0, 1)) +
   geom_text(aes(label = `Non New Charge Rate`), vjust = -0.5, position = position_dodge(0.9)) +
-  geom_label(aes(y = 0.1, label = t), show.legend = F)
+  geom_label(aes(y = 0.1, label = t), show.legend = F) +
+  labs(x = "Risk Score",
+       y = "Rate",
+       fill = "Sex")
 
 ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F53.png")
 ```
@@ -1400,9 +1773,14 @@ ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Repo
   ungroup() %>%
   ggplot(aes(x = vprair_risk_score, y = p, fill = arrest_charge_level)) +
   geom_col(position = "dodge") +
-  scale_y_continuous(labels = percent_format(1)) +
+  theme_clean() +
+  scale_fill_brewer(palette = "Paired") +
+  scale_y_continuous(labels = percent_format(), limits = c(0, 1)) +
   geom_text(aes(label = `Non New Charge Rate`), vjust = -0.5, position = position_dodge(0.9)) +
-  geom_label(aes(y = 0.1, label = t), show.legend = F)
+  geom_label(aes(y = 0.1, label = t), show.legend = F) +
+  labs(x = "Risk Score",
+       y = "Rate",
+       fill = "Charge Level")
 
 ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F54.png")
 ```
@@ -1418,10 +1796,15 @@ VPRAIR_categories_3C_Race %>%
   ungroup() %>%
   ggplot(aes(x = vprair_risk_score, y = p, fill = race)) +
   geom_col(position = "dodge") +
-  scale_y_continuous(labels = percent_format(1)) +
+  theme_clean() +
+  scale_fill_brewer(palette = "Paired") +
+  scale_y_continuous(labels = percent_format(), limits = c(0, 1)) +
   geom_text(aes(label = `Non New Charge Rate`), vjust = -0.5, position = position_dodge(width = 0.9), size = 2.5) +
   geom_label(aes(y = 0.1, label = t), show.legend = F) +
-  theme(legend.position = "top")
+  theme(legend.position = "top") +
+  labs(x = "Risk Score",
+       y = "Rate",
+       fill = "Race")
 
 ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F55.png")
 ```
@@ -1436,8 +1819,13 @@ VPRAIR_3B_Gender %>%
   ungroup() %>%
   ggplot(aes(x = vprair_risk_score, y = t, fill = sex)) +
   geom_col(position = "dodge") +
+  theme_clean() +
+  scale_fill_brewer(palette = "Paired") +
   scale_y_continuous(labels = comma) +
-  geom_text(aes(label = formatC(as.numeric(t), format = "d", big.mark = ",")), vjust = -0.5, position = position_dodge(0.9))
+  geom_text(aes(label = formatC(as.numeric(t), format = "d", big.mark = ",")), vjust = -0.5, position = position_dodge(0.9)) +
+  labs(x = "Risk Score",
+       y = "Total",
+       fill = "Sex")
 
 ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F56.png")
 ```
@@ -1452,8 +1840,13 @@ ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Repo
   ungroup() %>%
   ggplot(aes(x = vprair_risk_score, y = t, fill = arrest_charge_level)) +
   geom_col(position = "dodge") +
+  theme_clean() +
+  scale_fill_brewer(palette = "Paired") +
   scale_y_continuous(labels = comma) +
-  geom_text(aes(label = formatC(as.numeric(t), format = "d", big.mark = ",")), vjust = -0.5, position = position_dodge(0.9))
+  geom_text(aes(label = formatC(as.numeric(t), format = "d", big.mark = ",")), vjust = -0.5, position = position_dodge(0.9)) +
+  labs(x = "Risk Score",
+       y = "Total",
+       fill = "Charge Level")
 
 ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F57.png")
 ```
@@ -1468,50 +1861,83 @@ VPRAIR_3B_Race %>%
   ungroup() %>%
   ggplot(aes(x = vprair_risk_score, y = t, fill = race)) +
   geom_col(position = "dodge") +
+  theme_clean() +
+  scale_fill_brewer(palette = "Paired") +
   scale_y_continuous(labels = comma) +
   geom_text(aes(label = formatC(as.numeric(t), format = "d", big.mark = ",")), vjust = -0.5, position = position_dodge(width = 0.9), size = 2) +
-  theme(legend.position = "top")
+  theme(legend.position = "top") +
+  labs(x = "Risk Score",
+       y = "Total",
+       fill = "Race")
 
 ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F58.png")
 ```
 
-# Figure 59 Arraignment
+# Figure 59
 ```{r}
-`VPRAIR_3B_Release Arraignment` %>%
-  filter(release_decision != "Other") %>%
-  mutate(vprair_risk_score = fct_relevel(vprair_risk_score, "Scores 11-14", after = 5)) %>%
-  group_by(release_decision, vprair_risk_score) %>%
-  mutate(t = sum(n, na.rm = T)) %>%
-  ungroup() %>%
-  ggplot(aes(x = vprair_risk_score, y = t, fill = release_decision)) +
-  geom_col(position = "dodge") +
-  scale_y_continuous(labels = comma) +
-  geom_text(aes(label = formatC(as.numeric(t), format = "d", big.mark = ",")), vjust = -0.5, position = position_dodge(0.9))
+# VPRAIR_3B_Release %>%
+#   filter(release_decision != "Other") %>%
+#   mutate(vprair_risk_score = fct_relevel(vprair_risk_score, "Scores 11-14", after = 5)) %>%
+#   group_by(release_decision, vprair_risk_score) %>%
+#   mutate(t = sum(n, na.rm = T)) %>%
+#   ungroup() %>%
+#   ggplot(aes(x = vprair_risk_score, y = t, fill = release_decision)) +
+#   geom_col(position = "dodge") +
+#   scale_y_continuous(labels = comma) +
+#   geom_text(aes(label = formatC(as.numeric(t), format = "d", big.mark = ",")), vjust = -0.5, position = position_dodge(0.9))
+# 
+# ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F59.png")
 
-ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F59 (Arraignment).png")
-```
-# Figure 59 Prearraignment
-```{r}
 `VPRAIR_3B_Release Prearraignment` %>%
-  filter(release_decision != "Other") %>%
-  mutate(vprair_risk_score = fct_relevel(vprair_risk_score, "Scores 11-14", after = 5)) %>%
-  group_by(release_decision, vprair_risk_score) %>%
-  mutate(t = sum(n, na.rm = T)) %>%
+  select(-risk_score_sort) %>%
+  group_by(vprair_risk_score, release_decision) %>%
+  mutate(n = sum(n, na.rm = T)) %>%
   ungroup() %>%
-  ggplot(aes(x = vprair_risk_score, y = t, fill = release_decision)) +
-  geom_col(position = "dodge") +
-  scale_y_continuous(labels = comma) +
-  geom_text(aes(label = formatC(as.numeric(t), format = "d", big.mark = ",")), vjust = -0.5, position = position_dodge(0.9))
+  distinct() %>%
+  pivot_wider(names_from = release_decision, values_from = n) %>%
+  bind_rows(summarise(., across(where(is.character), ~ "Total"),
+                      across(where(is.numeric), ~ sum(., na.rm = T)))) %>%
+  mutate(Total = rowSums(across(where(is.numeric)), na.rm = T)) %>%
+  gt() %>%
+  fmt_number(decimals = 0, sep_mark = ",") %>%
+  sub_missing() %>%
+  cols_label(vprair_risk_score = "Risk Score",
+             Total = md("**Total**")) %>%
+  tab_style(cell_text(weight = "bold"), list(cells_body(Total), cells_body(rows = vprair_risk_score == "Total"))) %>%
+  gtsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F59(Prearraignment).png")
 
-ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F59 (Prearraignment).png")
+`VPRAIR_3B_Release Arraignment` %>%
+  select(-risk_score_sort) %>%
+  group_by(vprair_risk_score, release_decision) %>%
+  mutate(n = sum(n, na.rm = T)) %>%
+  ungroup() %>%
+  distinct() %>%
+  pivot_wider(names_from = release_decision, values_from = n) %>%
+  bind_rows(summarise(., across(where(is.character), ~ "Total"),
+                      across(where(is.numeric), ~ sum(., na.rm = T)))) %>%
+  mutate(Total = rowSums(across(where(is.numeric)), na.rm = T)) %>%
+  gt() %>%
+  fmt_number(decimals = 0, sep_mark = ",") %>%
+  sub_missing() %>%
+  cols_label(vprair_risk_score = "Risk Score",
+             Total = md("**Total**")) %>%
+  tab_style(cell_text(weight = "bold"), list(cells_body(Total), cells_body(rows = vprair_risk_score == "Total"))) %>%
+  gtsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F59(Arraignment).png")
 ```
+
 # Figure 60
 ```{r}
 VPRAIO_3B_Gender %>%
+  filter(sex != "Other/Unknown") %>%
   mutate(vpraio_risk_score = as.character(vpraio_risk_score)) %>%
   ggplot(aes(x = vpraio_risk_score, y = n, fill = sex)) +
-  geom_col()+
-  geom_text(aes(label = n), vjust = -0.5)
+  geom_col() +
+  theme_clean() +
+  scale_fill_brewer(palette = "Paired") +
+  geom_text(aes(label = n), vjust = -0.5) +
+  labs(x = "Risk Score",
+       y = "Total",
+       fill = "Sex")
 
 ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F60.png")
 ```
@@ -1523,7 +1949,12 @@ ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Repo
   mutate(vpraio_risk_score = as.character(vpraio_risk_score)) %>%
   ggplot(aes(x = vpraio_risk_score, y = n, fill = arrest_charge_level)) +
   geom_col(position = "dodge") +
-  geom_text(aes(label = n), vjust = -0.5, position = position_dodge(0.9))
+  theme_clean() +
+  scale_fill_brewer(palette = "Paired") +
+  geom_text(aes(label = n), vjust = -0.5, position = position_dodge(0.9)) +
+  labs(x = "Risk Score",
+       y = "Total",
+       fill = "Charge Level")
 
 ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F61.png")
 ```
@@ -1534,166 +1965,78 @@ VPRAIO_3B_Race %>%
   mutate(vpraio_risk_score = as.character(vpraio_risk_score)) %>%
   ggplot(aes(x = vpraio_risk_score, y = n, fill = race)) +
   geom_col(position = "dodge") +
+  theme_clean() +
+  scale_fill_brewer(palette = "Paired") +
   geom_text(aes(label = n), vjust = -0.5, position = position_dodge(0.9)) +
-  theme(legend.position = "top")
+  theme(legend.position = "top") +
+  labs(x = "Risk Score",
+       y = "Total",
+       fill = "Race")
 
 ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F62.png")
 ```
 
-# Figure 63 Arraignment
+# Figure 63
 ```{r}
-`VPRAIO_3B_Release Arraignment` %>%
-  mutate(vpraio_risk_score = as.character(vpraio_risk_score)) %>%
-  ggplot(aes(x = vpraio_risk_score, y = n, fill = release_decision)) +
-  geom_col() +
-  geom_text(aes(label = n), vjust = -0.5)
+# VPRAIO_3B_Release %>%
+#   mutate(vpraio_risk_score = as.character(vpraio_risk_score)) %>%
+#   ggplot(aes(x = vpraio_risk_score, y = n, fill = release_decision)) +
+#   geom_col() +
+#   geom_text(aes(label = n), vjust = -0.5)
+# 
+# ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F63.png")
 
-ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F63 (Arraignment).png")
-```
-# Figure 63 Prearraignment
-```{r}
 `VPRAIO_3B_Release Prearraignment` %>%
-  mutate(vpraio_risk_score = as.character(vpraio_risk_score)) %>%
-  ggplot(aes(x = vpraio_risk_score, y = n, fill = release_decision)) +
-  geom_col() +
-  geom_text(aes(label = n), vjust = -0.5)
+  group_by(vpraio_risk_score, release_decision) %>%
+  mutate(n = sum(n, na.rm = T)) %>%
+  ungroup() %>%
+  distinct() %>%
+  pivot_wider(names_from = release_decision, values_from = n) %>%
+  bind_rows(summarise(., across(where(is.character), ~ "Total"),
+                      across(where(is.numeric), ~ sum(., na.rm = T)))) %>%
+  mutate(Total = rowSums(across(where(is.numeric)), na.rm = T)) %>%
+  gt() %>%
+  fmt_number(decimals = 0, sep_mark = ",") %>%
+  sub_missing() %>%
+  cols_label(vpraio_risk_score = "Risk Score",
+             Total = md("**Total**")) %>%
+  tab_style(cell_text(weight = "bold"), list(cells_body(Total), cells_body(rows = vpraio_risk_score == "Total"))) %>%
+  gtsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F63(Prearraignment).png")
 
-ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F63 (Prearraignment).png")
+`VPRAIO_3B_Release Arraignment` %>%
+  group_by(vpraio_risk_score, release_decision) %>%
+  mutate(n = sum(n, na.rm = T)) %>%
+  ungroup() %>%
+  distinct() %>%
+  pivot_wider(names_from = release_decision, values_from = n) %>%
+  bind_rows(summarise(., across(where(is.character), ~ "Total"),
+                      across(where(is.numeric), ~ sum(., na.rm = T)))) %>%
+  mutate(Total = rowSums(across(where(is.numeric)), na.rm = T)) %>%
+  gt() %>%
+  fmt_number(decimals = 0, sep_mark = ",") %>%
+  sub_missing() %>%
+  cols_label(vpraio_risk_score = "Risk Score",
+             Total = md("**Total**")) %>%
+  tab_style(cell_text(weight = "bold"), list(cells_body(Total), cells_body(rows = vpraio_risk_score == "Total"))) %>%
+  gtsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F63(Arraignment).png")
 ```
+
 # Figure 64
 ```{r}
 df_3D_Overrides %>%
   mutate(p = paste0(round(override_percent * 100), "%")) %>%
   ggplot(aes(x = tool_name, y = override_percent)) +
   geom_col() +
-  scale_y_continuous(labels = percent_format(1)) +
-  geom_text(aes(label = p), vjust = -0.5)
+  theme_clean() +
+  scale_fill_brewer(palette = "Paired") +
+  scale_y_continuous(labels = percent_format(), limits = c(0, 1)) +
+  geom_text(aes(label = p), vjust = -0.5) +
+  labs(x = "Risk Tool",
+       y = "Rate")
 
 ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F64.png")
 
-#new cross tabs for each tool separately. There should be some kind of header over the column names to indicate that those are Arraignment/Prearraignment release decisions 
-
-`Arraignment_3D_ORAS Arraignment` %>%
-  mutate(release_recommendation = factor(release_recommendation, levels = c("Release", "Deny Release", "Ineligible", "Other/Unknown"))) %>%
-  arrange(release_recommendation) %>%
-  select(release_recommendation, Release, `Deny Release`, Ineligible, `Other/Unknown`) %>%
-  gt() %>%
-  fmt_number(decimals = 0, sep_mark = ",") %>%
-  cols_label(release_recommendation = md("Release Recommendation")) %>%
-  tab_spanner("Release Decision (Arraignment)", 2:5) %>%
-  cols_align(align = c("left"), columns = 1:5) %>%
-  cols_width(everything() ~ px(150)) %>%
-  gtsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F64 ORAS Arraignment.png")
-
-
-`Arraignment_3D_VPRAI Arraignment` %>%
-  mutate(release_recommendation = factor(release_recommendation, levels = c("Release", "Deny Release", "Ineligible", "Other/Unknown"))) %>%
-  arrange(release_recommendation) %>%
-  select(release_recommendation, Release, `Deny Release`, `Other/Unknown`) %>%
-  gt() %>%
-  fmt_number(decimals = 0, sep_mark = ",") %>%
-  cols_label(release_recommendation = md("Release Recommendation")) %>%
-  tab_spanner("Release Decision (Arraignment)", 2:4) %>%
-  cols_align(align = c("left"), columns = 1:4) %>%
-  cols_width(everything() ~ px(150)) %>%
-  gtsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F64 VPRAI Arraignment.png")
-
-`Arraignment_3D_VPRAI-R Arraignment` %>%
-  mutate(release_recommendation = factor(release_recommendation, levels = c("Release", "Deny Release", "Ineligible", "Other/Unknown"))) %>%
-  arrange(release_recommendation) %>%
-  select(release_recommendation, Release, `Deny Release`, `Other/Unknown`) %>%
-  gt() %>%
-  fmt_number(decimals = 0, sep_mark = ",") %>%
-  cols_label(release_recommendation = md("Release Recommendation")) %>%
-  tab_spanner("Release Decision (Arraignment)", 2:4) %>%
-  cols_align(align = c("left"), columns = 1:4) %>%
-  cols_width(everything() ~ px(150)) %>%
-  gtsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F64 VPRAI-R Arraignment.png")
-
-`Arraignment_3D_VPRAI-O Arraignment` %>%
-  mutate(release_recommendation = factor(release_recommendation, levels = c("Release", "Deny Release", "Ineligible", "Other/Unknown"))) %>%
-  arrange(release_recommendation) %>%
-  select(release_recommendation, `Other/Unknown`) %>%
-  gt() %>%
-  fmt_number(decimals = 0, sep_mark = ",") %>%
-  cols_label(release_recommendation = md("Release Recommendation")) %>%
-  tab_spanner("Release Decision (Arraignment)", 2:2) %>%
-  cols_align(align = c("left"), columns = 1:2) %>%
-  cols_width(everything() ~ px(150)) %>%
-  gtsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F64 VPRAI-O Arraignment.png")
-
-`Arraignment_3D_PSA Arraignment` %>%
-  mutate(release_recommendation = factor(release_recommendation, levels = c("Release", "Deny Release", "Ineligible", "Other/Unknown"))) %>%
-  arrange(release_recommendation) %>%
-  select(release_recommendation, Release, `Deny Release`, Ineligible, `Other/Unknown`) %>%
-  gt() %>%
-  fmt_number(decimals = 0, sep_mark = ",") %>%
-  cols_label(release_recommendation = md("Release Recommendation")) %>%
-  tab_spanner("Release Decision (Arraignment)", 2:5) %>%
-  cols_align(align = c("left"), columns = 1:5) %>%
-  cols_width(everything() ~ px(150)) %>%
-  gtsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F64 PSA Arraignment.png")
-
-
-`Prearraignment_3D_ORAS Prearraignment` %>%
-  mutate(release_recommendation = factor(release_recommendation, levels = c("Release", "Deny Release", "Ineligible", "Other/Unknown"))) %>%
-  arrange(release_recommendation) %>%
-  select(release_recommendation, Release, `Deny Release`, Ineligible, `Other/Unknown`) %>%
-  gt() %>%
-  fmt_number(decimals = 0, sep_mark = ",") %>%
-  cols_label(release_recommendation = md("Release Recommendation")) %>%
-  tab_spanner("Release Decision (Pre-Arraignment)", 2:5) %>%
-  cols_align(align = c("left"), columns = 1:5) %>%
-  cols_width(everything() ~ px(150)) %>%
-  gtsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F64 ORAS Prearraignment.png")
-
-`Prearraignment_3D_VPRAI Prearraignment` %>%
-  mutate(release_recommendation = factor(release_recommendation, levels = c("Release", "Deny Release", "Ineligible", "Other/Unknown"))) %>%
-  arrange(release_recommendation) %>%
-  select(release_recommendation, Release, `Deny Release`, Ineligible, `Other/Unknown`) %>%
-  gt() %>%
-  fmt_number(decimals = 0, sep_mark = ",") %>%
-  cols_label(release_recommendation = md("Release Recommendation")) %>%
-  tab_spanner("Release Decision (Pre-Arraignment)", 2:5) %>%
-  cols_align(align = c("left"), columns = 1:5) %>%
-  cols_width(everything() ~ px(150)) %>%
-  gtsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F64 VPRAI Prearraignment.png")
-
-`Prearraignment_3D_VPRAI-R Prearraignment` %>%
-  mutate(release_recommendation = factor(release_recommendation, levels = c("Release", "Deny Release",  "Other/Unknown"))) %>%
-  arrange(release_recommendation) %>%
-  select(release_recommendation, Release, `Deny Release`,  `Other/Unknown`) %>%
-  gt() %>%
-  fmt_number(decimals = 0, sep_mark = ",") %>%
-  cols_label(release_recommendation = md("Release Recommendation")) %>%
-  tab_spanner("Release Decision (Pre-Arraignment)", 2:4) %>%
-  cols_align(align = c("left"), columns = 1:4) %>%
-  cols_width(everything() ~ px(150)) %>%
-  gtsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F64 VPRAI-R Prearraignment.png")
-
-`Prearraignment_3D_VPRAI-O Prearraignment` %>%
-  mutate(release_recommendation = factor(release_recommendation, levels = c("Release", "Deny Release", "Ineligible", "Other/Unknown"))) %>%
-  arrange(release_recommendation) %>%
-  select(release_recommendation, `Other/Unknown`) %>%
-  gt() %>%
-  fmt_number(decimals = 0, sep_mark = ",") %>%
-  cols_label(release_recommendation = md("Release Recommendation")) %>%
-  tab_spanner("Release Decision (Pre-Arraignment)", 2:2) %>%
-  cols_align(align = c("left"), columns = 1:2) %>%
-  cols_width(everything() ~ px(150)) %>%
-  gtsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F64 VPRAI-O Prearraignment.png")
-
-`Prearraignment_3D_PSA Prearraignment` %>%
-  mutate(release_recommendation = factor(release_recommendation, levels = c("Release", "Deny Release", "Ineligible", "Other/Unknown"))) %>%
-  arrange(release_recommendation) %>%
-  select(release_recommendation, Release, `Deny Release`, Ineligible, `Other/Unknown`) %>%
-  gt() %>%
-  fmt_number(decimals = 0, sep_mark = ",") %>%
-  cols_label(release_recommendation = md("Release Recommendation")) %>%
-  tab_spanner("Release Decision (Pre-Arraignment)", 2:5) %>%
-  cols_align(align = c("left"), columns = 1:5) %>%
-  cols_width(everything() ~ px(150)) %>%
-  gtsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F64 PSA Prearraignment.png")
+`ORAS_3B_Release Arraignment`
 ```
 
 # Figure 65
@@ -1709,10 +2052,116 @@ df_3D_Supplementary %>%
   p = paste0(round(prop * 100), "%")) %>%
   ggplot(aes(x = release, y = prop, fill = tool_name)) +
   geom_col(position = "dodge") +
+  theme_clean() +
+  scale_fill_brewer(palette = "Paired") +
   scale_x_discrete(labels = function(x) str_wrap(x, width = 10)) +
-  scale_y_continuous(labels = percent_format(1)) +
-  geom_text(aes(label = p), vjust = -0.5, position = position_dodge(0.9))
+  scale_y_continuous(labels = percent_format(), limits = c(0, 1)) +
+  geom_text(aes(label = p), vjust = -0.5, position = position_dodge(0.9)) +
+  labs(x = "Release Recommendation",
+       y = "Rate")
 
 ggsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F65.png")
+
+`Prearraignment_3D_PSA Prearraignment` %>%
+  relocate(Release, .after = release_recommendation) %>%
+  mutate(release_recommendation = fct_relevel(release_recommendation, "Release", after = 0)) %>%
+  arrange(release_recommendation) %>%
+  gt() %>%
+  sub_missing() %>%
+  cols_align("left") %>%
+  cols_label(release_recommendation = "Release Recommendation") %>%
+  tab_spanner("Release Decision (Pre-Arraignment)", 2:5) %>%
+  gtsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F65 PSA Prearraignment.png")
+
+`Arraignment_3D_PSA Arraignment` %>%
+  relocate(Release, .after = release_recommendation) %>%
+  mutate(release_recommendation = fct_relevel(release_recommendation, "Release", after = 0)) %>%
+  arrange(release_recommendation) %>%
+  gt() %>%
+  sub_missing() %>%
+  cols_align("left") %>%
+  cols_label(release_recommendation = "Release Recommendation") %>%
+  tab_spanner("Release Decision (Arraignment)", 2:5) %>%
+  gtsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F65 PSA Arraignment.png")
+
+`Prearraignment_3D_ORAS Prearraignment` %>%
+  relocate(Release, .after = release_recommendation) %>%
+  mutate(release_recommendation = fct_relevel(release_recommendation, "Release", after = 0)) %>%
+  arrange(release_recommendation) %>%
+  gt() %>%
+  sub_missing() %>%
+  cols_align("left") %>%
+  cols_label(release_recommendation = "Release Recommendation") %>%
+  tab_spanner("Release Decision (Pre-Arraignment)", 2:5) %>%
+  gtsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F65 ORAS Prearraignment.png")
+
+`Arraignment_3D_ORAS Arraignment` %>%
+  relocate(Release, .after = release_recommendation) %>%
+  mutate(release_recommendation = fct_relevel(release_recommendation, "Release", after = 0)) %>%
+  arrange(release_recommendation) %>%
+  gt() %>%
+  sub_missing() %>%
+  cols_align("left") %>%
+  cols_label(release_recommendation = "Release Recommendation") %>%
+  tab_spanner("Release Decision (Arraignment)", 2:5) %>%
+  gtsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F65 ORAS Arraignment.png")
+
+`Prearraignment_3D_VPRAI Prearraignment` %>%
+  relocate(Release, .after = release_recommendation) %>%
+  mutate(release_recommendation = fct_relevel(release_recommendation, "Release", after = 0)) %>%
+  arrange(release_recommendation) %>%
+  gt() %>%
+  sub_missing() %>%
+  cols_align("left") %>%
+  cols_label(release_recommendation = "Release Recommendation") %>%
+  tab_spanner("Release Decision (Pre-Arraignment)", 2:5) %>%
+  gtsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F65 VPRAI Prearraignment.png")
+
+`Arraignment_3D_VPRAI Arraignment` %>%
+  relocate(Release, .after = release_recommendation) %>%
+  mutate(release_recommendation = fct_relevel(release_recommendation, "Release", after = 0)) %>%
+  arrange(release_recommendation) %>%
+  gt() %>%
+  sub_missing() %>%
+  cols_align("left") %>%
+  cols_label(release_recommendation = "Release Recommendation") %>%
+  tab_spanner("Release Decision (Arraignment)", 2:4) %>%
+  gtsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F65 VPRAI Arraignment.png")
+
+`Prearraignment_3D_VPRAI-R Prearraignment` %>%
+  relocate(Release, .after = release_recommendation) %>%
+  mutate(release_recommendation = fct_relevel(release_recommendation, "Release", after = 0)) %>%
+  arrange(release_recommendation) %>%
+  gt() %>%
+  sub_missing() %>%
+  cols_align("left") %>%
+  cols_label(release_recommendation = "Release Recommendation") %>%
+  tab_spanner("Release Decision (Pre-Arraignment)", 2:4) %>%
+  gtsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F65 VPRAI-R Prearraignment.png")
+
+`Arraignment_3D_VPRAI-R Arraignment` %>%
+  relocate(Release, .after = release_recommendation) %>%
+  mutate(release_recommendation = fct_relevel(release_recommendation, "Release", after = 0)) %>%
+  arrange(release_recommendation) %>%
+  gt() %>%
+  sub_missing() %>%
+  cols_align("left") %>%
+  cols_label(release_recommendation = "Release Recommendation") %>%
+  tab_spanner("Release Decision (Arraignment)", 2:4) %>%
+  gtsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F65 VPRAI-R Arraignment.png")
+
+`Prearraignment_3D_VPRAI-O Prearraignment` %>%
+  gt() %>%
+  cols_align("left") %>%
+  cols_label(release_recommendation = "Release Recommendation") %>%
+  tab_spanner("Release Decision (Pre-Arraignment)", 2) %>%
+  gtsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F65 VPRAI-O Prearraignment.png")
+
+`Arraignment_3D_VPRAI-O Arraignment` %>%
+  gt() %>%
+  cols_align("left") %>%
+  cols_label(release_recommendation = "Release Recommendation") %>%
+  tab_spanner("Release Decision (Arraignment)", 2) %>%
+  gtsave("G:/CrimJustice/Pretrial/000-Pretrial Pilot Program/SB 36 and AB 74  Reporting/SB 36 Output 2023/F65 VPRAI-O Arraignment.png")
 ```
 
