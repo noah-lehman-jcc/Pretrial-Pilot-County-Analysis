@@ -423,6 +423,7 @@ Charge_Level_2E %>%
 ```{r}
 Supervision_Level_2F %>%
   select(contains("Count"), Total) %>%
+  mutate(across(!County, as.numeric)) %>%
   rename_with(~ gsub("Count_", "", .)) %>%
   gt() %>%
   fmt_number(decimals = 0, sep_mark = ",") %>%
