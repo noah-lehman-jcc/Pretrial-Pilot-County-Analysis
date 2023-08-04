@@ -351,7 +351,7 @@ Risk_Level_2E %>%
 # Table 10a (Pre-Arraignment)
 ```{r}
 Release_Decision_PreArraignment_2E %>%
-  filter(County != "Los Angeles") %>%
+  #filter(County != "Los Angeles") %>%
   group_by(County, release_decision_prearraignment) %>%
   mutate(n = sum(n, na.rm = T)) %>%
   ungroup() %>%

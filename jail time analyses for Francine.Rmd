@@ -1,0 +1,902 @@
+---
+title: "Untitled"
+output: html_document
+date: "`r Sys.Date()`"
+---
+# Settup and Library
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+	echo = FALSE,
+	message = FALSE,
+	warning = FALSE
+)
+knitr::opts_knit$set(root.dir = "C:/PretrialPilot/Pretrial-Pilot-County-Analysis")
+
+# library(rlang)
+library(tidyverse)
+library(data.table)
+library(openxlsx)
+#library(readxl)
+library(lubridate)
+library(gsubfn)
+library(fuzzyjoin)
+library(dplyr)
+# library(multidplyr)
+library(pROC)
+library(broom)
+library(kableExtra)
+library(stargazer)
+library(DBI)
+library(dbplyr)
+library(odbc)
+library(tinytex)
+library(gt)
+library(askpass)
+
+# shell.exec(getwd())
+```
+
+Connection
+```{r include=FALSE}
+
+con <- dbConnect(odbc::odbc(), "snowflake_pretrial", uid ="Sal.Lempert@jud.ca.gov", pwd = rstudioapi::askForPassword("Password"))
+
+```
+
+Pull live snowflake data -- join_df
+```{sql echo=TRUE, connection=con, output.var='join_df'}
+SELECT *
+FROM "DWH_PROD"."DATA_SCIENCE"."JOIN_DF_STD"
+;
+```
+
+Format data - join df 
+```{r warning=FALSE, include=FALSE}
+#snow_df <- join_df
+#join_df <- snow_df
+names(join_df) <- tolower(names(join_df))
+
+join_df <- join_df %>%
+  mutate(book_date = booking_date,
+         race_orig = race,
+         race = if_else(race_standard %in% c("White", "Black", "Hispanic"), race_standard, "Other/Unknown"),
+         age = individual_age,
+         charge_level_orig = charge_level,
+         charge_level = charge_level_standard,
+         pretrial_period_end_count = pretrial_period_end_count_standard,
+         fta_flag = fta_county_or_doj,
+         recid_arrested_flag = recid_county_or_doj,
+         tool_name = case_when(county == "Kings" ~ "VPRAI-O", 
+                               county == "Santa Barbara" & assessment_date < as.Date("2020-4-29") ~ "VPRAI",
+                               county == "Santa Barbara" & assessment_date >= as.Date("2020-4-29") ~ "VPRAI-R",
+                               tool_name == "VPRAIR" ~ "VPRAI-R",
+                               T ~ tool_name),
+         oras_risk_score = if_else(tool_name == "ORAS", risk_score_raw, NA_integer_),
+         vprai_risk_score = if_else(tool_name == "VPRAI", risk_score_raw, NA_integer_),
+         vprair_risk_score = if_else(tool_name == "VPRAI-R", risk_score_raw, NA_integer_),
+         vpraio_risk_score = if_else(tool_name == "VPRAI-O", generic_tool_total_score_raw, NA_integer_),
+         psa_fta_risk_score = score_failure_to_appear,
+         psa_nca_risk_score = score_new_criminal_activity,
+         psa_nvca_risk_score = score_new_criminal_violent_activity,
+         scored_assessment = if_else(tool_name %in% c("ORAS", "VPRAI", "VPRAI-R") & !is.na(risk_score_raw) |
+                                       tool_name == "PSA" & !is.na(score_new_criminal_activity) |
+                                       tool_name == "VPRAI-O" & !is.na(generic_tool_total_score_raw), 1, 0),
+         pretrial_period_end_date = if_else(is.na(pretrial_period_end_date), as.Date(pretrial_period_end_date_doj), as.Date(pretrial_period_end_date)))%>%
+  mutate(recid_filed_flag = recid_filed_flag_doj, 
+         recid_convicted_flag = recid_convicted_flag_doj, 
+         recid_arrest_violent_psa_flag = recid_arrest_violent_psa_flag_doj,
+         any_pretrial_failure_flag = if_else(recid_arrested_flag == 1 | fta_flag == 1, 1, 0)) %>% ## update this when we get county data on these
+  mutate(across(contains("_flag"), ~if_else(is.na(.x) | .x == "No" | .x == "Unknown" | .x == "0" | .x == 0, 0, as.numeric(1))))  
+
+full_df <- join_df %>%
+  filter(booking_date < as.Date("2023-01-01"))
+
+eval_df <- join_df %>%
+  filter(booking_assessed_count == 1,
+         scored_assessment == 1,
+         release_eligible_count ==1,
+         released_pretrial_count == 1,
+         pretrial_period_end_count == 1,
+         booking_date < as.Date("2022-01-01"),
+         tool_name %in% c("ORAS", "PSA", "VPRAI", "VPRAI-R", "VPRAI-O")
+         ) %>%
+  mutate(release_to_pretrial_end = pretrial_period_end_date - release_date)
+
+#create zero bail dummy for period of April 6 2020 through June 20 2020
+eval_df <- eval_df %>%
+  mutate(zero_bail_dummy = if_else(arrest_date >= as.Date("2020-04-06") & arrest_date <= as.Date("2020-06-20"), 1, 0)) 
+
+# create sup_or_none dummy for supervision
+eval_df <- eval_df %>%
+  mutate(monitoring_level_grouped = if_else(grepl("Own Recognizance", monitoring_level_grouped), "Own Recognizance", monitoring_level_grouped)) %>%
+  mutate(monitoring_level_grouped = if_else(monitoring_level_grouped %in% c("Lowest Levels", "Medium Levels", "Highest Levels", "Own Recognizance"), monitoring_level_grouped, NA_character_)) %>%
+  mutate(bail_or_sup = case_when(release_type %in% c("Bail Bond") ~ "Bail Bond",
+                                 !is.na(monitoring_level_grouped) ~ monitoring_level_grouped,
+                                 release_type %in% c("Own Recognizance") ~ "Own Recognizance",
+                                 release_type %in% c("Cite Release", "CiteR elease") ~ "Cite Release")) 
+```
+
+
+Change Raw Risk Scores to Risk Levels for eval_df -- toggle off to go back to raw scores
+```{r}
+eval_df <- eval_df %>%
+  mutate(vprai_risk_score_raw = vprai_risk_score,
+         vprair_risk_score_raw = vprair_risk_score,
+         oras_risk_score_raw = oras_risk_score) %>%
+  mutate(vprai_risk_score = case_when(vprai_risk_score_raw %in% 0:1 ~ 1,
+                                      vprai_risk_score_raw %in% 2 ~ 2,
+                                      vprai_risk_score_raw %in% 3 ~ 3,
+                                      vprai_risk_score_raw %in% 4 ~ 4,
+                                      vprai_risk_score_raw %in% 5:9 ~ 5,
+                                      T ~ vprai_risk_score_raw),
+         vprair_risk_score = case_when(vprair_risk_score_raw %in% 0:2 ~ 1,
+                                       vprair_risk_score_raw %in% 3:4 ~ 2,
+                                       vprair_risk_score_raw %in% 5:6 ~ 3,
+                                       vprair_risk_score_raw %in% 7:8 ~ 4,
+                                       vprair_risk_score_raw %in% 9:10 ~ 5,
+                                       vprair_risk_score_raw %in% 11:14 ~ 6,
+                                       T ~ vprair_risk_score_raw),
+         oras_risk_score = case_when(oras_risk_score_raw %in% 0:2 ~ 1,
+                                     oras_risk_score_raw %in% 3:5 ~ 2,
+                                     oras_risk_score_raw %in% 6:9 ~ 3,
+                                     T ~ oras_risk_score_raw))
+
+# eval_df %>%
+#   count(vprai_risk_score, vprai_risk_score_raw)
+# 
+# eval_df %>%
+#   count(vprair_risk_score, vprair_risk_score_raw)
+# 
+# eval_df %>%
+#   count(oras_risk_score, oras_risk_score_raw)
+```
+```{r}
+rm(join_df)
+```
+
+# Create PROG_DATE and join to full_df
+Add golive dates by county to full_df
+```{r}
+countylist <- full_df %>% distinct(county) %>% pull(county)
+
+prog_date <- data.frame(county = countylist) %>%
+  mutate(golive_date = case_when(county == "Alameda" ~ as.Date("2020-5-12"),
+                                 county == "Calaveras" ~ as.Date("2019-10-15"),
+                                 county == "Kings" ~ as.Date("2020-3-16"),
+                                 county == "Los Angeles" ~ as.Date("2020-3-23"),
+                                 county == "Modoc" ~ as.Date("2020-4-1"),
+                                 county == "Napa" ~ as.Date("2019-11-1"),
+                                 county == "Nevada" ~ as.Date("2020-6-30"),
+                                 county == "Sacramento" ~ as.Date("2020-2-15"),
+                                 county == "San Joaquin" ~ as.Date("2020-6-30"),
+                                 county == "San Mateo" ~ as.Date("2020-1-23"),
+                                 county == "Santa Barbara" ~ as.Date("2019-8-1"),
+                                 county == "Sierra" ~ as.Date("2020-6-30"),
+                                 county == "Sonoma" ~ as.Date("2019-8-1"), 
+                                 county == "Tulare" ~ as.Date("2020-3-1"),
+                                 county == "Tuolumne" ~ as.Date("2020-6-15"),
+                                 county == "Ventura" ~ as.Date("2020-6-30"),
+                                 county == "Yuba" ~ as.Date("2019-8-9"))) %>%
+  mutate(eb_start_date = case_when(county == "Alameda" ~ as.Date("2020-4-3"),
+                                 county == "Calaveras" ~ as.Date("2020-4-13"),
+                                 county == "Kings" ~ as.Date("2020-4-13"),
+                                 county == "Los Angeles" ~ as.Date("2020-3-26"),
+                                 county == "Modoc" ~ as.Date("2020-4-13"),
+                                 county == "Napa" ~ as.Date("2020-4-13"),
+                                 county == "Nevada" ~ as.Date("2020-4-13"),
+                                 county == "Sacramento" ~ as.Date("2020-4-13"),
+                                 county == "San Joaquin" ~ as.Date("2020-4-13"),
+                                 county == "San Mateo" ~ as.Date("2020-4-13"),
+                                 county == "Santa Barbara" ~ as.Date("2020-4-13"),
+                                 county == "Sierra" ~ as.Date("2020-4-13"),
+                                 county == "Sonoma" ~ as.Date("2020-4-13"), 
+                                 county == "Tulare" ~ as.Date("2020-4-13"),
+                                 county == "Tuolumne" ~ as.Date("2020-4-13"),
+                                 county == "Ventura" ~ as.Date("2020-4-13"),
+                                 county == "Yuba" ~ as.Date("2020-4-13"))) %>%
+   mutate(eb_end_date = case_when(county == "Alameda" ~ as.Date("2021-12-31"),
+                                 county == "Calaveras" ~ as.Date("2020-6-20"),
+                                 county == "Kings" ~ as.Date("2020-6-20"),
+                                 county == "Los Angeles" ~ as.Date("2021-12-31"),
+                                 county == "Modoc" ~ as.Date("2020-6-20"),
+                                 county == "Napa" ~ as.Date("2021-12-31"),
+                                 county == "Nevada" ~ as.Date("2020-6-20"),
+                                 county == "Sacramento" ~ as.Date("2021-12-31"),
+                                 county == "San Joaquin" ~ as.Date("2020-6-20"),
+                                 county == "San Mateo" ~ as.Date("2021-12-31"),
+                                 county == "Santa Barbara" ~ as.Date("2021-12-31"),
+                                 county == "Sierra" ~ as.Date("2020-6-20"),
+                                 county == "Sonoma" ~ as.Date("2021-12-31"), 
+                                 county == "Tulare" ~ as.Date("2021-5-4"),
+                                 county == "Tuolumne" ~ as.Date("2020-6-20"),
+                                 county == "Ventura" ~ as.Date("2020-6-20"),
+                                 county == "Yuba" ~ as.Date("2020-6-20")))
+
+
+prog_date
+
+
+full_df <- full_df %>%
+  left_join(prog_date, by = "county") %>%
+  mutate(golive_flag = if_else(booking_date >= golive_date, 1, 0),
+         eb_flag = if_else(booking_date >= eb_start_date & booking_date <= eb_end_date, 1, 0))
+
+prog_date %>%
+  arrange(golive_date)
+```
+
+Add covid flag
+```{r}
+full_df <- full_df %>%
+  mutate(covid_flag = if_else(booking_date >= as.Date("2020-3-1"), 1, 0))
+
+#flag for time period of statewide zero bail
+full_df <- full_df %>%
+  mutate(emerg_flag = if_else(booking_date >= as.Date("2020-4-6") & booking_date <= as.Date("2020-6-20"), 1, 0))
+```
+# Upload BTS data
+https://data.bts.gov/Research-and-Statistics/Trips-by-Distance/w96p-f2qv
+```{r}
+bts <- fread("C:/Users/slempert/Judicial Council of California/CJS Research - Documents/Pretrial Pilot/SB 36 Reports/COVID data/Trips_by_Distance.csv", header = T)
+
+# fips <- read_excel("C:/Users/slempert/Judicial Council of California/CJS Research - Documents/SB 36 Validation Reports/COVID data/US_FIPS_Codes.xls", skip = 1)
+# 
+# fips <- fips %>%
+#   filter(State == "California") %>%
+#   mutate(county_fips = str_c("6", `FIPS County`))
+
+bts <- bts %>%
+  filter(`State FIPS` == 6) %>%
+  filter(Level == "County")
+
+bts <- bts %>%
+  mutate(total_pop = `Population Staying at Home` + `Population Not Staying at Home`) %>%
+  mutate(mob_pop = `Population Not Staying at Home`/total_pop) %>%
+  mutate(Date = ymd(Date))
+
+bts %>%
+  ggplot() +
+  geom_line(aes(x = Date, y = mob_pop, color = `County Name`))
+
+mob_bts <- bts %>%
+  select(date = Date, county = `County Name`, mob_pop)
+
+mob_bts <- mob_bts %>%
+  mutate(county = gsub(" County", "", county))
+
+mob_bts <- mob_bts %>%
+  filter(!is.na(mob_pop))
+
+mob_bts %>%
+  summarise(min(date), max(date))
+
+mob_bts %>%
+  filter(is.na(mob_pop))
+
+mob_bts %>%
+  count(county)
+
+mob_bts %>%
+  filter(is.na(date))
+
+mob_bts <- as_tibble(mob_bts)
+```
+
+
+Create function to calculate average bts mobility
+```{r eval=FALSE, include=FALSE}
+get_bts_mob_mean <- function(loc_county, start, end){
+  mob_bts %>%
+    filter(county == loc_county, 
+           date >=start,
+           date <= end) %>%
+    summarise(mmp = mean(mob_pop)) %>%
+    pull(mmp)
+}
+
+get_bts_mob_mean_V <- Vectorize(get_bts_mob_mean)
+
+```
+Apply function - TEMPORARILY REMOVED BECAUSE TAKES FOREVER TO RUN
+```{r eval=FALSE, include=FALSE}
+# test_b_alameda <- full_df %>%
+#   filter(released_pretrial_count == 1,
+#          pretrial_period_end_count == 1) %>%
+#   filter(pretrial_period_end_date >= release_date) %>%
+#   filter(county == "Alameda") %>%
+#   mutate(avg_bts_mob = 0) %>%
+#   mutate(avg_bts_mob = get_bts_mob_mean_V(county, release_date, pretrial_period_end_date))
+# 
+# test_b_calaveras <- full_df %>%
+#   filter(released_pretrial_count == 1,
+#          pretrial_period_end_count == 1) %>%
+#   filter(pretrial_period_end_date >= release_date) %>%
+#   filter(county == "Calaveras") %>%
+#   mutate(avg_bts_mob = 0) %>%
+#   mutate(avg_bts_mob = get_bts_mob_mean_V(county, release_date, pretrial_period_end_date))
+# 
+# test_b_kings <- full_df %>%
+#   filter(released_pretrial_count == 1,
+#          pretrial_period_end_count == 1) %>%
+#   filter(pretrial_period_end_date >= release_date) %>%
+#   filter(county == "Kings") %>%
+#   mutate(avg_bts_mob = 0) %>%
+#   mutate(avg_bts_mob = get_bts_mob_mean_V(county, release_date, pretrial_period_end_date))
+# 
+# test_b_la <- full_df %>%
+#   filter(released_pretrial_count == 1,
+#          pretrial_period_end_count == 1) %>%
+#   filter(pretrial_period_end_date >= release_date) %>%
+#   filter(county == "Los Angeles") %>%
+#   mutate(avg_bts_mob = 0) %>%
+#   mutate(avg_bts_mob = get_bts_mob_mean_V(county, release_date, pretrial_period_end_date))
+# 
+# test_b_modoc <- full_df %>%
+#   filter(released_pretrial_count == 1,
+#          pretrial_period_end_count == 1) %>%
+#   filter(pretrial_period_end_date >= release_date) %>%
+#   filter(county == "Modoc") %>%
+#   mutate(avg_bts_mob = 0) %>%
+#   mutate(avg_bts_mob = get_bts_mob_mean_V(county, release_date, pretrial_period_end_date))
+# 
+# test_b_napa <- full_df %>%
+#   filter(released_pretrial_count == 1,
+#          pretrial_period_end_count == 1) %>%
+#   filter(pretrial_period_end_date >= release_date) %>%
+#   filter(county == "Napa") %>%
+#   mutate(avg_bts_mob = 0) %>%
+#   mutate(avg_bts_mob = get_bts_mob_mean_V(county, release_date, pretrial_period_end_date))
+# 
+# test_b_nevada <- full_df %>%
+#   filter(released_pretrial_count == 1,
+#          pretrial_period_end_count == 1) %>%
+#   filter(pretrial_period_end_date >= release_date) %>%
+#   filter(county == "Nevada") %>%
+#   mutate(avg_bts_mob = 0) %>%
+#   mutate(avg_bts_mob = get_bts_mob_mean_V(county, release_date, pretrial_period_end_date))
+# 
+# test_b_sac <- full_df %>%
+#   filter(released_pretrial_count == 1,
+#          pretrial_period_end_count == 1) %>%
+#   filter(pretrial_period_end_date >= release_date) %>%
+#   filter(county == "Sacramento") %>%
+#   mutate(avg_bts_mob = 0) %>%
+#   mutate(avg_bts_mob = get_bts_mob_mean_V(county, release_date, pretrial_period_end_date))
+# 
+# test_b_sj <- full_df %>%
+#   filter(released_pretrial_count == 1,
+#          pretrial_period_end_count == 1) %>%
+#   filter(pretrial_period_end_date >= release_date) %>%
+#   filter(county == "San Joaquin") %>%
+#   mutate(avg_bts_mob = 0) %>%
+#   mutate(avg_bts_mob = get_bts_mob_mean_V(county, release_date, pretrial_period_end_date))
+# 
+# test_b_sm <- full_df %>%
+#   filter(released_pretrial_count == 1,
+#          pretrial_period_end_count == 1) %>%
+#   filter(pretrial_period_end_date >= release_date) %>%
+#   filter(county == "San Mateo") %>%
+#   mutate(avg_bts_mob = 0) %>%
+#   mutate(avg_bts_mob = get_bts_mob_mean_V(county, release_date, pretrial_period_end_date))
+# 
+# test_b_sb <- full_df %>%
+#   filter(released_pretrial_count == 1,
+#          pretrial_period_end_count == 1) %>%
+#   filter(pretrial_period_end_date >= release_date) %>%
+#   filter(county == "Santa Barbara") %>%
+#   mutate(avg_bts_mob = 0) %>%
+#   mutate(avg_bts_mob = get_bts_mob_mean_V(county, release_date, pretrial_period_end_date))
+# 
+# test_b_sierra <- full_df %>%
+#   filter(released_pretrial_count == 1,
+#          pretrial_period_end_count == 1) %>%
+#   filter(pretrial_period_end_date >= release_date) %>%
+#   filter(county == "Sierra") %>%
+#   mutate(avg_bts_mob = 0) %>%
+#   mutate(avg_bts_mob = get_bts_mob_mean_V(county, release_date, pretrial_period_end_date))
+# 
+# test_b_sonoma <- full_df %>%
+#   filter(released_pretrial_count == 1,
+#          pretrial_period_end_count == 1) %>%
+#   filter(pretrial_period_end_date >= release_date) %>%
+#   filter(county == "Sonoma") %>%
+#   mutate(avg_bts_mob = 0) %>%
+#   mutate(avg_bts_mob = get_bts_mob_mean_V(county, release_date, pretrial_period_end_date))
+# 
+# test_b_tulare <- full_df %>%
+#   filter(released_pretrial_count == 1,
+#          pretrial_period_end_count == 1) %>%
+#   filter(pretrial_period_end_date >= release_date) %>%
+#   filter(county == "Tulare") %>%
+#   mutate(avg_bts_mob = 0) %>%
+#   mutate(avg_bts_mob = get_bts_mob_mean_V(county, release_date, pretrial_period_end_date))
+# 
+# test_b_tuolumne <- full_df %>%
+#   filter(released_pretrial_count == 1,
+#          pretrial_period_end_count == 1) %>%
+#   filter(pretrial_period_end_date >= release_date) %>%
+#   filter(county == "Tuolumne") %>%
+#   mutate(avg_bts_mob = 0) %>%
+#   mutate(avg_bts_mob = get_bts_mob_mean_V(county, release_date, pretrial_period_end_date))
+# 
+# test_b_ventura <- full_df %>%
+#   filter(released_pretrial_count == 1,
+#          pretrial_period_end_count == 1) %>%
+#   filter(pretrial_period_end_date >= release_date) %>%
+#   filter(county == "Ventura") %>%
+#   mutate(avg_bts_mob = 0) %>%
+#   mutate(avg_bts_mob = get_bts_mob_mean_V(county, release_date, pretrial_period_end_date))
+# 
+# test_b_yuba <- full_df %>%
+#   filter(released_pretrial_count == 1,
+#          pretrial_period_end_count == 1) %>%
+#   filter(pretrial_period_end_date >= release_date) %>%
+#   filter(county == "Yuba") %>%
+#   mutate(avg_bts_mob = 0) %>%
+#   mutate(avg_bts_mob = get_bts_mob_mean_V(county, release_date, pretrial_period_end_date))
+# 
+# full_bts <- test_b_alameda %>%
+#   bind_rows(test_b_calaveras) %>%
+#   bind_rows(test_b_kings) %>%
+#   bind_rows(test_b_la) %>%
+#   bind_rows(test_b_modoc) %>%
+#   bind_rows(test_b_napa) %>%
+#   bind_rows(test_b_nevada) %>%
+#   bind_rows(test_b_sac) %>%
+#   bind_rows(test_b_sj) %>%
+#   bind_rows(test_b_sm) %>%
+#   bind_rows(test_b_sb) %>%
+#   bind_rows(test_b_sierra) %>%
+#   bind_rows(test_b_sonoma) %>%
+#   bind_rows(test_b_tulare) %>%
+#   bind_rows(test_b_tuolumne) %>%
+#   bind_rows(test_b_ventura) %>%
+#   bind_rows(test_b_yuba)
+# 
+# 
+# bts_means <- full_bts %>%
+#   select(county, release_date, pretrial_period_end_date, avg_bts_mob) %>%
+#   distinct()
+# 
+# # save(bts_means, file = "C:/Users/slempert/Judicial Council of California/CJS Research - Documents/SB 36 Validation Reports/COVID data/bts_means.Rdata")
+# # 
+# # full_df %>%
+# #   filter(released_pretrial_count == 1,
+# #          pretrial_period_end_count == 1) %>%
+# #   count(is.na(release_date), is.na(pretrial_period_end_date), is.na(county))
+# #   filter(!is.na(release_date),
+# #          !is.na(pretrial_period_end_date)) %>%
+# #   head(10) %>%
+# #   mutate(avg_bts_mob = 0) %>%
+# #   mutate(avg_bts_mob = get_bts_mob_mean_V(county, release_date, pretrial_period_end_date)) %>%
+# #   select(county, release_date, pretrial_period_end_date, avg_bts_mob)
+# 
+# test_b_la %>%
+#   select(release_date, pretrial_period_end_date, avg_bts_mob)
+# 
+# full_df %>%
+#   count(county)
+```
+
+Load and join saved mobility means to dataset
+```{r}
+load("C:/Users/slempert/Judicial Council of California/CJS Research - Documents/Pretrial Pilot/SB 36 Reports/COVID data/bts_means.Rdata")
+full_bts <- full_df %>%
+  left_join(bts_means)
+```
+Join daily mobility data to dataset
+```{r}
+
+full_bts <- full_bts %>%
+  left_join(mob_bts, by = c("booking_date" = "date", "county")) 
+```
+# Add Zero Bail offense flag
+Load zero bail offenses and match 
+```{r}
+zb <- read.csv("zero bail offense list.csv") %>%
+  select(join_var) %>%
+  mutate(zb_flag = 1) %>%
+  distinct()
+
+full_zb <- full_bts %>%
+  mutate(booking_charge_level = case_when(booking_charge_level == "Misdemeanor" ~ "M",
+                                          booking_charge_level == "Felony" ~ "F",
+                                          T ~ booking_charge_level)) %>%
+  mutate(booking_charge_std = gsub(booking_charge_code, "", booking_charge)) %>%
+  mutate(booking_charge_std = toupper(gsub("\\/|\\(|\\)| |\\.|\\.*|^[A-Z]*|\\\\.*|\\{|\\}|\\+|\\&|>|\\-|<","", booking_charge_std))) %>%
+  mutate(booking_charge_std = gsub("VC$|PC$|HS$", "", booking_charge_std)) %>%
+  unite(join_var, booking_charge_level, booking_charge_code, booking_charge_std, remove = F) %>%
+  left_join(zb) %>%
+  mutate(zb_flag = if_else(is.na(zb_flag), 0, zb_flag))
+
+full_zb %>%
+  count(zb_flag, release_type == "Zero Bail")
+
+full_zb %>%
+  filter(zb_flag == 0 & release_type == "Zero Bail") %>%
+  select(county, join_var, booking_charge_level, booking_charge_code, booking_charge_std)
+
+full_bts <- full_zb
+```
+# Create zb flag from emergency rule
+Under the statewide Emergency Bail Schedule, bail for all misdemeanor and felony 
+21 offenses must be set at $0, with the exception of only the offenses listed below: 
+22
+23 (1) A serious felony, as defined in Penal Code section 1192.7(c), or a violent 
+24 felony, as defined in Penal Code section 667.5(c);
+25
+26 (2) A felony violation of Penal Code section 69;
+27
+28 (3) A violation of Penal Code section 166(c)(1);
+29
+30 (4) A violation of Penal Code section 136.1 when punishment is imposed under 
+31 section 136.1(c);
+32
+33 (5) A violation of Penal Code section 262;
+34
+35 (6) A violation of Penal Code sections 243(e)(1) or 273.5;
+36
+37 (7) A violation of Penal Code section 273.6 if the detained person made threats 
+38 to kill or harm, has engaged in violence against, or has gone to the residence 
+39 or workplace of, the protected party;
+40
+41 (8) A violation of Penal Code section 422 where the offense is punished as a 
+42 felony;
+43
+3
+1 (9) A violation of Penal Code section 646.9; 
+2
+3 (10) A violation of an offense listed in Penal Code section 290(c);
+4
+5 (11) A violation of Vehicle Code sections 23152 or 23153; 
+6
+7 (12) A felony violation of Penal Code section 463; and
+8
+9 (13) A violation of Penal Code section 29800
+
+
+Change incorrectly labeled zb offenses 
+```{r}
+full_bts <- full_bts %>%
+  mutate(zb_flag = if_else(grepl( "F_PC_69|PC_166C1|PC_1361|PC_262|PC_243E1|PC_2735|PC2736|F_PC_422|PC_6469|PC_290C|VC_23152|VC_23153|F_PC_463|PC_29800", join_var), 0, zb_flag)) 
+
+
+full_bts <- full_bts %>%
+  mutate(zb_flag = if_else(arrest_serious_flag == 1 | arrest_violent_flag == 1, 0, zb_flag))
+```
+
+Replace zb_flag with one created from scratch
+```{r}
+load('Complete Charge Code Hierarchy_SL.RData')
+
+charge_hier_join <- charge_hier %>%
+  select(join_var, ch_special_flag = special_flag, ch_serious_felony_flag = serious_felony_flag, ch_violent_felony_flag = violent_felony_flag, ch_violent_psa_flag = violent_psa_flag, ch_capital_flag = capital_flag, ch_dv_flag = dv_flag, ch_marijuana_flag = marijuana_flag, ch_sup_vio_flag = sup_vio_flag, ch_fta_flag = fta_flag, ch_sex_flag = sex_flag, ch_dui_flag = dui_flag, ch_restrain_flag = restrain_flag, ch_property_flag = property_flag, ch_drug_flag = drug_flag, ch_dv_possible_flag = dv_possible_flag)
+
+# Replace zb_flag with one created from scratch
+full_bts <- full_bts %>%
+  left_join(charge_hier_join, by = "join_var") %>%
+  mutate(zb_flag = case_when(
+    grepl( "F_PC_69|PC_166C1|PC_1361|PC_262|PC_243E1|PC_2735|PC2736|F_PC_422|PC_6469|PC_290C|VC_23152|VC_23153|F_PC_463|PC_29800", join_var) ~ 0,
+    ch_serious_felony_flag == 1  ~ 0,
+    ch_violent_felony_flag == 1 ~ 0, 
+    T ~ 1))
+
+
+full_bts <- full_bts %>%
+    mutate(ch_arrest_cat = case_when(ch_dv_flag == 1 ~ "DV",
+                                ch_violent_felony_flag == 1 ~ "Violent",
+                                ch_violent_psa_flag == 1 ~ "PSA Violent",
+                                ch_dui_flag == 1 ~ "DUI",
+                                ch_drug_flag == 1 ~ "Drug",
+                                ch_property_flag == 1 ~ "Property",
+                                ch_sup_vio_flag == 1 ~ "Sup Vio",
+                                T ~ "Other"))
+
+
+```
+
+Diagnostic
+```{r}
+# full_bts <- full_bts %>%
+#   mutate(zb_test_flag = if_else(arrest_serious_flag == 1 | arrest_violent_flag == 1 | grepl( "F_PC_69|PC_166C1|PC_1361|PC_262|PC_243E1|PC_2735|PC2736|F_PC_422|PC_6469|PC_290C|VC_23152|VC_23153|F_PC_463|PC_29800", join_var), 0, 1))
+# 
+# full_bts %>%
+#   mutate(zb_test_flag = if_else(is.na(code.section), NA_real_, zb_test_flag)) %>%
+#        filter(zb_flag == 0 & zb_test_flag == 1) %>%
+#     count(join_var, offense.description, arrest_violent_flag, arrest_serious_flag) %>%
+#     arrange(desc(n))
+# 
+# full_bts %>%
+#   count(zb_flag, zb_test_flag)
+# 
+# full_bts %>%
+#   filter(zb_flag == 0 & zb_test_flag == 1) %>%
+#   count(join_var, offense.description, code.section, code.section_std) %>%
+#   arrange(desc(n))
+# 
+# full_bts %>%
+#   filter(join_var == "M_PC_381A")
+# 
+# load('Complete Charge Code Hierarchy_SL.RData')
+# 
+# charge_hier %>%
+#   filter(grepl("288", join_var)) %>%
+#   select(join_var, master_charge_description, violent_felony_flag, serious_felony_flag)
+# 
+# full_bts %>%
+#   left_join(charge_hier, by = "join_var") %>%
+#   mutate(zb_test_flag = case_when(
+#     grepl( "F_PC_69|PC_166C1|PC_1361|PC_262|PC_243E1|PC_2735|PC2736|F_PC_422|PC_6469|PC_290C|VC_23152|VC_23153|F_PC_463|PC_29800", join_var) ~ 0,
+#     serious_felony_flag == 1  ~ 0,
+#     violent_felony_flag == 1 ~ 0, 
+#     T ~ 1)) %>%
+#   #mutate(zb_test_flag = if_else(is.na(zb_test_flag), 1, zb_test_flag)) %>%
+#   count(zb_flag, zb_test_flag)
+#   filter(zb_flag == 0 & zb_test_flag == 1) %>%
+#   count(join_var, offense.description)
+```
+
+# Add lawyer, summary, and jbsis category codes from charge hierarchy and categorize
+```{r}
+load("jbsis charge code hierarchy.Rdata")
+
+full_bts <- full_bts %>%
+  left_join(jbsis_comb, by = "join_var") %>%
+  mutate(arrest_cat = case_when(arrest_dv_flag == 1 ~ "DV",
+                                arrest_violent_flag == 1 ~ "Violent",
+                                arrest_violent_psa_flag == 1 ~ "PSA Violent",
+                                arrest_dui_flag == 1 ~ "DUI",
+                                arrest_drug_flag == 1 ~ "Drug",
+                                arrest_property_flag == 1 ~ "Property",
+                                arrest_sup_vio_flag == 1 ~ "Sup Vio",
+                                T ~ "Other")) %>%
+  mutate(sum_casetype = case_when(sum.code == 1 ~ "Homicide",
+                     sum.code == 2 ~ "Manslaughter",
+                     sum.code == 3 ~ "Manslaughter/Vehicle",
+                     sum.code == 4 ~ "Forcible rape",
+                     sum.code == 5 ~ "Robbery",
+                     sum.code == 6 ~ "Assault",
+                     sum.code == 7 ~ "Kidnapping",
+                     sum.code == 8 ~ "Burglary",
+                     sum.code == 9 ~ "Theft",
+                     sum.code == 10 ~ "Motor vehicle theft",
+                     sum.code == 11 ~ "Forgery, checks, access cards",
+                     sum.code == 12 ~ "Narcotics",
+                     sum.code == 13 ~ "Marijuana",
+                     sum.code == 14 ~ "Dangerous drugs",
+                     sum.code == 15 ~ "Other drug law violations",
+                     sum.code == 16 ~ "Lewd or lascivious",
+                     sum.code == 17 ~ "Unlawful sexual intercourse",
+                     sum.code == 18 ~ "Other sex law violations",
+                     sum.code == 19 ~ "Weapons",
+                     sum.code == 20 ~ "Drive under the influence",
+                     sum.code == 21 ~ "Hit and run",
+                     sum.code == 22 ~ "Escape",
+                     sum.code == 23 ~ "Bookmaking",
+                     sum.code == 24 ~ "Arson",
+                     sum.code == 25 ~ "Felony traffic, other felonies",
+                     sum.code == 29 ~ "Vehicular manslaughter",
+                     sum.code == 30 ~ "Assault and battery",
+                     sum.code %in% c(31,32) ~ "Petty theft, other theft",
+                     sum.code == 33 ~ "Checks and access cards",
+                     sum.code %in% c(34,35) ~ "Marijuana, dangerous drugs",
+                     sum.code == 36 ~ "Other drug law violations",
+                     sum.code == 37 ~ "Indecent exposure",
+                     sum.code %in% c(38,39) ~ "Annoying child, obscene matter",
+                     sum.code %in% c(40,41) ~ "Lewd conduct, prostitution",
+                     sum.code == 42 ~ "Contribute to delinq. of a minor",
+                     sum.code %in% c(43, 44) ~ "Drunk, liquor laws",
+                     sum.code %in% c(45, 46) ~ "Disorderly conduct",
+                     sum.code %in% c(47,48) ~ "Vandalism, malicious mischief",
+                     sum.code == 49 ~ "Trespassing",
+                     sum.code == 50 ~ "Weapons",
+                     sum.code == 51 ~ "DUI",
+                     sum.code == 52 ~ "Hit and run",
+                     sum.code == 53 ~ "Traffic misdemeanors",
+                     sum.code == 54 ~ "Joy riding",
+                     sum.code %in% c(55, 56) ~ "Gambling, nonsupport",
+                     sum.code == 57 ~ "Glue sniffing",
+                     sum.code == 59 ~ "Fail to appear/non-raffic",
+                     sum.code %in% c(60,61,62, 63, 64) ~ "Public nuisance, bribery, arson, and all other misdemeanors",
+                     sum.code == 74 ~ "Misc. traffic",
+                     sum.code == 76 ~ "Burglary (misdemeanor)",
+                     T ~ "Other/Undefined")) %>%
+  mutate(jbsis_casetype = case_when(jbsis.case.type == 10 ~ "F - Homicide",
+                                    jbsis.case.type == 20 ~ "F - Forcible rape",
+                                    jbsis.case.type == 30 ~ "F - Kidnapping",
+                                    jbsis.case.type == 40 ~ "F - Assault",
+                                    jbsis.case.type == 50 ~ "F - Robbery",
+                                    jbsis.case.type == 60 ~ "F - Sex offense",
+                                    jbsis.case.type == 70 ~ "F - Property offense",
+                                    jbsis.case.type == 80 ~ "F - Drug offense",
+                                    jbsis.case.type == 90 ~ "F - Other felony",
+                                    jbsis.case.type == 100 ~ "F - Misc felony petition",
+                                    jbsis.case.type == 110 ~ "F - Reduced to misdemeanor",
+                                    jbsis.case.type == 120 ~ "F - Habeas corpus",
+                                    jbsis.case.type == 210 ~ "M - Assault and battery",
+                                    jbsis.case.type == 220 ~ "M - Property offense",
+                                    jbsis.case.type == 230 ~ "M - Drug offense",
+                                    jbsis.case.type == 240 ~ "M - Sex offense",
+                                    jbsis.case.type == 250 ~ "M - Other non-traffic misd",
+                                    jbsis.case.type == 260 ~ "M - DUI",
+                                    jbsis.case.type == 270 ~ "M - Other traffic misdemeanor",
+                                    jbsis.case.type == 280 ~ "M - Vehicle Code 14601",
+                                    jbsis.case.type == 290 ~ "I - Traffic infraction",
+                                    jbsis.case.type == 300 ~ "I - Non-traffic infraction",
+                                    jbsis.case.type == 310 ~ "I - Parking appeals",
+                                    T ~ "Other/Undefined"))
+```
+
+Clear up memory space
+```{r}
+rm(full_zb)
+rm(full_df)
+gc()
+```
+
+
+# Run everything above this line to load and format join_df and eval_df
+
+# Days incarcerated for Francine
+```{r}
+full_bts %>%
+  filter(is_release_eligible == "Yes") %>%
+  filter(booking_date >= as.Date("2018-07-01")) %>%
+  filter(is.na(release_date) | release_date >= booking_date) %>%
+  filter(charge_level %in% c("M", "F")) %>%
+  filter(released_pretrial_count == 0,
+         pretrial_period_end_count ==1) %>%
+  filter(pretrial_period_end_date >=book_date) %>%
+  mutate(days_incarcerated = pretrial_period_end_date - book_date,
+         book_month = floor_date(book_date, unit = "month")) %>%
+  group_by(county, charge_level, book_month) %>%
+  summarise(mean_days_incarcerated = mean(days_incarcerated), 
+            med_days_incarcerated = median(days_incarcerated)) %>%
+  ggplot(aes(y = mean_days_incarcerated, x = book_month)) +
+    geom_bar(position = "dodge", stat = "identity") +
+    facet_grid(rows = vars(county), cols = vars(charge_level)) +
+    scale_fill_manual(values=c("#68023F", "#008169", "#EF0096", "#00DCB5", "#FFCFE2", "#003C86", "#9400E6", "#009FFA",
+                             "#FF71FD", "#7CFFFA", "#3D3C04", "#008607", "#F60239", "#00E307", "#FFDC3D"))
+
+
+ggsave("C:/Users/Slempert/OneDrive - Judicial Council of California/Random for Francine/jailtime/mean days incarcerated, complete only.png", width = 8, height = 20)
+```
+With incomplete pretrial periods
+```{r}
+full_bts %>%
+  filter(is_release_eligible == "Yes") %>%
+  filter(booking_date >= as.Date("2018-07-01")) %>%
+  filter(is.na(release_date) | release_date >= booking_date) %>%
+  filter(charge_level %in% c("M", "F")) %>%
+  filter(released_pretrial_count == 0) %>%
+  mutate(end_date = if_else(pretrial_period_end_count == 1, pretrial_period_end_date, as.Date("2023-01-01"))) %>%
+  filter(end_date >=book_date) %>%
+  mutate(days_incarcerated = end_date - book_date,
+         book_month = floor_date(book_date, unit = "month")) %>%
+  group_by(county, charge_level, book_month) %>%
+  summarise(mean_days_incarcerated = mean(days_incarcerated), 
+            med_days_incarcerated = median(days_incarcerated)) %>%
+  ggplot(aes(y = mean_days_incarcerated, x = book_month)) +
+    geom_bar(position = "dodge", stat = "identity") +
+    facet_grid(rows = vars(county), cols = vars(charge_level)) +
+    scale_fill_manual(values=c("#68023F", "#008169", "#EF0096", "#00DCB5", "#FFCFE2", "#003C86", "#9400E6", "#009FFA",
+                             "#FF71FD", "#7CFFFA", "#3D3C04", "#008607", "#F60239", "#00E307", "#FFDC3D"))
+
+
+ggsave("C:/Users/Slempert/OneDrive - Judicial Council of California/Random for Francine/jailtime/mean days incarcerated, incomplete included.png", width = 8, height = 20)
+
+```
+
+median complete only
+```{r}
+full_bts %>%
+  filter(is_release_eligible == "Yes") %>%
+  filter(booking_date >= as.Date("2018-07-01")) %>%
+  filter(is.na(release_date) | release_date >= booking_date) %>%
+  filter(charge_level %in% c("M", "F")) %>%
+  filter(released_pretrial_count == 0,
+         pretrial_period_end_count ==1) %>%
+  filter(pretrial_period_end_date >=book_date) %>%
+  mutate(days_incarcerated = pretrial_period_end_date - book_date,
+         book_month = floor_date(book_date, unit = "month")) %>%
+  group_by(county, charge_level, book_month) %>%
+  summarise(mean_days_incarcerated = mean(days_incarcerated), 
+            med_days_incarcerated = median(days_incarcerated)) %>%
+  ggplot(aes(y = med_days_incarcerated, x = book_month)) +
+    geom_bar(position = "dodge", stat = "identity") +
+    facet_grid(rows = vars(county), cols = vars(charge_level)) +
+    scale_fill_manual(values=c("#68023F", "#008169", "#EF0096", "#00DCB5", "#FFCFE2", "#003C86", "#9400E6", "#009FFA",
+                             "#FF71FD", "#7CFFFA", "#3D3C04", "#008607", "#F60239", "#00E307", "#FFDC3D"))
+
+
+ggsave("C:/Users/Slempert/OneDrive - Judicial Council of California/Random for Francine/jailtime/med days incarcerated, complete only.png", width = 8, height = 20)
+```
+
+median with incomplete
+```{r}
+full_bts %>%
+  filter(is_release_eligible == "Yes") %>%
+  filter(booking_date >= as.Date("2018-07-01")) %>%
+  filter(is.na(release_date) | release_date >= booking_date) %>%
+  filter(charge_level %in% c("M", "F")) %>%
+  filter(released_pretrial_count == 0) %>%
+  mutate(end_date = if_else(pretrial_period_end_count == 1, pretrial_period_end_date, as.Date("2023-01-01"))) %>%
+  filter(end_date >=book_date) %>%
+  mutate(days_incarcerated = end_date - book_date,
+         book_month = floor_date(book_date, unit = "month")) %>%
+  group_by(county, charge_level, book_month) %>%
+  summarise(mean_days_incarcerated = mean(days_incarcerated), 
+            med_days_incarcerated = median(days_incarcerated)) %>%
+  ggplot(aes(y = med_days_incarcerated, x = book_month)) +
+    geom_bar(position = "dodge", stat = "identity") +
+    facet_grid(rows = vars(county), cols = vars(charge_level)) +
+    scale_fill_manual(values=c("#68023F", "#008169", "#EF0096", "#00DCB5", "#FFCFE2", "#003C86", "#9400E6", "#009FFA",
+                             "#FF71FD", "#7CFFFA", "#3D3C04", "#008607", "#F60239", "#00E307", "#FFDC3D"))
+
+
+ggsave("C:/Users/Slempert/OneDrive - Judicial Council of California/Random for Francine/jailtime/med days incarcerated, incomplete included.png", width = 8, height = 20)
+```
+
+
+
+by dispo date
+```{r}
+full_bts %>%
+  filter(is_release_eligible == "Yes") %>%
+  filter(booking_date >= as.Date("2018-07-01")) %>%
+  filter(is.na(release_date) | release_date >= booking_date) %>%
+  filter(charge_level %in% c("M", "F")) %>%
+  filter(released_pretrial_count == 0) %>%
+  mutate(end_date = if_else(pretrial_period_end_count == 1, pretrial_period_end_date, as.Date("2023-01-01"))) %>%
+  filter(end_date >=book_date) %>%
+  mutate(days_incarcerated = end_date - book_date,
+         end_month = floor_date(end_date, unit = "month")) %>%
+  group_by(county, charge_level, end_month) %>%
+  summarise(mean_days_incarcerated = mean(days_incarcerated), 
+            med_days_incarcerated = median(days_incarcerated)) %>%
+  ggplot(aes(y = mean_days_incarcerated, x = end_month)) +
+    geom_bar(position = "dodge", stat = "identity") +
+    facet_grid(rows = vars(county), cols = vars(charge_level)) +
+    scale_fill_manual(values=c("#68023F", "#008169", "#EF0096", "#00DCB5", "#FFCFE2", "#003C86", "#9400E6", "#009FFA",
+                             "#FF71FD", "#7CFFFA", "#3D3C04", "#008607", "#F60239", "#00E307", "#FFDC3D"))
+
+
+ggsave("C:/Users/Slempert/OneDrive - Judicial Council of California/Random for Francine/jailtime/mean days incarcerated by end date, incomplete included.png", width = 8, height = 20)
+
+
+```
+
+Stacked bar chart
+```{r}
+full_bts %>%
+  filter(is_release_eligible == "Yes") %>%
+  filter(booking_date >= as.Date("2018-07-01")) %>%
+  filter(is.na(release_date) | release_date >= booking_date) %>%
+  filter(charge_level %in% c("M", "F")) %>%
+  filter(released_pretrial_count == 0) %>%
+  mutate(end_date = if_else(pretrial_period_end_count == 1, pretrial_period_end_date, as.Date("2023-01-01"))) %>%
+  filter(end_date >=book_date) %>%
+  mutate(days_incarcerated = end_date - book_date,
+         end_month = floor_date(end_date, unit = "month")) %>%
+  mutate(days_inc_cat = case_when(days_incarcerated <=30 ~ "30 or fewer days",
+                                  days_incarcerated <= 60 ~ "31-60 days",
+                                  days_incarcerated <= 180 ~ "61-180 days",
+                                  days_incarcerated <= 365 ~ "181-365 days",
+                                  days_incarcerated <= 730 ~ "366-730 days",
+                                  days_incarcerated >730 ~ "More than 2 years",
+                                  T ~ "Other/unknown")) %>%
+  mutate(days_inc_cat = ordered(days_inc_cat, 
+                                levels = c("30 or fewer days", "31-60 days", "61-180 days", "181-365 days", "366-730 days", "More than 2 years", "Other/unknown"))) %>%
+  group_by(county, charge_level, end_month) %>%
+  count(days_inc_cat) %>%
+  ggplot(aes(y = n, x = end_month, fill = days_inc_cat)) +
+    geom_col(position = "fill", stat = "identity") +
+    facet_grid(rows = vars(county), cols = vars(charge_level)) +
+    scale_fill_manual(values=c("#68023F", "#008169", "#EF0096", "#00DCB5", "#FFCFE2", "#003C86", "#9400E6", "#009FFA",
+                             "#FF71FD", "#7CFFFA", "#3D3C04", "#008607", "#F60239", "#00E307", "#FFDC3D"))
+
+
+ggsave("C:/Users/Slempert/OneDrive - Judicial Council of California/Random for Francine/jailtime/stacked categorical with incompletes.png", width = 8, height = 20)
+
+
+```

@@ -3,7 +3,7 @@ title: "Untitled"
 output:
   pdf_document: default
   html_document: default
-date: '2023-01-30'
+date: "`r Sys.Date()`"
 ---
 
 
@@ -6990,6 +6990,10 @@ full_bts %>%
   count(zip_code_of_residency) %>%
   mutate(perc = round(n/sum(n)*100, 1)) %>%
   arrange(desc(n))
+
+eval_df %>%
+  count(is.na(zip_code_of_residency)) %>%
+  mutate(perc = round(100*n/sum(n), 1))
 ```
 
 # SB 36 file checks
