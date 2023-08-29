@@ -815,6 +815,38 @@ save(charge_hier22, file = "charge hierarchy with added codes august 2022.Rdata"
 write.xlsx(charge_hier22, file = "charge hierarchy with added codes august 2022.xlsx")
 ```
 
+Remove special characters
+```{r}
+charge_hier22 <- charge_hier22 %>%
+  mutate(master_charge_description = gsub("[^a-zA-Z0-9]", "_", master_charge_description))
+save(charge_hier22, file = "charge hierarchy with added codes august 2022 spchr rmvd.Rdata")
+write.xlsx(charge_hier22, file = "charge hierarchy with added codes august 2022 spchr rmvd.xlsx")
+```
+
+Diagnostic
+```{r}
+load("charge hierarchy with added codes august 2022.Rdata")
+charge_hier22
+
+charge_hier22 %>%
+  #filter(grepl("\u20AC", master_charge_description, ignore.case = T))
+  filter(grepl("\".*\"", master_charge_description, ignore.case = T))
+
+
+test_case <- charge_hier22 %>%
+  filter(grepl("\u20AC", master_charge_description, ignore.case = T))
+
+charge_hier22 %>%
+  mutate(master_charge_description = gsub("[^a-zA-Z0-9]", "_", master_charge_description))
+
+
+```
+Test stringi
+```{r}
+library(stringi)
+
+stri_extract_all_regex(charge_hier22$master_charge_description, "\\p{S}")
+```
 
 
 # xxx not currently used, would need lawyer consult xxx Combine historical JBSIS doj files from Savet

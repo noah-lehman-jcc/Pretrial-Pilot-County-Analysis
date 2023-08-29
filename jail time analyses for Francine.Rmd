@@ -900,3 +900,16 @@ ggsave("C:/Users/Slempert/OneDrive - Judicial Council of California/Random for F
 
 
 ```
+Fix file with extra columns
+```{r}
+load("C:/TEMP/final_doj_for_upload to sf 8.25.2023.Rdata")
+test_doj <- test_doj %>%
+  rename(PRETRIAL_PERIOD_END_DATE = PRETRIAL_PERIOD_END_DATE_DOJ) %>%
+  rename(PRETRIAL_PERIOD_END_DATE_DOJ = PRETRIAL_END_DATE)
+
+#fwrite(test_doj, file = "C:/TEMP/final_doj_for_upload to sf 8.28.2023.csv")
+test_doj %>%
+  count(PRETRIAL_PERIOD_END_DATE_DOJ == PRETRIAL_PERIOD_END_DATE)
+
+```
+

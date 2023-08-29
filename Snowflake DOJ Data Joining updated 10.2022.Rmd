@@ -312,7 +312,8 @@ where cii is not null
 
 # Save Snowflake extract to push to secure server
 ```{r}
-save(sf, file = "C:/TEMP/Snowflake extract for joining 6.27.22.RData")
+#save(sf, file = "C:/TEMP/Snowflake extract for joining 6.27.22.RData")
+save(sf, file = "C:/TEMP/Snowflake extract for joining 8.25.23.RData")
 ```
 
 # Join collapsed DOJ and Snowflake extract
