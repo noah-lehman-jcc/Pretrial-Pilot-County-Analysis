@@ -7285,7 +7285,60 @@ df %>%
   count(tool_name)
 ```
 
+# Test new file for agg enhancement
+
+```{r}
+load('C:/Users/SPipert/AppData/Local/Temp/MicrosoftEdgeDownloads/f20e8aba-a407-4e5c-81c4-1d71a61c4242/final_doj_for_upload to sf 11.2.2023.RData')
+```
+
+Connection
+```{r include=FALSE}
+
+con <- dbConnect(odbc::odbc(), "snowflake_pretrial", uid ="Sal.Lempert@jud.ca.gov", pwd = rstudioapi::askForPassword("Password"))
+
+```
+
+Pull live snowflake data -- join_df
+```{sql echo=TRUE, connection=con, output.var='agg'}
+SELECT *
+FROM "DWH_PROD"."REPORTING"."AGG_PRETRIAL_KPI"
+;
+```
+
+```{r}
+agg_join <- agg %>%
+  left_join(test_doj, by = c("COUNTY", "BOOKING_ID", "BOOKING_KEY", "BOOKING_DATE", "RELEASE_DATE", "CASE_FILED_DATE", "CII"))
+```
+
+```{r}
+agg_join %>%
+  #filter(COUNTY == "Tuolumne") %>%
+  filter(BOOKING_DATE < '2023-01-01') %>%
+  filter(IS_BOOKING_ASSESSED == "Yes") %>%
+  filter(IS_RELEASE_ELIGIBLE == "Yes") %>%
+  filter(IS_RELEASED_PRETRIAL == "Yes") %>%
+  filter(!is.na(CII)) %>%
+  filter(HAS_PRETRIAL_PERIOD_END == "Yes" | !is.na(PRETRIAL_PERIOD_END_DATE_DOJ)) %>%
+  filter(!is.na(RISK_SCORE)) %>%
+  #filter(TOOL_NAME %in% c("PSA", "VPRAI", "ORAS", "VPRAIR", "VPRAI-R")) %>%
+  mutate(RECID_ARRESTED_FLAG_DOJ = if_else(is.na(RECID_ARRESTED_FLAG_DOJ), 0, RECID_ARRESTED_FLAG_DOJ)) %>%
+  count(COUNTY, TOOL_NAME, nca = HAS_NEW_CRIMINAL_ACTIVITY == "Yes" | RECID_ARRESTED_FLAG_DOJ == 1) %>%
+  group_by(COUNTY, TOOL_NAME) %>%
+    mutate(tot = sum(n), perc_nca = round(100*n/sum(n), 1)) %>%
+  select(-n) %>%
+  ungroup() %>%
+  filter(nca == "TRUE") %>%
+  select(-nca)
+
+agg %>%
+  count(COUNTY, TOOL_NAME, RISK_SCORE)
+
+names(agg_join)
+
+agg_join %>%
+  count(HAS_PRETRIAL_PERIOD_END, is.na(PRETRIAL_END_DATE), is.na(PRETRIAL_PERIOD_END_DATE_DOJ))
+  
+```
+
+
 # Space saver
-
-
-
