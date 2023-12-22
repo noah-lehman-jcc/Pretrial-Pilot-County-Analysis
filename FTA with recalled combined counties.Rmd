@@ -1,0 +1,681 @@
+---
+title: "FTA with recalled combined counties"
+output: html_document
+date: "2023-12-19"
+---
+
+
+# Settup and Library
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+	echo = FALSE,
+	message = FALSE,
+	warning = FALSE
+)
+knitr::opts_knit$set(root.dir = "C:/PretrialPilot/Pretrial-Pilot-County-Analysis")
+
+# library(rlang)
+library(tidyverse)
+library(data.table)
+library(openxlsx)
+#library(readxl)
+library(lubridate)
+library(gsubfn)
+library(fuzzyjoin)
+library(dplyr)
+# library(multidplyr)
+library(pROC)
+library(broom)
+library(kableExtra)
+library(stargazer)
+library(DBI)
+library(dbplyr)
+library(odbc)
+library(tinytex)
+library(gt)
+library(askpass)
+
+# shell.exec(getwd())
+```
+
+Connection
+```{r include=FALSE}
+con <- dbConnect(odbc::odbc(), "snowflake_pretrial", uid ="Sal.Lempert@jud.ca.gov", pwd = rstudioapi::askForPassword("Password"))
+```
+# Pull agg_enh
+Pull live snowflake data -- agg_enh
+```{sql echo=TRUE, connection=con, output.var='agg_enh'}
+SELECT *
+FROM "DWH_PROD"."REPORTING"."AGG_PRETRIAL_KPI_DOJ_ENHANCED";
+```
+
+# Pull data for counties combined
+Pull live snowflake data -- agg
+```{sql echo=TRUE, connection=con, output.var='agg'}
+SELECT *
+FROM "01_ALAMEDA-DWH_PROD"."SECURE_SHARE"."AGG_PRETRIAL_KPI"
+
+UNION ALL
+
+SELECT  *
+from "05_CALAVERAS-DWH_PROD"."SECURE_SHARE"."AGG_PRETRIAL_KPI"
+
+UNION ALL
+
+SELECT  *
+from "016_KINGS-DWH_PROD"."SECURE_SHARE"."AGG_PRETRIAL_KPI"
+
+UNION ALL
+
+SELECT  *
+from "19_LOSANGELES-DWH_PROD"."SECURE_SHARE"."AGG_PRETRIAL_KPI"
+
+UNION ALL
+
+SELECT  *
+from "25_MODOC-DWH_PROD"."SECURE_SHARE"."AGG_PRETRIAL_KPI"
+
+UNION ALL
+
+SELECT  *
+from "28_NAPA-DWH_PROD"."SECURE_SHARE"."AGG_PRETRIAL_KPI"
+
+UNION ALL
+
+SELECT  *
+from "29_NEVADA-DWH_PROD"."SECURE_SHARE"."AGG_PRETRIAL_KPI"
+
+UNION ALL
+
+SELECT  *
+from "34_SACRAMENTO-DWH_PROD"."SECURE_SHARE"."AGG_PRETRIAL_KPI"
+
+UNION ALL
+
+SELECT  *
+from "39_SANJOAQUIN-DWH_PROD"."SECURE_SHARE"."AGG_PRETRIAL_KPI"
+
+UNION ALL
+
+SELECT  *
+from "41_SANMATEO-DWH_PROD"."SECURE_SHARE"."AGG_PRETRIAL_KPI"
+
+UNION ALL
+
+SELECT  *
+from "42_SANTABARBARA-DWH_PROD"."SECURE_SHARE"."AGG_PRETRIAL_KPI"
+
+UNION ALL
+
+SELECT  *
+from "46_SIERRA-DWH_PROD"."SECURE_SHARE"."AGG_PRETRIAL_KPI"
+
+UNION ALL
+
+SELECT  *
+from "49_SONOMA-DWH_PROD"."SECURE_SHARE"."AGG_PRETRIAL_KPI"
+
+UNION ALL
+
+SELECT  *
+from "54_TULARE-DWH_PROD"."SECURE_SHARE"."AGG_PRETRIAL_KPI"
+
+UNION ALL
+
+SELECT  *
+from "55_TUOLUMNE-DWH_PROD"."SECURE_SHARE"."AGG_PRETRIAL_KPI"
+
+UNION ALL
+
+SELECT  *
+from "56_VENTURA-DWH_PROD"."SECURE_SHARE"."AGG_PRETRIAL_KPI"
+
+UNION ALL
+
+SELECT  *
+from "58_YUBA-DWH_PROD"."SECURE_SHARE"."AGG_PRETRIAL_KPI"
+;
+```
+
+
+
+Pull live snowflake data -- fcc
+```{sql echo=TRUE, connection=con, output.var='fcc'}
+SELECT 'Alameda' as county, *
+FROM "01_ALAMEDA-DWH_PROD"."SECURE_SHARE"."FACT_COURT_CASE"
+
+UNION ALL
+
+SELECT  'Calaveras' as county, *
+from "05_CALAVERAS-DWH_PROD"."SECURE_SHARE"."FACT_COURT_CASE"
+
+UNION ALL
+
+SELECT  'Kings' as county, *
+from "16_KINGS-DWH_PROD"."SECURE_SHARE"."FACT_COURT_CASE"
+
+UNION ALL
+
+SELECT  'Los Angeles' as county, *
+from "19_LOSANGELES-DWH_PROD"."SECURE_SHARE"."FACT_COURT_CASE"
+
+UNION ALL
+
+SELECT  'Modoc' as county, *
+from "25_MODOC-DWH_PROD"."SECURE_SHARE"."FACT_COURT_CASE"
+
+UNION ALL
+
+SELECT  'Napa' as county, *
+from "28_NAPA-DWH_PROD"."SECURE_SHARE"."FACT_COURT_CASE"
+
+UNION ALL
+
+SELECT  'Nevada' as county, *
+from "29_NEVADA-DWH_PROD"."SECURE_SHARE"."FACT_COURT_CASE"
+
+UNION ALL
+
+SELECT  'Sacramento' as county, *
+from "34_SACRAMENTO-DWH_PROD"."SECURE_SHARE"."FACT_COURT_CASE"
+
+UNION ALL
+
+SELECT  'San Joaquin' as county, *
+from "39_SANJOAQUIN-DWH_PROD"."SECURE_SHARE"."FACT_COURT_CASE"
+
+UNION ALL
+
+SELECT  'San Mateo' as county, *
+from "41_SANMATEO-DWH_PROD"."SECURE_SHARE"."FACT_COURT_CASE"
+
+UNION ALL
+
+SELECT  'Santa Barbara' as county, *
+from "42_SANTABARBARA-DWH_PROD"."SECURE_SHARE"."FACT_COURT_CASE"
+
+UNION ALL
+
+SELECT  'Sierra' as county, *
+from "46_SIERRA-DWH_PROD"."SECURE_SHARE"."FACT_COURT_CASE"
+
+UNION ALL
+
+SELECT  'Sonoma' as county, *
+from "49_SONOMA-DWH_PROD"."SECURE_SHARE"."FACT_COURT_CASE"
+
+UNION ALL
+
+SELECT  'Tulare' as county, *
+from "54_TULARE-DWH_PROD"."SECURE_SHARE"."FACT_COURT_CASE"
+
+UNION ALL
+
+SELECT  'Tuolumne' as county, *
+from "55_TUOLUMNE-DWH_PROD"."SECURE_SHARE"."FACT_COURT_CASE"
+
+UNION ALL
+
+SELECT  'Ventura' as county, *
+from "56_VENTURA-DWH_PROD"."SECURE_SHARE"."FACT_COURT_CASE"
+
+UNION ALL
+
+SELECT  'Yuba' as county, *
+from "58_YUBA-DWH_PROD"."SECURE_SHARE"."FACT_COURT_CASE"
+;
+```
+
+Pull live snowflake data -- fw
+```{sql echo=TRUE, connection=con, output.var='fw'}
+SELECT 'Alameda' as county, *
+FROM "01_ALAMEDA-DWH_PROD"."SECURE_SHARE"."FACT_WARRANT"
+
+UNION ALL
+
+SELECT  'Calaveras' as county, *
+from "05_CALAVERAS-DWH_PROD"."SECURE_SHARE"."FACT_WARRANT"
+
+UNION ALL
+
+SELECT  'Kings' as county, *
+from "16_KINGS-DWH_PROD"."SECURE_SHARE"."FACT_WARRANT"
+
+UNION ALL
+
+SELECT  'Los Angeles' as county, *
+from "19_LOSANGELES-DWH_PROD"."SECURE_SHARE"."FACT_WARRANT"
+
+UNION ALL
+
+SELECT  'Modoc' as county, *
+from "25_MODOC-DWH_PROD"."SECURE_SHARE"."FACT_WARRANT"
+
+UNION ALL
+
+SELECT  'Napa' as county, *
+from "28_NAPA-DWH_PROD"."SECURE_SHARE"."FACT_WARRANT"
+
+UNION ALL
+
+SELECT  'Nevada' as county, *
+from "29_NEVADA-DWH_PROD"."SECURE_SHARE"."FACT_WARRANT"
+
+UNION ALL
+
+SELECT  'Sacramento' as county, *
+from "34_SACRAMENTO-DWH_PROD"."SECURE_SHARE"."FACT_WARRANT"
+
+UNION ALL
+
+SELECT  'San Joaquin' as county, *
+from "39_SANJOAQUIN-DWH_PROD"."SECURE_SHARE"."FACT_WARRANT"
+
+UNION ALL
+
+SELECT  'San Mateo' as county, *
+from "41_SANMATEO-DWH_PROD"."SECURE_SHARE"."FACT_WARRANT"
+
+UNION ALL
+
+SELECT  'Santa Barbara' as county, *
+from "42_SANTABARBARA-DWH_PROD"."SECURE_SHARE"."FACT_WARRANT"
+
+UNION ALL
+
+SELECT  'Sierra' as county, *
+from "46_SIERRA-DWH_PROD"."SECURE_SHARE"."FACT_WARRANT"
+
+UNION ALL
+
+SELECT  'Sonoma' as county, *
+from "49_SONOMA-DWH_PROD"."SECURE_SHARE"."FACT_WARRANT"
+
+UNION ALL
+
+SELECT  'Tulare' as county, *
+from "54_TULARE-DWH_PROD"."SECURE_SHARE"."FACT_WARRANT"
+
+UNION ALL
+
+SELECT  'Tuolumne' as county, *
+from "55_TUOLUMNE-DWH_PROD"."SECURE_SHARE"."FACT_WARRANT"
+
+UNION ALL
+
+SELECT  'Ventura' as county, *
+from "56_VENTURA-DWH_PROD"."SECURE_SHARE"."FACT_WARRANT"
+
+UNION ALL
+
+SELECT  'Yuba' as county, *
+from "58_YUBA-DWH_PROD"."SECURE_SHARE"."FACT_WARRANT"
+;
+```
+
+Pull live snowflake data -- dw
+```{sql echo=TRUE, connection=con, output.var='dw'}
+SELECT 'Alameda' as county, *
+FROM "01_ALAMEDA-DWH_PROD"."SECURE_SHARE"."DIM_WARRANT"
+
+UNION ALL
+
+SELECT  'Calaveras' as county, *
+from "05_CALAVERAS-DWH_PROD"."SECURE_SHARE"."DIM_WARRANT"
+
+UNION ALL
+
+SELECT  'Kings' as county, *
+from "16_KINGS-DWH_PROD"."SECURE_SHARE"."DIM_WARRANT"
+
+UNION ALL
+
+SELECT  'Los Angeles' as county, *
+from "19_LOSANGELES-DWH_PROD"."SECURE_SHARE"."DIM_WARRANT"
+
+UNION ALL
+
+SELECT  'Modoc' as county, *
+from "25_MODOC-DWH_PROD"."SECURE_SHARE"."DIM_WARRANT"
+
+UNION ALL
+
+SELECT  'Napa' as county, *
+from "28_NAPA-DWH_PROD"."SECURE_SHARE"."DIM_WARRANT"
+
+UNION ALL
+
+SELECT  'Nevada' as county, *
+from "29_NEVADA-DWH_PROD"."SECURE_SHARE"."DIM_WARRANT"
+
+UNION ALL
+
+SELECT  'Sacramento' as county, *
+from "34_SACRAMENTO-DWH_PROD"."SECURE_SHARE"."DIM_WARRANT"
+
+UNION ALL
+
+SELECT  'San Joaquin' as county, *
+from "39_SANJOAQUIN-DWH_PROD"."SECURE_SHARE"."DIM_WARRANT"
+
+UNION ALL
+
+SELECT  'San Mateo' as county, *
+from "41_SANMATEO-DWH_PROD"."SECURE_SHARE"."DIM_WARRANT"
+
+UNION ALL
+
+SELECT  'Santa Barbara' as county, *
+from "42_SANTABARBARA-DWH_PROD"."SECURE_SHARE"."DIM_WARRANT"
+
+UNION ALL
+
+SELECT  'Sierra' as county, *
+from "46_SIERRA-DWH_PROD"."SECURE_SHARE"."DIM_WARRANT"
+
+UNION ALL
+
+SELECT  'Sonoma' as county, *
+from "49_SONOMA-DWH_PROD"."SECURE_SHARE"."DIM_WARRANT"
+
+UNION ALL
+
+SELECT  'Tulare' as county, *
+from "54_TULARE-DWH_PROD"."SECURE_SHARE"."DIM_WARRANT"
+
+UNION ALL
+
+SELECT  'Tuolumne' as county, *
+from "55_TUOLUMNE-DWH_PROD"."SECURE_SHARE"."DIM_WARRANT"
+
+UNION ALL
+
+SELECT  'Ventura' as county, *
+from "56_VENTURA-DWH_PROD"."SECURE_SHARE"."DIM_WARRANT"
+
+UNION ALL
+
+SELECT  'Yuba' as county, *
+from "58_YUBA-DWH_PROD"."SECURE_SHARE"."DIM_WARRANT"
+;
+```
+
+Pull live snowflake data -- link
+```{sql echo=TRUE, connection=con, output.var='link'}
+SELECT 'Alameda' as county, *
+FROM "01_ALAMEDA-DWH_PROD"."SECURE_SHARE"."DS_PRETRIAL_BOOKING_CASE_LINK"
+
+UNION ALL
+
+SELECT  'Calaveras' as county, *
+from "05_CALAVERAS-DWH_PROD"."SECURE_SHARE"."DS_PRETRIAL_BOOKING_CASE_LINK"
+
+UNION ALL
+
+SELECT  'Kings' as county, *
+from "16_KINGS-DWH_PROD"."SECURE_SHARE"."DS_PRETRIAL_BOOKING_CASE_LINK"
+
+UNION ALL
+
+SELECT  'Los Angeles' as county, *
+from "19_LOSANGELES-DWH_PROD"."SECURE_SHARE"."DS_PRETRIAL_BOOKING_CASE_LINK"
+
+UNION ALL
+
+SELECT  'Modoc' as county, *
+from "25_MODOC-DWH_PROD"."SECURE_SHARE"."DS_PRETRIAL_BOOKING_CASE_LINK"
+
+UNION ALL
+
+SELECT  'Napa' as county, *
+from "28_NAPA-DWH_PROD"."SECURE_SHARE"."DS_PRETRIAL_BOOKING_CASE_LINK"
+
+UNION ALL
+
+SELECT  'Nevada' as county, *
+from "29_NEVADA-DWH_PROD"."SECURE_SHARE"."DS_PRETRIAL_BOOKING_CASE_LINK"
+
+UNION ALL
+
+SELECT  'Sacramento' as county, *
+from "34_SACRAMENTO-DWH_PROD"."SECURE_SHARE"."DS_PRETRIAL_BOOKING_CASE_LINK"
+
+UNION ALL
+
+SELECT  'San Joaquin' as county, *
+from "39_SANJOAQUIN-DWH_PROD"."SECURE_SHARE"."DS_PRETRIAL_BOOKING_CASE_LINK"
+
+UNION ALL
+
+SELECT  'San Mateo' as county, *
+from "41_SANMATEO-DWH_PROD"."SECURE_SHARE"."DS_PRETRIAL_BOOKING_CASE_LINK"
+
+UNION ALL
+
+SELECT  'Santa Barbara' as county, *
+from "42_SANTABARBARA-DWH_PROD"."SECURE_SHARE"."DS_PRETRIAL_BOOKING_CASE_LINK"
+
+UNION ALL
+
+SELECT  'Sierra' as county, *
+from "46_SIERRA-DWH_PROD"."SECURE_SHARE"."DS_PRETRIAL_BOOKING_CASE_LINK"
+
+UNION ALL
+
+SELECT  'Sonoma' as county, *
+from "49_SONOMA-DWH_PROD"."SECURE_SHARE"."DS_PRETRIAL_BOOKING_CASE_LINK"
+
+UNION ALL
+
+SELECT  'Tulare' as county, *
+from "54_TULARE-DWH_PROD"."SECURE_SHARE"."DS_PRETRIAL_BOOKING_CASE_LINK"
+
+UNION ALL
+
+SELECT  'Tuolumne' as county, *
+from "55_TUOLUMNE-DWH_PROD"."SECURE_SHARE"."DS_PRETRIAL_BOOKING_CASE_LINK"
+
+UNION ALL
+
+SELECT  'Ventura' as county, *
+from "56_VENTURA-DWH_PROD"."SECURE_SHARE"."DS_PRETRIAL_BOOKING_CASE_LINK"
+
+UNION ALL
+
+SELECT  'Yuba' as county, *
+from "58_YUBA-DWH_PROD"."SECURE_SHARE"."DS_PRETRIAL_BOOKING_CASE_LINK"
+;
+```
+
+```{r}
+dw
+```
+
+# Calculate FTA rate including recalled warrants 
+```{r}
+wars <- fw %>%
+  left_join(dw)
+
+fta_wars <- wars %>%
+  mutate(war_issue_date = ymd(DIM_WARRANT_ISSUANCE_DATE_KEY)) %>%
+  select(war_issue_date, CASE_KEY, WARRANT_TYPE, WARRANT_STATUS, WARRANT_REASON) %>%
+  filter(!is.na(war_issue_date)) %>%
+  filter(WARRANT_TYPE == "Bench",
+         WARRANT_REASON == "FTA",
+         WARRANT_STATUS %in% c("Issued", "Served", "Ordered", "Recalled")) %>%
+  distinct()
+
+fta_wars <- fta_wars %>%
+  left_join(link %>%
+            select(COUNTY, BOOKING_KEY, CASE_KEY) %>%
+              distinct()) %>%
+  select(COUNTY, war_issue_date, BOOKING_KEY) %>%
+  distinct() %>%
+  filter(!is.na(BOOKING_KEY))
+
+agg_rec<- agg_enh %>%
+  mutate(row = row_number()) %>%
+  left_join(fta_wars) %>%
+  mutate(fta_test_flag = case_when(is.na(war_issue_date) ~ 0,
+                                    war_issue_date >= RELEASE_DATE & war_issue_date <= PRETRIAL_PERIOD_END_DATE ~ 1,
+                                   T ~ 0)) %>%
+  group_by(COUNTY, BOOKING_KEY) %>%
+  arrange(desc(fta_test_flag), war_issue_date) %>%
+  mutate(fta_test_flag = max(fta_test_flag)) %>%
+  ungroup() %>%
+  distinct(row, .keep_all = T) 
+
+
+```
+
+Join to FTAs from DOJ flag
+```{r}
+# test <- agg_enh %>%
+#   left_join(agg_rec %>% select(COUNTY, BOOKING_KEY, fta_test_flag, RISK_SCORE) %>% distinct())
+
+```
+
+# Look at new FTA rate
+
+Count of new flag, old flag, doj flag
+```{r}
+agg_rec %>%
+  filter(BOOKING_DATE > '2018-07-01',
+         BOOKING_DATE < '2023-01-01') %>%
+  filter(IS_BOOKING_ASSESSED == "Yes") %>%
+  filter(IS_RELEASE_ELIGIBLE == "Yes") %>%
+  filter(IS_RELEASED_PRETRIAL == "Yes") %>%
+  filter(!is.na(CII)) %>%
+  filter(HAS_PRETRIAL_PERIOD_END == "Yes") %>%
+  #filter(!is.na(RISK_SCORE)) %>%
+  count(COUNTY, fta_test_flag, FAILURE_TO_APPEAR_COUNT, RECID_ARREST_FTA_FLAG_DOJ) %>%
+  group_by(COUNTY) %>%
+  mutate(tot = sum(n), perc = round(100*n/sum(n),1))
+
+```
+
+Overall new fta rate
+```{r}
+fta_rec <- agg_rec %>%
+  filter(BOOKING_DATE > '2018-07-01',
+         BOOKING_DATE < '2023-01-01') %>%
+  filter(IS_BOOKING_ASSESSED == "Yes") %>%
+  filter(IS_RELEASE_ELIGIBLE == "Yes") %>%
+  filter(IS_RELEASED_PRETRIAL == "Yes") %>%
+  filter(!is.na(CII)) %>%
+  filter(HAS_PRETRIAL_PERIOD_END == "Yes" | !is.na(PRETRIAL_PERIOD_END_DATE_DOJ)) %>%
+  #filter(!is.na(RISK_SCORE)) %>%
+  mutate(fta_all = case_when(fta_test_flag == 1 ~ 1,
+                             RECID_ARREST_FTA_FLAG_DOJ == 1 ~ 1,
+                             FAILURE_TO_APPEAR_COUNT == 1 ~ 1,
+                             T ~ 0)) %>%
+  count(COUNTY, fta_all) %>%
+  group_by(COUNTY) %>%
+  mutate(tot = sum(n), perc = round(100*n/sum(n),1)) %>%
+  ungroup()
+
+
+
+```
+
+Old FTA rate
+```{r}
+fta_old <- agg_rec %>%
+  filter(BOOKING_DATE > '2018-07-01',
+         BOOKING_DATE < '2023-01-01') %>%
+  filter(IS_BOOKING_ASSESSED == "Yes") %>%
+  filter(IS_RELEASE_ELIGIBLE == "Yes") %>%
+  filter(IS_RELEASED_PRETRIAL == "Yes") %>%
+  filter(!is.na(CII)) %>%
+  filter(HAS_PRETRIAL_PERIOD_END == "Yes" | !is.na(PRETRIAL_PERIOD_END_DATE_DOJ)) %>%
+  #filter(!is.na(RISK_SCORE)) %>%
+  mutate(fta_all = case_when(FAILURE_TO_APPEAR_COUNT == 1 ~ 1,
+                             RECID_ARREST_FTA_FLAG_DOJ == 1 ~ 1,
+                             T ~ 0)) %>%
+  count(COUNTY, fta_all) %>%
+  group_by(COUNTY) %>%
+  mutate(tot = sum(n), perc_old = round(100*n/sum(n),1)) %>%
+  ungroup()
+```
+
+Side by side comparison
+```{r}
+fta_compare <- fta_rec %>%
+  select(-n) %>%
+  left_join(fta_old %>% select(COUNTY, fta_all, perc_old))
+
+fta_dif <- fta_compare %>%
+  group_by(COUNTY) %>%
+  filter(fta_all == max(fta_all)) %>%
+  mutate(perc = if_else(perc == 100 & fta_all == 0, 0, perc),
+         perc_old = if_else(perc_old == 100 & fta_all == 0, 0, perc_old)) %>%
+  select(-fta_all) %>%
+  mutate(dif = perc - perc_old)
+  
+fta_dif
+```
+Separate warrant FTAs from hearing FTAs
+```{r}
+fta_hearing <- agg_rec %>%
+  filter(BOOKING_DATE > '2018-07-01',
+         BOOKING_DATE < '2023-01-01') %>%
+  filter(IS_BOOKING_ASSESSED == "Yes") %>%
+  filter(IS_RELEASE_ELIGIBLE == "Yes") %>%
+  filter(IS_RELEASED_PRETRIAL == "Yes") %>%
+  filter(!is.na(CII)) %>%
+  filter(HAS_PRETRIAL_PERIOD_END == "Yes" | !is.na(PRETRIAL_PERIOD_END_DATE_DOJ)) %>%
+  count(COUNTY, fta_test_flag, FAILURE_TO_APPEAR_COUNT) %>%
+  group_by(COUNTY) %>%
+  mutate(tot = sum(n), perc = round(100*n/sum(n),1)) %>%
+  ungroup() %>%
+  filter(fta_test_flag == 0 & FAILURE_TO_APPEAR_COUNT == 1)
+
+fta_hearing <- fta_hearing %>%
+  arrange(COUNTY) %>%
+  select(COUNTY, perc_hearing = perc)
+
+fta_county_old <- agg_rec %>%
+  filter(BOOKING_DATE > '2018-07-01',
+         BOOKING_DATE < '2023-01-01') %>%
+  filter(IS_BOOKING_ASSESSED == "Yes") %>%
+  filter(IS_RELEASE_ELIGIBLE == "Yes") %>%
+  filter(IS_RELEASED_PRETRIAL == "Yes") %>%
+  filter(!is.na(CII)) %>%
+  filter(HAS_PRETRIAL_PERIOD_END == "Yes" | !is.na(PRETRIAL_PERIOD_END_DATE_DOJ)) %>%
+  #filter(!is.na(RISK_SCORE)) %>%
+  mutate(fta_county = case_when(FAILURE_TO_APPEAR_COUNT == 1 ~ 1,
+                             T ~ 0)) %>%
+  count(COUNTY, fta_county) %>%
+  group_by(COUNTY) %>%
+  mutate(tot = sum(n), perc_county_old = round(100*n/sum(n),1)) %>%
+  ungroup()
+
+
+fta_county_old <- fta_county_old %>%
+  group_by(COUNTY) %>%
+  filter(fta_county == max(fta_county)) %>%
+  mutate(perc_county_old = if_else(perc_county_old == 100 & fta_county == 0, 0, perc_county_old)) %>%
+  select(-fta_county) %>%
+  select(-n)
+
+
+fta_hearing_warrant <- fta_county_old %>%
+  left_join(fta_hearing) %>%
+  mutate(perc_hearing = if_else(is.na(perc_hearing), 0, perc_hearing)) %>%
+  mutate(perc_warrant_old = perc_county_old - perc_hearing) %>%
+  mutate(source = case_when(perc_warrant_old != 0 & perc_hearing !=0 ~ "Both hearings and warrants",
+                            perc_warrant_old !=0 ~ "Warrants only",
+                            perc_hearing !=0 ~ "Hearings only",
+                            T ~ "Neither"))
+
+fta_hearing_warrant %>%
+  left_join(fta_dif) %>%
+  rename(fta_tot_with_recalls = perc) %>%
+  rename(perc_old_total = perc_old) %>%
+  rename(perc_recalled_warrants = dif) %>%
+  mutate(perc_doj = perc_old_total - perc_county_old) %>%
+  select(-fta_tot_with_recalls) %>%
+  select(-perc_old_total)
+```
+
+

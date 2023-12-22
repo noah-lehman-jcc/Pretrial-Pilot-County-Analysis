@@ -1,0 +1,398 @@
+---
+title: "Alameda FTA test"
+output: html_document
+date: "2023-12-05"
+---
+
+# Settup and Library
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+	echo = FALSE,
+	message = FALSE,
+	warning = FALSE
+)
+knitr::opts_knit$set(root.dir = "C:/PretrialPilot/Pretrial-Pilot-County-Analysis")
+
+# library(rlang)
+library(tidyverse)
+library(data.table)
+library(openxlsx)
+#library(readxl)
+library(lubridate)
+library(gsubfn)
+library(fuzzyjoin)
+library(dplyr)
+# library(multidplyr)
+library(pROC)
+library(broom)
+library(kableExtra)
+library(stargazer)
+library(DBI)
+library(dbplyr)
+library(odbc)
+library(tinytex)
+library(gt)
+library(askpass)
+
+# shell.exec(getwd())
+```
+
+Connection
+```{r include=FALSE}
+
+con <- dbConnect(odbc::odbc(), "snowflake_pretrial", uid ="Sal.Lempert@jud.ca.gov", pwd = rstudioapi::askForPassword("Password"))
+
+```
+
+
+Pull live snowflake data -- al_agg
+```{sql echo=TRUE, connection=con, output.var='al_agg'}
+SELECT *
+FROM "01_ALAMEDA-DWH_PROD"."SECURE_SHARE"."AGG_PRETRIAL_KPI"
+;
+```
+
+Pull live snowflake data -- al_fcc
+```{sql echo=TRUE, connection=con, output.var='al_fcc'}
+SELECT *
+FROM "01_ALAMEDA-DWH_PROD"."SECURE_SHARE"."FACT_COURT_CASE"
+;
+```
+
+Pull live snowflake data -- al_fw
+```{sql echo=TRUE, connection=con, output.var='al_fw'}
+SELECT *
+FROM "01_ALAMEDA-DWH_PROD"."SECURE_SHARE"."FACT_WARRANT"
+;
+```
+
+Pull live snowflake data -- al_dw
+```{sql echo=TRUE, connection=con, output.var='al_dw'}
+SELECT *
+FROM "01_ALAMEDA-DWH_PROD"."SECURE_SHARE"."DIM_WARRANT"
+;
+```
+
+Pull live snowflake data -- al_link
+```{sql echo=TRUE, connection=con, output.var='al_link'}
+SELECT *
+FROM "01_ALAMEDA-DWH_PROD"."SECURE_SHARE"."DS_PRETRIAL_BOOKING_CASE_LINK"
+;
+
+```
+
+Pull live snowflake data -- agg_enh
+```{sql echo=TRUE, connection=con, output.var='agg_enh'}
+SELECT *
+FROM "DWH_PROD"."REPORTING"."AGG_PRETRIAL_KPI_DOJ_ENHANCED"
+;
+
+```
+
+# Look at Alameda FTA data
+```{r}
+afta <- fread("Alameda Raw Failure Rate Data 05082020 to 12042023.csv")
+
+afta <- afta %>%
+  mutate(Book_Date = mdy(Book_Date),
+         Assessment_Date = mdy(Assessment_Date),
+         Release_Date  = mdy(Release_Date))
+fta_caseids <- afta %>%
+  filter(FTA_Count == 1) %>%
+  pull(Case_ID)
+```
+
+# Compare datasets
+```{r}
+
+afta %>%
+  mutate(Case_ID = as.character(Case_ID)) %>%
+  count(Case_ID %in% (al_fcc %>% 
+                        pull(CASE_ID)))
+
+afta %>%
+  mutate(Case_ID = as.character(Case_ID)) %>%
+  filter(!Case_ID %in% (al_fcc %>% 
+                        pull(CASE_ID)))
+ 
+
+case_id_key <- al_fcc %>%
+  select(CASE_KEY, CASE_ID) %>%
+  distinct()
+
+
+al_agg <- al_agg %>%
+  left_join(case_id_key)
+
+match <- afta %>%
+  select(CASE_ID = Case_ID, BOOKING_DATE = Book_Date, FTA_Count) %>%
+  mutate(CASE_ID = as.character(CASE_ID))
+
+fta_casekeys <- al_agg %>%
+  inner_join(match) %>%
+  filter(FTA_Count == 1) %>%
+  pull(CASE_KEY)
+
+wars <- al_fw %>%
+  left_join(al_dw)
+  
+wars %>%
+  filter(CASE_KEY %in% fta_casekeys) %>%
+  count(HAS_FTA)
+
+wars %>%
+  filter(CASE_KEY %in% fta_casekeys) %>%
+  count(HAS_FTA, WARRANT_TYPE, WARRANT_STATUS, WARRANT_REASON)
+```
+Pull non-matching case ids for Cory
+```{r}
+missing_case_ids <- afta %>%
+  mutate(Case_ID = as.character(Case_ID)) %>%
+  filter(!Case_ID %in% (al_fcc %>% 
+                        pull(CASE_ID)))
+
+#write.csv(missing_case_ids, "missing cases for Cory.csv")
+
+al_fcc %>%
+  filter(CASE_ID %in% (missing_case_ids %>% pull(Case_ID)))
+```
+
+# Calculate FTA rate including recalled warrants
+```{r}
+active_wars <- wars %>%
+  filter(WARRANT_STATUS %in% c("Recalled", "Issued"),
+         WARRANT_TYPE == "Bench",
+         WARRANT_REASON == "FTA") %>%
+  select(CASE_KEY, DIM_WARRANT_ISSUANCE_DATE_KEY) %>%
+  mutate(fta_test_flag = 1) %>%
+  mutate(date_char = as.character(DIM_WARRANT_ISSUANCE_DATE_KEY)) %>%
+  mutate(war_issue_date = ymd(date_char)) %>%
+  select(CASE_KEY, fta_test_flag, war_issue_date) %>%
+  distinct()
+
+links <- al_link %>%
+  select(BOOKING_KEY, CASE_KEY)
+
+active_wars <- active_wars %>%
+  left_join(links) %>%
+  select(-CASE_KEY)
+
+
+al_agg %>%
+  mutate(rownum = row_number()) %>%
+  left_join(active_wars) %>% 
+  filter(war_issue_date <PRETRIAL_PERIOD_END_DATE & war_issue_date > RELEASE_DATE) %>%
+  distinct(rownum)
+#5,911 ftas in agg btwn release date and end date, 5,986 btwn book date and end date -- WHY?
+#5,635 and 5,706 using booking key to link instead of case key
+
+al_agg %>%
+  filter(HAS_FAILURE_TO_APPEAR == 'Yes')
+#4,097
+
+
+
+test <- al_agg %>%
+  mutate(rownum = row_number()) %>%
+  left_join(active_wars) %>% 
+  mutate(fta_test_flag = case_when(is.na(war_issue_date) ~ 0,
+                                   war_issue_date <PRETRIAL_PERIOD_END_DATE & war_issue_date > RELEASE_DATE ~ 1,
+                                   T ~ 0)) %>%
+  group_by(rownum) %>%
+  mutate(fta_test_flag = max(fta_test_flag)) %>%
+  ungroup() %>%
+  distinct(rownum, .keep_all = T)
+
+test %>%
+  count(fta_test_flag)
+
+test %>%
+  filter(BOOKING_DATE > '2018-07-01',
+         BOOKING_DATE < '2023-01-01') %>%
+  filter(IS_BOOKING_ASSESSED == "Yes") %>%
+  filter(IS_RELEASE_ELIGIBLE == "Yes") %>%
+  filter(IS_RELEASED_PRETRIAL == "Yes") %>%
+  filter(!is.na(CII)) %>%
+  filter(HAS_PRETRIAL_PERIOD_END == "Yes") %>%
+  filter(!is.na(RISK_SCORE)) %>%
+  count(fta_test_flag) %>%
+  mutate(tot = sum(n), perc = round(100*n/sum(n),1))
+
+al_agg %>%
+  filter(BOOKING_DATE > '2018-07-01',
+         BOOKING_DATE < '2023-01-01') %>%
+  filter(IS_BOOKING_ASSESSED == "Yes") %>%
+  filter(IS_RELEASE_ELIGIBLE == "Yes") %>%
+  filter(IS_RELEASED_PRETRIAL == "Yes") %>%
+  filter(!is.na(CII)) %>%
+  filter(HAS_PRETRIAL_PERIOD_END == "Yes") %>%
+  filter(!is.na(RISK_SCORE)) %>%
+  count(HAS_FAILURE_TO_APPEAR) %>%
+  mutate(perc = round(100*n/sum(n),1))
+
+al_agg_enh <- agg_enh %>%
+  filter(COUNTY == "Alameda")
+
+al_agg_enh <- al_agg_enh %>%
+  left_join(test %>% select(BOOKING_KEY, fta_test_flag, RISK_SCORE) %>% distinct())
+
+al_agg_enh %>%
+  filter(BOOKING_DATE > '2018-07-01',
+         BOOKING_DATE < '2023-01-01') %>%
+  filter(IS_BOOKING_ASSESSED == "Yes") %>%
+  filter(IS_RELEASE_ELIGIBLE == "Yes") %>%
+  filter(IS_RELEASED_PRETRIAL == "Yes") %>%
+  filter(!is.na(CII)) %>%
+  filter(HAS_PRETRIAL_PERIOD_END == "Yes") %>%
+  filter(!is.na(RISK_SCORE)) %>%
+  count(fta_test_flag, RECID_ARREST_FTA_FLAG_DOJ) %>%
+  mutate(tot = sum(n), perc = round(100*n/sum(n),1))
+
+al_agg_enh %>%
+  filter(BOOKING_DATE > '2018-07-01',
+         BOOKING_DATE < '2023-01-01') %>%
+  filter(IS_BOOKING_ASSESSED == "Yes") %>%
+  filter(IS_RELEASE_ELIGIBLE == "Yes") %>%
+  filter(IS_RELEASED_PRETRIAL == "Yes") %>%
+  filter(!is.na(CII)) %>%
+  filter(HAS_PRETRIAL_PERIOD_END == "Yes") %>%
+  filter(!is.na(RISK_SCORE)) %>%
+  mutate(fta_all = case_when(fta_test_flag == 1 ~ 1,
+                             RECID_ARREST_FTA_FLAG_DOJ == 1 ~ 1,
+                             T ~ 0)) %>%
+  count(fta_all) %>%
+  mutate(tot = sum(n), perc = round(100*n/sum(n),1))
+
+```
+Pull FTAs for Cory
+```{r}
+ftas_for_cory <- test %>%
+  filter(fta_test_flag == 1) %>%
+  select(BOOKING_DATE, ASSESSMENT_DATE, RELEASE_DATE, BOOKING_KEY, BOOKING_ID, CASE_KEY, CASE_ID)
+
+
+
+#write.csv(ftas_for_cory, "ftas for Cory.csv")
+
+afta %>%
+  mutate(CASE_ID = as.character(Case_ID)) %>%
+  left_join(case_id_key %>% distinct())
+
+al_fcc %>%
+  filter(CASE_KEY %in% c("945772606669", "945772671967", "945772725483"))
+
+al_agg %>%
+  filter(BOOKING_KEY %in% c("6066690494986", "6719670494986", "7254830494986"))
+
+```
+```{r}
+al_link %>%
+  select(BOOKING_KEY, CASE_KEY, CASE_ID)
+
+al_fw
+
+al_fta_wars <- wars %>%
+  mutate(war_issue_date = ymd(DIM_WARRANT_ISSUANCE_DATE_KEY)) %>%
+  select(war_issue_date, CASE_KEY, WARRANT_TYPE, WARRANT_STATUS, WARRANT_REASON) %>%
+  filter(!is.na(war_issue_date)) %>%
+  filter(WARRANT_TYPE == "Bench",
+         WARRANT_REASON == "FTA",
+         WARRANT_STATUS %in% c("Issued", "Served", "Ordered", "Recalled")) %>%
+  distinct()
+
+al_fta_wars <- al_fta_wars %>%
+  left_join(al_link %>%
+            select(BOOKING_KEY, CASE_KEY) %>%
+              distinct()) %>%
+  select(war_issue_date, BOOKING_KEY) %>%
+  distinct() %>%
+  filter(!is.na(BOOKING_KEY))
+
+test2 <- al_agg %>%
+  mutate(row = row_number()) %>%
+  left_join(al_fta_wars) %>%
+  mutate(fta_test_flag = case_when(is.na(war_issue_date) ~ 0,
+                                    war_issue_date >= RELEASE_DATE & war_issue_date <= PRETRIAL_PERIOD_END_DATE ~ 1,
+                                   T ~ 0)) %>%
+  group_by(BOOKING_KEY) %>%
+  arrange(desc(fta_test_flag), war_issue_date) %>%
+  mutate(fta_test_flag = max(fta_test_flag)) %>%
+  ungroup() %>%
+  distinct(row, .keep_all = T) 
+
+
+test2 %>%
+  filter(BOOKING_DATE > '2018-07-01',
+         BOOKING_DATE < '2023-01-01') %>%
+  filter(IS_BOOKING_ASSESSED == "Yes") %>%
+  filter(IS_RELEASE_ELIGIBLE == "Yes") %>%
+  filter(IS_RELEASED_PRETRIAL == "Yes") %>%
+  filter(!is.na(CII)) %>%
+  filter(HAS_PRETRIAL_PERIOD_END == "Yes") %>%
+  filter(!is.na(RISK_SCORE)) %>%
+  count(fta_test_flag) %>%
+  mutate(tot = sum(n), perc = round(100*n/sum(n),1))
+
+test %>%
+  left_join(test2 %>% select(BOOKING_KEY, fta_test_flag) %>% rename(fta_test_flag2 = 'fta_test_flag')) %>%
+  count(fta_test_flag, fta_test_flag2)
+
+test %>%
+  select(-war_issue_date) %>%
+  left_join(test2 %>% select(BOOKING_KEY, fta_test_flag, war_issue_date) %>% rename(fta_test_flag2 = 'fta_test_flag')) %>%
+  filter(fta_test_flag != fta_test_flag2) %>%
+  select(CASE_KEY, BOOKING_KEY, fta_test_flag, fta_test_flag2, BOOKING_DATE, RELEASE_DATE, war_issue_date, PRETRIAL_PERIOD_END_DATE) %>%
+  arrange(desc(fta_test_flag2))
+```
+
+
+```{r}
+wars %>%
+    filter(CASE_KEY == '975725683666')
+  
+links %>%
+    filter(BOOKING_KEY == '6834351379444')
+
+al_fcc %>%
+  filter(CASE_ID == "948442") %>%
+  select(CASE_ID, CASE_KEY, BOOKING_KEY)
+  
+al_fta_wars %>%
+  filter(BOOKING_KEY == '6875721381246')
+
+al_fw %>%
+  left_join(al_dw) %>%
+  filter(CASE_KEY == "943010592976")
+
+```
+```{r}
+ftas_for_cory <- test2 %>%
+  filter(fta_test_flag == 1) %>%
+  select(BOOKING_ID, BOOKING_KEY, CASE_KEY, CASE_ID, BOOKING_DATE, RELEASE_DATE, PRETRIAL_PERIOD_END_DATE, war_issue_date, fta_test_flag)
+
+#write.csv(ftas_for_cory, "ftas for cory.csv")
+
+test2 %>%
+  filter(fta_test_flag == 1) %>%
+  filter(is.na(PRETRIAL_PERIOD_END_DATE))
+
+afta %>%
+  mutate(CASE_ID = as.character(Case_ID),
+         BOOKING_DATE = Book_Date) %>%
+  left_join(ftas_for_cory) %>%
+  filter(FTA_Count == 0 & fta_test_flag == 1) %>%
+  select(Case_ID, CASE_ID, BOOKING_KEY, CASE_KEY, FTA_Count, BOOKING_DATE, Release_Date, RELEASE_DATE, war_issue_date, PRETRIAL_PERIOD_END_DATE)
+
+
+afta %>%
+  mutate(CASE_ID = as.character(Case_ID),
+         BOOKING_DATE = Book_Date) %>%
+  left_join(test2 %>% select(BOOKING_ID, BOOKING_KEY, CASE_KEY, CASE_ID, BOOKING_DATE, RELEASE_DATE, PRETRIAL_PERIOD_END_DATE, war_issue_date, fta_test_flag)) %>%
+  filter(FTA_Count == 1 & fta_test_flag == 0,
+         !is.na(PRETRIAL_PERIOD_END_DATE)) %>%
+  select(Case_ID, CASE_ID, BOOKING_KEY, CASE_KEY, FTA_Count, BOOKING_DATE, Release_Date, RELEASE_DATE, war_issue_date, PRETRIAL_PERIOD_END_DATE)
+  count(FTA_Count, fta_test_flag)
+
+
+```
+

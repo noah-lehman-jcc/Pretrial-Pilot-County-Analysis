@@ -1,0 +1,87 @@
+---
+title: "Untitled"
+output: html_document
+date: "2023-09-20"
+---
+
+# Settup and Library
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+	echo = FALSE,
+	message = FALSE,
+	warning = FALSE
+)
+knitr::opts_knit$set(root.dir = "C:/PretrialPilot/Pretrial-Pilot-County-Analysis")
+
+# library(rlang)
+library(tidyverse)
+library(data.table)
+library(openxlsx)
+#library(readxl)
+library(lubridate)
+library(gsubfn)
+library(fuzzyjoin)
+library(dplyr)
+# library(multidplyr)
+library(pROC)
+library(broom)
+library(kableExtra)
+library(stargazer)
+library(DBI)
+library(dbplyr)
+library(odbc)
+library(tinytex)
+library(gt)
+library(askpass)
+
+# shell.exec(getwd())
+```
+
+Connection
+```{r include=FALSE}
+
+con <- dbConnect(odbc::odbc(), "snowflake_pretrial", uid ="Sal.Lempert@jud.ca.gov", pwd = rstudioapi::askForPassword("Password"))
+
+```
+
+Pull live snowflake data -- join_df
+```{sql echo=TRUE, connection=con, output.var='join_df'}
+SELECT *
+FROM "DWH_PROD"."DATA_SCIENCE"."JOIN_DF_STD"
+;
+```
+
+Format data - join df 
+```{r warning=FALSE, include=FALSE}
+names(join_df) <- tolower(names(join_df))
+
+join_df <- join_df %>%
+  mutate(book_date = booking_date,
+         race_orig = race,
+         race = if_else(race_standard %in% c("White", "Black", "Hispanic"), race_standard, "Other/Unknown"),
+         age = individual_age,
+         charge_level_orig = charge_level,
+         charge_level = charge_level_standard,
+         pretrial_period_end_count = pretrial_period_end_count_standard,
+         fta_flag = fta_county_or_doj,
+         recid_arrested_flag = recid_county_or_doj,
+         pretrial_period_end_date = if_else(is.na(pretrial_period_end_date), as.Date(pretrial_period_end_date_doj), as.Date(pretrial_period_end_date)))%>%
+  mutate(recid_filed_flag = recid_filed_flag_doj, 
+         recid_convicted_flag = recid_convicted_flag_doj, 
+         recid_arrest_violent_psa_flag = recid_arrest_violent_psa_flag_doj,
+         any_pretrial_failure_flag = if_else(recid_arrested_flag == 1 | fta_flag == 1, 1, 0)) %>% ## update this when we get county data on these
+  mutate(across(contains("_flag"), ~if_else(is.na(.x) | .x == "No" | .x == "Unknown" | .x == "0" | .x == 0, 0, as.numeric(1))))  
+
+
+```
+
+```{r}
+pajar_output <- join_df %>%
+  filter(case_filed_date >= "2019-01-01") %>%
+  mutate(court_charge_plain = toupper(gsub("\\/|\\(|\\)| |\\.|\\.*|^[A-Z]*|\\\\.*|\\{|\\}|\\+|\\&|>|\\-|<","", court_charge))) %>%
+  filter(court_charge_code == "PC", grepl("^6025|^418|^419|^484A|^518", court_charge_plain)) %>%
+  count(county, court_charge, court_charge_level, court_charge_code, disposition_type)
+
+write.csv(pajar_output, "pajar_output_reyes.csv")
+```
+

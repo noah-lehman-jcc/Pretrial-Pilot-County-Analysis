@@ -1,0 +1,255 @@
+---
+title: "FTA with recalled warrants"
+output: html_document
+date: "2023-12-18"
+---
+
+# Settup and Library
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+	echo = FALSE,
+	message = FALSE,
+	warning = FALSE
+)
+knitr::opts_knit$set(root.dir = "C:/PretrialPilot/Pretrial-Pilot-County-Analysis")
+
+# library(rlang)
+library(tidyverse)
+library(data.table)
+library(openxlsx)
+#library(readxl)
+library(lubridate)
+library(gsubfn)
+library(fuzzyjoin)
+library(dplyr)
+# library(multidplyr)
+library(pROC)
+library(broom)
+library(kableExtra)
+library(stargazer)
+library(DBI)
+library(dbplyr)
+library(odbc)
+library(tinytex)
+library(gt)
+library(askpass)
+
+# shell.exec(getwd())
+```
+
+Connection
+```{r include=FALSE}
+con <- dbConnect(odbc::odbc(), "snowflake_pretrial", uid ="Sal.Lempert@jud.ca.gov", pwd = rstudioapi::askForPassword("Password"))
+```
+
+# Pull agg_enh
+Pull live snowflake data -- agg_enh
+```{sql echo=TRUE, connection=con, output.var='agg_enh'}
+SELECT *
+FROM "DWH_PROD"."REPORTING"."AGG_PRETRIAL_KPI_DOJ_ENHANCED";
+```
+
+# Pull data for Alameda
+Pull live snowflake data -- agg
+```{sql echo=TRUE, connection=con, output.var='agg'}
+SELECT *
+FROM "01_ALAMEDA-DWH_PROD"."SECURE_SHARE"."AGG_PRETRIAL_KPI";
+```
+
+Pull live snowflake data -- fcc
+```{sql echo=TRUE, connection=con, output.var='fcc'}
+SELECT *
+FROM "01_ALAMEDA-DWH_PROD"."SECURE_SHARE"."FACT_COURT_CASE";
+```
+
+Pull live snowflake data -- fw
+```{sql echo=TRUE, connection=con, output.var='fw'}
+SELECT *
+FROM "01_ALAMEDA-DWH_PROD"."SECURE_SHARE"."FACT_WARRANT";
+```
+
+Pull live snowflake data -- dw
+```{sql echo=TRUE, connection=con, output.var='dw'}
+SELECT *
+FROM "01_ALAMEDA-DWH_PROD"."SECURE_SHARE"."DIM_WARRANT";
+```
+
+Pull live snowflake data -- link
+```{sql echo=TRUE, connection=con, output.var='link'}
+SELECT *
+FROM "01_ALAMEDA-DWH_PROD"."SECURE_SHARE"."DS_PRETRIAL_BOOKING_CASE_LINK";
+```
+
+
+# Pull data for San Mateo (41)
+Pull live snowflake data -- agg
+```{sql echo=TRUE, connection=con, output.var='agg'}
+SELECT *
+FROM "41_SANMATEO-DWH_PROD"."SECURE_SHARE"."AGG_PRETRIAL_KPI";
+```
+
+Pull live snowflake data -- fcc
+```{sql echo=TRUE, connection=con, output.var='fcc'}
+SELECT *
+FROM "41_SANMATEO-DWH_PROD"."SECURE_SHARE"."FACT_COURT_CASE";
+```
+
+Pull live snowflake data -- fw
+```{sql echo=TRUE, connection=con, output.var='fw'}
+SELECT *
+FROM "41_SANMATEO-DWH_PROD"."SECURE_SHARE"."FACT_WARRANT";
+```
+
+Pull live snowflake data -- dw
+```{sql echo=TRUE, connection=con, output.var='dw'}
+SELECT *
+FROM "41_SANMATEO-DWH_PROD"."SECURE_SHARE"."DIM_WARRANT";
+```
+
+Pull live snowflake data -- link
+```{sql echo=TRUE, connection=con, output.var='link'}
+SELECT *
+FROM "41_SANMATEO-DWH_PROD"."SECURE_SHARE"."DS_PRETRIAL_BOOKING_CASE_LINK";
+```
+
+
+# Pull data for San Joaquin (39)
+Pull live snowflake data -- agg
+```{sql echo=TRUE, connection=con, output.var='agg'}
+SELECT *
+FROM "39_SANJOAQUIN-DWH_PROD"."SECURE_SHARE"."AGG_PRETRIAL_KPI";
+```
+
+Pull live snowflake data -- fcc
+```{sql echo=TRUE, connection=con, output.var='fcc'}
+SELECT *
+FROM "39_SANJOAQUIN-DWH_PROD"."SECURE_SHARE"."FACT_COURT_CASE";
+```
+
+Pull live snowflake data -- fw
+```{sql echo=TRUE, connection=con, output.var='fw'}
+SELECT *
+FROM "39_SANJOAQUIN-DWH_PROD"."SECURE_SHARE"."FACT_WARRANT";
+```
+
+Pull live snowflake data -- dw
+```{sql echo=TRUE, connection=con, output.var='dw'}
+SELECT *
+FROM "39_SANJOAQUIN-DWH_PROD"."SECURE_SHARE"."DIM_WARRANT";
+```
+
+Pull live snowflake data -- link
+```{sql echo=TRUE, connection=con, output.var='link'}
+SELECT *
+FROM "39_SANJOAQUIN-DWH_PROD"."SECURE_SHARE"."DS_PRETRIAL_BOOKING_CASE_LINK";
+```
+
+# Calculate FTA rate including recalled warrants 
+```{r}
+wars <- fw %>%
+  left_join(dw)
+
+fta_wars <- wars %>%
+  mutate(war_issue_date = ymd(DIM_WARRANT_ISSUANCE_DATE_KEY)) %>%
+  select(war_issue_date, CASE_KEY, WARRANT_TYPE, WARRANT_STATUS, WARRANT_REASON) %>%
+  filter(!is.na(war_issue_date)) %>%
+  filter(WARRANT_TYPE == "Bench",
+         WARRANT_REASON == "FTA",
+         WARRANT_STATUS %in% c("Issued", "Served", "Ordered", "Recalled")) %>%
+  distinct()
+
+fta_wars <- fta_wars %>%
+  left_join(link %>%
+            select(BOOKING_KEY, CASE_KEY) %>%
+              distinct()) %>%
+  select(war_issue_date, BOOKING_KEY) %>%
+  distinct() %>%
+  filter(!is.na(BOOKING_KEY))
+
+agg_rec<- agg %>%
+  mutate(row = row_number()) %>%
+  left_join(fta_wars) %>%
+  mutate(fta_test_flag = case_when(is.na(war_issue_date) ~ 0,
+                                    war_issue_date >= RELEASE_DATE & war_issue_date <= PRETRIAL_PERIOD_END_DATE ~ 1,
+                                   T ~ 0)) %>%
+  group_by(BOOKING_KEY) %>%
+  arrange(desc(fta_test_flag), war_issue_date) %>%
+  mutate(fta_test_flag = max(fta_test_flag)) %>%
+  ungroup() %>%
+  distinct(row, .keep_all = T) 
+
+wars %>%
+  count(WARRANT_REASON)
+```
+
+Join to FTAs from DOJ flag
+```{r}
+test <- agg_enh %>%
+  filter(COUNTY == "San Joaquin") %>%
+  left_join(agg_rec %>% select(BOOKING_KEY, fta_test_flag, RISK_SCORE) %>% distinct())
+
+```
+
+
+# Look at new FTA rate
+```{r}
+test %>%
+  filter(BOOKING_DATE > '2018-07-01',
+         BOOKING_DATE < '2023-01-01') %>%
+  filter(IS_BOOKING_ASSESSED == "Yes") %>%
+  filter(IS_RELEASE_ELIGIBLE == "Yes") %>%
+  filter(IS_RELEASED_PRETRIAL == "Yes") %>%
+  filter(!is.na(CII)) %>%
+  filter(HAS_PRETRIAL_PERIOD_END == "Yes") %>%
+  filter(!is.na(RISK_SCORE)) %>%
+  count(fta_test_flag, FAILURE_TO_APPEAR_COUNT, RECID_ARREST_FTA_FLAG_DOJ) %>%
+  mutate(tot = sum(n), perc = round(100*n/sum(n),1))
+
+test %>%
+  filter(BOOKING_DATE > '2018-07-01',
+         BOOKING_DATE < '2023-01-01') %>%
+  filter(IS_BOOKING_ASSESSED == "Yes") %>%
+  filter(IS_RELEASE_ELIGIBLE == "Yes") %>%
+  filter(IS_RELEASED_PRETRIAL == "Yes") %>%
+  filter(!is.na(CII)) %>%
+  filter(HAS_PRETRIAL_PERIOD_END == "Yes") %>%
+  filter(!is.na(RISK_SCORE)) %>%
+  mutate(fta_all = case_when(fta_test_flag == 1 ~ 1,
+                             RECID_ARREST_FTA_FLAG_DOJ == 1 ~ 1,
+                             FAILURE_TO_APPEAR_COUNT == 1 ~ 1,
+                             T ~ 0)) %>%
+  count(fta_all) %>%
+  mutate(tot = sum(n), perc = round(100*n/sum(n),1))
+
+```
+
+Old FTA rate
+```{r}
+test %>%
+  filter(BOOKING_DATE > '2018-07-01',
+         BOOKING_DATE < '2023-01-01') %>%
+  filter(IS_BOOKING_ASSESSED == "Yes") %>%
+  filter(IS_RELEASE_ELIGIBLE == "Yes") %>%
+  filter(IS_RELEASED_PRETRIAL == "Yes") %>%
+  filter(!is.na(CII)) %>%
+  filter(HAS_PRETRIAL_PERIOD_END == "Yes") %>%
+  filter(!is.na(RISK_SCORE)) %>%
+  count(HAS_FAILURE_TO_APPEAR, RECID_ARREST_FTA_FLAG_DOJ) %>%
+  mutate(tot = sum(n), perc = round(100*n/sum(n),1))
+
+test %>%
+  filter(BOOKING_DATE > '2018-07-01',
+         BOOKING_DATE < '2023-01-01') %>%
+  filter(IS_BOOKING_ASSESSED == "Yes") %>%
+  filter(IS_RELEASE_ELIGIBLE == "Yes") %>%
+  filter(IS_RELEASED_PRETRIAL == "Yes") %>%
+  filter(!is.na(CII)) %>%
+  filter(HAS_PRETRIAL_PERIOD_END == "Yes") %>%
+  filter(!is.na(RISK_SCORE)) %>%
+  mutate(fta_all = case_when(FAILURE_TO_APPEAR_COUNT == 1 ~ 1,
+                             RECID_ARREST_FTA_FLAG_DOJ == 1 ~ 1,
+                             T ~ 0)) %>%
+  count(fta_all) %>%
+  mutate(tot = sum(n), perc = round(100*n/sum(n),1))
+```
+

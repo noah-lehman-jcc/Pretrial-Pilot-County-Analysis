@@ -1,0 +1,36 @@
+---
+title: "Untitled"
+output: html_document
+date: "2023-09-20"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+```
+
+```{r}
+load('Complete Charge Code Hierarchy_SL.RData')
+
+
+
+# zb_flag from scratch
+charge_hier <- charge_hier %>%
+  mutate(zb_flag = case_when(
+    grepl( "F_PC_69|PC_166C1|PC_1361|PC_262|PC_243E1|PC_2735|PC2736|F_PC_422|PC_6469|PC_290C|VC_23152|VC_23153|F_PC_463|PC_29800", join_var) ~ 0,
+    serious_felony_flag == 1  ~ 0,
+    violent_felony_flag == 1 ~ 0, 
+    T ~ 1))
+
+charge_hier
+
+charge_zbflag <- charge_hier %>%
+  select(join_var, charge_level, charge_code, charge, master_charge_description, zb_flag)
+
+zb_charges <- charge_zbflag %>%
+  filter(zb_flag == 1)
+
+
+write.csv(charge_zbflag, "charge list with approximated zb flag.csv")
+```
+
