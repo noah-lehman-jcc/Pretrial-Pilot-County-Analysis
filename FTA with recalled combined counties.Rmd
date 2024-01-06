@@ -678,4 +678,52 @@ fta_hearing_warrant %>%
   select(-perc_old_total)
 ```
 
+Look at warrant FTAs that were removed since 2022 reports -- eg other warrant types and statuses
+```{r}
+fta_rem <- wars %>%
+  mutate(war_issue_date = ymd(DIM_WARRANT_ISSUANCE_DATE_KEY)) %>%
+  select(war_issue_date, CASE_KEY, WARRANT_TYPE, WARRANT_STATUS, WARRANT_REASON) %>%
+  filter(!is.na(war_issue_date)) %>%
+  filter(WARRANT_REASON == "FTA",
+         WARRANT_TYPE != "Bench"| !WARRANT_STATUS %in% c("Issued", "Served", "Ordered", "Recalled")) %>%
+  distinct()
+
+fta_rem <- fta_rem %>%
+  left_join(link %>%
+            select(COUNTY, BOOKING_KEY, CASE_KEY) %>%
+              distinct()) %>%
+  select(COUNTY, war_issue_date, BOOKING_KEY) %>%
+  distinct() %>%
+  filter(!is.na(BOOKING_KEY))
+
+fta_rem <- fta_rem %>%
+  rename(rem_war_date = war_issue_date)
+
+agg_rem<- agg_rec %>%
+  left_join(fta_rem) %>%
+  mutate(fta_rem_flag = case_when(is.na(rem_war_date) ~ 0,
+                                    rem_war_date >= RELEASE_DATE & rem_war_date <= PRETRIAL_PERIOD_END_DATE ~ 1,
+                                   T ~ 0)) %>%
+  group_by(COUNTY, BOOKING_KEY) %>%
+  arrange(desc(fta_rem_flag), war_issue_date) %>%
+  mutate(fta_rem_flag = max(fta_rem_flag)) %>%
+  ungroup() %>%
+  distinct(row, .keep_all = T) 
+
+fta_rem_list <- agg_rem %>%
+  filter(fta_test_flag == 0,
+         fta_rem_flag == 1) %>%
+  select(COUNTY, BOOKING_KEY)
+
+fta_rem_list <-fta_rem_list %>%
+  left_join(link %>%
+            select(COUNTY, BOOKING_KEY, CASE_KEY) %>%
+              distinct())
+
+wars %>%
+  inner_join(fta_rem_list) %>%
+  count(COUNTY, WARRANT_TYPE, WARRANT_STATUS, WARRANT_REASON) %>%
+  arrange(COUNTY, desc(n))
+```
+
 
