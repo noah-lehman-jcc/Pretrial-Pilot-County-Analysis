@@ -41,6 +41,93 @@ FROM "DWH_PROD"."DATA_SCIENCE"."JOIN_DF_STD"
 ;
 ```
 
+Pull additional variables - monitoring start date and pretrial termination date
+```{sql echo=TRUE, connection=con, output.var='mon_df'}
+SELECT 'Alameda' as county, BOOKING_KEY, DIM_PRETRIAL_MONITORING_START_DATE_KEY, DIM_PRETRIAL_TERMINATION_DATE_KEY
+FROM "01_ALAMEDA-DWH_PROD"."SECURE_SHARE"."FACT_PRETRIAL_ASSESSMENT"
+
+UNION ALL
+
+SELECT  'Calaveras' as county, BOOKING_KEY, DIM_PRETRIAL_MONITORING_START_DATE_KEY, DIM_PRETRIAL_TERMINATION_DATE_KEY
+from "05_CALAVERAS-DWH_PROD"."SECURE_SHARE"."FACT_PRETRIAL_ASSESSMENT"
+
+UNION ALL
+
+SELECT  'Kings' as county, BOOKING_KEY, DIM_PRETRIAL_MONITORING_START_DATE_KEY, DIM_PRETRIAL_TERMINATION_DATE_KEY
+from "16_KINGS-DWH_PROD"."SECURE_SHARE"."FACT_PRETRIAL_ASSESSMENT"
+
+UNION ALL
+
+SELECT  'Los Angeles' as county, BOOKING_KEY, DIM_PRETRIAL_MONITORING_START_DATE_KEY, DIM_PRETRIAL_TERMINATION_DATE_KEY
+from "19_LOSANGELES-DWH_PROD"."SECURE_SHARE"."FACT_PRETRIAL_ASSESSMENT"
+
+UNION ALL
+
+SELECT  'Modoc' as county, BOOKING_KEY, DIM_PRETRIAL_MONITORING_START_DATE_KEY, DIM_PRETRIAL_TERMINATION_DATE_KEY
+from "25_MODOC-DWH_PROD"."SECURE_SHARE"."FACT_PRETRIAL_ASSESSMENT"
+
+UNION ALL
+
+SELECT  'Napa' as county, BOOKING_KEY, DIM_PRETRIAL_MONITORING_START_DATE_KEY, DIM_PRETRIAL_TERMINATION_DATE_KEY
+from "28_NAPA-DWH_PROD"."SECURE_SHARE"."FACT_PRETRIAL_ASSESSMENT"
+
+UNION ALL
+
+SELECT  'Nevada' as county, BOOKING_KEY, DIM_PRETRIAL_MONITORING_START_DATE_KEY, DIM_PRETRIAL_TERMINATION_DATE_KEY
+from "29_NEVADA-DWH_PROD"."SECURE_SHARE"."FACT_PRETRIAL_ASSESSMENT"
+
+UNION ALL
+
+SELECT  'Sacramento' as county, BOOKING_KEY, DIM_PRETRIAL_MONITORING_START_DATE_KEY, DIM_PRETRIAL_TERMINATION_DATE_KEY
+from "34_SACRAMENTO-DWH_PROD"."SECURE_SHARE"."FACT_PRETRIAL_ASSESSMENT"
+
+UNION ALL
+
+SELECT  'San Joaquin' as county, BOOKING_KEY, DIM_PRETRIAL_MONITORING_START_DATE_KEY, DIM_PRETRIAL_TERMINATION_DATE_KEY
+from "39_SANJOAQUIN-DWH_PROD"."SECURE_SHARE"."FACT_PRETRIAL_ASSESSMENT"
+
+UNION ALL
+
+SELECT  'San Mateo' as county, BOOKING_KEY, DIM_PRETRIAL_MONITORING_START_DATE_KEY, DIM_PRETRIAL_TERMINATION_DATE_KEY
+from "41_SANMATEO-DWH_PROD"."SECURE_SHARE"."FACT_PRETRIAL_ASSESSMENT"
+
+UNION ALL
+
+SELECT  'Santa Barbara' as county, BOOKING_KEY, DIM_PRETRIAL_MONITORING_START_DATE_KEY, DIM_PRETRIAL_TERMINATION_DATE_KEY
+from "42_SANTABARBARA-DWH_PROD"."SECURE_SHARE"."FACT_PRETRIAL_ASSESSMENT"
+
+UNION ALL
+
+SELECT  'Sierra' as county, BOOKING_KEY, DIM_PRETRIAL_MONITORING_START_DATE_KEY, DIM_PRETRIAL_TERMINATION_DATE_KEY
+from "46_SIERRA-DWH_PROD"."SECURE_SHARE"."FACT_PRETRIAL_ASSESSMENT"
+
+UNION ALL
+
+SELECT  'Sonoma' as county, BOOKING_KEY, DIM_PRETRIAL_MONITORING_START_DATE_KEY, DIM_PRETRIAL_TERMINATION_DATE_KEY
+from "49_SONOMA-DWH_PROD"."SECURE_SHARE"."FACT_PRETRIAL_ASSESSMENT"
+
+UNION ALL
+
+SELECT  'Tulare' as county, BOOKING_KEY, DIM_PRETRIAL_MONITORING_START_DATE_KEY, DIM_PRETRIAL_TERMINATION_DATE_KEY
+from "54_TULARE-DWH_PROD"."SECURE_SHARE"."FACT_PRETRIAL_ASSESSMENT"
+
+UNION ALL
+
+SELECT  'Tuolumne' as county, BOOKING_KEY, DIM_PRETRIAL_MONITORING_START_DATE_KEY, DIM_PRETRIAL_TERMINATION_DATE_KEY
+from "55_TUOLUMNE-DWH_PROD"."SECURE_SHARE"."FACT_PRETRIAL_ASSESSMENT"
+
+UNION ALL
+
+SELECT  'Ventura' as county, BOOKING_KEY, DIM_PRETRIAL_MONITORING_START_DATE_KEY, DIM_PRETRIAL_TERMINATION_DATE_KEY
+from "56_VENTURA-DWH_PROD"."SECURE_SHARE"."FACT_PRETRIAL_ASSESSMENT"
+
+UNION ALL
+
+SELECT  'Yuba' as county, BOOKING_KEY, DIM_PRETRIAL_MONITORING_START_DATE_KEY, DIM_PRETRIAL_TERMINATION_DATE_KEY
+from "58_YUBA-DWH_PROD"."SECURE_SHARE"."FACT_PRETRIAL_ASSESSMENT"
+;
+```
+
 Format data - join df  
 ```{r warning=FALSE, include=FALSE}
 
@@ -58,6 +145,7 @@ join_df <- join_df %>%
 ```
 
 
+
 SB 129 numbers
 ```{r}
 rep_df <- join_df %>%
@@ -68,7 +156,10 @@ rep_df <- join_df %>%
                            booking_date < as.Date("2022-10-01") ~ "FY2 Q1",
                            booking_date < as.Date("2023-01-01") ~ "FY2 Q2",
                            booking_date < as.Date("2023-04-01") ~ "FY2 Q3",
-                           booking_date < as.Date("2023-07-01") ~ "FY2 Q3")) %>%
+                           booking_date < as.Date("2023-07-01") ~ "FY2 Q4",
+                           booking_date < as.Date("2023-10-01") ~ "FY3 Q1",
+                           booking_date < as.Date("2024-01-01") ~ "FY3 Q2",
+                           booking_date < as.Date("2024-04-01") ~ "FY3 Q3")) %>%
   mutate(rel_within_2days = case_when(
     weekdays(book_date) == "Thursday" & release_date - book_date <= 4 ~ 1,
     weekdays(book_date) == "Friday" & release_date - book_date <= 4 ~ 1,
@@ -96,6 +187,59 @@ rep_df <- join_df %>%
                                   release_type %in% c("Zero Bail") ~ "Zero Bail",
                                   T ~ "Other"))
 
+rep_df <- rep_df %>%
+  mutate(monitoring_level_grouped = if_else(monitoring_level_grouped %in% c("Alameda.GPS Monitoring","Alameda.Alcohol Monitoring","Alameda.GPS and Alcohol Monitoring"), "Highest Levels", monitoring_level_grouped))
+
+
+```
+
+Format mon_df and join to rep_df
+```{r}
+names(mon_df) <- tolower(names(mon_df))
+
+mon_dfj <- mon_df %>%
+  filter(!is.na(booking_key))
+
+mon_dfj <- mon_dfj %>%
+  mutate(monitoring_start_date = ymd(dim_pretrial_monitoring_start_date_key)) %>%
+  filter(dim_pretrial_monitoring_start_date_key !=0) %>%
+  select(-dim_pretrial_monitoring_start_date_key, -dim_pretrial_termination_date_key)
+
+rep_df <- rep_df %>%
+  mutate(rownum = row_number()) %>%
+  left_join(mon_dfj, by = c('county', 'booking_key')) %>%
+  distinct(rownum, .keep_all = T) %>%
+  select(-rownum)
+
+```
+
+Test code to look at all open monitoring cases in each quarter, whether or not they started that quarter
+```{r}
+test <- rep_df %>%
+  filter(release_type == "Pretrial Supervision" | monitoring_level_grouped %in% c("Lowest Levels", "Medium Levels", "Highest Levels"))
+  
+test <- test %>%
+   mutate(FY1Q12 = if_else("2021-07-01" < pretrial_termination_date & monitoring_start_date < "2022-01-01", 1, 0),
+          FY1Q3 = if_else("2022-01-01" < pretrial_termination_date& monitoring_start_date < "2022-04-01", 1, 0),
+          FY1Q4 = if_else("2022-04-01" < pretrial_termination_date & monitoring_start_date < "2022-07-01", 1, 0),
+          FY2Q1 = if_else("2022-07-01"  < pretrial_termination_date & monitoring_start_date < "2022-10-01", 1, 0),
+          FY2Q2 = if_else("2022-10-01" < pretrial_termination_date & monitoring_start_date < "2023-01-01", 1, 0),
+          FY2Q3 = if_else("2023-01-01" < pretrial_termination_date & monitoring_start_date < "2023-04-01", 1, 0),
+          FY2Q4 = if_else("2023-04-01" < pretrial_termination_date & monitoring_start_date < "2023-07-01", 1, 0),
+          FY3Q1 = if_else("2023-07-01" < pretrial_termination_date & monitoring_start_date < "2023-10-01", 1, 0),
+          FY3Q2 = if_else("2023-10-01" < pretrial_termination_date & monitoring_start_date < "2024-01-01", 1, 0),
+          FY3Q3 = if_else("2024-01-01" < pretrial_termination_date & monitoring_start_date < "2024-04-01", 1, 0))
+  
+  
+test %>% 
+  select(county, 'FY1Q12', 'FY1Q3', 'FY1Q4', 'FY2Q1', 'FY2Q2', 'FY2Q3', 'FY2Q4', 'FY3Q1', 'FY3Q2', 'FY3Q3') %>%
+  pivot_longer(cols = c('FY1Q12', 'FY1Q3', 'FY1Q4', 'FY2Q1', 'FY2Q2', 'FY2Q3', 'FY2Q4', 'FY3Q1', 'FY3Q2', 'FY3Q3'), names_to = "rep_quart", values_to = "flag") %>%
+  group_by(county, rep_quart) %>%
+  summarise(tot = sum(flag, na.rm = T))
+```
+
+
+```{r}
 out <- createWorkbook()
 
 #Q1: Total bookings (all bookings even if not eligible for pretrial release)
@@ -143,42 +287,33 @@ q4 <- rep_df %>%
 
 writeData(out, sheet = "4 Released after 2 days", x = q4)
 
-#Q5: Avg monthly bookings by demographics
-addWorksheet(out, "5 Avg monthly bookings by sex")
+#Q5: Total quarterly bookings by demographics
+addWorksheet(out, "5 Tot qtly bookings by sex")
 
 q5_sex <- rep_df %>%
   filter(sex %in% c("Male", "Female")) %>%
-  mutate(book_month = month(booking_date)) %>%
-  group_by(county, rep_q, book_month, sex) %>%
-  count() %>%
   group_by(county, rep_q, sex) %>%
-  summarise(avg_bookings = round(mean(n),1))
+  count(name = 'tot_bookings') 
 
-writeData(out, sheet = "5 Avg monthly bookings by sex", x = q5_sex)
+writeData(out, sheet = "5 Tot qtly bookings by sex", x = q5_sex)
 
-addWorksheet(out, "5 Avg monthly bookings by age")
+addWorksheet(out, "5 Tot qtly bookings by age")
 
 q5_age <- rep_df %>%
   filter(age_grp != "Other") %>%
-  mutate(book_month = month(booking_date)) %>%
-  group_by(county, rep_q, book_month, age_grp) %>%
-  count() %>%
   group_by(county, rep_q, age_grp) %>%
-  summarise(avg_bookings = round(mean(n),1)) 
+  count(name = 'tot_bookings')
 
-writeData(out, sheet = "5 Avg monthly bookings by age", x = q5_age)
+writeData(out, sheet = "5 Tot qtly bookings by age", x = q5_age)
 
 
-addWorksheet(out, "5 Avg monthly bookings by race")
+addWorksheet(out, "5 Tot qtly bookings by race")
 
 q5_race <- rep_df %>%
-  mutate(book_month = month(booking_date)) %>%
-  group_by(county, rep_q, book_month, race) %>%
-  count() %>%
   group_by(county, rep_q, race) %>%
-  summarise(avg_bookings = round(mean(n),1)) 
+  count(name = 'tot_bookings') 
 
-writeData(out, sheet = "5 Avg monthly bookings by race", x = q5_race)
+writeData(out, sheet = "5 Tot qtly bookings by race", x = q5_race)
 
 #Q6: Total assessments
 addWorksheet(out, "6 Total Assessments")
@@ -189,8 +324,11 @@ q6 <- rep_df %>%
                            assessment_date < as.Date("2022-07-01") ~ "FY1 Q4",
                            assessment_date < as.Date("2022-10-01") ~ "FY2 Q1",
                            assessment_date < as.Date("2023-01-01") ~ "FY2 Q2",
-                           booking_date < as.Date("2023-04-01") ~ "FY2 Q3",
-                           booking_date < as.Date("2023-07-01") ~ "FY2 Q4")) %>%
+                           assessment_date < as.Date("2023-04-01") ~ "FY2 Q3",
+                           assessment_date < as.Date("2023-07-01") ~ "FY2 Q4",
+                           assessment_date < as.Date("2023-10-01") ~ "FY3 Q1",
+                           assessment_date < as.Date("2024-01-01") ~ "FY3 Q2",
+                           assessment_date < as.Date("2024-04-01") ~ "FY3 Q3")) %>%
   mutate(scored_assessment = if_else(is.na(risk_score_raw) & is.na(score_new_criminal_activity) & is.na(generic_tool_total_score_raw), 0,1)) %>%
   filter(is_booking_assessed == "Yes" & scored_assessment == 1) %>%
   group_by(county, aq) %>%
@@ -201,7 +339,6 @@ writeData(out, sheet = "6 Total Assessments", x = q6)
 #Q7: Total monitored
 addWorksheet(out, "7 Total Monitored")
 
-# maybe make flags for each quarter??
 q7 <- rep_df %>%
   filter(release_type == "Pretrial Supervision" | monitoring_level_grouped %in% c("Lowest Levels", "Medium Levels", "Highest Levels")) %>%
   mutate(rq = case_when(release_date < as.Date("2022-01-01") ~ "FY1 Q1-2",
@@ -210,7 +347,10 @@ q7 <- rep_df %>%
                            release_date < as.Date("2022-10-01") ~ "FY2 Q1",
                            release_date < as.Date("2023-01-01") ~ "FY2 Q2",
                            release_date < as.Date("2023-04-01") ~ "FY2 Q3",
-                           release_date < as.Date("2023-07-01") ~ "FY2 Q4")) %>%
+                           release_date < as.Date("2023-07-01") ~ "FY2 Q4",
+                           release_date < as.Date("2023-10-01") ~ "FY3 Q1",
+                           release_date < as.Date("2024-01-01") ~ "FY3 Q2",
+                           release_date < as.Date("2024-04-01") ~ "FY3 Q3")) %>%
   group_by(county, rep_q) %>%
   count()
 
@@ -220,36 +360,46 @@ writeData(out, sheet = "7 Total Monitored", x = q7)
 addWorksheet(out, "7a Total EM")
 
 q7a <- rep_df %>%
-  filter(release_type == "Pretrial Supervision" | monitoring_level_grouped %in% c("Lowest Levels", "Medium Levels", "Highest Levels")) %>%
   mutate(rq = case_when(release_date < as.Date("2022-01-01") ~ "FY1 Q1-2",
                            release_date < as.Date("2022-04-01") ~ "FY1 Q3",
                            release_date < as.Date("2022-07-01") ~ "FY1 Q4",
                            release_date < as.Date("2022-10-01") ~ "FY2 Q1",
                            release_date < as.Date("2023-01-01") ~ "FY2 Q2",
                            release_date < as.Date("2023-04-01") ~ "FY2 Q3",
-                           release_date < as.Date("2023-07-01") ~ "FY2 Q4")) %>%
+                           release_date < as.Date("2023-07-01") ~ "FY2 Q4",
+                           release_date < as.Date("2023-10-01") ~ "FY3 Q1",
+                           release_date < as.Date("2024-01-01") ~ "FY3 Q2",
+                           release_date < as.Date("2024-04-01") ~ "FY3 Q3")) %>%
   group_by(county, rep_q) %>%
-  count()
+  summarise(em_flag = sum(condition_em_flag, na.rm = T), em_monitored = sum(if_else(condition_em_flag == 1 & (release_type == "Pretrial Supervision" | monitoring_level_grouped %in% c("Lowest Levels", "Medium Levels", "Highest Levels")), 1,0)))
+
 
 writeData(out, sheet = "7a Total EM", x = q7a)
 
 #Q7b: Total support
 addWorksheet(out, "7b Total support")
 
-# maybe make flags for each quarter??
 q7b <- rep_df %>%
-  filter(release_type == "Pretrial Supervision" | monitoring_level_grouped %in% c("Lowest Levels", "Medium Levels", "Highest Levels")) %>%
+  mutate(pretrial_service_flag = case_when(other_pretrial_service == 1 ~ 1,
+                                           toupper(other_pretrial_service) == "YES" ~ 1,
+                                           other_pretrial_service == "Receives Other Pretrial Services" ~ 1,
+                                           T ~ 0)) %>%
   mutate(rq = case_when(release_date < as.Date("2022-01-01") ~ "FY1 Q1-2",
                            release_date < as.Date("2022-04-01") ~ "FY1 Q3",
                            release_date < as.Date("2022-07-01") ~ "FY1 Q4",
                            release_date < as.Date("2022-10-01") ~ "FY2 Q1",
                            release_date < as.Date("2023-01-01") ~ "FY2 Q2",
                            release_date < as.Date("2023-04-01") ~ "FY2 Q3",
-                           release_date < as.Date("2023-07-01") ~ "FY2 Q4")) %>%
+                           release_date < as.Date("2023-07-01") ~ "FY2 Q4",
+                           release_date < as.Date("2023-10-01") ~ "FY3 Q1",
+                           release_date < as.Date("2024-01-01") ~ "FY3 Q2",
+                           release_date < as.Date("2024-04-01") ~ "FY3 Q3")) %>%
   group_by(county, rep_q) %>%
-  count()
+  summarise(support_flag = sum(if_else(transit_service_flag == 1 | pretrial_service_flag == 1, 1, 0)), support_monitored = sum(if_else((transit_service_flag == 1 | pretrial_service_flag == 1) & (release_type == "Pretrial Supervision" | monitoring_level_grouped %in% c("Lowest Levels", "Medium Levels", "Highest Levels")), 1,0)))
 
 writeData(out, sheet = "7b Total support", x = q7b)
+
+
 
 #Q7c: New monitoring cases
 addWorksheet(out, "7c New Monitoring Cases")
@@ -262,7 +412,10 @@ q7c <- rep_df %>%
                            release_date < as.Date("2022-10-01") ~ "FY2 Q1",
                            release_date < as.Date("2023-01-01") ~ "FY2 Q2",
                            release_date < as.Date("2023-04-01") ~ "FY2 Q3",
-                           release_date < as.Date("2023-07-01") ~ "FY2 Q4")) %>%
+                           release_date < as.Date("2023-07-01") ~ "FY2 Q4",
+                           release_date < as.Date("2023-10-01") ~ "FY3 Q1",
+                           release_date < as.Date("2024-01-01") ~ "FY3 Q2",
+                           release_date < as.Date("2024-04-01") ~ "FY3 Q3")) %>%
   group_by(county, rep_q) %>%
   count()
 
