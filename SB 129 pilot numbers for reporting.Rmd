@@ -42,7 +42,7 @@ FROM "DWH_PROD"."DATA_SCIENCE"."JOIN_DF_STD"
 ```
 
 Pull additional variables - monitoring start date and pretrial termination date
-```{sql echo=TRUE, connection=con, output.var='mon_df'}
+```{sql eval=FALSE, connection=con, include=FALSE, output.var='mon_df'}
 SELECT 'Alameda' as county, BOOKING_KEY, DIM_PRETRIAL_MONITORING_START_DATE_KEY, DIM_PRETRIAL_TERMINATION_DATE_KEY
 FROM "01_ALAMEDA-DWH_PROD"."SECURE_SHARE"."FACT_PRETRIAL_ASSESSMENT"
 
@@ -194,7 +194,7 @@ rep_df <- rep_df %>%
 ```
 
 Format mon_df and join to rep_df
-```{r}
+```{r eval=FALSE, include=FALSE}
 names(mon_df) <- tolower(names(mon_df))
 
 mon_dfj <- mon_df %>%
@@ -214,11 +214,17 @@ rep_df <- rep_df %>%
 ```
 
 Test code to look at all open monitoring cases in each quarter, whether or not they started that quarter
-```{r}
+```{r eval=FALSE, include=FALSE}
 test <- rep_df %>%
   filter(release_type == "Pretrial Supervision" | monitoring_level_grouped %in% c("Lowest Levels", "Medium Levels", "Highest Levels"))
   
+
+# a.start < b.end & b.start < a.end
+
 test <- test %>%
+  mutate(start_date = release_date, end_date = case_when(!is.na(pretrial_termination_date) ~ pretrial_termination_date,
+                                                         !is.na(pretrial_period_end_date) ~ pretrial_period_end_date,
+                                                           !is.na(pretrial_period_end_date_doj) ~ pretrial_period_end_date_doj)) %>%
    mutate(FY1Q12 = if_else("2021-07-01" < pretrial_termination_date & monitoring_start_date < "2022-01-01", 1, 0),
           FY1Q3 = if_else("2022-01-01" < pretrial_termination_date& monitoring_start_date < "2022-04-01", 1, 0),
           FY1Q4 = if_else("2022-04-01" < pretrial_termination_date & monitoring_start_date < "2022-07-01", 1, 0),
@@ -230,12 +236,47 @@ test <- test %>%
           FY3Q2 = if_else("2023-10-01" < pretrial_termination_date & monitoring_start_date < "2024-01-01", 1, 0),
           FY3Q3 = if_else("2024-01-01" < pretrial_termination_date & monitoring_start_date < "2024-04-01", 1, 0))
   
-  
+
+# a.start < b.end & b.start < a.end
+
+test <- test %>%
+  mutate(start_date = release_date, end_date = case_when(!is.na(pretrial_termination_date) ~ pretrial_termination_date,
+                                                         !is.na(pretrial_period_end_date) ~ pretrial_period_end_date,
+                                                           !is.na(pretrial_period_end_date_doj) ~ pretrial_period_end_date_doj)) %>%
+   mutate(FY1Q12 = if_else("2021-07-01" < end_date & start_date < "2022-01-01", 1, 0),
+          FY1Q3 = if_else("2022-01-01" < end_date& start_date < "2022-04-01", 1, 0),
+          FY1Q4 = if_else("2022-04-01" < end_date & start_date < "2022-07-01", 1, 0),
+          FY2Q1 = if_else("2022-07-01"  < end_date & start_date < "2022-10-01", 1, 0),
+          FY2Q2 = if_else("2022-10-01" < end_date & start_date < "2023-01-01", 1, 0),
+          FY2Q3 = if_else("2023-01-01" < end_date & start_date < "2023-04-01", 1, 0),
+          FY2Q4 = if_else("2023-04-01" < end_date & start_date < "2023-07-01", 1, 0),
+          FY3Q1 = if_else("2023-07-01" < end_date & start_date < "2023-10-01", 1, 0),
+          FY3Q2 = if_else("2023-10-01" < end_date & start_date < "2024-01-01", 1, 0),
+          FY3Q3 = if_else("2024-01-01" < end_date & start_date < "2024-04-01", 1, 0))
+
+
 test %>% 
   select(county, 'FY1Q12', 'FY1Q3', 'FY1Q4', 'FY2Q1', 'FY2Q2', 'FY2Q3', 'FY2Q4', 'FY3Q1', 'FY3Q2', 'FY3Q3') %>%
   pivot_longer(cols = c('FY1Q12', 'FY1Q3', 'FY1Q4', 'FY2Q1', 'FY2Q2', 'FY2Q3', 'FY2Q4', 'FY3Q1', 'FY3Q2', 'FY3Q3'), names_to = "rep_quart", values_to = "flag") %>%
   group_by(county, rep_quart) %>%
   summarise(tot = sum(flag, na.rm = T))
+
+
+
+test %>%
+  group_by(county) %>%
+  summarise(avg_dif = mean(monitoring_start_date - release_date, na.rm = T))
+
+test %>%
+  filter(county == "Tulare") %>%
+  select(release_date, monitoring_start_date, start_date, pretrial_period_end_date, pretrial_period_end_date_doj, end_date)
+
+
+test %>%
+  filter(county == "Tulare") %>%
+  count(is.na(release_date))
+
+Sys.Date()
 ```
 
 
@@ -341,18 +382,24 @@ addWorksheet(out, "7 Total Monitored")
 
 q7 <- rep_df %>%
   filter(release_type == "Pretrial Supervision" | monitoring_level_grouped %in% c("Lowest Levels", "Medium Levels", "Highest Levels")) %>%
-  mutate(rq = case_when(release_date < as.Date("2022-01-01") ~ "FY1 Q1-2",
-                           release_date < as.Date("2022-04-01") ~ "FY1 Q3",
-                           release_date < as.Date("2022-07-01") ~ "FY1 Q4",
-                           release_date < as.Date("2022-10-01") ~ "FY2 Q1",
-                           release_date < as.Date("2023-01-01") ~ "FY2 Q2",
-                           release_date < as.Date("2023-04-01") ~ "FY2 Q3",
-                           release_date < as.Date("2023-07-01") ~ "FY2 Q4",
-                           release_date < as.Date("2023-10-01") ~ "FY3 Q1",
-                           release_date < as.Date("2024-01-01") ~ "FY3 Q2",
-                           release_date < as.Date("2024-04-01") ~ "FY3 Q3")) %>%
-  group_by(county, rep_q) %>%
-  count()
+  mutate(start_date = release_date, end_date = case_when(!is.na(pretrial_termination_date) ~ pretrial_termination_date,
+                                                         !is.na(pretrial_period_end_date) ~ pretrial_period_end_date,
+                                                          !is.na(pretrial_period_end_date_doj) ~ pretrial_period_end_date_doj,
+                                                          T ~ Sys.Date())) %>%
+   mutate(FY1Q12 = if_else("2021-07-01" < end_date & start_date < "2022-01-01", 1, 0),
+          FY1Q3 = if_else("2022-01-01" < end_date& start_date < "2022-04-01", 1, 0),
+          FY1Q4 = if_else("2022-04-01" < end_date & start_date < "2022-07-01", 1, 0),
+          FY2Q1 = if_else("2022-07-01"  < end_date & start_date < "2022-10-01", 1, 0),
+          FY2Q2 = if_else("2022-10-01" < end_date & start_date < "2023-01-01", 1, 0),
+          FY2Q3 = if_else("2023-01-01" < end_date & start_date < "2023-04-01", 1, 0),
+          FY2Q4 = if_else("2023-04-01" < end_date & start_date < "2023-07-01", 1, 0),
+          FY3Q1 = if_else("2023-07-01" < end_date & start_date < "2023-10-01", 1, 0),
+          FY3Q2 = if_else("2023-10-01" < end_date & start_date < "2024-01-01", 1, 0),
+          FY3Q3 = if_else("2024-01-01" < end_date & start_date < "2024-04-01", 1, 0)) %>%
+  select(county, 'FY1Q12', 'FY1Q3', 'FY1Q4', 'FY2Q1', 'FY2Q2', 'FY2Q3', 'FY2Q4', 'FY3Q1', 'FY3Q2', 'FY3Q3') %>%
+  pivot_longer(cols = c('FY1Q12', 'FY1Q3', 'FY1Q4', 'FY2Q1', 'FY2Q2', 'FY2Q3', 'FY2Q4', 'FY3Q1', 'FY3Q2', 'FY3Q3'), names_to = "rep_quart", values_to = "flag") %>%
+  group_by(county, rep_quart) %>%
+  summarise(tot = sum(flag, na.rm = T))
 
 writeData(out, sheet = "7 Total Monitored", x = q7)
 
@@ -424,12 +471,10 @@ writeData(out, sheet = "7c New Monitoring Cases", x = q7c)
 
 out
 #saveWorkbook(out, "SB 129 pilot numbers for Deirdre 12.1.22.xlsx")
-saveWorkbook(out, "SB 129 pilot numbers for Deirdre 3.3.22.xlsx")
+#saveWorkbook(out, "SB 129 pilot numbers for Deirdre 3.3.22.xlsx")
+saveWorkbook(out, "SB 129 pilot numbers for Deirdre 1.12.24.xlsx")
+  
 
-rep_df %>%
-  count(monitoring_level_grouped, release_type) %>%
-  arrange(desc(n))
-  select(contains("monitor"))
 ```
 
 Something is wrong with Calaveras
