@@ -3077,7 +3077,8 @@ stargazer(list(m1,m2,m3,m4,m5,m6),
           star.char = c("*", "**", "***"),
           star.cutoffs = c(.05, .01, .001),
           notes = c("*p<0.05; **p<0.01; ***p<.001"),
-          notes.append = F, font.size = "small")
+          notes.append = F, font.size = "small",
+          out = "VPRAIR_regression.html")
 
 ```
 \newpage
@@ -3100,7 +3101,8 @@ stargazer(list(m1,m2,m3,m4,m5,m6),
           star.char = c("*", "**", "***"),
           star.cutoffs = c(.05, .01, .001),
           notes = c("*p<0.05; **p<0.01; ***p<.001"),
-          notes.append = F, font.size = "small")
+          notes.append = F, font.size = "small",
+          out = "ORAS_regression.html")
 ```
 \newpage
 
@@ -3121,13 +3123,14 @@ stargazer(list(m1,m2,m3,m4,m5),
           star.char = c("*", "**", "***"),
           star.cutoffs = c(.05, .01, .001),
           notes = c("*p<0.05; **p<0.01; ***p<.001"),
-          notes.append = F, font.size = "small")
+          notes.append = F, font.size = "small",
+          out = "PSA_regression.html")
 ```
 \newpage
 
-Alameda - VPRAI-R
+XXXX Alameda - VPRAI-R *** OLD **** SWITCHED TO PSA
 \newline
-```{r, results='asis'}
+```{r eval=FALSE, include=FALSE, results='asis'}
 county_df <- eval_df %>%
   filter(county == "Alameda")
 
@@ -3150,9 +3153,9 @@ stargazer(list(m1,m2,m3,m4,m5,m6),
 ```
 \newpage
 
-Alameda with zero bail dummy - VPRAI-R
+XXXX Alameda with zero bail dummy - VPRAI-R
 \newline
-```{r, results='asis'}
+```{r eval=FALSE, include=FALSE, results='asis'}
 county_df <- eval_df %>%
   filter(county == "Alameda")
 
@@ -3222,7 +3225,8 @@ stargazer(list(m1,m2,m3,m4,m5),
           star.char = c("*", "**", "***"),
           star.cutoffs = c(.05, .01, .001),
           notes = c("*p<0.05; **p<0.01; ***p<.001"),
-          notes.append = F, font.size = "small")
+          notes.append = F, font.size = "small",
+          out = "Los Angeles/PSA_regression.html")
 ```
 \newpage
 
@@ -3246,7 +3250,8 @@ stargazer(list(m1,m2,m3,m4,m5),
           star.char = c("*", "**", "***"),
           star.cutoffs = c(.05, .01, .001),
           notes = c("*p<0.05; **p<0.01; ***p<.001"),
-          notes.append = F, font.size = "small")
+          notes.append = F, font.size = "small",
+          out = "Los Angeles/PSA_regression_zb_main.html")
 
 summary(m1)
 summary(m2)
@@ -3269,7 +3274,8 @@ stargazer(list(m1,m2,m3,m4,m5),
           star.char = c("*", "**", "***"),
           star.cutoffs = c(.05, .01, .001),
           notes = c("*p<0.05; **p<0.01; ***p<.001"),
-          notes.append = F, font.size = "small")
+          notes.append = F, font.size = "small",
+          out = "Los Angeles/PSA_regression_zb_interaction.html")
 
 summary(m1)
 summary(m2)
@@ -3336,7 +3342,7 @@ ggplot(risk_df) +
   labs(x = "Risk Category", y = "Percent",
        title = "Comparison of  Logistic Regression Curves during and outside of the mandatory zero bail period--PSA, Los Angeles") +
   scale_x_continuous(breaks = 1:6)
-
+ggsave("Los Angeles/PSA_regression_with_zb.png")
 # eval_df %>%
 #   filter(tool_name == "PSA") %>%
 #   count(county)
@@ -3364,7 +3370,8 @@ stargazer(list(m1,m2,m3,m4,m5),
           star.char = c("*", "**", "***"),
           star.cutoffs = c(.05, .01, .001),
           notes = c("*p<0.05; **p<0.01; ***p<.001"),
-          notes.append = F, font.size = "small")
+          notes.append = F, font.size = "small",
+          out = "Sacramento/PSA_regression.html")
 ```
 \newpage
 
@@ -3388,7 +3395,8 @@ stargazer(list(m1,m2,m3,m4,m5),
           star.char = c("*", "**", "***"),
           star.cutoffs = c(.05, .01, .001),
           notes = c("*p<0.05; **p<0.01; ***p<.001"),
-          notes.append = F, font.size = "small")
+          notes.append = F, font.size = "small",
+          out = "Tuolumne/PSA_regression.html")
 ```
 \newpage
 
@@ -3412,7 +3420,8 @@ stargazer(list(m1,m2,m3,m4,m5),
           star.char = c("*", "**", "***"),
           star.cutoffs = c(.05, .01, .001),
           notes = c("*p<0.05; **p<0.01; ***p<.001"),
-          notes.append = F, font.size = "small")
+          notes.append = F, font.size = "small",
+          out = "Alameda/PSA_regression.html")
 ```
 \newpage
 
@@ -3438,13 +3447,14 @@ stargazer(list(m1,m2,m3,m4,m5,m6),
           star.char = c("*", "**", "***"),
           star.cutoffs = c(.05, .01, .001),
           notes = c("*p<0.05; **p<0.01; ***p<.001"),
-          notes.append = F, font.size = "small")
+          notes.append = F, font.size = "small",
+          out = "San Mateo/VPRAIR_regression.html")
 ```
 \newpage
 
-San Mateo with zero bail dummy
+San Mateo with zero bail dummy --- ignored for now
 \newline
-```{r, results='asis'}
+```{r eval=FALSE, include=FALSE, results='asis'}
 county_df <- eval_df %>%
   filter(county == "San Mateo")
 
@@ -3525,13 +3535,14 @@ stargazer(list(m1,m2,m3,m4,m5,m6),
           star.char = c("*", "**", "***"),
           star.cutoffs = c(.05, .01, .001),
           notes = c("*p<0.05; **p<0.01; ***p<.001"),
-          notes.append = F, font.size = "small")
+          notes.append = F, font.size = "small",
+          out = "San Joaquin/VPRAI_regression.html")
 ```
 \newpage
 
-San Joaquin with zero bail dummy
+San Joaquin with zero bail dummy ---- IGNORED FOR NOW
 \newline
-```{r results='asis'}
+```{r eval=FALSE, include=FALSE, results='asis'}
 county_df <- eval_df %>%
   filter(county == "San Joaquin")
 
@@ -3604,7 +3615,8 @@ stargazer(list(m1,m2,m3,m4,m5,m6),
           star.char = c("*", "**", "***"),
           star.cutoffs = c(.05, .01, .001),
           notes = c("*p<0.05; **p<0.01; ***p<.001"),
-          notes.append = F, font.size = "small")
+          notes.append = F, font.size = "small",
+          out = "Santa Barbara/VPRAIR_regression.html")
 ```
 \newpage
 
@@ -3628,13 +3640,14 @@ stargazer(list(m1,m2,m3,m4,m5),
           star.char = c("*", "**", "***"),
           star.cutoffs = c(.05, .01, .001),
           notes = c("*p<0.05; **p<0.01; ***p<.001"),
-          notes.append = F, font.size = "small")
+          notes.append = F, font.size = "small",
+          out = "Sonoma/PSA_regression.html")
 ```
 \newpage
 
-Ventura 
+xxxxVentura ---- ORAS *** OLD TOOL **** 
 \newline
-```{r results='asis'}
+```{r eval=FALSE, include=FALSE, results='asis'}
 county_df <- eval_df %>%
   filter(county == "Ventura")
 
@@ -3703,7 +3716,8 @@ stargazer(list(m1,m2,m3,m4,m5,m6),
           star.char = c("*", "**", "***"),
           star.cutoffs = c(.05, .01, .001),
           notes = c("*p<0.05; **p<0.01; ***p<.001"),
-          notes.append = F, font.size = "small")
+          notes.append = F, font.size = "small",
+          out = "Napa/ORAS_regression.html")
 ```
 \newpage
 
@@ -3727,7 +3741,8 @@ stargazer(list(m1,m2,m3,m4,m5),
           star.char = c("*", "**", "***"),
           star.cutoffs = c(.05, .01, .001),
           notes = c("*p<0.05; **p<0.01; ***p<.001"),
-          notes.append = F, font.size = "small")
+          notes.append = F, font.size = "small",
+          out = "Tulare/PSA_regression.html")
 ```
 \newpage
 
@@ -3774,11 +3789,14 @@ names(tool_df) <- c("Outcome", "AUC", "CI (95%)", "N")
 
 kable(tool_df %>% select(-starts_with("N")), booktabs = T, format.args = list(big.mark = ","), 
         # table.attr = "style = \"color: black;\"",
-        format = "latex") %>%
+        format = "html") %>%
     kable_styling(position = "center", full_width = F, 
                   bootstrap_options = c("striped", "hover"), stripe_color = "gray", font_size = 12,
                   latex_options = "hold_position") %>%
-  footnote(paste("N =", tool_df$N[1]))
+  footnote(paste("N =", tool_df$N[1])) %>%
+      save_kable(file = "temp.html")
+
+chrome_print("temp.html", output = "VPRAI_AUC.pdf", format = "pdf")    
   
 ```
 \newpage
@@ -3800,11 +3818,14 @@ names(tool_df) <- c("Outcome", "AUC", "CI (95%)", "N")
 
 kable(tool_df %>% select(-starts_with("N")), booktabs = T, format.args = list(big.mark = ","), 
         # table.attr = "style = \"color: black;\"",
-        format = "latex") %>%
+        format = "html") %>%
     kable_styling(position = "center", full_width = F, 
                   bootstrap_options = c("striped", "hover"), stripe_color = "gray", font_size = 12, 
                   latex_options = "hold_position") %>%
-  footnote(paste("N =", tool_df$N[1]))
+  footnote(paste("N =", tool_df$N[1])) %>%
+      save_kable(file = "temp.html")
+
+chrome_print("temp.html", output = "VPRAIR_AUC.pdf", format = "pdf")    
 ```
 \newpage
 
@@ -3825,11 +3846,14 @@ names(tool_df) <- c("Outcome", "AUC", "CI (95%)", "N")
 
 kable(tool_df %>% select(-starts_with("N")), booktabs = T, format.args = list(big.mark = ","), 
         # table.attr = "style = \"color: black;\"",
-        format = "latex") %>%
+        format = "html") %>%
     kable_styling(position = "center", full_width = F, 
                   bootstrap_options = c("striped", "hover"), stripe_color = "gray", font_size = 12, 
                   latex_options = "hold_position") %>%
-  footnote(paste("N =", tool_df$N[1]))
+  footnote(paste("N =", tool_df$N[1]))  %>%
+      save_kable(file = "temp.html")
+
+chrome_print("temp.html", output = "ORAS_AUC.pdf", format = "pdf")    
 ```
 \newpage
 
@@ -3853,38 +3877,14 @@ names(tool_df) <- c("Risk Score", "Outcome", "AUC", "CI (95%)", "N")
 
 kable(tool_df %>% select(-starts_with("N")), booktabs = T, format.args = list(big.mark = ","), 
         # table.attr = "style = \"color: black;\"",
-        format = "latex") %>%
+        format = "html") %>%
     kable_styling(position = "center", full_width = F, 
                   bootstrap_options = c("striped", "hover"), stripe_color = "gray", font_size = 12, 
                   latex_options = "hold_position") %>%
-  footnote(paste("N =", tool_df$N[1]))
-```
-\newpage
+  footnote(paste("N =", tool_df$N[1]))  %>%
+      save_kable(file = "temp.html")
 
-Alameda - VPRAI-R
-\newline
-```{r}
-tool_df <- auc_df %>%
-  filter(tool_name == "VPRAI-R", race == "All", sex == "All", county == "Alameda") %>%
-  select(outcome, AUC, CI, n) %>%
-  mutate(outcome = case_when(outcome == "fta_flag" ~ "FTA",
-                             outcome == "recid_arrested_flag" ~ "New Arrest",
-                             outcome == "recid_filed_flag" ~ "New Filing",
-                             outcome == "recid_convicted_flag" ~ "New Conviction",
-                             outcome == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest",
-                             outcome == "any_pretrial_failure_flag" ~ "FTA or New Arrest"))
-
-names(tool_df) <- c("Outcome", "AUC", "CI (95%)", "N")
-
-kable(tool_df %>% select(-starts_with("N")), booktabs = T, format.args = list(big.mark = ","), 
-        # table.attr = "style = \"color: black;\"",
-        format = "latex") %>%
-    kable_styling(position = "center", full_width = F, 
-                  bootstrap_options = c("striped", "hover"), stripe_color = "gray", font_size = 12,
-                  latex_options = "hold_position") %>%
-  footnote(paste("N =", tool_df$N[1]))
-
-
+chrome_print("temp.html", output = "PSA_AUC.pdf", format = "pdf") 
 ```
 \newpage
 
@@ -3908,11 +3908,14 @@ names(tool_df) <- c("Risk Score", "Outcome", "AUC", "CI (95%)", "N")
 
 kable(tool_df %>% select(-starts_with("N")), booktabs = T, format.args = list(big.mark = ","), 
         # table.attr = "style = \"color: black;\"",
-        format = "latex") %>%
+        format = "html") %>%
     kable_styling(position = "center", full_width = F, 
                   bootstrap_options = c("striped", "hover"), stripe_color = "gray", font_size = 12,
                   latex_options = "hold_position") %>%
-  footnote(paste("N =", tool_df$N[1]))
+  footnote(paste("N =", tool_df$N[1]))  %>%
+      save_kable(file = "temp.html")
+
+chrome_print("temp.html", output = "Los Angeles/PSA_AUC.pdf", format = "pdf") 
 ```
 \newpage
 
@@ -3933,11 +3936,14 @@ names(tool_df) <- c("Outcome", "AUC", "CI (95%)", "N")
 
 kable(tool_df %>% select(-starts_with("N")), booktabs = T, format.args = list(big.mark = ","), 
         # table.attr = "style = \"color: black;\"",
-        format = "latex") %>%
+        format = "html") %>%
     kable_styling(position = "center", full_width = F, 
                   bootstrap_options = c("striped", "hover"), stripe_color = "gray", font_size = 12,
                   latex_options = "hold_position") %>%
-  footnote(paste("N =", tool_df$N[1]))
+  footnote(paste("N =", tool_df$N[1]))  %>%
+      save_kable(file = "temp.html")
+
+chrome_print("temp.html", output = "San Mateo/VPRAIR_AUC.pdf", format = "pdf") 
 
 
 ```
@@ -3964,11 +3970,14 @@ names(tool_df) <- c("Risk Score", "Outcome", "AUC", "CI (95%)", "N")
 
 kable(tool_df %>% select(-starts_with("N")), booktabs = T, format.args = list(big.mark = ","), 
         # table.attr = "style = \"color: black;\"",
-        format = "latex") %>%
+        format = "html") %>%
     kable_styling(position = "center", full_width = F, 
                   bootstrap_options = c("striped", "hover"), stripe_color = "gray", font_size = 12, 
                   latex_options = "hold_position") %>%
-  footnote(paste("N =", tool_df$N[1]))
+  footnote(paste("N =", tool_df$N[1]))  %>%
+      save_kable(file = "temp.html")
+
+chrome_print("temp.html", output = "Sacramento/PSA_AUC.pdf", format = "pdf") 
 ```
 \newpage
 
@@ -3992,11 +4001,14 @@ names(tool_df) <- c("Risk Score", "Outcome", "AUC", "CI (95%)", "N")
 
 kable(tool_df %>% select(-starts_with("N")), booktabs = T, format.args = list(big.mark = ","), 
         # table.attr = "style = \"color: black;\"",
-        format = "latex") %>%
+        format = "html") %>%
     kable_styling(position = "center", full_width = F, 
                   bootstrap_options = c("striped", "hover"), stripe_color = "gray", font_size = 12, 
                   latex_options = "hold_position") %>%
-  footnote(paste("N =", tool_df$N[1]))
+  footnote(paste("N =", tool_df$N[1]))  %>%
+      save_kable(file = "temp.html")
+
+chrome_print("temp.html", output = "Tuolumne/PSA_AUC.pdf", format = "pdf") 
 ```
 \newpage
 
@@ -4020,11 +4032,14 @@ names(tool_df) <- c("Risk Score", "Outcome", "AUC", "CI (95%)", "N")
 
 kable(tool_df %>% select(-starts_with("N")), booktabs = T, format.args = list(big.mark = ","), 
         # table.attr = "style = \"color: black;\"",
-        format = "latex") %>%
+        format = "html") %>%
     kable_styling(position = "center", full_width = F, 
                   bootstrap_options = c("striped", "hover"), stripe_color = "gray", font_size = 12, 
                   latex_options = "hold_position") %>%
-  footnote(paste("N =", tool_df$N[1]))
+  footnote(paste("N =", tool_df$N[1]))  %>%
+      save_kable(file = "temp.html")
+
+chrome_print("temp.html", output = "Alameda/PSA_AUC.pdf", format = "pdf") 
 ```
 \newpage
 
@@ -4046,11 +4061,14 @@ names(tool_df) <- c("Outcome", "AUC", "CI (95%)", "N")
 
 kable(tool_df %>% select(-starts_with("N")), booktabs = T, format.args = list(big.mark = ","), 
         # table.attr = "style = \"color: black;\"",
-        format = "latex") %>%
+        format = "html") %>%
     kable_styling(position = "center", full_width = F, 
                   bootstrap_options = c("striped", "hover"), stripe_color = "gray", font_size = 12, 
                   latex_options = "hold_position") %>%
-  footnote(paste("N =", tool_df$N[1]))
+  footnote(paste("N =", tool_df$N[1]))  %>%
+      save_kable(file = "temp.html")
+
+chrome_print("temp.html", output = "San Joaquin/VPRAI_AUC.pdf", format = "pdf") 
 ```
 \newpage
 
@@ -4071,11 +4089,14 @@ names(tool_df) <- c("Outcome", "AUC", "CI (95%)", "N")
 
 kable(tool_df %>% select(-starts_with("N")), booktabs = T, format.args = list(big.mark = ","), 
         # table.attr = "style = \"color: black;\"",
-        format = "latex") %>%
+        format = "html") %>%
     kable_styling(position = "center", full_width = F, 
                   bootstrap_options = c("striped", "hover"), stripe_color = "gray", font_size = 12, 
                   latex_options = "hold_position") %>%
-  footnote(paste("N =", tool_df$N[1]), footnote_as_chunk = T)
+  footnote(paste("N =", tool_df$N[1]), footnote_as_chunk = T)  %>%
+      save_kable(file = "temp.html")
+
+chrome_print("temp.html", output = "Santa Barbara/VPRAIR_AUC.pdf", format = "pdf") 
 
 ```
 \newpage
@@ -4100,63 +4121,17 @@ names(tool_df) <- c("Risk Score", "Outcome", "AUC", "CI (95%)", "N")
 
 kable(tool_df %>% select(-starts_with("N")), booktabs = T, format.args = list(big.mark = ","), 
         # table.attr = "style = \"color: black;\"",
-        format = "latex") %>%
+        format = "html") %>%
     kable_styling(position = "center", full_width = F, 
                   bootstrap_options = c("striped", "hover"), stripe_color = "gray", font_size = 12, 
                   latex_options = "hold_position") %>%
-  footnote(paste("N =", tool_df$N[1]))
+  footnote(paste("N =", tool_df$N[1]))  %>%
+      save_kable(file = "temp.html")
+
+chrome_print("temp.html", output = "Sonoma/PSA_AUC.pdf", format = "pdf") 
 ```
 \newpage
 
-Ventura 
-\newline
-```{r}
-tool_df <- auc_df %>%
-  filter(tool_name == "ORAS", race == "All", sex == "All", county == "Ventura") %>%
-  select(outcome, AUC, CI, n) %>%
- mutate(outcome = case_when(outcome == "fta_flag" ~ "FTA",                              
-                            outcome == "recid_arrested_flag" ~ "New Arrest",                             
-                            outcome == "recid_filed_flag" ~ "New Filing",                              
-                            outcome == "recid_convicted_flag" ~ "New Conviction",                              
-                            outcome == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest",                            
-                            outcome == "any_pretrial_failure_flag" ~ "FTA or New Arrest"))
-
-names(tool_df) <- c("Outcome", "AUC", "CI (95%)", "N")
-
-kable(tool_df %>% select(-starts_with("N")), booktabs = T, format.args = list(big.mark = ","), 
-        # table.attr = "style = \"color: black;\"",
-        format = "latex") %>%
-    kable_styling(position = "center", full_width = F, 
-                  bootstrap_options = c("striped", "hover"), stripe_color = "gray", font_size = 12, 
-                  latex_options = "hold_position") %>%
-  footnote(paste("N =", tool_df$N[1]))
-```
-\newpage
-
-Modoc  - TEMPORARILY REMOVED
-\newline
-```{r eval=FALSE, include=FALSE}
-tool_df <- auc_df %>%
-  filter(tool_name == "ORAS", race == "All", sex == "All", county == "Modoc") %>%
-  select(outcome, AUC, CI, n) %>%
- mutate(outcome = case_when(outcome == "fta_flag" ~ "FTA",                              
-                            outcome == "recid_arrested_flag" ~ "New Arrest",                             
-                            outcome == "recid_filed_flag" ~ "New Filing",                              
-                            outcome == "recid_convicted_flag" ~ "New Conviction",                              
-                            outcome == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest",                            
-                            outcome == "any_pretrial_failure_flag" ~ "FTA or New Arrest"))
-
-names(tool_df) <- c("Outcome", "AUC", "CI (95%)", "N")
-
-kable(tool_df %>% select(-starts_with("N")), booktabs = T, format.args = list(big.mark = ","), 
-        # table.attr = "style = \"color: black;\"",
-        format = "latex") %>%
-    kable_styling(position = "center", full_width = F, 
-                  bootstrap_options = c("striped", "hover"), stripe_color = "gray", font_size = 12, 
-                  latex_options = "hold_position") %>%
-  footnote(paste("N =", tool_df$N[1]))
-```
-\newpage
 
 Napa
 \newline
@@ -4175,11 +4150,14 @@ names(tool_df) <- c("Outcome", "AUC", "CI (95%)", "N")
 
 kable(tool_df %>% select(-starts_with("N")), booktabs = T, format.args = list(big.mark = ","), 
         # table.attr = "style = \"color: black;\"",
-        format = "latex") %>%
+        format = "html") %>%
     kable_styling(position = "center", full_width = F, 
                   bootstrap_options = c("striped", "hover"), stripe_color = "gray", font_size = 12, 
                   latex_options = "hold_position") %>%
-  footnote(paste("N =", tool_df$N[1]))
+  footnote(paste("N =", tool_df$N[1]))  %>%
+      save_kable(file = "temp.html")
+
+chrome_print("temp.html", output = "Napa/ORAS_AUC.pdf", format = "pdf") 
 ```
 \newpage
 
@@ -4203,41 +4181,17 @@ names(tool_df) <- c("Risk Score", "Outcome", "AUC", "CI (95%)", "N")
 
 kable(tool_df %>% select(-starts_with("N")), booktabs = T, format.args = list(big.mark = ","), 
         # table.attr = "style = \"color: black;\"",
-        format = "latex") %>%
+        format = "html") %>%
     kable_styling(position = "center", full_width = F, 
                   bootstrap_options = c("striped", "hover"), stripe_color = "gray", font_size = 12, 
                   latex_options = "hold_position") %>%
-  footnote(paste("N =", tool_df$N[1]))
+  footnote(paste("N =", tool_df$N[1]))  %>%
+      save_kable(file = "temp.html")
+
+chrome_print("temp.html", output = "Tulare/PSA_AUC.pdf", format = "pdf") 
 ```
 \newpage
 
-Calaveras  - TEMPORARILY REMOVED
-\newline
-```{r eval=FALSE, include=FALSE}
-tool_df <- auc_df %>%
-  filter(tool_name == "PSA", race == "All", sex == "All", county == "Calaveras") %>%
-  select(risk_score, outcome, AUC, CI, n) %>%
-  mutate(risk_score = case_when(risk_score == "psa_fta_risk_score" ~ "PSA FTA",                                 
-                                risk_score == "psa_nca_risk_score" ~ "PSA NCA",                                 
-                                risk_score == "psa_nvca_risk_score" ~ "PSA NVCA")) %>%
-  mutate(outcome = case_when(outcome == "fta_flag" ~ "FTA",
-                             outcome == "recid_arrested_flag" ~ "New Arrest",
-                             outcome == "recid_filed_flag" ~ "New Filing",
-                             outcome == "recid_convicted_flag" ~ "New Conviction",
-                             outcome == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest",
-                             outcome == "any_pretrial_failure_flag" ~ "FTA or New Arrest"))
-
-names(tool_df) <- c("Risk Score", "Outcome", "AUC", "CI (95%)", "N")
-
-kable(tool_df %>% select(-starts_with("N")), booktabs = T, format.args = list(big.mark = ","), 
-        # table.attr = "style = \"color: black;\"",
-        format = "latex") %>%
-    kable_styling(position = "center", full_width = F, 
-                  bootstrap_options = c("striped", "hover"), stripe_color = "gray", font_size = 12, 
-                  latex_options = "hold_position") %>%
-  footnote(paste("N =", tool_df$N[1]))
-```
-\newpage
 
 # Race Table
 ```{r include=FALSE}
@@ -4277,6 +4231,7 @@ ggplot(risk_df %>% distinct(oras_risk_score, Total, race) %>%
   theme_bw() +
   scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
   labs(x = "Risk Category", y = "Percent", title = "Distribution of Assessments by ORAS Risk Category", fill = "Race")
+ggsave("ORAS_regression_race_graph.png")
 
 risk_df <- risk_df %>%
   distinct(race, oras_risk_score, Total) %>%
@@ -4285,9 +4240,13 @@ risk_df <- risk_df %>%
 
 kable(risk_df, booktabs = T, format.args = list(big.mark = ","), 
         # table.attr = "style = \"color: black;\"",
-        format = "latex") %>%
+        format = "html") %>%
     kable_styling(position = "center", full_width = F, 
-                  bootstrap_options = c("striped", "hover"), stripe_color = "gray", font_size = 12, latex_options = "hold_position") 
+                  bootstrap_options = c("striped", "hover"), stripe_color = "gray", font_size = 12, latex_options = "hold_position") %>%
+      save_kable(file = "temp.html")
+
+chrome_print("temp.html", output = "ORAS_regression_race_table.pdf", format = "pdf")    
+
 ```
 \newpage
 
@@ -4318,7 +4277,8 @@ ggplot(risk_df %>% distinct(vprai_risk_score, Total) %>%
   geom_col(position = "dodge") +
   geom_text(vjust = -0.2, aes(label = str_c(round(percent*100), "%")), size = 2.6, position = position_dodge(width = .9)) +
   theme_bw() +   scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
-  labs(x = "Risk Category", y = "Percent", title = "Distribution of Assessments by VPRAI Risk Category", fill = "Race")    
+  labs(x = "Risk Category", y = "Percent", title = "Distribution of Assessments by VPRAI Risk Category", fill = "Race") 
+ggsave("VPRAI_regression_race_graph.png")
 
 risk_df <- risk_df %>%
   distinct(race, vprai_risk_score, Total) %>%
@@ -4327,9 +4287,12 @@ risk_df <- risk_df %>%
 
 kable(risk_df, booktabs = T, format.args = list(big.mark = ","), 
         # table.attr = "style = \"color: black;\"",
-        format = "latex") %>%
+        format = "html") %>%
     kable_styling(position = "center", full_width = F, 
-                  bootstrap_options = c("striped", "hover"), stripe_color = "gray", font_size = 12, latex_options = "hold_position") 
+                  bootstrap_options = c("striped", "hover"), stripe_color = "gray", font_size = 12, latex_options = "hold_position")  %>%
+      save_kable(file = "temp.html")
+
+chrome_print("temp.html", output = "VPRAI_regression_race_table.pdf", format = "pdf")    
 ```
 \newpage
 
@@ -4361,6 +4324,7 @@ ggplot(risk_df %>% distinct(vprair_risk_score, Total) %>%
   theme_bw() +   scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
   geom_text(vjust = -0.2, aes(label = str_c(round(percent*100), "%")), size = 2.6, position = position_dodge(width = .9)) +
   labs(x = "Risk Category", y = "Percent", title = "Distribution of Assessments by VPRAIR Risk Category", fill = "Race")  
+ggsave("VPRAIR_regression_race_graph.png")
 
 risk_df <- risk_df %>%
   distinct(race, vprair_risk_score, Total) %>%
@@ -4369,9 +4333,12 @@ risk_df <- risk_df %>%
 
 kable(risk_df, booktabs = T, format.args = list(big.mark = ","), 
         # table.attr = "style = \"color: black;\"",
-        format = "latex") %>%
+        format = "html") %>%
     kable_styling(position = "center", full_width = F, 
-                  bootstrap_options = c("striped", "hover"), stripe_color = "gray", font_size = 12, latex_options = "hold_position") 
+                  bootstrap_options = c("striped", "hover"), stripe_color = "gray", font_size = 12, latex_options = "hold_position")  %>%
+      save_kable(file = "temp.html")
+
+chrome_print("temp.html", output = "VPRAIR_regression_race_table.pdf", format = "pdf")    
 ```
 \newpage
 
@@ -4438,6 +4405,8 @@ ggplot(risk_df %>%
   facet_wrap(~name, scales = "free", ncol = 1) +
   labs(x = "Risk Category", y = "Percent", title = "Distribution of Assessments by PSA Risk Category", fill = "Race") +
   scale_y_continuous(expand = expansion(mult = c(.1, .15)), labels = scales::percent_format(accuracy = 1))
+ggsave("PSA_regression_race_graph.png")
+
 
 fta_df <- risk_df %>%
   filter(name == "FTA") %>%
@@ -4447,9 +4416,12 @@ fta_df <- risk_df %>%
 
 kable(fta_df, booktabs = T, format.args = list(big.mark = ","), 
         # table.attr = "style = \"color: black;\"",
-        format = "latex") %>%
+        format = "html") %>%
     kable_styling(position = "center", full_width = F, 
-                  bootstrap_options = c("striped", "hover"), stripe_color = "gray", font_size = 12, latex_options = "hold_position") 
+                  bootstrap_options = c("striped", "hover"), stripe_color = "gray", font_size = 12, latex_options = "hold_position")  %>%
+      save_kable(file = "temp.html")
+
+chrome_print("temp.html", output = "PSA_FTA_regression_race_table.pdf", format = "pdf")    
 
 nca_df <- risk_df %>%
   filter(name == "New Arrest") %>%
@@ -4459,9 +4431,12 @@ nca_df <- risk_df %>%
 
 kable(nca_df, booktabs = T, format.args = list(big.mark = ","), 
         # table.attr = "style = \"color: black;\"",
-        format = "latex") %>%
+        format = "html") %>%
     kable_styling(position = "center", full_width = F, 
-                  bootstrap_options = c("striped", "hover"), stripe_color = "gray", font_size = 12, latex_options = "hold_position") 
+                  bootstrap_options = c("striped", "hover"), stripe_color = "gray", font_size = 12, latex_options = "hold_position")  %>%
+      save_kable(file = "temp.html")
+
+chrome_print("temp.html", output = "PSA_NCA_regression_race_table.pdf", format = "pdf")    
 
 nvca_df <- risk_df %>%
   filter(name == "New Violent Arrest") %>%
@@ -4471,55 +4446,17 @@ nvca_df <- risk_df %>%
 
 kable(nvca_df, booktabs = T, format.args = list(big.mark = ","), 
         # table.attr = "style = \"color: black;\"",
-        format = "latex") %>%
+        format = "html") %>%
     kable_styling(position = "center", full_width = F, 
-                  bootstrap_options = c("striped", "hover"), stripe_color = "gray", font_size = 12, latex_options = "hold_position") 
+                  bootstrap_options = c("striped", "hover"), stripe_color = "gray", font_size = 12, latex_options = "hold_position")  %>%
+      save_kable(file = "temp.html")
+
+chrome_print("temp.html", output = "PSA_NVCA_regression_race_table.pdf", format = "pdf")    
 
 
 ```
 \newpage
 
-Alameda - VPRAI-R
-\newline
-```{r}
-risk_df <- race_df %>%
-   # filter(book_date <= as_date("2021-03-31"),
-   #       book_date >= as_date("2019-10-01")) %>%
-  filter(tool_name == "VPRAI-R", !is.na(vprair_risk_score), county == "Alameda") %>%
-  group_by(race, vprair_risk_score) %>%
-  summarise(across(c(fta_flag, recid_arrested_flag, recid_filed_flag, recid_convicted_flag, 
-                    any_pretrial_failure_flag, recid_arrest_violent_psa_flag),
-                   ~round(mean(.x)*100, 1)), Total = n()) %>%
-  pivot_longer(fta_flag:recid_arrest_violent_psa_flag) %>%
-  mutate(name = case_when(name == "fta_flag" ~ "FTA",
-                          name == "recid_arrested_flag" ~ "New Arrest",
-                          name == "recid_filed_flag" ~ "New Filing",
-                          name == "recid_convicted_flag" ~ "New Conviction",
-                          name == "any_pretrial_failure_flag" ~ "FTA or New Arrest",
-                          name == "recid_arrest_violent_psa_flag" ~ "New Violent Arrest"),
-         name = factor(name, levels = c("FTA or New Arrest", "FTA", "New Arrest", "New Filing", "New Conviction", "New Violent Arrest")))
-
-ggplot(risk_df %>% distinct(vprair_risk_score, Total) %>% 
-         group_by(race) %>% 
-         mutate(percent = Total/sum(Total))) +
-  aes(x = as.factor(vprair_risk_score), y = percent, fill = race) +
-  geom_col(position = "dodge") +
-  geom_text(vjust = -0.2, aes(label = str_c(round(percent*100), "%")), size = 2.6, position = position_dodge(width = .9)) +
-  theme_bw() +   scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
-  labs(x = "Risk Category", y = "Percent", title = "Alameda Distribution of Assessments by VPRAIR Risk Category", fill = "Race")  
-
-risk_df <- risk_df %>%
-  distinct(race, vprair_risk_score, Total) %>%
-  pivot_wider(names_from = race, values_from = Total) %>%
-  rename(`VPRAIR Risk Score` = vprair_risk_score)
-
-kable(risk_df, booktabs = T, format.args = list(big.mark = ","), 
-        # table.attr = "style = \"color: black;\"",
-        format = "latex") %>%
-    kable_styling(position = "center", full_width = F, 
-                  bootstrap_options = c("striped", "hover"), stripe_color = "gray", font_size = 12, latex_options = "hold_position") 
-```
-\newpage
 
 Los Angeles
 \newline
